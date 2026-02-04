@@ -38,7 +38,7 @@ export default function AdminLogin() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 2;
   const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);

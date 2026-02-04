@@ -277,7 +277,7 @@ export default function IPharmaForm() {
       <div style={styles.bgOverlay}></div>
  
       <nav style={styles.navbar}>
-        <Link to="/" style={styles.backLink}>
+        <Link to="/apply-franchise" style={styles.backLink}>
           <span style={styles.backArrow}>←</span>
           <span>Back to Application</span>
         </Link>
@@ -831,7 +831,7 @@ bgOverlay: {
     display: "flex",
     alignItems: "center",
     gap: "0.5rem",
-    color: "#2e9976",
+    color: "#2E7D32",
     textDecoration: "none",
     fontWeight: "600",
     fontSize: "1rem",

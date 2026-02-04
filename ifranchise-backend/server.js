@@ -14,6 +14,14 @@ app.use(cookieParser());
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.json());
 
+app.use(cookieParser());
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:19006",   // Expo web default
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:19006",
+];
+
 // ===== DB =====
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -566,9 +574,16 @@ app.post('/applications', (req, res) => {
   try {
     console.log('Received application:', req.body);
 
+    const fullName = [
+      req.body.firstName,
+      req.body.middleInitial ? req.body.middleInitial + '.' : '',
+      req.body.lastName
+    ].filter(Boolean).join(' ').trim();
+
     const newApplication = {
       id: applications.length + 1,
       ...req.body,
+      name: fullName,
       status: 'pending',
       date: new Date().toISOString().split('T')[0]
     };

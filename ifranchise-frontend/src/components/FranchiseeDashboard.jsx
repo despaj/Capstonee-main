@@ -650,7 +650,7 @@ function DashboardContent() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon blue">💰</div>
+            <div className="stat-icon blue"></div>
           </div>
           <div className="stat-value">₱185K</div>
           <div className="stat-label">Monthly Sales</div>
@@ -659,7 +659,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon green">📦</div>
+            <div className="stat-icon green"></div>
           </div>
           <div className="stat-value">342</div>
           <div className="stat-label">Inventory Items</div>
@@ -668,7 +668,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon orange">📈</div>
+            <div className="stat-icon orange"></div>
           </div>
           <div className="stat-value">₱2.1M</div>
           <div className="stat-label">Total Revenue (YTD)</div>
@@ -677,7 +677,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon red">⚠️</div>
+            <div className="stat-icon red"></div>
           </div>
           <div className="stat-value">2</div>
           <div className="stat-label">Low Stock Alerts</div>
@@ -690,7 +690,7 @@ function DashboardContent() {
           <h2 className="section-title">Quick Overview</h2>
         </div>
         <div className="chart-placeholder">
-          📊 Sales Performance Chart
+           Sales Performance Chart
         </div>
       </div>
 
@@ -716,12 +716,12 @@ function InventorySummaryContent({ inventorySummary }) {
     <>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon green">📦</div>
+          <div className="stat-icon green"></div>
           <div className="stat-value">{inventorySummary.length}</div>
           <div className="stat-label">Total Items</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon orange">⚠️</div>
+          <div className="stat-icon orange"></div>
           <div className="stat-value">
             {inventorySummary.filter(item => item.status === 'low').length}
           </div>
@@ -778,7 +778,7 @@ function ReportsContent() {
       </div>
 
       <div className="chart-placeholder">
-        📊 Sales Analytics Dashboard
+        Sales Analytics Dashboard
       </div>
 
       <div style={{ marginTop: '2rem' }}>
@@ -816,7 +816,6 @@ function ReportsContent() {
   );
 }
 
-// Profile Content Component
 // Profile Content Component
 function ProfileContent({ user }) {
   const [formData, setFormData] = useState({
@@ -1098,7 +1097,7 @@ function ProfileContent({ user }) {
               onChange={handleInputChange}
             />
             <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: '0.5rem' }}>
-              💡 OTP for password changes will be sent to this email (or work email if not provided)
+               OTP for password changes will be sent to this email (or work email if not provided)
             </p>
           </div>
 
@@ -1117,7 +1116,7 @@ function ProfileContent({ user }) {
           <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid var(--gray-200)' }}>
             <h3 style={{ marginBottom: '0.5rem', color: 'var(--green-primary)' }}>Change Password</h3>
             <p style={{ fontSize: '0.9rem', color: 'var(--gray-500)', marginBottom: '1.5rem' }}>
-              🔐 An OTP will be sent to your email for verification
+              An OTP will be sent to your email for verification
             </p>
             
             <div className="form-group">
@@ -1218,7 +1217,7 @@ function ProfileContent({ user }) {
         <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
-              <h2 className="modal-title">🔐 Verify OTP</h2>
+              <h2 className="modal-title">Verify OTP</h2>
               <p style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
                 We've sent a verification code to:
               </p>
@@ -1263,7 +1262,7 @@ function ProfileContent({ user }) {
                   borderRadius: '8px',
                   color: 'var(--green-primary)'
                 }}>
-                  ✅ OTP sent successfully
+                  OTP sent successfully
                 </div>
               )}
 
@@ -1276,7 +1275,7 @@ function ProfileContent({ user }) {
                   borderRadius: '8px',
                   color: 'var(--red)'
                 }}>
-                  ❌ {otpError}
+                  {otpError}
                 </div>
               )}
 
@@ -1341,7 +1340,7 @@ function ProfileContent({ user }) {
                 margin: '0 auto 1.5rem',
                 fontSize: '3rem'
               }}>
-                ✅
+                
               </div>
               
               <h2 style={{ 
@@ -1380,7 +1379,7 @@ function ProfileContent({ user }) {
                 fontSize: '0.85rem',
                 color: 'var(--gray-600)'
               }}>
-                💡 Please use your new password on the next login
+                Please use your new password on the next login
               </div>
             </div>
           </div>

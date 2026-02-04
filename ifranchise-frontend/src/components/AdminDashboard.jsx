@@ -116,14 +116,14 @@ const handleApproveApplication = async (id) => {
   ]);
 
   const navigation = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { id: 'inventory', icon: '📦', label: 'Inventory Management' },
-    { id: 'applications', icon: '📋', label: 'View Applications' },
-    { id: 'users', icon: '👥', label: 'User Management' },
-    { id: 'reports', icon: '📈', label: 'Sales & Reports' },
-    { id: 'communication', icon: '💬', label: 'Communication' },
-    { id: 'profile', icon: '⚙️', label: 'Edit Profile' },
-    { id: 'logout', icon: '🚪', label: 'Logout', action: handleLogout },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'inventory', label: 'Inventory Management' },
+    { id: 'applications', label: 'View Applications' },
+    { id: 'users', label: 'User Management' },
+    { id: 'reports', label: 'Sales & Reports' },
+    { id: 'communication', label: 'Communication' },
+    { id: 'profile', label: 'Edit Profile' },
+    { id: 'logout', label: 'Logout', action: handleLogout },
   ];
 
   const handleCreateAccount = (applicant) => {
@@ -846,7 +846,7 @@ function DashboardContent() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon blue">💰</div>
+            <div className="stat-icon blue"></div>
           </div>
           <div className="stat-value">₱2.4M</div>
           <div className="stat-label">Total Sales (Month)</div>
@@ -855,7 +855,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon green">📦</div>
+            <div className="stat-icon green"></div>
           </div>
           <div className="stat-value">1,248</div>
           <div className="stat-label">Inventory Items</div>
@@ -864,7 +864,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon orange">🏪</div>
+            <div className="stat-icon orange"></div>
           </div>
           <div className="stat-value">12</div>
           <div className="stat-label">Active Branches</div>
@@ -873,7 +873,7 @@ function DashboardContent() {
 
         <div className="stat-card">
           <div className="stat-header">
-            <div className="stat-icon red">📋</div>
+            <div className="stat-icon red"></div>
           </div>
           <div className="stat-value">5</div>
           <div className="stat-label">Pending Applications</div>
@@ -883,14 +883,14 @@ function DashboardContent() {
 
       <div className="section">
         <div className="section-header">
-          <h2 className="section-title">🤖 AI-Assisted Insights</h2>
+          <h2 className="section-title"> AI-Assisted Insights</h2>
           <button className="btn btn-primary">Generate New Report</button>
         </div>
 
         <div className="insights-grid">
           <div className="insight-card">
             <div className="insight-header">
-              <span className="insight-icon">📈</span>
+              <span className="insight-icon"></span>
               <h3 className="insight-title">Sales Trend Analysis</h3>
             </div>
             <p className="insight-text">
@@ -900,7 +900,7 @@ function DashboardContent() {
 
           <div className="insight-card">
             <div className="insight-header">
-              <span className="insight-icon">📊</span>
+              <span className="insight-icon"></span>
               <h3 className="insight-title">Inventory Predictions</h3>
             </div>
             <p className="insight-text">
@@ -910,7 +910,7 @@ function DashboardContent() {
 
           <div className="insight-card">
             <div className="insight-header">
-              <span className="insight-icon">⚠️</span>
+              <span className="insight-icon"></span>
               <h3 className="insight-title">Compliance Monitoring</h3>
             </div>
             <p className="insight-text">
@@ -920,7 +920,7 @@ function DashboardContent() {
         </div>
 
         <div className="chart-placeholder">
-          📊 Sales Performance Chart (Chart.js Integration Placeholder)
+          Sales Performance Chart (Chart.js Integration Placeholder)
         </div>
       </div>
 
@@ -929,7 +929,7 @@ function DashboardContent() {
           <h2 className="section-title">Branch Performance Overview</h2>
         </div>
         <div className="chart-placeholder">
-          📈 Branch Analytics Dashboard (Placeholder for detailed analytics)
+           Branch Analytics Dashboard (Placeholder for detailed analytics)
         </div>
       </div>
     </>
@@ -978,7 +978,7 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
                       onClick={() => onView(app)}
                       title="View full application"
                     >
-                      👁️ View
+                       View
                     </button>
                     <button 
                       className="btn btn-success btn-sm"
@@ -1102,12 +1102,12 @@ function InventoryContent({ inventory, setInventory }) {
     <>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon green">📦</div>
+          <div className="stat-icon green"></div>
           <div className="stat-value">{inventory.length}</div>
           <div className="stat-label">Total Items</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon orange">⚠️</div>
+          <div className="stat-icon orange"></div>
           <div className="stat-value">
             {inventory.filter(item => item.stock < item.minStock).length}
           </div>
@@ -1376,7 +1376,7 @@ function ReportsContent() {
       </div>
 
       <div className="chart-placeholder">
-        📊 Sales Analytics Dashboard (Placeholder - Connect to Database)
+         Sales Analytics Dashboard (Placeholder - Connect to Database)
       </div>
 
       <div style={{ marginTop: '2rem' }}>
@@ -1798,7 +1798,7 @@ function CommunicationContent() {
 
         <div style={{ background: 'var(--gray-100)', padding: '1.5rem', borderRadius: '12px' }}>
           <div className="chart-placeholder" style={{ height: '100%' }}>
-            💬 Message Thread (Placeholder for real-time messaging)
+             Message Thread (Placeholder for real-time messaging)
           </div>
         </div>
       </div>
@@ -2087,7 +2087,7 @@ function ProfileContent({ user }) {
               onChange={handleInputChange}
             />
             <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', marginTop: '0.5rem' }}>
-              💡 OTP for password changes will be sent to this email (or work email if not provided)
+             OTP for password changes will be sent to this email (or work email if not provided)
             </p>
           </div>
 

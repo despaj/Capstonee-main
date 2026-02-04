@@ -14,7 +14,9 @@ export default function ApplyFranchise() {
   const [form, setForm] = useState({
     date: "",
     paymentMode: "",
-    applicantName: "",
+    lastName: "",
+    firstName: "",
+    middleInitial: "",
     dob: "",
     dependents: "",
     gender: "",
@@ -55,11 +57,13 @@ export default function ApplyFranchise() {
     [name]: newValue,
   }));
 
-  // Validate this field immediately
-  setErrors((prev) => ({
-    ...prev,
-    [name]: validateField(name, newValue),
-  }));
+  // Clear error for this field when user starts typing
+  if (errors[name]) {
+    setErrors((prev) => ({
+      ...prev,
+      [name]: "",
+    }));
+  }
 };
 
 const handleBlur = (e) => {
@@ -71,7 +75,6 @@ const handleBlur = (e) => {
   }));
 };
 
- 
   const concepts = [
     "Coffee Spot Outdoor Kiosk",
     "Coffee Spot Full Store",
@@ -105,25 +108,32 @@ const handleBlur = (e) => {
   const validateField = (name, value) => {
     let error = "";
 
-    if (!value && name !== "spouseName" && name !== "spouseOccupation") {
+    // Check if field is required but empty (excluding spouse fields and middle initial)
+    if (!value && name !== "spouseName" && name !== "spouseOccupation" && name !== "middleInitial") {
       error = "Required";
+      return error;
+    }
+
+    // Specific validations only if value exists
+    if (name === "middleInitial" && value && value.length > 1) {
+      error = "Only 1 letter";
     }
 
     if (name === "email" && value && !/\S+@\S+\.\S+/.test(value)) {
       error = "Invalid email";
     }
 
-    if (name === "mobile") {
+    if (name === "mobile" && value) {
       const mobileRegex = /^09\d{9}$/;
       if (!mobileRegex.test(value)) {
         error = "Enter a valid 11-digit mobile number";
       }
     }
 
-    if (name === "dob") {
+    if (name === "dob" && value) {
       const birthDate = new Date(value);
       const age = new Date().getFullYear() - birthDate.getFullYear();
-      if (!value || age < 18) {
+      if (age < 18) {
         error = "You must be at least 18 years old";
       }
     }
@@ -164,9 +174,15 @@ const handleBlur = (e) => {
     alert("Please fix the errors before submitting.");
     return;
   }
+
+  const fullName = [
+    form.firstName,
+    form.middleInitial ? form.middleInitial + '.' : '',
+    form.lastName
+  ].filter(Boolean).join(' ').trim();
  
   const applicationData = {
-    name: form.applicantName,
+    name: fullName, 
     email: form.email,
     phone: form.mobile,
     franchise: concept,
@@ -208,7 +224,9 @@ const handleBlur = (e) => {
       setForm({
         date: new Date().toISOString().split("T")[0],
         paymentMode: "",
-        applicantName: "",
+        lastName: "",
+        firstName: "",
+        middleInitial: "",
         dob: "",
         dependents: "",
         gender: "",
@@ -357,18 +375,51 @@ const handleBlur = (e) => {
               <h3 style={styles.sectionTitle}>Applicant Information</h3>
  
               <div style={styles.formGroup}>
-                <label style={styles.label}>
-                  Full Name <span style={styles.required}>*</span>
-                </label>
-                <input
-                  style={styles.input}
-                  name="applicantName"
-                  placeholder="Juan Dela Cruz"
-                  value={form.applicantName}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                />
-                {errors.applicantName && <span style={styles.error}>{errors.applicantName}</span>}
+                <div style={styles.row} className="row">
+                  <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                        Last Name <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                        style={styles.input}
+                        name="lastName"
+                        placeholder="Dela Cruz"
+                        value={form.lastName}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                      />
+                      {errors.lastName && <span style={styles.error}>{errors.lastName}</span>}
+                  </div>
+                  
+                    <div style={styles.formGroup}>
+                  <label style={styles.label}>
+                        First Name <span style={styles.required}>*</span>
+                  </label>
+                  <input
+                        style={styles.input}
+                        name="firstName"
+                        placeholder="Juan"
+                        value={form.firstName}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                      />
+                      {errors.firstName && <span style={styles.error}>{errors.firstName}</span>}
+                  </div>
+                  
+                    <div style={{ ...styles.formGroup, maxWidth: "120px" }}>
+                  <label style={styles.label}>MI</label>
+                  <input
+                        style={styles.input}
+                        name="middleInitial"
+                        placeholder="M"
+                        maxLength={1}
+                        value={form.middleInitial}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                      />
+                      {errors.middleInitial && <span style={styles.error}>{errors.middleInitial}</span>}
+                  </div>
+                  </div>
               </div>
  
               <div style={styles.row} className="row">

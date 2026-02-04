@@ -52,12 +52,12 @@ export default function FranchisorDashboard() {
   ]);
 
   const navigation = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    { id: 'sales', icon: '💰', label: 'Sales Reports' },
-    { id: 'inventory', icon: '📦', label: 'Inventory Summary' },
-    { id: 'branches', icon: '🏪', label: 'Branch Performance' },
-    { id: 'profile', icon: '⚙️', label: 'Edit Profile' },
-    { id: 'logout', icon: '🚪', label: 'Logout', action: handleLogout },
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'sales',label: 'Sales Reports' },
+    { id: 'inventory',  label: 'Inventory Summary' },
+    { id: 'branches', label: 'Branch Performance' },
+    { id: 'profile', label: 'Edit Profile' },
+    { id: 'logout', label: 'Logout', action: handleLogout },
   ];
 
   return (
