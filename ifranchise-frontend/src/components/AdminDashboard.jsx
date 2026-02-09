@@ -1431,6 +1431,10 @@ function UsersContent() {
     password: ''
   });
 
+  const [showPasswordValidation, setShowPasswordValidation] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+
+
   // Fetch users when component loads
   useEffect(() => {
     fetchUsers();
@@ -1447,8 +1451,48 @@ function UsersContent() {
     }
   };
 
+  const validatePasswordStrength = (password) => {
+  const minLength = 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+  const errors = [];
+
+  if (password.length < minLength) errors.push("minLength");
+  if (!hasUpperCase) errors.push("uppercase");
+  if (!hasLowerCase) errors.push("lowercase");
+  if (!hasNumber) errors.push("number");
+  if (!hasSpecialChar) errors.push("specialChar");
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
   const handleAddUser = async (e) => {
     e.preventDefault();
+
+    const passwordCheck = validatePasswordStrength(formData.password);
+
+  if (!passwordCheck.isValid) {
+    const messages = {
+      minLength: "• At least 8 characters",
+      uppercase: "• At least 1 uppercase letter",
+      lowercase: "• At least 1 lowercase letter",
+      number: "• At least 1 number",
+      specialChar: "• At least 1 special character",
+    };
+
+    const errorText =
+      "Password must contain:\n" +
+      passwordCheck.errors.map(err => messages[err]).join("\n");
+
+    alert(errorText);
+    return;
+  }
     
     try {
       const response = await fetch("http://localhost:5001/users", {
@@ -1546,6 +1590,8 @@ function UsersContent() {
       branch: '',
       password: ''
     });
+     setShowPasswordValidation(false);
+    setPasswordErrors([]);
   };
 
   const handleInputChange = (e) => {
@@ -1664,9 +1710,71 @@ function UsersContent() {
                   name="password"
                   className="form-input" 
                   value={formData.password}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    handleInputChange(e);
+                    const value = e.target.value;
+                    
+                    if (value) {
+                      setShowPasswordValidation(true);
+                      const validation = validatePasswordStrength(value);
+                      setPasswordErrors(validation.errors);
+                    } else {
+                      setShowPasswordValidation(false);
+                      setPasswordErrors([]);
+                    }
+                  }}
                   required 
-                />
+                  />
+                  {/* Password Validation Display */}
+                {showPasswordValidation && (
+                  <div style={{ 
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    padding: '10px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                    textAlign: 'left' 
+                  }}>
+                    <div style={{ marginBottom: '6px', fontWeight: '600', color: '#495057' }}>
+                      Password must contain:
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('minLength') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('minLength') ? '✗' : '✓'} At least 8 characters
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('uppercase') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('uppercase') ? '✗' : '✓'} At least one uppercase letter (A-Z)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('lowercase') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('lowercase') ? '✗' : '✓'} At least one lowercase letter (a-z)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('number') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('number') ? '✗' : '✓'} At least one number (0-9)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('specialChar') ? '#dc3545' : '#28a745'
+                    }}>
+                      {passwordErrors.includes('specialChar') ? '✗' : '✓'} At least one special character (!@#$%^&*...)
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
@@ -1750,8 +1858,71 @@ function UsersContent() {
                   className="form-input"
                   placeholder="Enter new password or leave blank"
                   value={formData.password}
-                  onChange={handleInputChange}
-                />
+                  onChange={(e) => {
+                    handleInputChange(e);
+                    const value = e.target.value;
+                    
+                    if (value) {
+                      setShowPasswordValidation(true);
+                      const validation = validatePasswordStrength(value);
+                      setPasswordErrors(validation.errors);
+                    } else {
+                      setShowPasswordValidation(false);
+                      setPasswordErrors([]);
+                    }
+                  }}
+                  required 
+                  />
+                  {/* Password Validation Display */}
+                {showPasswordValidation && (
+                  <div style={{ 
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    padding: '10px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                    textAlign: 'left' 
+                  }}>
+                    <div style={{ marginBottom: '6px', fontWeight: '600', color: '#495057' }}>
+                      Password must contain:
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('minLength') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('minLength') ? '✗' : '✓'} At least 8 characters
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('uppercase') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('uppercase') ? '✗' : '✓'} At least one uppercase letter (A-Z)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('lowercase') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('lowercase') ? '✗' : '✓'} At least one lowercase letter (a-z)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('number') ? '#dc3545' : '#28a745',
+                      marginBottom: '4px'
+                    }}>
+                      {passwordErrors.includes('number') ? '✗' : '✓'} At least one number (0-9)
+                    </div>
+
+                    <div style={{ 
+                      color: passwordErrors.includes('specialChar') ? '#dc3545' : '#28a745'
+                    }}>
+                      {passwordErrors.includes('specialChar') ? '✗' : '✓'} At least one special character (!@#$%^&*...)
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => {

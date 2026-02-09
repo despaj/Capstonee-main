@@ -39,7 +39,8 @@ export default function AdminLogin() {
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
   const MAX_ATTEMPTS = 2;
-  const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+  const LOCKOUT_DURATIONS = [2 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000]; 
+  const [lockoutLevel, setLockoutLevel] = useState(0);
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);
 
@@ -72,9 +73,11 @@ export default function AdminLogin() {
     
     const lockoutKey = `loginLockout_${email.toLowerCase()}`;
     const attemptsKey = `loginAttempts_${email.toLowerCase()}`;
+    const levelKey = `lockoutLevel_${email.toLowerCase()}`;
     
     const storedLockoutTime = localStorage.getItem(lockoutKey);
     const storedAttempts = localStorage.getItem(attemptsKey);
+    const storedLevel = localStorage.getItem(levelKey);
 
     if (storedLockoutTime) {
       const lockTime = parseInt(storedLockoutTime);
@@ -83,6 +86,7 @@ export default function AdminLogin() {
         setIsLocked(true);
         setLockoutTime(lockTime);
         setLoginAttempts(MAX_ATTEMPTS);
+        setLockoutLevel(parseInt(storedLevel) || 0);
       } else {
         localStorage.removeItem(lockoutKey);
         localStorage.removeItem(attemptsKey);
@@ -91,9 +95,11 @@ export default function AdminLogin() {
       }
     } else if (storedAttempts) {
       setLoginAttempts(parseInt(storedAttempts));
+      setLockoutLevel(parseInt(storedLevel) || 0);
     } else {
       setLoginAttempts(0);
       setIsLocked(false);
+      setLockoutLevel(parseInt(storedLevel) || 0);
     }
   }, [email]); // Re-check when email changes
 
@@ -169,7 +175,6 @@ export default function AdminLogin() {
     }
 
     try {
-      // credentials: "include" sends the httpOnly device_token cookie automatically
       const res = await fetch("http://localhost:5001/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,20 +194,18 @@ export default function AdminLogin() {
       }
 
       if (data.success) {
-        
         const attemptsKey = `loginAttempts_${email.toLowerCase()}`;
         const lockoutKey = `loginLockout_${email.toLowerCase()}`;
+        const levelKey = `lockoutLevel_${email.toLowerCase()}`;
         setLoginAttempts(0);
         localStorage.removeItem(attemptsKey);
         localStorage.removeItem(lockoutKey);
 
         if (data.skipOtp) {
-          // ✅ Device trusted (cookie matched server-side) → login directly
           localStorage.setItem("user", JSON.stringify(data.user));
           setLoggedIn(true);
           setUserRole(data.user.role);
         } else {
-          // ❗ OTP required
           setOtpEmail(email.trim());
           localStorage.setItem("tempUser", JSON.stringify(data.user));
           setStep("emailPrompt");
@@ -223,14 +226,25 @@ export default function AdminLogin() {
       localStorage.setItem(attemptsKey, newAttemptCount.toString());
 
       if (newAttemptCount >= MAX_ATTEMPTS) {
-        const lockTime = Date.now() + LOCKOUT_DURATION;
+        const currentLevel = Math.min(lockoutLevel, LOCKOUT_DURATIONS.length - 1);
+        const lockDuration = LOCKOUT_DURATIONS[currentLevel];
+        const lockTime = Date.now() + lockDuration;
+
         setIsLocked(true);
         setLockoutTime(lockTime);
         
         // Store lockout per email
         const lockoutKey = `loginLockout_${email.toLowerCase()}`;
+        const levelKey = `lockoutLevel_${email.toLowerCase()}`;
         localStorage.setItem(lockoutKey, lockTime.toString());
-        setAuthError(`Too many failed attempts. Account locked for 15 minutes.`);
+        
+        const nextLevel = Math.min(currentLevel + 1, LOCKOUT_DURATIONS.length - 1);
+        localStorage.setItem(levelKey, nextLevel.toString());
+        setLockoutLevel(nextLevel);
+    
+    // Convert duration to readable format
+    const minutes = Math.floor(lockDuration / 60000);
+    setAuthError(`Too many failed attempts. Account locked for ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
       } else {
         const remainingAttempts = MAX_ATTEMPTS - newAttemptCount;
         setAuthError(`Invalid credentials. ${remainingAttempts} attempt${remainingAttempts !== 1 ? "s" : ""} remaining.`);
@@ -286,9 +300,6 @@ export default function AdminLogin() {
       if (!res.ok) {
         return setOtpError(data.message || "Invalid OTP");
       }
-
-      // OTP verified → complete login
-      // The server already set the device_token httpOnly cookie via credentials: "include"
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.removeItem("tempUser");
       
@@ -300,7 +311,7 @@ export default function AdminLogin() {
     }
   };
 
-  // ===== FORGOT PASSWORD: Send OTP =====
+  // FORGOT PASSWORD: Send OTP
   const sendForgotPasswordOtp = async () => {
     setForgotError("");
 
@@ -308,7 +319,7 @@ export default function AdminLogin() {
       setForgotError("Please enter your email address");
       return;
     }
-
+    
     setStep("forgotPasswordOtp");
 
     try {
@@ -387,15 +398,17 @@ export default function AdminLogin() {
       return;
     }
 
+    if (newPassword === password) {
+      setForgotError("New password must be different from your current password");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setForgotError("Passwords do not match");
       return;
     }
 
     try {
-      // credentials: "include" is the key fix — this tells the browser to:
-      //   1) Send any existing cookies with the request
-      //   2) Store any Set-Cookie headers the server sends back (the new device_token)
       const res = await fetch("http://localhost:5001/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -578,7 +591,9 @@ export default function AdminLogin() {
               />
               <button 
                 className="forgot-link"
-                onClick={() => setStep("forgotPassword")}
+                onClick={() => {
+                  setForgotEmail(email.trim());
+                  setStep("forgotPassword")}}
               >
                 Forgot Password?
               </button>
@@ -596,12 +611,13 @@ export default function AdminLogin() {
             {forgotError && <p className="error general">{forgotError}</p>}
             <div className="input-container">
               <input
-                placeholder="Email Address"
                 type="email"
                 value={forgotEmail}
+                placeholder={forgotEmail || "Email"}
+                disabled
                 onChange={(e) => {
-                  setForgotEmail(e.target.value);
-                  setForgotError("");
+                  setOtpEmail(e.target.value);
+                  setOtpError("");
                 }}
                 onKeyPress={(e) => e.key === "Enter" && sendForgotPasswordOtp()}
               />
@@ -659,7 +675,7 @@ export default function AdminLogin() {
     backgroundColor: '#f8f9fa',
     borderRadius: '4px',
     border: '1px solid #dee2e6',
-    textAlign: 'left'   // 👈 THIS FIXES THE CENTERING
+    textAlign: 'left' 
   }}>
     <div style={{ marginBottom: '6px', fontWeight: '600', color: '#495057' }}>
       Password must contain:
@@ -754,12 +770,13 @@ export default function AdminLogin() {
         {step === "emailPrompt" && (
           <>
             <h2>Confirm Email for OTP</h2>
-            <p>OTP will be sent to this email. You can edit it if needed.</p>
+            <p>OTP will be sent to this email.</p>
             {otpError && <p className="error general">{otpError}</p>}
             <div className="input-container">
               <input
                 placeholder="Email for OTP"
                 value={otpEmail}
+                disabled
                 onChange={(e) => {
                   setOtpEmail(e.target.value);
                   setOtpError("");
@@ -796,9 +813,6 @@ export default function AdminLogin() {
             </div>
             <button className="btn yellow" onClick={verifyOtp}>
               VERIFY OTP
-            </button>
-            <button className="link-small" onClick={() => setStep("emailPrompt")}>
-              Change Email
             </button>
             <button
               className="link-resend"

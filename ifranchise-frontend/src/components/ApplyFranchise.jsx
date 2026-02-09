@@ -52,6 +52,13 @@ export default function ApplyFranchise() {
     newValue = value.replace(/\D/g, "").slice(0, 11);
   }
 
+  // Name fields: allow only letters, spaces, hyphens, and apostrophes
+  if (name === "lastName" || name === "firstName" || name === "middleInitial" || name === "employerName" ||
+     name === "position" || name === "businessNature" || name === "spouseName" || name === "nationality" || 
+     name === "signature") {
+    newValue = value.replace(/[^a-zA-Z\s'-]/g, "");
+  }
+
   setForm((prev) => ({
     ...prev,
     [name]: newValue,
@@ -65,6 +72,55 @@ export default function ApplyFranchise() {
     }));
   }
 };
+
+const [progress, setProgress] = useState(0);
+
+useEffect(() => {
+  const calculateProgress = () => {
+    let totalFields = 0;
+    let filledFields = 0;
+
+    totalFields += 3;
+    if (form.date) filledFields++;
+    if (form.paymentMode) filledFields++;
+    if (concept !== "Select Concept") filledFields++;
+
+    totalFields += 13;
+    if (form.firstName) filledFields++;
+    if (form.lastName) filledFields++;
+    if (form.dob) filledFields++;
+    if (civilStatus) filledFields++;
+    if (form.gender) filledFields++;
+    if (form.nationality) filledFields++;
+    if (form.dependents) filledFields++;
+    if (form.mobile) filledFields++;
+    if (form.email) filledFields++;
+    if (form.address) filledFields++;
+
+    if (civilStatus === "Married" || civilStatus === "Widowed") {
+      totalFields += 2;
+      if (form.spouseName) filledFields++;
+      if (form.spouseOccupation) filledFields++;
+    }
+
+    totalFields += 8;
+    if (form.employmentType) filledFields++;
+    if (form.yearsEmployer) filledFields++;
+    if (form.income) filledFields++;
+    if (form.employerName) filledFields++;
+    if (form.businessAddress) filledFields++;
+    if (form.position) filledFields++;
+    if (form.businessNature) filledFields++;
+
+    totalFields += 1;
+    if (form.signature) filledFields++;
+
+    const percentage = Math.round((filledFields / totalFields) * 100);
+    setProgress(percentage);
+  };
+
+  calculateProgress();
+}, [form, concept, civilStatus]);
 
 const handleBlur = (e) => {
   const { name, value } = e.target;
@@ -94,7 +150,7 @@ const handleBlur = (e) => {
   today.getDate()
 )
   .toISOString()
-  .split("T")[0]; // format YYYY-MM-DD
+  .split("T")[0]; 
  
   const handleConceptSelect = (selectedConcept) => {
     setConcept(selectedConcept);
@@ -297,14 +353,56 @@ const handleBlur = (e) => {
  
       <div style={styles.bgOverlay}></div>
  
-      <nav style={styles.navbar}>
-        <Link to="/" style={styles.backLink}>
-          <span style={styles.backArrow}>←</span>
-          <span>Back to Home</span>
-        </Link>
-     
-      </nav>
- 
+      {/* Combined Navbar + Progress Bar */}
+      <div style={styles.progressContainer}>
+        <div style={styles.progressWrapper}>
+          {/* Header with Back Link and Progress */}
+          <div style={styles.progressHeaderRow}>
+            <Link to="/" style={styles.backLink}>
+              <span style={styles.backArrow}>←</span>
+              <span>Back to Home</span>
+            </Link>
+            
+            <div style={styles.progressInfo}>
+              <span style={styles.progressLabel}>Progress</span>
+              <span style={styles.progressPercentage}>{progress}%</span>
+            </div>
+          </div>
+          
+          <div style={styles.progressBarBg}>
+            <div 
+              style={{
+                ...styles.progressBarFill,
+                width: `${progress}%`,
+                backgroundColor: progress === 100 ? '#10B981' : '#2E7D32'
+              }}
+            >
+              {progress === 100 && (
+                <span style={styles.checkmark}>✓</span>
+              )}
+            </div>
+          </div>
+          <div style={styles.progressSteps}>
+            <div style={progress >= 25 ? styles.stepActive : styles.stepInactive}>
+              <div style={styles.stepDot}></div>
+              <span style={styles.stepLabel}>Basic</span>
+            </div>
+            <div style={progress >= 50 ? styles.stepActive : styles.stepInactive}>
+              <div style={styles.stepDot}></div>
+              <span style={styles.stepLabel}>Details</span>
+            </div>
+            <div style={progress >= 75 ? styles.stepActive : styles.stepInactive}>
+              <div style={styles.stepDot}></div>
+              <span style={styles.stepLabel}>Employment</span>
+            </div>
+            <div style={progress >= 100 ? styles.stepActive : styles.stepInactive}>
+              <div style={styles.stepDot}></div>
+              <span style={styles.stepLabel}>Complete</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div style={styles.container}>
         <div style={styles.card} className="card">
           <div style={styles.cardHeader}>
@@ -774,20 +872,6 @@ const handleBlur = (e) => {
 }
  
 const styles = {
-wrapper: {
-  minHeight: "100vh",
-  position: "relative",
-  paddingTop: "80px",
-  paddingBottom: "40px",
-  fontFamily: "'Montserrat', sans-serif",
-  backgroundImage: `url(${welcome})`,
-  backgroundSize: "cover",
-  backgroundPosition: "center",
-  backgroundRepeat: "no-repeat",
-  animation: "bgFlow 20s ease-in-out infinite alternate",
- 
- 
-},
 bgOverlay: {
   position: "fixed",
   top: 0,
@@ -805,33 +889,18 @@ bgOverlay: {
   backdropFilter: "blur(2px)",
   zIndex: 0,
 },
- 
-  navbar: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "70px",
-    backgroundColor: "#fff",
-    boxShadow: "0 2px 10px rgba(0, 0, 0, 0.1)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 5%",
-    zIndex: 1000,
-  },
   backLink: {
     display: "flex",
     alignItems: "center",
-    gap: "0.5rem",
+    gap: "0.4rem",
     color: "#2E7D32",
     textDecoration: "none",
     fontWeight: "600",
-    fontSize: "1rem",
+    fontSize: "0.9rem",
     transition: "color 0.3s ease",
   },
   backArrow: {
-    fontSize: "1.2rem",
+    fontSize: "1.1rem",
   },
   navTitle: {
     fontSize: "1.4rem",
@@ -1017,4 +1086,108 @@ bgOverlay: {
     color: "#6B7280",
     marginTop: "-1rem",
   },
+progressContainer: {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  backgroundColor: '#fff',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+  zIndex: 999,
+  padding: '2 rem 5%',
+},
+progressWrapper: {
+  maxWidth: '1100px',
+  margin: '0 auto',
+},
+progressHeaderRow: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: '0.4rem',
+},
+progressInfo: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.6rem',
+},
+progressLabel: {
+  fontSize: '0.85rem',
+  fontWeight: '600',
+  color: '#1A1A1A',
+},
+progressPercentage: {
+  fontSize: '1rem',
+  fontWeight: '700',
+  color: '#2E7D32',
+},
+progressBarBg: {
+  width: '100%',
+  height: '8px',
+  backgroundColor: '#E5E7EB',
+  borderRadius: '20px',
+  overflow: 'hidden',
+  position: 'relative',
+},
+progressBarFill: {
+  height: '100%',
+  backgroundColor: '#2E7D32',
+  borderRadius: '20px',
+  transition: 'width 0.4s ease, background-color 0.3s ease',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  paddingRight: '6px',
+},
+checkmark: {
+  color: '#fff',
+  fontSize: '0.6rem',
+  fontWeight: 'bold',
+},
+progressSteps: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: '0.5rem',
+  paddingTop: '0.5rem',
+  borderTop: '1px solid rgba(46, 125, 50, 0.1)',
+},
+stepActive: {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '0.3rem',
+  color: '#2E7D32',
+  transition: 'all 0.3s ease',
+},
+stepInactive: {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '0.3rem',
+  color: '#9CA3AF',
+  transition: 'all 0.3s ease',
+},
+stepDot: {
+  width: '8px',
+  height: '8px',
+  borderRadius: '50%',
+  backgroundColor: 'currentColor',
+},
+stepLabel: {
+  fontSize: '0.7rem',
+  fontWeight: '500',
+  textAlign: 'center',
+},
+wrapper: {
+  minHeight: "100vh",
+  position: "relative",
+  paddingTop: "120px", 
+  paddingBottom: "40px",
+  fontFamily: "'Montserrat', sans-serif",
+  backgroundImage: `url(${welcome})`,
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundRepeat: "no-repeat",
+  animation: "bgFlow 20s ease-in-out infinite alternate",
+},
 };
