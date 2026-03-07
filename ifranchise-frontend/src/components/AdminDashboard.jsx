@@ -493,6 +493,8 @@ const handleApproveApplication = async (id) => {
         .btn-sm {
           padding: 0.5rem 1rem;
           font-size: 0.85rem;
+          text-align: center;
+          white-space: nowrap;
         }
 
         /* Table */
@@ -768,6 +770,9 @@ const handleApproveApplication = async (id) => {
                   item.action();
                 } else {
                   setActiveModule(item.id);
+                  if (item.id === 'applications') {
+                    fetchApplications();
+                  }
                 }
               }}
             >
@@ -801,6 +806,7 @@ const handleApproveApplication = async (id) => {
           {activeModule === 'applications' && (
             <ApplicationsContent 
               applications={applications}
+              onRefresh={fetchApplications}
               onView={handleViewApplication}
               onDelete={handleDeleteApplication}
               onApprove={handleApproveApplication}
@@ -937,15 +943,16 @@ function DashboardContent() {
 }
 
 // Applications Content Component
-function ApplicationsContent({ applications, onView, onDelete, onApprove, onCreateAccount }) {
+function ApplicationsContent({ applications, onView, onDelete, onApprove, onCreateAccount, onRefresh }) {
   return (
-    <div className="section">
+    <div className="section" style={{ width: 'fit-content', maxWidth: '100%' }}>
       <div className="section-header">
         <h2 className="section-title">Franchise Applications</h2>
         <button className="btn btn-secondary">Export to CSV</button>
       </div>
 
       <div className="table-container">
+        <table style={{ minWidth: '900px' }}/>
         <table>
           <thead>
             <tr>
@@ -972,32 +979,15 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
                   </span>
                 </td>
                 <td>
-                  <div className="action-buttons">
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => onView(app)}
-                      title="View full application"
-                    >
-                       View
-                    </button>
-                    <button 
-                      className="btn btn-success btn-sm"
-                      onClick={() => onCreateAccount(app)}
-                    >
-                      Create Account
-                    </button>
-                    <button 
-                      className="btn btn-primary btn-sm"
-                      onClick={() => onApprove(app.id)}
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      className="btn btn-danger btn-sm"
-                      onClick={() => onDelete(app.id)}
-                    >
-                      Delete
-                    </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', width: '170px' }}>
+                    <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
+                      <button className="btn btn-secondary btn-sm" style={{ width: '50%' }} onClick={() => onView(app)}>View</button>
+                      <button className="btn btn-success btn-sm" style={{ width: '60%' }} onClick={() => onCreateAccount(app)}>+Account</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.3rem', width: '100%' }}>
+                      <button className="btn btn-primary btn-sm" style={{ width: '50%' }} onClick={() => onApprove(app.id)}>Approve</button>
+                      <button className="btn btn-danger btn-sm" style={{ width: '50%' }} onClick={() => onDelete(app.id)}>Delete</button>
+                    </div>
                   </div>
                 </td>
               </tr>

@@ -56,7 +56,7 @@ app.post("/login", async (req, res) => {
     const validPass = password === user.rows[0].password; // replace with bcrypt compare
     if (!validPass) return res.status(401).json({ message: "Invalid credentials" });
 
-    // 🔎 Check trusted device
+    // Check trusted device
     if (deviceToken) {
       const device = await pool.query(
         "SELECT * FROM trusted_devices WHERE token=$1 AND user_id=$2 AND expires_at > NOW()",
@@ -71,14 +71,14 @@ app.post("/login", async (req, res) => {
           user: user.rows[0],
         });
       } else {
-        console.log(`❌ No valid trusted device for user ${email}`);
+        console.log(` No valid trusted device for user ${email}`);
       }
     } else {
-      console.log(`❌ No device token cookie found for user ${email}`);
+      console.log(` No device token cookie found for user ${email}`);
     }
 
     // No trusted device → require OTP
-    console.log(`📧 OTP required for user ${email}`);
+    console.log(` OTP required for user ${email}`);
     res.json({ success: true, skipOtp: false, user: user.rows[0] });
 
   } catch (err) {
@@ -128,7 +128,7 @@ app.post("/verify-otp-login", async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    // 🔐 Check OTP exists and not expired
+    // Check OTP exists and not expired
     if (!otpStore[email]) {
       return res.status(401).json({ message: "No OTP found for this email" });
     }
@@ -148,7 +148,7 @@ app.post("/verify-otp-login", async (req, res) => {
 
     // OTP valid → remove it
     delete otpStore[email];
-    console.log(`✅ OTP verified for ${email}`);
+    console.log(` OTP verified for ${email}`);
 
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     if (user.rows.length === 0) {
@@ -174,17 +174,17 @@ app.post("/verify-otp-login", async (req, res) => {
         "UPDATE trusted_devices SET token=$1, expires_at=$2 WHERE user_id=$3",
         [deviceToken, expires, userId]
       );
-      console.log(`🔄 Updated existing device token for user ${userId}`);
+      console.log(` Updated existing device token for user ${userId}`);
     } else {
       // Insert new token
       await pool.query(
         "INSERT INTO trusted_devices (user_id, token, expires_at) VALUES ($1, $2, $3)",
         [userId, deviceToken, expires]
       );
-      console.log(`🆕 Created new device token for user ${userId}`);
+      console.log(` Created new device token for user ${userId}`);
     }
 
-    // 🍪 Save cookie (30 days)
+    // Save cookie (30 days)
     res.cookie("device_token", deviceToken, {
       httpOnly: true,
       secure: false, // set to true in production with HTTPS
@@ -192,7 +192,7 @@ app.post("/verify-otp-login", async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
     });
 
-    console.log(`🍪 Device cookie set for user ${email}`);
+    console.log(`Device cookie set for user ${email}`);
 
     res.json({ success: true, user: user.rows[0] });
 
@@ -339,7 +339,7 @@ app.put("/users/:id/password", async (req, res) => {
 
     // 1️⃣ Check OTP
     if (!otpStore[email]) {
-      console.log("❌ No OTP found");
+      console.log("No OTP found");
       return res.status(401).json({ error: "No OTP found. Please request a new one." });
     }
 
@@ -348,18 +348,18 @@ app.put("/users/:id/password", async (req, res) => {
     // Check expiration
     if (Date.now() > storedOtp.expires) {
       delete otpStore[email];
-      console.log("❌ OTP expired");
+      console.log("OTP expired");
       return res.status(401).json({ error: "OTP has expired. Please request a new one." });
     }
 
     // Check OTP match
     if (storedOtp.code !== otp) {
-      console.log("❌ OTP mismatch");
+      console.log("OTP mismatch");
       return res.status(401).json({ error: "Invalid OTP" });
     }
 
     delete otpStore[email];
-    console.log("✅ OTP PASSED");
+    console.log("OTP PASSED");
 
     // 2️⃣ Check current password
     const result = await pool.query(
@@ -368,18 +368,18 @@ app.put("/users/:id/password", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      console.log("❌ USER NOT FOUND");
+      console.log("USER NOT FOUND");
       return res.status(404).json({ error: "User not found" });
     }
 
     const storedPassword = result.rows[0].password;
 
     if (storedPassword !== currentPassword) {
-      console.log("❌ CURRENT PASSWORD WRONG");
+      console.log("CURRENT PASSWORD WRONG");
       return res.status(400).json({ error: "Current password is incorrect" });
     }
 
-    console.log("✅ CURRENT PASSWORD CORRECT");
+    console.log("CURRENT PASSWORD CORRECT");
 
     // 3️⃣ Update password
     await pool.query(
@@ -387,7 +387,7 @@ app.put("/users/:id/password", async (req, res) => {
       [newPassword, userId]
     );
 
-    console.log("✅ PASSWORD UPDATED");
+    console.log("PASSWORD UPDATED");
 
     // 4️⃣ Issue a new trusted device token after password change
     const deviceToken = crypto.randomBytes(32).toString("hex");
@@ -421,7 +421,7 @@ app.put("/users/:id/password", async (req, res) => {
     res.json({ success: true, message: "Password changed successfully" });
 
   } catch (err) {
-    console.error("🔥 Password change error:", err);
+    console.error("Password change error:", err);
     res.status(500).json({ error: "Server error while changing password" });
   }
 });
@@ -478,25 +478,25 @@ app.post("/reset-password", async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
   try {
-    // 1️⃣ Check if OTP exists
+    // Check if OTP exists
     if (!otpStore[email]) {
       return res.status(401).json({ message: "No OTP found. Please request a new one." });
     }
 
     const storedOtp = otpStore[email];
 
-    // 2️⃣ Check if OTP expired
+    //  Check if OTP expired
     if (Date.now() > storedOtp.expires) {
       delete otpStore[email];
       return res.status(401).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // 3️⃣ Check if OTP matches
+    // Check if OTP matches
     if (storedOtp.code !== otp) {
       return res.status(401).json({ message: "Invalid OTP" });
     }
 
-    // 4️⃣ Verify user exists
+    //  Verify user exists
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     
     if (user.rows.length === 0) {
@@ -506,16 +506,16 @@ app.post("/reset-password", async (req, res) => {
 
     const userId = user.rows[0].id;
 
-    // 5️⃣ Update password
+    // Update password
     await pool.query(
       "UPDATE users SET password=$1 WHERE email=$2",
       [newPassword, email]
     );
 
-    // 6️⃣ Clear OTP
+    // Clear OTP
     delete otpStore[email];
 
-    // 7️⃣ Create trusted device token (same logic as verify-otp-login)
+    // Create trusted device token (same logic as verify-otp-login)
     const deviceToken = uuidv4();
     const expires = new Date();
     expires.setDate(expires.getDate() + 30); // 30 days
@@ -537,7 +537,7 @@ app.post("/reset-password", async (req, res) => {
       );
     }
 
-    // 8️⃣ Set device_token cookie
+    // Set device_token cookie
     res.cookie("device_token", deviceToken, {
       httpOnly: true,
       secure: false, // set true in production with HTTPS
@@ -545,7 +545,7 @@ app.post("/reset-password", async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
 
-    console.log(`✅ Password reset successful for ${email} — device trusted for 30 days`);
+    console.log(`Password reset successful for ${email} — device trusted for 30 days`);
     res.json({ success: true, message: "Password reset successfully" });
 
   } catch (err) {
@@ -574,16 +574,10 @@ app.post('/applications', (req, res) => {
   try {
     console.log('Received application:', req.body);
 
-    const fullName = [
-      req.body.firstName,
-      req.body.middleInitial ? req.body.middleInitial + '.' : '',
-      req.body.lastName
-    ].filter(Boolean).join(' ').trim();
 
     const newApplication = {
       id: applications.length + 1,
       ...req.body,
-      name: fullName,
       status: 'pending',
       date: new Date().toISOString().split('T')[0]
     };

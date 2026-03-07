@@ -47,12 +47,10 @@ export default function ApplyFranchise() {
 
   let newValue = value;
 
-  // Mobile: allow digits only
   if (name === "mobile") {
     newValue = value.replace(/\D/g, "").slice(0, 11);
   }
 
-  // Name fields: allow only letters, spaces, hyphens, and apostrophes
   if (name === "lastName" || name === "firstName" || name === "middleInitial" || name === "employerName" ||
      name === "position" || name === "businessNature" || name === "spouseName" || name === "nationality" || 
      name === "signature") {
@@ -64,7 +62,6 @@ export default function ApplyFranchise() {
     [name]: newValue,
   }));
 
-  // Clear error for this field when user starts typing
   if (errors[name]) {
     setErrors((prev) => ({
       ...prev,
@@ -85,7 +82,7 @@ useEffect(() => {
     if (form.paymentMode) filledFields++;
     if (concept !== "Select Concept") filledFields++;
 
-    totalFields += 13;
+    totalFields += 10;
     if (form.firstName) filledFields++;
     if (form.lastName) filledFields++;
     if (form.dob) filledFields++;
@@ -103,7 +100,7 @@ useEffect(() => {
       if (form.spouseOccupation) filledFields++;
     }
 
-    totalFields += 8;
+    totalFields += 7;
     if (form.employmentType) filledFields++;
     if (form.yearsEmployer) filledFields++;
     if (form.income) filledFields++;
@@ -164,13 +161,11 @@ const handleBlur = (e) => {
   const validateField = (name, value) => {
     let error = "";
 
-    // Check if field is required but empty (excluding spouse fields and middle initial)
     if (!value && name !== "spouseName" && name !== "spouseOccupation" && name !== "middleInitial") {
       error = "Required";
       return error;
     }
 
-    // Specific validations only if value exists
     if (name === "middleInitial" && value && value.length > 1) {
       error = "Only 1 letter";
     }
@@ -898,6 +893,7 @@ bgOverlay: {
     fontWeight: "600",
     fontSize: "0.9rem",
     transition: "color 0.3s ease",
+    marginTop: "15px",
   },
   backArrow: {
     fontSize: "1.1rem",
@@ -1094,7 +1090,7 @@ progressContainer: {
   backgroundColor: '#fff',
   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
   zIndex: 999,
-  padding: '2 rem 5%',
+  padding: '20 rem 10%',
 },
 progressWrapper: {
   maxWidth: '1100px',
@@ -1104,12 +1100,13 @@ progressHeaderRow: {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginBottom: '0.4rem',
+  marginBottom: '1rem',
 },
 progressInfo: {
   display: 'flex',
   alignItems: 'center',
   gap: '0.6rem',
+  marginTop: "15px",
 },
 progressLabel: {
   fontSize: '0.85rem',
@@ -1149,6 +1146,7 @@ progressSteps: {
   justifyContent: 'space-between',
   marginTop: '0.5rem',
   paddingTop: '0.5rem',
+  marginBottom: '0.5rem',
   borderTop: '1px solid rgba(46, 125, 50, 0.1)',
 },
 stepActive: {
