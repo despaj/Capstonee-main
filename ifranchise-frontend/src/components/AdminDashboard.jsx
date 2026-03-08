@@ -10,6 +10,10 @@ export default function AdminDashboard() {
   const [showViewApplicationModal, setShowViewApplicationModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
 
+const [showLogoutModal, setShowLogoutModal] = useState(false);
+const handleLogout = () => setShowLogoutModal(true);
+const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
+
   // GET USER DATA FROM LOCALSTORAGE
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
@@ -33,18 +37,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
- const handleLogout = () => {
-  if (window.confirm('Are you sure you want to logout?')) {
-    localStorage.removeItem('user');
-    window.location.reload(); // Just reload the page
-  }
-};
-
-  // Mock data for applications with complete form data
-  // Replace the mock applications state with this:
 const [applications, setApplications] = useState([]);
-
-// Add this useEffect to fetch applications when component mounts
 useEffect(() => {
   fetchApplications();
 }, []);
@@ -829,6 +822,21 @@ const handleApproveApplication = async (id) => {
             setSelectedApplicant(null);
           }}
         />
+      )}
+
+       {/* Logout Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay" style={{zIndex: 3000}} onClick={() => setShowLogoutModal(false)}>
+          <div className="modal" style={{maxWidth: '400px', textAlign: 'center'}} onClick={e => e.stopPropagation()}>
+            <div style={{width:'64px',height:'64px',borderRadius:'50%',background:'rgba(239,68,68,0.1)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 1.5rem',fontSize:'2rem'}}>🚪</div>
+            <h2 className="modal-title" style={{color:'var(--gray-800)'}}>Log out?</h2>
+            <p style={{color:'var(--gray-500)',fontSize:'0.9rem',margin:'0.5rem 0 2rem'}}>You'll need to sign in again to access your account.</p>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowLogoutModal(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmLogout}>Log out</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* View Application Modal */}
