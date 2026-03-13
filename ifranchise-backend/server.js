@@ -11,7 +11,10 @@ const app = express();
 const PORT = 5001;
 
 app.use(cookieParser());
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(cors({
+  origin: ["http://localhost:3000", "http://localhost:8081"],
+  credentials: true
+}));
 app.use(express.json());
 
 const pool = new Pool({
