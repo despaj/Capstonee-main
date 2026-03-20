@@ -6,6 +6,7 @@ import iFranchiseForm from './components/ApplyFranchise';
 import IPharmaForm from './components/iPharmaForm';
 import AdminDashboard from './components/AdminDashboard';
 import ApplyFranchise from './components/ApplyFranchise';
+import Receipts from './components/Receipts';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/apply-pharma" element={<IPharmaForm/>}/>
            <Route path="/admin-dashboard" element={<AdminDashboard />} />
            <Route path="/apply-franchise" element={<ApplyFranchise/>} />
+           <Route path="/receipts" element={<Receipts />} />
           
         </Routes>
       </div>

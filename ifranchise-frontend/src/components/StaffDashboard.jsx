@@ -635,87 +635,250 @@ useEffect(() => {
   );
 }
 
+function BranchSelect({ value, onChange, name, required, disabled, placeholder }) {
+  const [branches, setBranches]         = useState([]);
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [newBranch, setNewBranch]       = useState("");
+  const [adding, setAdding]             = useState(false);
+  const [error, setError]               = useState("");
+
+  useEffect(() => { fetchBranches(); }, []);
+
+  const fetchBranches = async () => {
+    try {
+      const res  = await fetch("http://localhost:5001/branches");
+      const data = await res.json();
+      setBranches(data);
+    } catch (err) {
+      console.error("Failed to fetch branches", err);
+    }
+  };
+
+  const handleAddBranch = async () => {
+    if (!newBranch.trim()) return;
+    setAdding(true);
+    setError("");
+    try {
+      const res  = await fetch("http://localhost:5001/branches", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name: newBranch.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchBranches();
+        // Auto-select the new branch
+        onChange({ target: { name, value: newBranch.trim() } });
+        setNewBranch("");
+        setShowAddInput(false);
+      } else {
+        setError(data.error || "Failed to add branch");
+      }
+    } catch (err) {
+      setError("Failed to add branch");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <select
+          name={name}
+          className="form-select"
+          value={value}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          style={disabled ? { background: "var(--gray-200)", cursor: "not-allowed", flex: 1 } : { flex: 1 }}
+        >
+          {placeholder && <option value="">{placeholder}</option>}
+          {branches.map(b => (
+            <option key={b.id} value={b.name}>{b.name}</option>
+          ))}
+        </select>
+
+        {/* + Add Branch Button */}
+        {!disabled && (
+          <button
+            type="button"
+            onClick={() => { setShowAddInput(!showAddInput); setError(""); setNewBranch(""); }}
+            title="Add new branch"
+            style={{
+              width: 36, height: 36, borderRadius: 8, border: "2px solid var(--green-primary)",
+              background: showAddInput ? "var(--green-primary)" : "#fff",
+              color: showAddInput ? "#fff" : "var(--green-primary)",
+              fontSize: 20, fontWeight: "bold", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0, transition: "all 0.2s"
+            }}
+          >
+            {showAddInput ? "✕" : "+"}
+          </button>
+        )}
+      </div>
+
+      {/* Inline Add Input */}
+      {showAddInput && !disabled && (
+        <div style={{
+          marginTop: 8, padding: "12px 14px",
+          backgroundColor: "#f9fbe7", borderRadius: 8,
+          border: "1px dashed #a5d6a7"
+        }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--green-primary)", fontWeight: 600 }}>
+            New Branch Name
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Branch E"
+              value={newBranch}
+              onChange={e => { setNewBranch(e.target.value); setError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleAddBranch()}
+              style={{ flex: 1, padding: "8px 10px", fontSize: 13 }}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleAddBranch}
+              disabled={adding || !newBranch.trim()}
+              style={{ padding: "8px 16px", fontSize: 13, opacity: !newBranch.trim() ? 0.5 : 1 }}
+            >
+              {adding ? "Adding..." : "Add"}
+            </button>
+          </div>
+          {error && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--red)" }}>⚠ {error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Inventory Content Component  
-function InventoryContent({ inventory, setInventory }) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+function InventoryContent({ user }) {
+  const isAdmin    = user?.role === "Administrator";
+  const userBranch = user?.branch || "";
+
+  const [inventory, setInventory]             = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [selectedBranch, setSelectedBranch]   = useState("all");
+  const [showAddModal, setShowAddModal]       = useState(false);
+  const [showEditModal, setShowEditModal]     = useState(false);
+  const [editingItem, setEditingItem]         = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    branch: '',
-    stock: 0,
-    minStock: 0,
-    price: 0
+    name: '', category: '',
+    branch: isAdmin ? '' : userBranch,
+    stock: 0, minStock: 0, price: 0
   });
 
-  const handleAddItem = (e) => {
-    e.preventDefault();
-    const newItem = {
-      id: inventory.length + 1,
-      ...formData,
-      stock: parseInt(formData.stock),
-      minStock: parseInt(formData.minStock),
-      price: parseFloat(formData.price)
-    };
-    setInventory([...inventory, newItem]);
-    setShowAddModal(false);
-    resetForm();
-    alert('Item added successfully!');
+  useEffect(() => {
+    const branchToFetch = isAdmin ? selectedBranch : userBranch;
+    fetchInventory(branchToFetch);
+  }, [selectedBranch, isAdmin, userBranch]);
+
+  const fetchInventory = async (branch) => {
+    setLoading(true);
+    try {
+      const query = branch && branch !== "all"
+        ? `?branch=${encodeURIComponent(branch)}` : "";
+      const res  = await fetch(`http://localhost:5001/inventory${query}`);
+      const data = await res.json();
+      setInventory(data);
+    } catch (err) {
+      console.error("Error fetching inventory:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault();
-    setInventory(inventory.map(item => 
-      item.id === editingItem.id 
-        ? { 
-            ...item, 
-            ...formData,
-            stock: parseInt(formData.stock),
-            minStock: parseInt(formData.minStock),
-            price: parseFloat(formData.price)
-          }
-        : item
-    ));
-    setShowEditModal(false);
-    setEditingItem(null);
-    resetForm();
-    alert('Item updated successfully!');
+    const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
+    try {
+      const res  = await fetch("http://localhost:5001/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchInventory(isAdmin ? selectedBranch : userBranch);
+        setShowAddModal(false);
+        resetForm();
+      } else {
+        alert(data.error || "Failed to add item");
+      }
+    } catch (err) {
+      alert("Failed to add item");
+    }
   };
 
-  const handleDeleteItem = (id) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      setInventory(inventory.filter(item => item.id !== id));
-      alert('Item deleted successfully!');
+  const handleEditItem = async (e) => {
+    e.preventDefault();
+    const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
+    try {
+      const res  = await fetch(`http://localhost:5001/inventory/${editingItem.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchInventory(isAdmin ? selectedBranch : userBranch);
+        setShowEditModal(false);
+        setEditingItem(null);
+        resetForm();
+      } else {
+        alert(data.error || "Failed to update item");
+      }
+    } catch (err) {
+      alert("Failed to update item");
+    }
+  };
+
+  const handleDeleteItem = async (id) => {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      return;
+    }
+    try {
+      const res  = await fetch(`http://localhost:5001/inventory/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await fetchInventory(isAdmin ? selectedBranch : userBranch);
+        setConfirmDeleteId(null);
+      } else {
+        alert(data.error || "Failed to delete item");
+      }
+    } catch (err) {
+      alert("Failed to delete item");
     }
   };
 
   const openEditModal = (item) => {
     setEditingItem(item);
     setFormData({
-      name: item.name,
+      name:     item.name,
       category: item.category,
-      branch: item.branch,
-      stock: item.stock,
-      minStock: item.minStock,
-      price: item.price
+      branch:   item.branch,
+      stock:    item.stock,
+      minStock: item.min_stock,
+      price:    item.price,
     });
     setShowEditModal(true);
   };
 
-  const openAddModal = () => {
-    resetForm();
-    setShowAddModal(true);
-  };
-
   const resetForm = () => {
     setFormData({
-      name: '',
-      category: '',
-      branch: '',
-      stock: 0,
-      minStock: 0,
-      price: 0
+      name: '', category: '',
+      branch: isAdmin ? '' : userBranch,
+      stock: 0, minStock: 0, price: 0
     });
   };
 
@@ -724,73 +887,127 @@ function InventoryContent({ inventory, setInventory }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const grouped = selectedBranch === "all"
+    ? inventory.reduce((acc, item) => {
+        const branch = item.branch || "Unassigned";
+        if (!acc[branch]) acc[branch] = [];
+        acc[branch].push(item);
+        return acc;
+      }, {})
+    : { [selectedBranch]: inventory };
+
+  // ✅ Fix 1: lowStockCount was missing
+  const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
+
   return (
     <>
+      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon green">📦</div>
+          <div className="stat-icon green"></div>
           <div className="stat-value">{inventory.length}</div>
-          <div className="stat-label">Total Items</div>
+          <div className="stat-label">
+            {selectedBranch === "all" ? "Total Items (All Branches)" : `Items in ${selectedBranch}`}
+          </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon orange">⚠️</div>
-          <div className="stat-value">
-            {inventory.filter(item => item.stock < item.minStock).length}
-          </div>
+          <div className="stat-icon orange"></div>
+          <div className="stat-value">{lowStockCount}</div>
           <div className="stat-label">Low Stock Items</div>
         </div>
       </div>
 
       <div className="section">
+
+        {/* ✅ Fix 2: section-header is now properly closed */}
         <div className="section-header">
           <h2 className="section-title">Inventory Management</h2>
-          <button className="btn btn-primary" onClick={openAddModal}>
-            + Add New Item
-          </button>
-        </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
 
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Branch</th>
-                <th>Current Stock</th>
-                <th>Min Stock</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventory.map(item => (
-                <tr key={item.id}>
-                  <td><strong>{item.name}</strong></td>
-                  <td>{item.category}</td>
-                  <td>{item.branch}</td>
-                  <td>{item.stock}</td>
-                  <td>{item.minStock}</td>
-                  <td>₱{item.price}</td>
-                  <td>
-                    <span className={`status-badge ${item.stock < item.minStock ? 'status-low' : 'status-ok'}`}>
-                      {item.stock < item.minStock ? 'LOW STOCK' : 'OK'}
+            {isAdmin && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 13, color: 'var(--gray-600)', fontWeight: 600 }}>
+                  Branch:
+                </label>
+                <div style={{ minWidth: 220 }}>
+                  <BranchSelect
+                    name="branchFilter"
+                    value={selectedBranch === "all" ? "" : selectedBranch}
+                    onChange={e => setSelectedBranch(e.target.value || "all")}
+                    placeholder="🏢 All Branches"
+                  />
+                </div>
+              </div>
+            )}
+
+            {!isAdmin && userBranch && (
+              <span style={{
+                padding: '6px 14px',
+                backgroundColor: 'rgba(46,125,50,0.1)',
+                color: 'var(--green-primary)',
+                borderRadius: 20, fontSize: 13, fontWeight: 600
+              }}>
+                📍 {userBranch}
+              </span>
+            )}
+
+            <button className="btn btn-primary"
+              onClick={() => { resetForm(); setShowAddModal(true); }}>
+              + Add New Item
+            </button>
+
+          </div>
+        </div> {/* ✅ closes section-header */}
+
+        {loading ? (
+          <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
+        ) : (
+          <>
+            {selectedBranch === "all" ? (
+              Object.entries(grouped).map(([branch, items]) => (
+                <div key={branch} style={{ marginBottom: 32 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 16px', backgroundColor: 'var(--green-primary)',
+                    borderRadius: '10px 10px 0 0', color: '#fff'
+                  }}>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>📍 {branch}</span>
+                    <span style={{ fontSize: 13, opacity: 0.85 }}>
+                      {items.length} items &nbsp;|&nbsp;
+                      {items.filter(i => i.stock < i.min_stock).length} low stock
                     </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <button className="btn btn-primary btn-sm" onClick={() => openEditModal(item)}>Edit</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDeleteItem(item.id)}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </div>
+                  <div className="table-container" style={{
+                    border: '1px solid var(--gray-200)',
+                    borderTop: 'none', borderRadius: '0 0 10px 10px'
+                  }}>
+                    <BranchTable
+                      items={items}
+                      onEdit={openEditModal}
+                      onDelete={handleDeleteItem}
+                      confirmDeleteId={confirmDeleteId}
+                      setConfirmDeleteId={setConfirmDeleteId}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="table-container">
+                <BranchTable
+                  items={inventory}
+                  onEdit={openEditModal}
+                  onDelete={handleDeleteItem}
+                  confirmDeleteId={confirmDeleteId}
+                  setConfirmDeleteId={setConfirmDeleteId}
+                />
+              </div>
+            )}
+          </>
+        )}
 
-      {/* Add Item Modal */}
+      </div> {/* closes .section */}
+
+      {/* Add Modal */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -800,25 +1017,13 @@ function InventoryContent({ inventory, setInventory }) {
             <form onSubmit={handleAddItem}>
               <div className="form-group">
                 <label className="form-label">Item Name</label>
-                <input 
-                  type="text" 
-                  name="name"
-                  className="form-input" 
-                  placeholder="e.g., Paracetamol 500mg"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="text" name="name" className="form-input"
+                  value={formData.name} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Category</label>
-                <select 
-                  name="category"
-                  className="form-select"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  required
-                >
+                <select name="category" className="form-select"
+                  value={formData.category} onChange={handleInputChange} required>
                   <option value="">Select Category</option>
                   <option value="Medicine">Medicine</option>
                   <option value="Supplement">Supplement</option>
@@ -828,70 +1033,41 @@ function InventoryContent({ inventory, setInventory }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Branch</label>
-                <select 
+                <BranchSelect
                   name="branch"
-                  className="form-select"
                   value={formData.branch}
                   onChange={handleInputChange}
                   required
-                >
-                  <option value="">Select Branch</option>
-                  <option value="Branch A">Branch A</option>
-                  <option value="Branch B">Branch B</option>
-                  <option value="Branch C">Branch C</option>
-                </select>
+                  disabled={!isAdmin}
+                  placeholder="Select Branch"
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Initial Stock</label>
-                <input 
-                  type="number" 
-                  name="stock"
-                  className="form-input" 
-                  placeholder="0"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="stock" className="form-input"
+                  value={formData.stock} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Minimum Stock</label>
-                <input 
-                  type="number" 
-                  name="minStock"
-                  className="form-input" 
-                  placeholder="0"
-                  value={formData.minStock}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="minStock" className="form-input"
+                  value={formData.minStock} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Price (₱)</label>
-                <input 
-                  type="number" 
-                  name="price"
-                  step="0.01" 
-                  className="form-input" 
-                  placeholder="0.00"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="price" step="0.01" className="form-input"
+                  value={formData.price} onChange={handleInputChange} required />
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Add Item
-                </button>
+                <button type="button" className="btn btn-secondary"
+                  onClick={() => setShowAddModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Add Item</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Edit Item Modal */}
+      {/* Edit Modal */}
       {showEditModal && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -901,24 +1077,13 @@ function InventoryContent({ inventory, setInventory }) {
             <form onSubmit={handleEditItem}>
               <div className="form-group">
                 <label className="form-label">Item Name</label>
-                <input 
-                  type="text" 
-                  name="name"
-                  className="form-input" 
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="text" name="name" className="form-input"
+                  value={formData.name} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Category</label>
-                <select 
-                  name="category"
-                  className="form-select"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  required
-                >
+                <select name="category" className="form-select"
+                  value={formData.category} onChange={handleInputChange} required>
                   <option value="Medicine">Medicine</option>
                   <option value="Supplement">Supplement</option>
                   <option value="Antibiotic">Antibiotic</option>
@@ -927,68 +1092,93 @@ function InventoryContent({ inventory, setInventory }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Branch</label>
-                <select 
+                <BranchSelect
                   name="branch"
-                  className="form-select"
                   value={formData.branch}
                   onChange={handleInputChange}
                   required
-                >
-                  <option value="Branch A">Branch A</option>
-                  <option value="Branch B">Branch B</option>
-                  <option value="Branch C">Branch C</option>
-                </select>
+                  disabled={!isAdmin}
+                  placeholder="Select Branch"
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Current Stock</label>
-                <input 
-                  type="number" 
-                  name="stock"
-                  className="form-input"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="stock" className="form-input"
+                  value={formData.stock} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Minimum Stock</label>
-                <input 
-                  type="number" 
-                  name="minStock"
-                  className="form-input"
-                  value={formData.minStock}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="minStock" className="form-input"
+                  value={formData.minStock} onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Price (₱)</label>
-                <input 
-                  type="number" 
-                  name="price"
-                  step="0.01" 
-                  className="form-input"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  required
-                />
+                <input type="number" name="price" step="0.01" className="form-input"
+                  value={formData.price} onChange={handleInputChange} required />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => {
-                  setShowEditModal(false);
-                  setEditingItem(null);
-                }}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Save Changes
-                </button>
+                  setShowEditModal(false); setEditingItem(null);
+                }}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </>
+    </> 
+  );
+}
+
+// Extracted table component to avoid repetition
+function BranchTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId }) {
+  if (items.length === 0) {
+    return <p style={{ padding: '1rem', color: '#aaa', fontStyle: 'italic' }}>No items in this branch.</p>;
+  }
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Item Name</th>
+          <th>Category</th>
+          <th>Stock</th>
+          <th>Min Stock</th>
+          <th>Price</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map(item => (
+          <tr key={item.id}>
+            <td><strong>{item.name}</strong></td>
+            <td>{item.category}</td>
+            <td>{item.stock}</td>
+            <td>{item.min_stock}</td>
+            <td>₱{parseFloat(item.price).toFixed(2)}</td>
+            <td>
+              <span className={`status-badge ${item.stock < item.min_stock ? 'status-low' : 'status-ok'}`}>
+                {item.stock < item.min_stock ? 'LOW STOCK' : 'OK'}
+              </span>
+            </td>
+            <td>
+              <div className="action-buttons">
+                <button className="btn btn-primary btn-sm" onClick={() => onEdit(item)}>Edit</button>
+                {confirmDeleteId === item.id ? (
+                  <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>Sure?</span>
+                    <button className="btn btn-danger btn-sm" onClick={() => onDelete(item.id)}>Yes</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setConfirmDeleteId(null)}>No</button>
+                  </span>
+                ) : (
+                  <button className="btn btn-danger btn-sm" onClick={() => onDelete(item.id)}>Delete</button>
+                )}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

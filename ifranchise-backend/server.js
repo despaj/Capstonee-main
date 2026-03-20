@@ -101,37 +101,46 @@
   }
 
   app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
+  const deviceId = getOrCreateDeviceId(req, res);
 
-    const deviceId = getOrCreateDeviceId(req, res);
+  try {
+    const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    if (user.rows.length === 0)
+      return res.status(401).json({ message: "Invalid credentials" });
 
-    try {
-      const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
-      if (user.rows.length === 0)
-        return res.status(401).json({ message: "Invalid credentials" });
+    const validPass = password === user.rows[0].password;
+    if (!validPass)
+      return res.status(401).json({ message: "Invalid credentials" });
 
-      const validPass = password === user.rows[0].password; 
-      if (!validPass)
-        return res.status(401).json({ message: "Invalid credentials" });
+    // ✅ Safe user object — never send password to frontend
+    const safeUser = {
+      id:     user.rows[0].id,
+      name:   user.rows[0].name,
+      email:  user.rows[0].email,
+      role:   user.rows[0].role,
+      branch: user.rows[0].branch,  // ✅ branch is included
+    };
 
-      const device = await pool.query(
-        `SELECT * FROM trusted_devices
-        WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
-        [deviceId, user.rows[0].id]
-      );
+    const device = await pool.query(
+      `SELECT * FROM trusted_devices
+       WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
+      [deviceId, user.rows[0].id]
+    );
 
-      if (device.rows.length > 0) {
-        console.log(`Trusted device for user ${email} — skipping OTP`);
-        return res.json({ success: true, skipOtp: true, user: user.rows[0] });
-      }
-
-      console.log(`OTP required for user ${email} on device ${deviceId}`);
-      res.json({ success: true, skipOtp: false, user: user.rows[0] });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
+    if (device.rows.length > 0) {
+      console.log(`Trusted device for user ${email} — skipping OTP`);
+      return res.json({ success: true, skipOtp: true, user: safeUser });
     }
-  });
+
+    console.log(`OTP required for user ${email} on device ${deviceId}`);
+    res.json({ success: true, skipOtp: false, user: safeUser });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
   app.post("/send-otp-after-login", async (req, res) => {
     const { email } = req.body;
@@ -583,7 +592,7 @@
     }
   });
 
- app.post("/upload", upload.single("receipt"), async (req, res) => {
+app.post("/upload", upload.single("receipt"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     if (!process.env.MINDEE_API_KEY || !process.env.MINDEE_MODEL_ID)
@@ -603,26 +612,53 @@
 
     const fields = response.rawHttp?.inference?.result?.fields || {};
 
-    const getValue = (field) => {
-      if (!field) return null;
-      return field.value ?? null;
-    };
+    const getValue = (field) => field?.value ?? null;
 
     const merchant = getValue(fields.supplier_name);
-    const date = getValue(fields.date);
-    const total = getValue(fields.total_amount); 
+    const date     = getValue(fields.date);
+    const total    = getValue(fields.total_amount);
     const currency = getValue(fields.locale?.fields?.currency) || "PHP";
 
     const lineItems = Array.isArray(fields.line_items?.items)
       ? fields.line_items.items.map(item => ({
           description: item.fields?.description?.value || "Item",
-          quantity:    item.fields?.quantity?.value || 0,
-          unitPrice:   item.fields?.unit_price?.value || 0,
+          quantity:    item.fields?.quantity?.value    || 0,
+          unitPrice:   item.fields?.unit_price?.value  || 0,
           totalPrice:  item.fields?.total_price?.value || 0,
         }))
       : [];
 
+    // ✅ Save to DB inside a transaction
+    const client = await pool.connect();
+    let savedReceipt;
+    try {
+      await client.query("BEGIN");
+
+      const receiptResult = await client.query(
+        `INSERT INTO receipts (merchant, date, total_amount, currency)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [merchant, date, total, currency]
+      );
+      savedReceipt = receiptResult.rows[0];
+
+      for (const item of lineItems) {
+        await client.query(
+          `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (dbErr) {
+      await client.query("ROLLBACK");
+      throw dbErr;
+    } finally {
+      client.release();
+    }
+
     res.json({
+      id:       savedReceipt.id,
       merchant: merchant || "N/A",
       date:     date     || "N/A",
       total:    total    ?? "N/A",
@@ -633,6 +669,265 @@
   } catch (err) {
     console.error("OCR error:", err.response?.data || err.message || err);
     res.status(500).json({ error: "OCR failed", details: err.message || err });
+  }
+});
+
+app.get("/receipts", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM receipts ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch receipts" });
+  }
+});
+
+app.get("/receipts/:id", async (req, res) => {
+  try {
+    const receipt = await pool.query(
+      "SELECT * FROM receipts WHERE id=$1", [req.params.id]
+    );
+    if (receipt.rows.length === 0)
+      return res.status(404).json({ error: "Receipt not found" });
+
+    const items = await pool.query(
+      "SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id",
+      [req.params.id]
+    );
+
+    res.json({ ...receipt.rows[0], lineItems: items.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch receipt" });
+  }
+});
+
+app.put("/receipts/:id", async (req, res) => {
+  const { merchant, date, total_amount, currency, lineItems } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE receipts SET merchant=$1, date=$2, total_amount=$3, currency=$4 WHERE id=$5`,
+      [merchant, date, total_amount, currency, req.params.id]
+    );
+
+    // Replace all line items
+    await client.query("DELETE FROM receipt_items WHERE receipt_id=$1", [req.params.id]);
+
+    for (const item of lineItems) {
+      await client.query(
+        `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.params.id, item.description, item.quantity, item.unit_price, item.total_price]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    const receipt = await pool.query("SELECT * FROM receipts WHERE id=$1", [req.params.id]);
+    const items   = await pool.query("SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id", [req.params.id]);
+    res.json({ ...receipt.rows[0], lineItems: items.rows });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ error: "Failed to update receipt" });
+  } finally {
+    client.release();
+  }
+});
+
+// OCR extract only — does NOT save to DB
+app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!process.env.MINDEE_API_KEY || !process.env.MINDEE_MODEL_ID)
+      return res.status(500).json({ error: "Mindee config missing" });
+
+    const mindeeClient  = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
+    const inputSource   = new mindee.PathInput({ inputPath: req.file.path });
+    const productParams = { modelId: process.env.MINDEE_MODEL_ID };
+
+    const response = await mindeeClient.enqueueAndGetResult(
+      mindee.product.Extraction, inputSource, productParams
+    );
+
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+    const fields   = response.rawHttp?.inference?.result?.fields || {};
+    const getValue = (field) => field?.value ?? null;
+
+    const merchant  = getValue(fields.supplier_name);
+    const date      = getValue(fields.date);
+    const total     = getValue(fields.total_amount);
+    const currency  = getValue(fields.locale?.fields?.currency) || "PHP";
+
+    const lineItems = Array.isArray(fields.line_items?.items)
+      ? fields.line_items.items.map(item => ({
+          description: item.fields?.description?.value || "Item",
+          quantity:    item.fields?.quantity?.value    || 0,
+          unitPrice:   item.fields?.unit_price?.value  || 0,
+          totalPrice:  item.fields?.total_price?.value || 0,
+        }))
+      : [];
+
+    // Return extracted data — do NOT save yet
+    res.json({ merchant, date, total, currency, lineItems });
+
+  } catch (err) {
+    console.error("OCR extract error:", err.message);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: "OCR failed", details: err.message });
+  }
+});
+
+app.post("/receipts/save", async (req, res) => {
+  const { merchant, date, total, currency, lineItems } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const receiptResult = await client.query(
+      `INSERT INTO receipts (merchant, date, total_amount, currency)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [merchant, date, total, currency || "PHP"]
+    );
+    const savedReceipt = receiptResult.rows[0];
+
+    for (const item of (lineItems || [])) {
+      await client.query(
+        `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ id: savedReceipt.id, success: true });
+
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Save receipt error:", err.message);
+    res.status(500).json({ error: "Failed to save receipt" });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete("/receipts/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete receipt" });
+  }
+});
+
+// GET all inventory
+app.get("/inventory", async (req, res) => {
+  try {
+    const { branch } = req.query; // ?branch=Branch A
+    
+    let query  = "SELECT * FROM inventory";
+    let params = [];
+
+    if (branch && branch !== "all") {
+      query  += " WHERE branch = $1";
+      params  = [branch]; 
+    }
+
+    query += " ORDER BY created_at DESC";
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch inventory" });
+  }
+});
+
+// POST add item
+app.post("/inventory", async (req, res) => {
+  try {
+    const { name, category, branch, stock, minStock, price } = req.body;
+
+    if (!branch) 
+      return res.status(400).json({ error: "Branch is required" });
+
+    const result = await pool.query(
+      `INSERT INTO inventory (name, category, branch, stock, min_stock, price)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [name, category, branch, parseInt(stock), parseInt(minStock), parseFloat(price)]
+    );
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add inventory item" });
+  }
+});
+
+// PUT update item
+app.put("/inventory/:id", async (req, res) => {
+  try {
+    const { name, category, branch, stock, minStock, price } = req.body;
+    const result = await pool.query(
+      `UPDATE inventory
+       SET name=$1, category=$2, branch=$3, stock=$4, min_stock=$5, price=$6, updated_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [name, category, branch, parseInt(stock), parseInt(minStock), parseFloat(price), req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update inventory item" });
+  }
+});
+
+// DELETE item
+app.delete("/inventory/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM inventory WHERE id=$1 RETURNING id",
+      [req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete inventory item" });
+  }
+});
+
+app.get("/branches", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM branches ORDER BY name");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch branches" });
+  }
+});
+
+app.post("/branches", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Branch name is required" });
+    const result = await pool.query(
+      "INSERT INTO branches (name) VALUES ($1) RETURNING *",
+      [name.trim()]
+    );
+    res.json({ success: true, branch: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23505")
+      return res.status(400).json({ error: "Branch already exists" });
+    res.status(500).json({ error: "Failed to add branch" });
+  }
+});
+
+app.delete("/branches/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM branches WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete branch" });
   }
 });
 
