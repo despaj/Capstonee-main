@@ -102,13 +102,6 @@ const handleApproveApplication = async (id) => {
   }
 };
 
-  // Mock inventory data
-  const [inventory, setInventory] = useState([
-    { id: 1, name: 'Paracetamol 500mg', category: 'Medicine', stock: 500, minStock: 100, price: 5.99, branch: 'Branch A' },
-    { id: 2, name: 'Amoxicillin 250mg', category: 'Antibiotic', stock: 45, minStock: 50, price: 12.99, branch: 'Branch A' },
-    { id: 3, name: 'Vitamin C 1000mg', category: 'Supplement', stock: 300, minStock: 150, price: 8.99, branch: 'Branch B' },
-  ]);
-
   const navigation = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'inventory', label: 'Inventory Management'},
@@ -788,7 +781,7 @@ const handleApproveApplication = async (id) => {
           <div className="user-menu">
             <div className="user-info">
               <div className="user-name">{user.name}</div>
-              <div className="user-role">{user.role}</div>
+              <div className="user-role">Admin — {user?.branch}</div>
             </div>
             <div className="user-avatar">{user.avatar}</div>
           </div>
@@ -797,7 +790,7 @@ const handleApproveApplication = async (id) => {
         {/* Content Area */}
         <div className="content-area">
           {activeModule === 'dashboard' && <DashboardContent />}
-          {activeModule === 'inventory' && <InventoryContent inventory={inventory} setInventory={setInventory} />}
+          {activeModule === 'inventory' && <InventoryContent user={user} />}
           {activeModule === 'receipts' && <Receipts />}
           {activeModule === 'applications' && (
             <ApplicationsContent 

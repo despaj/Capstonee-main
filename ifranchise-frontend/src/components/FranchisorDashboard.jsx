@@ -43,14 +43,6 @@ export default function FranchisorDashboard() {
     { id: 4, name: 'Branch D', location: 'Taguig City', sales: 520000, growth: 18.7, status: 'excellent' },
   ]);
 
-  // Mock inventory summary
-  const [inventorySummary] = useState([
-    { id: 1, branch: 'Branch A', totalItems: 342, lowStock: 3, status: 'ok' },
-    { id: 2, branch: 'Branch B', totalItems: 298, lowStock: 1, status: 'ok' },
-    { id: 3, branch: 'Branch C', totalItems: 275, lowStock: 8, status: 'warning' },
-    { id: 4, branch: 'Branch D', totalItems: 401, lowStock: 2, status: 'ok' },
-  ]);
-
   const navigation = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'sales',label: 'Sales Reports' },
@@ -583,7 +575,7 @@ export default function FranchisorDashboard() {
           <div className="user-menu">
             <div className="user-info">
               <div className="user-name">{user?.name || 'Franchisor User'}</div>
-              <div className="user-role">Franchisor</div>
+              <div className="user-role">Franchisor — {user?.branch}</div>
             </div>
             <div className="user-avatar">👤</div>
           </div>
@@ -593,7 +585,7 @@ export default function FranchisorDashboard() {
         <div className="content-area">
           {activeModule === 'dashboard' && <DashboardContent />}
           {activeModule === 'sales' && <SalesReportsContent />}
-          {activeModule === 'inventory' && <InventorySummaryContent inventorySummary={inventorySummary} />}
+          {activeModule === 'inventory' && <InventorySummaryContent user={user} />}
           {activeModule === 'branches' && <BranchPerformanceContent branchPerformance={branchPerformance} />}
           {activeModule === 'profile' && <ProfileContent user={user} />}
         </div>
@@ -731,18 +723,41 @@ function SalesReportsContent() {
 }
 
 // Inventory Summary Content Component
-function InventorySummaryContent({ inventorySummary }) {
+function InventorySummaryContent() {
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading]     = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:5001/inventory')
+      .then(r => r.json())
+      .then(data => setInventory(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Group by branch
+  const grouped = inventory.reduce((acc, item) => {
+    const b = item.branch || 'Unassigned';
+    if (!acc[b]) acc[b] = { total: 0, lowStock: 0 };
+    acc[b].total++;
+    if (item.stock < item.min_stock) acc[b].lowStock++;
+    return acc;
+  }, {});
+
+  const totalItems    = inventory.length;
+  const totalLowStock = inventory.filter(i => i.stock < i.min_stock).length;
+
   return (
     <>
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon green">📦</div>
-          <div className="stat-value">1,316</div>
+          <div className="stat-value">{totalItems}</div>
           <div className="stat-label">Total Items (Network)</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon orange">⚠️</div>
-          <div className="stat-value">14</div>
+          <div className="stat-value">{totalLowStock}</div>
           <div className="stat-label">Total Low Stock Items</div>
         </div>
       </div>
@@ -753,32 +768,36 @@ function InventorySummaryContent({ inventorySummary }) {
           <button className="btn btn-secondary">Export to CSV</button>
         </div>
 
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Branch</th>
-                <th>Total Items</th>
-                <th>Low Stock Items</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventorySummary.map(item => (
-                <tr key={item.id}>
-                  <td><strong>{item.branch}</strong></td>
-                  <td>{item.totalItems}</td>
-                  <td>{item.lowStock}</td>
-                  <td>
-                    <span className={`status-badge status-${item.status}`}>
-                      {item.status === 'warning' ? 'NEEDS ATTENTION' : 'OK'}
-                    </span>
-                  </td>
+        {loading ? (
+          <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
+        ) : (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Branch</th>
+                  <th>Total Items</th>
+                  <th>Low Stock Items</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {Object.entries(grouped).map(([branch, data]) => (
+                  <tr key={branch}>
+                    <td><strong>{branch}</strong></td>
+                    <td>{data.total}</td>
+                    <td>{data.lowStock}</td>
+                    <td>
+                      <span className={`status-badge ${data.lowStock > 0 ? 'status-warning' : 'status-ok'}`}>
+                        {data.lowStock > 0 ? 'NEEDS ATTENTION' : 'OK'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );

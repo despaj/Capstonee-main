@@ -35,13 +35,6 @@ useEffect(() => {
   }
 };
 
-  // Mock inventory data
-  const [inventory, setInventory] = useState([
-    { id: 1, name: 'Paracetamol 500mg', category: 'Medicine', stock: 500, minStock: 100, price: 5.99, branch: 'Branch A' },
-    { id: 2, name: 'Amoxicillin 250mg', category: 'Antibiotic', stock: 45, minStock: 50, price: 12.99, branch: 'Branch A' },
-    { id: 3, name: 'Vitamin C 1000mg', category: 'Supplement', stock: 300, minStock: 150, price: 8.99, branch: 'Branch B' },
-  ]);
-
   const navigation = [
     { id: 'inventory', icon: '📦', label: 'Inventory Management' },
     { id: 'communication', icon: '💬', label: 'Communication' },
@@ -618,7 +611,7 @@ useEffect(() => {
           <div className="user-menu">
             <div className="user-info">
               <div className="user-name">{user.name}</div>
-              <div className="user-role">{user.role}</div>
+              <div className="user-role">Staff — {user?.branch}</div>
             </div>
             <div className="user-avatar">{user.avatar}</div>
           </div>
@@ -626,7 +619,7 @@ useEffect(() => {
 
         {/* Content Area */}
         <div className="content-area">
-          {activeModule === 'inventory' && <InventoryContent inventory={inventory} setInventory={setInventory} />}
+          {activeModule === 'inventory' && <InventoryContent user={user} />}
           {activeModule === 'communication' && <CommunicationContent />}
           {activeModule === 'profile' && <ProfileContent user={user} />}
         </div>
@@ -907,7 +900,7 @@ function InventoryContent({ user }) {
           <div className="stat-icon green"></div>
           <div className="stat-value">{inventory.length}</div>
           <div className="stat-label">
-            {selectedBranch === "all" ? "Total Items (All Branches)" : `Items in ${selectedBranch}`}
+            {selectedBranch === "all" ? "Total Items" : `Items in ${selectedBranch}`}
           </div>
         </div>
         <div className="stat-card">
@@ -1222,7 +1215,6 @@ function CommunicationContent() {
   );
 }
 
-// Profile Content Component
 // Profile Content Component
 function ProfileContent({ user }) {
   const [formData, setFormData] = useState({

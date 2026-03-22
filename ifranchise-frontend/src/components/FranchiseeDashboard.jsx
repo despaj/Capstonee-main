@@ -35,15 +35,6 @@ export default function FranchiseeDashboard() {
     }
   };
 
-  // Mock inventory data
-  const [inventorySummary] = useState([
-    { id: 1, name: 'Paracetamol 500mg', category: 'Medicine', stock: 500, minStock: 100, status: 'ok' },
-    { id: 2, name: 'Amoxicillin 250mg', category: 'Antibiotic', stock: 45, minStock: 50, status: 'low' },
-    { id: 3, name: 'Vitamin C 1000mg', category: 'Supplement', stock: 300, minStock: 150, status: 'ok' },
-    { id: 4, name: 'Ibuprofen 200mg', category: 'Medicine', stock: 250, minStock: 100, status: 'ok' },
-    { id: 5, name: 'Multivitamins', category: 'Supplement', stock: 80, minStock: 100, status: 'low' },
-  ]);
-
   const navigation = [
     { id: 'dashboard', icon: '📊', label: 'Dashboard' },
     { id: 'inventory', icon: '📦', label: 'Inventory Summary' },
@@ -625,7 +616,7 @@ export default function FranchiseeDashboard() {
           <div className="user-menu">
             <div className="user-info">
               <div className="user-name">{user?.name || 'Franchisee User'}</div>
-              <div className="user-role">Franchisee</div>
+              <div className="user-role">Franchisee — {user?.branch}</div>
             </div>
             <div className="user-avatar">👤</div>
           </div>
@@ -634,7 +625,7 @@ export default function FranchiseeDashboard() {
         {/* Content Area */}
         <div className="content-area">
           {activeModule === 'dashboard' && <DashboardContent />}
-          {activeModule === 'inventory' && <InventorySummaryContent inventorySummary={inventorySummary} />}
+          {activeModule === 'inventory' && <InventorySummaryContent user={user} />}
           {activeModule === 'reports' && <ReportsContent />}
           {activeModule === 'profile' && <ProfileContent user={user} />}
         </div>
@@ -711,20 +702,33 @@ function DashboardContent() {
 }
 
 // Inventory Summary Content Component
-function InventorySummaryContent({ inventorySummary }) {
+function InventorySummaryContent({ user }) {
+  const userBranch = user?.branch || '';
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading]     = useState(true);
+
+  useEffect(() => {
+    const query = userBranch ? `?branch=${encodeURIComponent(userBranch)}` : '';
+    fetch(`http://localhost:5001/inventory${query}`)
+      .then(r => r.json())
+      .then(data => setInventory(data))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
+  }, [userBranch]);
+
+  const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
+
   return (
     <>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon green"></div>
-          <div className="stat-value">{inventorySummary.length}</div>
-          <div className="stat-label">Total Items</div>
+          <div className="stat-icon green">📦</div>
+          <div className="stat-value">{inventory.length}</div>
+          <div className="stat-label">Total Items in {userBranch || 'Your Branch'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon orange"></div>
-          <div className="stat-value">
-            {inventorySummary.filter(item => item.status === 'low').length}
-          </div>
+          <div className="stat-icon orange">⚠️</div>
+          <div className="stat-value">{lowStockCount}</div>
           <div className="stat-label">Low Stock Items</div>
         </div>
       </div>
@@ -732,37 +736,45 @@ function InventorySummaryContent({ inventorySummary }) {
       <div className="section">
         <div className="section-header">
           <h2 className="section-title">Inventory Summary</h2>
-          <button className="btn btn-secondary">Export to CSV</button>
+          <span style={{ padding: '6px 14px', backgroundColor: 'rgba(46,125,50,0.1)', color: 'var(--green-primary)', borderRadius: 20, fontSize: 13, fontWeight: 600 }}>
+            📍 {userBranch}
+          </span>
         </div>
 
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Current Stock</th>
-                <th>Min Stock</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventorySummary.map(item => (
-                <tr key={item.id}>
-                  <td><strong>{item.name}</strong></td>
-                  <td>{item.category}</td>
-                  <td>{item.stock}</td>
-                  <td>{item.minStock}</td>
-                  <td>
-                    <span className={`status-badge status-${item.status}`}>
-                      {item.status === 'low' ? 'LOW STOCK' : 'OK'}
-                    </span>
-                  </td>
+        {loading ? (
+          <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
+        ) : (
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item Name</th>
+                  <th>Category</th>
+                  <th>Current Stock</th>
+                  <th>Min Stock</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {inventory.length === 0 ? (
+                  <tr><td colSpan={5} style={{ textAlign: 'center', color: '#aaa', fontStyle: 'italic', padding: '2rem' }}>No items found.</td></tr>
+                ) : inventory.map(item => (
+                  <tr key={item.id}>
+                    <td><strong>{item.name}</strong></td>
+                    <td>{item.category}</td>
+                    <td>{item.stock}</td>
+                    <td>{item.min_stock}</td>
+                    <td>
+                      <span className={`status-badge ${item.stock < item.min_stock ? 'status-low' : 'status-ok'}`}>
+                        {item.stock < item.min_stock ? 'LOW STOCK' : 'OK'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </>
   );
