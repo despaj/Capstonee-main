@@ -113,13 +113,12 @@
     if (!validPass)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // ✅ Safe user object — never send password to frontend
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
       email:  user.rows[0].email,
       role:   user.rows[0].role,
-      branch: user.rows[0].branch,  // ✅ branch is included
+      branch: user.rows[0].branch, 
     };
 
     const device = await pool.query(
@@ -628,7 +627,6 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
         }))
       : [];
 
-    // ✅ Save to DB inside a transaction
     const client = await pool.connect();
     let savedReceipt;
     try {
@@ -713,7 +711,6 @@ app.put("/receipts/:id", async (req, res) => {
       [merchant, date, total_amount, currency, req.params.id]
     );
 
-    // Replace all line items
     await client.query("DELETE FROM receipt_items WHERE receipt_id=$1", [req.params.id]);
 
     for (const item of lineItems) {

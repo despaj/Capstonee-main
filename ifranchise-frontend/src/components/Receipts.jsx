@@ -33,7 +33,6 @@ export default function Receipts() {
 
   useEffect(() => { fetchReceipts(); }, []);
 
-  // Filter by date range
   const filtered = receipts.filter(r => {
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo   && r.date > dateTo)   return false;
@@ -72,8 +71,8 @@ export default function Receipts() {
           <p style={s.summaryLabel}>Date Range</p>
           <p style={s.summaryValue}>
             {filtered.length > 0
-              ? `${filtered[filtered.length - 1].date || "?"} → ${filtered[0].date || "?"}`
-              : "—"}
+  ? `${new Date(filtered[filtered.length - 1].date).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })} → ${new Date(filtered[0].date).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })}`
+  : "—"}
           </p>
         </div>
       </div>
@@ -115,7 +114,11 @@ export default function Receipts() {
                 <div key={date}>
                   {/* Date Group Header */}
                   <div style={s.groupHeader}>
-                    <span style={s.groupDate}>{date}</span>
+                    <span style={s.groupDate}>
+                      {date === "No Date" ? "No Date" : new Date(date).toLocaleDateString("en-PH", {
+                        year: "numeric", month: "long", day: "numeric"
+                      })}
+                    </span>
                     <span style={s.groupTotal}>PHP {dayTotal.toFixed(2)}</span>
                   </div>
 
@@ -136,7 +139,13 @@ export default function Receipts() {
                         {r.currency} {Number(r.total_amount).toFixed(2)}
                       </p>
                       <p style={s.cardTime}>
-                        {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(r.created_at).toLocaleString("en-PH", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
                       </p>
                     </div>
                   ))}
@@ -149,7 +158,7 @@ export default function Receipts() {
           <div style={s.detail}>
             {!selected ? (
               <div style={s.emptyDetail}>
-                <p style={{ fontSize: 40, marginBottom: 12 }}>🧾</p>
+                <p style={{ fontSize: 40, marginBottom: 12 }}></p>
                 <p style={s.empty}>Select a receipt to view details.</p>
               </div>
             ) : (
@@ -158,8 +167,20 @@ export default function Receipts() {
                   <div>
                     <h3 style={s.detailMerchant}>{selected.merchant || "Unknown"}</h3>
                     <p style={s.detailMeta}>
-                      {selected.date || "N/A"} &nbsp;|&nbsp;
-                      {new Date(selected.created_at).toLocaleString()}
+                      {selected.date
+                        ? new Date(selected.date).toLocaleDateString("en-PH", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric"
+                          })
+                        : "N/A"} &nbsp;|&nbsp;
+                      {new Date(selected.created_at).toLocaleString("en-PH", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
                     </p>
                   </div>
                   <div style={s.totalBadge}>

@@ -1640,7 +1640,6 @@ function InventoryContent({ user }) {
       }, {})
     : { [selectedBranch]: inventory };
 
-  // ✅ Fix 1: lowStockCount was missing
   const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
 
   return (
@@ -1663,7 +1662,6 @@ function InventoryContent({ user }) {
 
       <div className="section">
 
-        {/* ✅ Fix 2: section-header is now properly closed */}
         <div className="section-header">
           <h2 className="section-title">Inventory Management</h2>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -1678,7 +1676,7 @@ function InventoryContent({ user }) {
                     name="branchFilter"
                     value={selectedBranch === "all" ? "" : selectedBranch}
                     onChange={e => setSelectedBranch(e.target.value || "all")}
-                    placeholder="🏢 All Branches"
+                    placeholder="All Branches"
                   />
                 </div>
               </div>
@@ -1691,7 +1689,7 @@ function InventoryContent({ user }) {
                 color: 'var(--green-primary)',
                 borderRadius: 20, fontSize: 13, fontWeight: 600
               }}>
-                📍 {userBranch}
+                {userBranch}
               </span>
             )}
 
@@ -1701,21 +1699,27 @@ function InventoryContent({ user }) {
             </button>
 
           </div>
-        </div> {/* ✅ closes section-header */}
+        </div> 
 
         {loading ? (
           <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
         ) : (
           <>
             {selectedBranch === "all" ? (
-              Object.entries(grouped).map(([branch, items]) => (
+              Object.entries(grouped)
+              .sort(([a], [b]) => {
+                if (a === "Head Office") return -1;
+                if (b === "Head Office") return 1;
+                return a.localeCompare(b);
+              })
+              .map(([branch, items]) => (
                 <div key={branch} style={{ marginBottom: 32 }}>
                   <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '10px 16px', backgroundColor: 'var(--green-primary)',
                     borderRadius: '10px 10px 0 0', color: '#fff'
                   }}>
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>📍 {branch}</span>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{branch}</span>
                     <span style={{ fontSize: 13, opacity: 0.85 }}>
                       {items.length} items &nbsp;|&nbsp;
                       {items.filter(i => i.stock < i.min_stock).length} low stock
@@ -1933,7 +1937,7 @@ function ReportsContent() {
     <div className="section">
       <div className="section-header">
         <h2 className="section-title">Sales & Reports</h2>
-        <button className="btn btn-primary">🤖 Generate AI Report</button>
+        <button className="btn btn-primary"> Generate AI Report</button>
       </div>
 
       <div className="chart-placeholder">
@@ -2350,7 +2354,6 @@ function UsersContent() {
         </div>
       )}
 
-      {/* Edit User Modal */}
       {showEditModal && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
