@@ -938,3 +938,71 @@ app.delete("/branches/:id", async (req, res) => {
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
+
+  // GET all shop items
+app.get("/shop-items", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        name,
+        price,
+        image_url,
+        is_visible,
+        shop,
+        brand,
+        stock
+      FROM shop_items
+      ORDER BY created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch shop items" });
+  }
+});
+
+// ADD shop item (✅ ADD STOCK + VISIBILITY + SHOP + BRAND)
+app.post("/shop-items", async (req, res) => {
+  try {
+    const { name, price, image_url, shop, brand, stock, is_visible } = req.body;
+    const result = await pool.query(
+      `INSERT INTO shop_items (name, price, image_url, shop, brand, stock, is_visible)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [name, parseFloat(price), image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true]
+    );
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    console.error("Error adding shop item:", err);
+    res.status(500).json({ error: "Failed to add shop item" });
+  }
+});
+// DELETE shop item
+app.delete("/shop-items/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM shop_items WHERE id = $1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting shop item:", err);
+    res.status(500).json({ error: "Failed to delete shop item" });
+  }
+});
+// TOGGLE visibility
+app.put("/shop-items/:id/toggle", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const current = await pool.query("SELECT is_visible FROM shop_items WHERE id = $1", [id]);
+    if (current.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
+    const newValue = !current.rows[0].is_visible;
+    const result = await pool.query(
+      "UPDATE shop_items SET is_visible = $1 WHERE id = $2 RETURNING *",
+      [newValue, id]
+    );
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    console.error("Error toggling visibility:", err);
+    res.status(500).json({ error: "Failed to toggle visibility" });
+  }
+});

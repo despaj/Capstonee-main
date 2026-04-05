@@ -111,6 +111,7 @@ const handleApproveApplication = async (id) => {
     { id: 'reports', label: 'Sales & Reports' },
     { id: 'communication', label: 'Communication' },
     { id: 'profile', label: 'Edit Profile' },
+    { id: 'mobileShop',label: 'Mobile Shop'},
     { id: 'logout', label: 'Logout', action: handleLogout },
   ];
 
@@ -806,6 +807,8 @@ const handleApproveApplication = async (id) => {
           {activeModule === 'reports' && <ReportsContent />}
           {activeModule === 'communication' && <CommunicationContent />}
           {activeModule === 'profile' && <ProfileContent user={user} />}
+          {activeModule === 'mobileShop' && <MobileShopContent />}
+
         </div>
       </main>
 
@@ -945,6 +948,380 @@ function DashboardContent() {
     </>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  padding: "0.75rem",
+  borderRadius: "8px",
+  border: "1px solid var(--gray-300)",
+  marginTop: "0.3rem",
+  fontSize: "0.9rem"
+};
+
+const labelStyle = {
+  fontSize: "0.8rem",
+  color: "var(--gray-500)",
+  marginTop: "0.5rem"
+};
+
+const valueStyle = {
+  fontWeight: "600",
+  marginBottom: "0.3rem"
+};
+
+//Mobile shop content
+function MobileShopContent() {
+  const [items, setItems] = React.useState([]);
+  const [errors, setErrors] = React.useState({});
+  const [loading, setLoading] = React.useState(false);
+
+  const [newItem, setNewItem] = React.useState({
+    name: "",
+    price: "",
+    image_url: "",
+    shop: "Coffee Spot",
+    brand: "",
+    stock: ""
+  });
+
+  React.useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    const res = await fetch("http://localhost:5001/shop-items");
+    const data = await res.json();
+    setItems(data);
+  };
+
+  const validate = () => {
+    let newErrors = {};
+
+    if (!newItem.name.trim()) {
+      newErrors.name = "Item name is required";
+    }
+
+    if (!newItem.price) {
+      newErrors.price = "Price is required";
+    } else if (isNaN(newItem.price) || Number(newItem.price) <= 0) {
+      newErrors.price = "Price must be greater than 0";
+    }
+
+    if (!newItem.stock) {
+      newErrors.stock = "Stock is required";
+    } else if (isNaN(newItem.stock) || Number(newItem.stock) < 0) {
+      newErrors.stock = "Stock must be 0 or more";
+    }
+
+    if (!newItem.image_url.trim()) {
+      newErrors.image_url = "Image URL is required";
+    } else {
+      try {
+        new URL(newItem.image_url);
+      } catch {
+        newErrors.image_url = "Invalid URL";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const addItem = async () => {
+    if (loading) return; 
+    if (!validate()) return;
+
+    setLoading(true);
+
+    await fetch("http://localhost:5001/shop-items", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: newItem.name,
+        price: Number(newItem.price),
+        image_url: newItem.image_url,
+        shop: newItem.shop,
+        brand: newItem.brand,
+        stock: Number(newItem.stock)
+      }),
+    });
+
+    setNewItem({
+      name: "",
+      price: "",
+      image_url: "",
+      shop: "Coffee Spot",
+      brand: "",
+      stock: ""
+    });
+
+    setErrors({});
+    setLoading(false);
+    fetchItems();
+  };
+
+  const deleteItem = async (id) => {
+    await fetch(`http://localhost:5001/shop-items/${id}`, {
+      method: "DELETE"
+    });
+    fetchItems();
+  };
+
+  const toggleVisibility = async (id) => {
+    await fetch(`http://localhost:5001/shop-items/${id}/toggle`, {
+      method: "PUT"
+    });
+    fetchItems();
+  };
+
+  return (
+    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+      <div style={{
+        background: "#fff",
+        padding: "2rem",
+        borderRadius: "12px",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+      }}>
+
+        <h2 style={{ color: "var(--green-primary)", marginBottom: "1.5rem" }}>
+          Mobile Shop
+        </h2>
+
+        <div style={{ marginBottom: "2rem" }}>
+          <h3 style={{
+            color: "var(--green-primary)",
+            fontSize: "1.1rem",
+            marginBottom: "1rem",
+            paddingBottom: "0.5rem",
+            borderBottom: "1px solid var(--gray-200)"
+          }}>
+            Add New Item
+          </h3>
+
+          <div style={{ display: "grid", gap: "1rem" }}>
+
+            {/* shop */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Shop
+              </label>
+              <select
+                value={newItem.shop}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, shop: e.target.value })
+                }
+                style={inputStyle}
+              >
+                <option value="Coffee Spot">Coffee Spot</option>
+                <option value="iPharma">iPharma</option>
+              </select>
+            </div>
+
+            {/* name */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Item Name
+              </label>
+              <input
+                value={newItem.name}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, name: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  border: errors.name ? "1px solid red" : inputStyle.border
+                }}
+              />
+              {errors.name && <p style={{ color: "red", fontSize: "0.75rem" }}>{errors.name}</p>}
+            </div>
+
+            {/* brand */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Brand (Optional)
+              </label>
+              <input
+                value={newItem.brand}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, brand: e.target.value })
+                }
+                style={inputStyle}
+              />
+            </div>
+
+            {/* price */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Price
+              </label>
+              <input
+                value={newItem.price}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, price: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  border: errors.price ? "1px solid red" : inputStyle.border
+                }}
+              />
+              {errors.price && <p style={{ color: "red", fontSize: "0.75rem" }}>{errors.price}</p>}
+            </div>
+
+            {/* stock */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Stock
+              </label>
+              <input
+                type="number"
+                value={newItem.stock}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, stock: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  border: errors.stock ? "1px solid red" : inputStyle.border
+                }}
+              />
+              {errors.stock && <p style={{ color: "red", fontSize: "0.75rem" }}>{errors.stock}</p>}
+            </div>
+
+            {/* img */}
+            <div>
+              <label style={{ fontSize: "0.85rem", color: "var(--gray-500)" }}>
+                Image URL
+              </label>
+              <input
+                value={newItem.image_url}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, image_url: e.target.value })
+                }
+                style={{
+                  ...inputStyle,
+                  border: errors.image_url ? "1px solid red" : inputStyle.border
+                }}
+              />
+              {errors.image_url && <p style={{ color: "red", fontSize: "0.75rem" }}>{errors.image_url}</p>}
+
+              {newItem.image_url && !errors.image_url && (
+                <img
+                  src={newItem.image_url}
+                  alt="preview"
+                  style={{
+                    marginTop: "10px",
+                    width: "120px",
+                    height: "120px",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                    border: "1px solid #ddd"
+                  }}
+                  onError={(e) => (e.target.style.display = "none")}
+                />
+              )}
+            </div>
+
+          </div>
+
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: "1.5rem", opacity: loading ? 0.6 : 1 }}
+            onClick={addItem}
+            disabled={loading}
+          >
+            {loading ? "Adding..." : "Add Item"}
+          </button>
+        </div>
+
+        {/* items */}
+        <div>
+          <h3 style={{
+            color: "var(--green-primary)",
+            fontSize: "1.1rem",
+            marginBottom: "1rem",
+            paddingBottom: "0.5rem",
+            borderBottom: "1px solid var(--gray-200)"
+          }}>
+            Shop Items
+          </h3>
+
+          {items.map(item => (
+            <div key={item.id} style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              border: "1px solid var(--gray-200)",
+              borderRadius: "10px"
+            }}>
+
+              <div style={{ display: "flex", gap: "1rem" }}>
+                
+                {/* img */}
+                <img
+                  src={item.image_url}
+                  alt=""
+                  style={{
+                    width: "100px",
+                    height: "100px",
+                    borderRadius: "8px",
+                    objectFit: "cover"
+                  }}
+                />
+
+                {/* deets */}
+                <div style={{ flex: 1 }}>
+                <p style={labelStyle}>Shop</p>
+                <p style={valueStyle}>{item.shop}</p>
+                  <p style={labelStyle}>Item Name</p>
+                  <p style={valueStyle}>{item.name}</p>
+                  {item.brand && (
+                  <>
+                    <p style={labelStyle}>Brand</p>
+                    <p style={valueStyle}>{item.brand}</p>
+                  </>
+                )}
+
+                  <p style={labelStyle}>Price</p>
+                  <p style={valueStyle}>₱{item.price}</p>
+                  <p style={labelStyle}>Stock: </p>
+                  <p style={valueStyle}>{item.stock}</p>
+
+                  <p style={labelStyle}>Status</p>
+                  <p style={valueStyle}>
+                    {item.is_visible ? "Visible" : "Hidden"}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{
+                marginTop: "1rem",
+                display: "flex",
+                gap: "0.5rem"
+              }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => toggleVisibility(item.id)}
+                >
+                  {item.is_visible ? "Hide" : "Show"}
+                </button>
+
+                <button
+                  className="btn btn-danger"
+                  onClick={() => deleteItem(item.id)}
+                >
+                  Delete
+                </button>
+              </div>
+
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 
 // Applications Content Component
 function ApplicationsContent({ applications, onView, onDelete, onApprove, onCreateAccount, onRefresh }) {
