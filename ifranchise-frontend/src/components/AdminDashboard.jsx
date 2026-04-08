@@ -1,7 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import Receipts from './Receipts';
+import {
+  Home,
+  Box,
+  FileText,
+  FileCheck,
+  Users,
+  BarChart2,
+  MessageCircle,
+  User,
+  ShoppingCart,
+  LogOut,
+    Search, Package, AlertTriangle, DollarSign, Grid3X3,
+  ChevronDown, Plus, Pencil, Trash2, X, Check, Building2,
+  Store, TrendingDown, TrendingUp, Layers,
+} from 'lucide-react';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -102,18 +117,19 @@ const handleApproveApplication = async (id) => {
   }
 };
 
-  const navigation = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'inventory', label: 'Inventory Management'},
-    { id: 'receipts', label: 'View Liquidation' },
-    { id: 'applications', label: 'View Applications' },
-    { id: 'users', label: 'User Management' },
-    { id: 'reports', label: 'Sales & Reports' },
-    { id: 'communication', label: 'Communication' },
-    { id: 'profile', label: 'Edit Profile' },
-    { id: 'mobileShop',label: 'Mobile Shop'},
-    { id: 'logout', label: 'Logout', action: handleLogout },
-  ];
+const navigation = [
+    { id: 'dashboard', label: 'Dashboard', icon: <Home size={20} /> },
+    { id: 'inventory', label: 'Inventory Management', icon: <Box size={20} /> },
+      { id: 'mobileShop', label: 'Mobile Shop Supplies', icon: <ShoppingCart size={20} /> },
+    { id: 'receipts', label: 'View Liquidation', icon: <FileText size={20} /> },
+    { id: 'applications', label: 'View Applications', icon: <FileCheck size={20} /> },
+    { id: 'users', label: 'User Management', icon: <Users size={20} /> },
+    { id: 'reports', label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
+    { id: 'communication', label: 'Communication', icon: <MessageCircle size={20} /> },
+    { id: 'profile', label: 'Edit Profile', icon: <User size={20} /> },
+
+  { id: 'logout', label: 'Logout', icon: <LogOut size={20} />, action: handleLogout },
+];
 
   const handleCreateAccount = (applicant) => {
     setSelectedApplicant(applicant);
@@ -142,8 +158,8 @@ const handleApproveApplication = async (id) => {
           --green-light: #4CAF50;
           --green-accent: #d4df33;
           --green-bg: #ccfcc7;
-          --white: #FFFFFF;
-          --off-white: #F9FAFB;
+          --white: #ffffff;
+          --off-white: #F0EFE7;
           --gray-100: #F3F4F6;
           --gray-200: #E5E7EB;
           --gray-300: #D1D5DB;
@@ -166,117 +182,119 @@ const handleApproveApplication = async (id) => {
           font-family: 'Poppins', sans-serif;
           display: flex;
           min-height: 100vh;
-          background: var(--gray-100);
+          background: linear-gradient(140deg, #e8f5e9 0%, #f0faf4 45%, #e0f2f1 100%)
         }
 
         /* Sidebar */
-        .sidebar {
-          width: ${sidebarCollapsed ? '80px' : '280px'};
-          background: var(--white);
-          box-shadow: 2px 0 10px var(--shadow);
-          position: fixed;
-          left: 0;
-          top: 0;
-          height: 100vh;
-          transition: width 0.3s ease;
-          z-index: 1000;
-          overflow-y: auto;
-        }
+.sidebar {
+  width: ${sidebarCollapsed ? '80px' : '280px'};
+  background: var(--white);
+  box-shadow: 2px 0 10px var(--shadow);
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  transition: width 0.3s ease;
+  z-index: 1000;
+  overflow-y: auto;
+}
 
-        .sidebar-header {
-          padding: 1.5rem;
-          border-bottom: 1px solid var(--gray-200);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
-        .sidebar-logo {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 
-        .sidebar-logo-icon {
-          width: 42px;
-          height: 42px;
-          border-radius: 10px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
+.sidebar-logo-icon {
+  width: 0%;
+  height: 70%;
+  margin-left:10%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
 
-        .sidebar-logo-icon img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+.sidebar-logo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-        .sidebar-logo-text {
-          font-family: 'Montserrat', sans-serif;
-          font-size: 1.3rem;
-          font-weight: 700;
-          color: var(--green-primary);
-          display: ${sidebarCollapsed ? 'none' : 'block'};
-        }
 
-        .sidebar-toggle {
-          background: none;
-          border: none;
-          font-size: 1.3rem;
-          cursor: pointer;
-          padding: 0.5rem;
-          color: var(--gray-500);
-          transition: color 0.3s ease;
-        }
+.sidebar-toggle {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  color: var(--gray-500);
+  transition: color 0.3s ease;
+}
 
-        .sidebar-toggle:hover {
-          color: var(--green-primary);
-        }
+.sidebar-toggle:hover {
+  color: var(--green-primary);
+}
 
-        .sidebar-nav {
-          padding: 1rem 0;
-        }
+.sidebar-nav {
+  padding: 1rem 0;
+}
 
-        .nav-item {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          padding: 1rem 1.5rem;
-          color: var(--gray-600);
-          text-decoration: none;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          border-left: 3px solid transparent;
-          font-weight: 500;
-        }
+/* Nav Items */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  color: var(--gray-600);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-left: 3px solid transparent;
+  font-weight: 500;
+  border-radius: 80px; /* Curved/oblong background */
+  position: relative;
+}
 
-        .nav-item:hover {
-          background: var(--gray-100);
-          color: var(--green-primary);
-        }
+.nav-item:hover {
+  background: var(--gray-100);
+  color: var(--green-primary);
+}
 
-        .nav-item.active {
-          background: rgba(46, 125, 50, 0.08);
-          color: var(--green-primary);
-          border-left-color: var(--green-primary);
-        }
+.nav-item.active {
+  background: rgba(46, 125, 50, 0.15); /* subtle green */
+  color: var(--green-primary);
+  border-left-color: var(--green-primary);
+  border-radius: 20px; /* curve highlight */
+}
 
-        .nav-icon {
-          font-size: 1.3rem;
-          flex-shrink: 0;
-        }
+/* Lucid Icons - always visible */
+.nav-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  width: 24px; /* ensures centered when collapsed */
+}
 
-        .nav-label {
-          display: ${sidebarCollapsed ? 'none' : 'block'};
-        }
+/* Hide label when collapsed */
+.nav-label {
+  display: ${sidebarCollapsed ? 'none' : 'block'};
+  font-size: 0.9rem;
+}
 
-        /* Main Content */
-        .main-content {
-          flex: 1;
-          margin-left: ${sidebarCollapsed ? '80px' : '280px'};
-          transition: margin-left 0.3s ease;
-        }
-
+/* Main Content */
+.main-content {
+  flex: 1;
+  margin-left: ${sidebarCollapsed ? '80px' : '280px'};
+  transition: margin-left 0.3s ease;
+}
         /* Top Bar */
         .top-bar {
           background: var(--white);
@@ -294,7 +312,7 @@ const handleApproveApplication = async (id) => {
           font-family: 'Montserrat', sans-serif;
           font-size: 1.6rem;
           font-weight: 700;
-          color: var(--green-primary);
+          color: #00897b;
         }
 
         .user-menu {
@@ -739,7 +757,7 @@ const handleApproveApplication = async (id) => {
             <div className="sidebar-logo-icon">
               <img src={logo} alt="iFranchise" />
             </div>
-            <span className="sidebar-logo-text">iFranchise</span>
+       
           </div>
           <button 
             className="sidebar-toggle" 
@@ -749,27 +767,32 @@ const handleApproveApplication = async (id) => {
           </button>
         </div>
 
-        <nav className="sidebar-nav">
-          {navigation.map(item => (
-            <div
-              key={item.id}
-              className={`nav-item ${activeModule === item.id ? 'active' : ''}`}
-              onClick={() => {
-                if (item.action) {
-                  item.action();
-                } else {
-                  setActiveModule(item.id);
-                  if (item.id === 'applications') {
-                    fetchApplications();
-                  }
-                }
-              }}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span className="nav-label">{item.label}</span>
-            </div>
-          ))}
-        </nav>
+     <nav className="sidebar-nav">
+  {navigation.map(item => (
+    <div
+      key={item.id}
+      className={`nav-item ${activeModule === item.id ? 'active' : ''}`}
+      onClick={() => {
+        if (item.action) {
+          item.action();
+        } else {
+          setActiveModule(item.id);
+          if (item.id === 'applications') {
+            fetchApplications();
+          }
+        }
+      }}
+    >
+      {/* Icon always visible */}
+      <span className="nav-icon">{item.icon}</span>
+
+      {/* Label hidden if sidebar collapsed */}
+      {!sidebarCollapsed && (
+        <span className="nav-label">{item.label}</span>
+      )}
+    </div>
+  ))}
+</nav>
       </aside>
 
       {/* Main Content */}
@@ -777,7 +800,7 @@ const handleApproveApplication = async (id) => {
         {/* Top Bar */}
         <div className="top-bar">
           <h1 className="top-bar-title">
-            {navigation.find(n => n.id === activeModule)?.label || 'Dashboard'}
+         
           </h1>
           <div className="user-menu">
             <div className="user-info">
@@ -791,7 +814,9 @@ const handleApproveApplication = async (id) => {
         {/* Content Area */}
         <div className="content-area">
           {activeModule === 'dashboard' && <DashboardContent />}
+          
           {activeModule === 'inventory' && <InventoryContent user={user} />}
+            {activeModule === 'mobileShop' && <MobileShopContent />}
           {activeModule === 'receipts' && <Receipts />}
           {activeModule === 'applications' && (
             <ApplicationsContent 
@@ -807,7 +832,7 @@ const handleApproveApplication = async (id) => {
           {activeModule === 'reports' && <ReportsContent />}
           {activeModule === 'communication' && <CommunicationContent />}
           {activeModule === 'profile' && <ProfileContent user={user} />}
-          {activeModule === 'mobileShop' && <MobileShopContent />}
+        
 
         </div>
       </main>
@@ -851,103 +876,369 @@ const handleApproveApplication = async (id) => {
     </div>
   );
 }
-
+const fmt = (n) =>
+  "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ 
+const fmtShort = (n) => {
+  if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k";
+  return "₱" + n;
+};
+ 
+function smoothPath(pts) {
+  if (!pts.length) return "";
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const cx = (pts[i].x + pts[i + 1].x) / 2;
+    d += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+  }
+  return d;
+}
+ 
+function genData(period) {
+  const configs = {
+    Day:   { labels: ["6AM","8AM","10AM","12PM","2PM","4PM","6PM","8PM","10PM"], base: 8000,  noise: 5000 },
+    Week:  { labels: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],               base: 45000, noise: 30000 },
+    Month: { labels: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], base: 280000, noise: 180000 },
+    Year:  { labels: ["2020","2021","2022","2023","2024","2025"],               base: 2500000, noise: 1800000 },
+  };
+  const { labels, base, noise } = configs[period];
+  const seed = period.charCodeAt(0) * 7;
+  const values = labels.map((_, i) =>
+    Math.round(base + noise * (0.4 + 0.6 * Math.abs(Math.sin(i * 1.4 + seed)) + 0.25 * Math.random()))
+  );
+  return { labels, values };
+}
 // Dashboard Content Component
-function DashboardContent() {
+function DashboardContent({posData}) {
+   const TABS = ["Day", "Week", "Month", "Year"];
+  const [activeTab, setActiveTab] = useState("Month");
+  const [chartData, setChartData] = useState(() => genData("Month"));
+  const [tooltip, setTooltip] = useState(null);
+  const [animKey, setAnimKey] = useState(0);
+  const svgRef = useRef(null);
+ 
+  useEffect(() => {
+    if (posData && posData[activeTab]) {
+      setChartData(posData[activeTab]);
+    } else {
+      setChartData(genData(activeTab));
+    }
+    setAnimKey((k) => k + 1);
+    setTooltip(null);
+  }, [activeTab, posData]);
+ 
+  const values = chartData.values;
+  const total = values.reduce((a, b) => a + b, 0);
+  const avg = Math.round(total / values.length);
+  const peak = Math.max(...values);
+  const peakLabel = chartData.labels[values.indexOf(peak)];
+  const low = Math.min(...values);
+  const pctChange = values.length > 1
+    ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1)
+    : "0.0";
+  const trending = Number(pctChange) >= 0;
+ 
+  const SVG_W = 820, SVG_H = 260, PAD_L = 58, PAD_R = 16, PAD_T = 18, PAD_B = 36;
+  const plotW = SVG_W - PAD_L - PAD_R;
+  const plotH = SVG_H - PAD_T - PAD_B;
+  const maxV = peak * 1.18;
+ 
+  const pts = values.map((v, i) => ({
+    x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
+    y: PAD_T + plotH - (v / maxV) * plotH,
+    v,
+    label: chartData.labels[i],
+  }));
+ 
+  const linePath = smoothPath(pts);
+  const areaPath = linePath + ` L ${pts[pts.length - 1].x} ${PAD_T + plotH} L ${pts[0].x} ${PAD_T + plotH} Z`;
+ 
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    y: PAD_T + plotH - t * plotH,
+    label: fmtShort(t * maxV),
+  }));
+ 
+  const handleMouseMove = useCallback((e) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * SVG_W;
+    let best = pts[0], bestDist = Infinity;
+    for (const p of pts) {
+      const d = Math.abs(p.x - mx);
+      if (d < bestDist) { bestDist = d; best = p; }
+    }
+    setTooltip({ x: best.x, y: best.y, label: best.label, value: best.v });
+  }, [pts]);
+ 
+  const insightLabel = { Day: "today", Week: "this week", Month: "this month", Year: "this year" }[activeTab];
+ 
   return (
-    <>
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-header">
-            <div className="stat-icon blue"></div>
-          </div>
-          <div className="stat-value">₱2.4M</div>
-          <div className="stat-label">Total Sales (Month)</div>
-          <div className="stat-change positive">↑ 12.5% from last month</div>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", background: "transparent" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+        .sta-root {
+          background: linear-gradient(140deg, #e8f5e9 0%, #f0faf4 45%, #e0f2f1 100%);
+          min-height: 50vh;
+          padding: 5px;
+          font-family: 'Montserrat', sans-serif;
+        }
+ 
+        .sta-eyebrow {
+        margin-top: 0%;
+          font-size: 11px; font-weight: 500;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          color: #00897b; margin-bottom: 3px;
+        }
+        .sta-heading {
+          font-size: 28px; font-weight: 600; color: #0d2b1e;
+          letter-spacing: -0.7px; margin-bottom: 22px;
+        }
+ 
+        /* stat cards */
+        .sta-stats {
+          display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px;
+        }
+        .sta-stat {
+          background: #fff; border: 1px solid rgba(0,168,76,0.12);
+          border-radius: 18px; padding: 18px 20px;
+          box-shadow: 0 2px 14px rgba(0,140,60,0.07);
+          animation: fadeUp 0.45s ease both;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .sta-stat:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,140,60,0.13); }
+        .sta-stat:nth-child(1){animation-delay:.05s}
+        .sta-stat:nth-child(2){animation-delay:.10s}
+        .sta-stat:nth-child(3){animation-delay:.15s}
+        .sta-stat:nth-child(4){animation-delay:.20s}
+ 
+        @keyframes fadeUp {
+          from { opacity:0; transform:translateY(16px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+ 
+        .stat-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+        .stat-lbl { font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; color:#5a7a65; margin-bottom:5px; }
+        .stat-val { font-size:19px; font-weight:400; color:#0d2b1e; letter-spacing:-0.4px; }
+        .stat-icon {
+          width:40px; height:40px; border-radius:12px;
+          display:flex; align-items:center; justify-content:center; font-size:19px;
+        }
+        .stat-badge {
+          display:inline-flex; align-items:center; gap:3px;
+          font-size:11px; font-weight:300;  border-radius:20px;
+        }
+        .b-green {color:#43aa51; }
+        .b-teal  {color:#43aa51; }
+        .b-yellow{color:#ff2a13; }
+        .b-blue  { color:#ff2a13; }
+ 
+        /* chart card */
+        .sta-card {
+          background: #fff; border: 1px solid rgba(0,168,76,0.12);
+          border-radius: 22px; padding: 22px 24px 16px;
+          box-shadow: 0 2px 20px rgba(0,140,60,0.07);
+          margin-bottom: 18px;
+          animation: fadeUp 0.45s 0.22s ease both;
+        }
+        .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+        .card-title { font-size:15px; font-weight:600; color:#0d2b1e; display:flex; align-items:center; gap:8px; }
+ 
+        .sta-tabs {
+          display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px;
+        }
+        .sta-tab {
+          padding:6px 14px; border-radius:9px; border:none; background:transparent;
+          font-size:12px; font-weight:300; color:#5a7a65; cursor:pointer;
+          transition:all .15s; font-family:inherit;
+        }
+        .sta-tab.active {
+          background: linear-gradient(135deg,#00c853,#00897b);
+          color:#fff; box-shadow: 0 2px 8px rgba(0,180,90,.35);
+        }
+        .sta-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
+ 
+        .chart-wrap { position:relative; cursor:crosshair; user-select:none; }
+        .chart-svg  { width:100%; display:block; overflow:visible; font-weight:400; }
+ 
+        .sta-tooltip {
+          position:absolute;
+          background: linear-gradient(135deg,#0d2b1e,#1a4a2e);
+          color:#fff; border-radius:12px; padding:9px 14px;
+          pointer-events:none; white-space:nowrap;
+          
+          box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+          transform: translate(-50%, -100%) translateY(-12px);
+          z-index:10;
+        }
+        .sta-tooltip::after {
+          content:''; position:absolute; bottom:-6px; left:50%;
+          transform:translateX(-50%);
+          border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none;
+        }
+        .tt-lbl { font-size:10.5px; opacity:.6; margin-bottom:2px; }
+        .tt-val { font-size:15px; font-weight:800; color:#a7f3d0; }
+ 
+        /* insights */
+        .ins-grid {
+          display:grid; grid-template-columns:repeat(3,1fr); gap:14px;
+          animation: fadeUp 0.45s 0.3s ease both;
+        }
+        .ins-card {
+          background:#fff; border:1px solid rgba(0,168,76,0.12);
+          border-radius:18px; padding:18px 20px;
+          box-shadow:0 2px 12px rgba(0,140,60,0.06);
+          transition:transform .2s;
+        }
+        .ins-card:hover { transform:translateY(-2px); }
+        .ins-head { display:flex; align-items:center; gap:9px; margin-bottom:9px; }
+        .ins-icon {
+          width:36px; height:36px; border-radius:11px;
+          display:flex; align-items:center; justify-content:center; font-size:17px;
+          background: linear-gradient(135deg,#d1fae5,#a7f3d0);
+        }
+        .ins-title { font-size:13px; font-weight:400; color:#0d2b1e; }
+        .ins-body  { font-size:12.5px; color:#5a7a65; line-height:1.65; }
+        .ins-metric{ margin-top:10px; font-size:19px; font-weight:400; color:#00897b; }
+ 
+        @media(max-width:900px){
+          .sta-stats { grid-template-columns:repeat(2,1fr); }
+          .ins-grid  { grid-template-columns:1fr; }
+        }
+      `}</style>
+ 
+      <div className="sta-root" key={animKey}>
+        <div className="sta-eyebrow">DASHBOARD</div>
+        <div className="sta-heading">Sales Trend Analysis</div>
+ 
+        {/* Stat cards */}
+        <div className="sta-stats">
+          {[
+            { lbl:"Total Sales",   val: fmt(total), badge:"b-green", badgeTxt:`${trending?"↑":"↓"} ${Math.abs(pctChange)}% vs start`, },
+            { lbl:"Average",       val: fmt(avg),   badge:"b-teal",  badgeTxt:`per ${activeTab.toLowerCase()}`,                       },
+            { lbl:"Peak Sales",    val: fmt(peak),  badge:"b-green", badgeTxt:`on ${peakLabel}`,                                     },
+            { lbl:"Lowest Sales",  val: fmt(low),   badge:"b-yellow",badgeTxt:"needs attention",                                      },
+          ].map((s,i) => (
+            <div className="sta-stat" key={i}>
+              <div className="stat-top">
+                <div>
+                  <div className="stat-lbl">{s.lbl}</div>
+                  <div className="stat-val">{s.val}</div>
+                </div>
+                <div className="stat-icon" style={{ background: s.iconBg }}>{s.icon}</div>
+              </div>
+              <span className={`stat-badge ${s.badge}`}>{s.badgeTxt}</span>
+            </div>
+          ))}
         </div>
-
-        <div className="stat-card">
-          <div className="stat-header">
-            <div className="stat-icon green"></div>
+ 
+        {/* Chart card */}
+        <div className="sta-card">
+          <div className="card-header">
+            <div className="card-title"><span></span> Revenue Overview</div>
+            <div className="sta-tabs">
+              {TABS.map(t => (
+                <button key={t} className={`sta-tab${activeTab===t?" active":""}`} onClick={()=>setActiveTab(t)}>{t}</button>
+              ))}
+            </div>
           </div>
-          <div className="stat-value">1,248</div>
-          <div className="stat-label">Inventory Items</div>
-          <div className="stat-change negative">↓ 8 items low stock</div>
+ 
+          <div className="chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}>
+            <svg ref={svgRef} className="chart-svg" viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="gLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#e9cd30"/>
+                  <stop offset="100%" stopColor="#ffa875"/>
+                </linearGradient>
+                <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00c853" stopOpacity="0.20"/>
+                  <stop offset="100%" stopColor="#00c853" stopOpacity="0.01"/>
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+ 
+              {/* Y grid */}
+              {yTicks.map((t,i) => (
+                <g key={i}>
+                  <line x1={PAD_L} y1={t.y} x2={SVG_W-PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4"/>
+                  <text x={PAD_L-8} y={t.y+4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Plus Jakarta Sans,sans-serif">{t.label}</text>
+                </g>
+              ))}
+ 
+              {/* Area & line */}
+              <path d={areaPath} fill="url(#gArea)"/>
+              <path d={linePath} fill="none" stroke="url(#gLine)" strokeWidth="3" strokeLinecap="round" filter="url(#glow)"/>
+ 
+              {/* X labels */}
+              {pts.map((p,i) => (
+                <text key={i} x={p.x} y={SVG_H-6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Plus Jakarta Sans,sans-serif">{p.label}</text>
+              ))}
+ 
+              {/* Hover dot + line */}
+              {tooltip && <>
+                <line x1={tooltip.x} y1={tooltip.y+7} x2={tooltip.x} y2={PAD_T+plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55"/>
+                <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#glow)"/>
+              </>}
+            </svg>
+ 
+            {tooltip && (
+              <div className="sta-tooltip" style={{ left:`${(tooltip.x/SVG_W)*100}%`, top:`${(tooltip.y/SVG_H)*100}%` }}>
+                <div className="tt-lbl">{tooltip.label}</div>
+                <div className="tt-val">{fmt(tooltip.value)}</div>
+              </div>
+            )}
+          </div>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-header">
-            <div className="stat-icon orange"></div>
+ 
+        {/* Insights */}
+        <div className="ins-grid">
+          <div className="ins-card">
+            <div className="ins-head">
+             
+              <div className="ins-title">Peak Performance</div>
+            </div>
+            <p className="ins-body">
+              Highest revenue on <strong>{peakLabel}</strong> {insightLabel}.
+              Outperformed the average by <strong>{fmt(peak - avg)}</strong>.
+            </p>
+            <div className="ins-metric">{fmt(peak)}</div>
           </div>
-          <div className="stat-value">12</div>
-          <div className="stat-label">Active Branches</div>
-          <div className="stat-change positive">↑ 2 new this quarter</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-header">
-            <div className="stat-icon red"></div>
+ 
+          <div className="ins-card">
+            <div className="ins-head">
+              
+              <div className="ins-title">Trend Direction</div>
+            </div>
+            <p className="ins-body">
+              Sales are <strong>{trending ? "trending upward ↑" : "trending downward ↓"}</strong> {insightLabel} with a <strong>{Math.abs(pctChange)}% change</strong> from first to last data point.
+            </p>
+            <div className="ins-metric" style={{ color: trending ? "#00897b" : "#d97706" }}>
+              {trending ? "+" : "-"}{Math.abs(pctChange)}%
+            </div>
           </div>
-          <div className="stat-value">5</div>
-          <div className="stat-label">Pending Applications</div>
-          <div className="stat-change">Requires review</div>
+ 
+          <div className="ins-card">
+            <div className="ins-head">
+           
+              <div className="ins-title">Revenue Summary</div>
+            </div>
+            <p className="ins-body">
+              Average revenue per {activeTab.toLowerCase()} is <strong>{fmt(avg)}</strong>.
+              Total accumulated {insightLabel}: <strong>{fmt(total)}</strong>.
+            </p>
+            <div className="ins-metric">{fmt(avg)}</div>
+          </div>
         </div>
       </div>
-
-      <div className="section">
-        <div className="section-header">
-          <h2 className="section-title"> AI-Assisted Insights</h2>
-          <button className="btn btn-primary">Generate New Report</button>
-        </div>
-
-        <div className="insights-grid">
-          <div className="insight-card">
-            <div className="insight-header">
-              <span className="insight-icon"></span>
-              <h3 className="insight-title">Sales Trend Analysis</h3>
-            </div>
-            <p className="insight-text">
-              Peak sales detected during 9 AM - 11 AM and 5 PM - 7 PM. Consider staffing optimization during these hours. Paracetamol and vitamins show 15% increased demand in Q1.
-            </p>
-          </div>
-
-          <div className="insight-card">
-            <div className="insight-header">
-              <span className="insight-icon"></span>
-              <h3 className="insight-title">Inventory Predictions</h3>
-            </div>
-            <p className="insight-text">
-              Based on current trends, Amoxicillin stock will reach minimum threshold in 5 days. Recommended reorder: 200 units. Vitamin C showing seasonal increase pattern.
-            </p>
-          </div>
-
-          <div className="insight-card">
-            <div className="insight-header">
-              <span className="insight-icon"></span>
-              <h3 className="insight-title">Compliance Monitoring</h3>
-            </div>
-            <p className="insight-text">
-              Branch B has 3 items nearing expiration (within 30 days). Suggested action: Promotional pricing or transfer to high-traffic branches. All compliance checks passed.
-            </p>
-          </div>
-        </div>
-
-        <div className="chart-placeholder">
-          Sales Performance Chart (Chart.js Integration Placeholder)
-        </div>
-      </div>
-
-      <div className="section">
-        <div className="section-header">
-          <h2 className="section-title">Branch Performance Overview</h2>
-        </div>
-        <div className="chart-placeholder">
-           Branch Analytics Dashboard (Placeholder for detailed analytics)
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
+ 
 
 const inputStyle = {
   width: "100%",
@@ -1503,11 +1794,366 @@ function BranchSelect({ value, onChange, name, required, disabled, placeholder }
     </div>
   );
 }
-
-function InventoryContent({ user }) {
+const fmtPeso = (n) =>
+  "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+ 
+const CATEGORIES = ["Medicine", "Supplement", "Antibiotic", "Personal Care"];
+ 
+// ── Brand-Branch grouped dropdown ─────────────────────────────────────────────
+// `brands` shape: [{ id, name, branches: [{ id, name }] }]
+// value: "" | "all" | "BranchName"
+function BrandBranchSelect({ value, onChange, brands = [], disabled = false, placeholder = "All Branches" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+ 
+  // close on outside click
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+ 
+  // find display label
+  let label = placeholder;
+  if (value && value !== "all") {
+    for (const brand of brands) {
+      const found = brand.branches?.find((b) => b.name === value);
+      if (found) { label = `${brand.name} — ${found.name}`; break; }
+    }
+  }
+ 
+  const select = (val) => { onChange(val); setOpen(false); };
+ 
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 240 }}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "9px 12px", borderRadius: 10, border: "1px solid #b2dfdb",
+          background: disabled ? "#f5f5f5" : "#f0fdf5", color: disabled ? "#aaa" : "#0d2b1e",
+          fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: disabled ? "not-allowed" : "pointer",
+          outline: "none", gap: 8,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Store size={14} color="#00897b" />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{label}</span>
+        </span>
+        <ChevronDown size={14} color="#5a7a65" style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+      </button>
+ 
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 200,
+          background: "#fff", border: "1px solid #b2dfdb", borderRadius: 12,
+          boxShadow: "0 8px 28px rgba(0,140,60,0.14)", maxHeight: 280, overflowY: "auto",
+        }}>
+          {/* All Branches option */}
+          <div
+            onClick={() => select("all")}
+            style={{
+              padding: "9px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              color: value === "all" || !value ? "#00897b" : "#0d2b1e",
+              background: value === "all" || !value ? "#f0fdf5" : "transparent",
+              borderBottom: "1px solid #e8f5e0", display: "flex", alignItems: "center", gap: 8,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf5")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = value === "all" || !value ? "#f0fdf5" : "transparent")}
+          >
+            <Layers size={13} color="#00897b" />
+            All Branches
+          </div>
+ 
+          {brands.length === 0 && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#94a3b8" }}>
+              No brands added yet. Add brands first.
+            </div>
+          )}
+ 
+          {brands.map((brand) => (
+            <div key={brand.id}>
+              {/* Brand header — not selectable */}
+              <div style={{
+                padding: "7px 14px", fontSize: 10.5, fontWeight: 800,
+                color: "#00897b", textTransform: "uppercase", letterSpacing: "0.08em",
+                background: "#f8fffe", borderTop: "1px solid #e8f5e0",
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <Building2 size={11} color="#00897b" />
+                {brand.name}
+              </div>
+              {/* Branches under this brand */}
+              {brand.branches?.length === 0 && (
+                <div style={{ padding: "7px 22px", fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>
+                  No branches
+                </div>
+              )}
+              {brand.branches?.map((branch) => (
+                <div
+                  key={branch.id || branch.name}
+                  onClick={() => select(branch.name)}
+                  style={{
+                    padding: "8px 22px", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                    color: value === branch.name ? "#00897b" : "#1a3a2a",
+                    background: value === branch.name ? "#e8fdf0" : "transparent",
+                    display: "flex", alignItems: "center", gap: 7,
+                    borderLeft: value === branch.name ? "3px solid #00c853" : "3px solid transparent",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf5")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = value === branch.name ? "#e8fdf0" : "transparent")}
+                >
+                  <Store size={12} color={value === branch.name ? "#00897b" : "#5a7a65"} />
+                  {branch.name}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+ 
+// ── BranchTable ───────────────────────────────────────────────────────────────
+function BranchTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId }) {
+  if (!items.length)
+    return (
+      <div style={{ padding: "40px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontWeight: 600 }}>
+        No items found.
+      </div>
+    );
+ 
+  const cols = ["Item Name", "Category", "Branch", "Stock", "Min Stock", "Price", "Status", "Actions"];
+ 
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <thead>
+        <tr style={{ background: "#f0faf4" }}>
+          {cols.map((h) => (
+            <th key={h} style={{
+              padding: "11px 16px", textAlign: "left", fontWeight: 800,
+              fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.07em",
+              color: "#00897b", borderBottom: "1.5px solid #d1eedd", whiteSpace: "nowrap",
+            }}>
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item, idx) => {
+          const isLow = item.stock < item.min_stock;
+          return (
+            <tr key={item.id}
+              style={{ background: idx % 2 === 0 ? "#fff" : "#fafffe", transition: "background 0.12s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#f4fef8")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafffe")}
+            >
+              <td style={{ padding: "12px 16px", color: "#0d2b1e", fontWeight: 700, whiteSpace: "nowrap" }}>{item.name}</td>
+              <td style={{ padding: "12px 16px" }}>
+                <span style={{
+                  background: "#e0f2f1", color: "#00695c", fontSize: 11,
+                  fontWeight: 700, padding: "3px 11px", borderRadius: 20, whiteSpace: "nowrap",
+                }}>
+                  {item.category}
+                </span>
+              </td>
+              <td style={{ padding: "12px 16px", color: "#5a7a65", fontWeight: 600 }}>{item.branch}</td>
+              <td style={{ padding: "12px 16px", fontWeight: 800, color: isLow ? "#d97706" : "#0d2b1e" }}>
+                {item.stock}
+              </td>
+              <td style={{ padding: "12px 16px", color: "#5a7a65" }}>{item.min_stock}</td>
+              <td style={{ padding: "12px 16px", color: "#0d2b1e", fontWeight: 700 }}>{fmtPeso(item.price)}</td>
+              <td style={{ padding: "12px 16px" }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontSize: 11, fontWeight: 700, padding: "4px 11px", borderRadius: 20,
+                  background: isLow ? "#fef3c7" : "#d1fae5",
+                  color: isLow ? "#92400e" : "#065f46",
+                }}>
+                  {isLow
+                    ? <><TrendingDown size={11} /> Low Stock</>
+                    : <><TrendingUp size={11} /> In Stock</>
+                  }
+                </span>
+              </td>
+              <td style={{ padding: "12px 16px" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button onClick={() => onEdit(item)} title="Edit"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "5px 12px", borderRadius: 8, border: "1px solid #b2dfdb",
+                      background: "#e0f2f1", color: "#00695c", fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#b2dfdb")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#e0f2f1")}
+                  >
+                    <Pencil size={11} /> Edit
+                  </button>
+ 
+                  <button onClick={() => onDelete(item.id)} title={confirmDeleteId === item.id ? "Click to confirm" : "Delete"}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "5px 12px", borderRadius: 8, fontFamily: "inherit",
+                      border: `1px solid ${confirmDeleteId === item.id ? "#f87171" : "#fecaca"}`,
+                      background: confirmDeleteId === item.id ? "#fee2e2" : "#fff",
+                      color: confirmDeleteId === item.id ? "#dc2626" : "#ef4444",
+                      fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    {confirmDeleteId === item.id ? <><Check size={11} /> Confirm</> : <><Trash2 size={11} /> Delete</>}
+                  </button>
+ 
+                  {confirmDeleteId === item.id && (
+                    <button onClick={() => setConfirmDeleteId(null)}
+                      style={{
+                        display: "flex", alignItems: "center",
+                        padding: "5px 10px", borderRadius: 8, border: "1px solid #d1d5db",
+                        background: "#f9fafb", color: "#6b7280", fontSize: 12,
+                        fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+ 
+// ── shared form fields ────────────────────────────────────────────────────────
+function InputField({ label, ...props }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+        {label}
+      </label>
+      <input {...props} style={{
+        width: "100%", padding: "9px 12px", borderRadius: 10,
+        border: "1px solid #b2dfdb", fontSize: 13.5, color: "#0d2b1e",
+        background: "#f0fdf5", outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+      }}
+        onFocus={(e) => (e.target.style.border = "1.5px solid #00897b")}
+        onBlur={(e) => (e.target.style.border = "1px solid #b2dfdb")}
+      />
+    </div>
+  );
+}
+ 
+function SelectField({ label, children, ...props }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+        {label}
+      </label>
+      <select {...props} style={{
+        width: "100%", padding: "9px 12px", borderRadius: 10,
+        border: "1px solid #b2dfdb", fontSize: 13.5, color: "#0d2b1e",
+        background: "#f0fdf5", outline: "none", fontFamily: "inherit",
+        appearance: "none", cursor: "pointer", boxSizing: "border-box",
+      }}>
+        {children}
+      </select>
+    </div>
+  );
+}
+ 
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, onSubmit, children }) {
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 500,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)",
+        maxHeight: "92vh", overflowY: "auto", animation: "modalIn 0.2s ease",
+      }}>
+        <style>{`@keyframes modalIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}`}</style>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb",
+            background: "#e0f2f1", cursor: "pointer", color: "#00695c",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <X size={15} />
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          {children}
+          <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+            <button type="button" onClick={onClose} style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>Cancel</button>
+            <button type="submit" style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff",
+              fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+            }}>
+              <Check size={14} /> Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+ 
+// ── StatCard ──────────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon: Icon, iconBg, badge, badgeBg, badgeColor }) {
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18,
+      padding: "20px 22px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+      transition: "transform 0.2s, box-shadow 0.2s",
+    }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,140,60,0.13)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px" }}>{value}</div>
+        </div>
+        <div style={{ width: 44, height: 44, borderRadius: 13, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={20} color="#065f46" />
+        </div>
+      </div>
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 11, fontWeight: 700, padding: "3px 11px", borderRadius: 20,
+        background: badgeBg, color: badgeColor,
+      }}>
+        {badge}
+      </span>
+    </div>
+  );
+}
+ 
+// ── MAIN COMPONENT ────────────────────────────────────────────────────────────
+ function InventoryContent({ user, brands = [] }) {
+  // `brands` prop: passed in from parent/sidebar context
+  // shape: [{ id, name, branches: [{ id, name }] }]
+  // When the user adds brands/branches via BrandManagement, pass updated `brands` here.
+ 
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
-
+ 
   const [inventory, setInventory]             = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [selectedBranch, setSelectedBranch]   = useState("all");
@@ -1515,22 +2161,22 @@ function InventoryContent({ user }) {
   const [showEditModal, setShowEditModal]     = useState(false);
   const [editingItem, setEditingItem]         = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [searchQuery, setSearchQuery]         = useState("");
+ 
   const [formData, setFormData] = useState({
-    name: '', category: '',
-    branch: isAdmin ? '' : userBranch,
-    stock: 0, minStock: 0, price: 0
+    name: "", category: "", branch: isAdmin ? "" : userBranch,
+    stock: 0, minStock: 0, price: 0,
   });
-
+ 
   useEffect(() => {
     const branchToFetch = isAdmin ? selectedBranch : userBranch;
     fetchInventory(branchToFetch);
   }, [selectedBranch, isAdmin, userBranch]);
-
+ 
   const fetchInventory = async (branch) => {
     setLoading(true);
     try {
-      const query = branch && branch !== "all"
-        ? `?branch=${encodeURIComponent(branch)}` : "";
+      const query = branch && branch !== "all" ? `?branch=${encodeURIComponent(branch)}` : "";
       const res  = await fetch(`http://localhost:5001/inventory${query}`);
       const data = await res.json();
       setInventory(data);
@@ -1540,394 +2186,291 @@ function InventoryContent({ user }) {
       setLoading(false);
     }
   };
-
+ 
   const handleAddItem = async (e) => {
     e.preventDefault();
     const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
     try {
       const res  = await fetch("http://localhost:5001/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success) {
-        await fetchInventory(isAdmin ? selectedBranch : userBranch);
-        setShowAddModal(false);
-        resetForm();
-      } else {
-        alert(data.error || "Failed to add item");
-      }
-    } catch (err) {
-      alert("Failed to add item");
-    }
+      if (data.success) { await fetchInventory(isAdmin ? selectedBranch : userBranch); setShowAddModal(false); resetForm(); }
+      else alert(data.error || "Failed to add item");
+    } catch { alert("Failed to add item"); }
   };
-
+ 
   const handleEditItem = async (e) => {
     e.preventDefault();
     const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
     try {
       const res  = await fetch(`http://localhost:5001/inventory/${editingItem.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success) {
-        await fetchInventory(isAdmin ? selectedBranch : userBranch);
-        setShowEditModal(false);
-        setEditingItem(null);
-        resetForm();
-      } else {
-        alert(data.error || "Failed to update item");
-      }
-    } catch (err) {
-      alert("Failed to update item");
-    }
+      if (data.success) { await fetchInventory(isAdmin ? selectedBranch : userBranch); setShowEditModal(false); setEditingItem(null); resetForm(); }
+      else alert(data.error || "Failed to update item");
+    } catch { alert("Failed to update item"); }
   };
-
+ 
   const handleDeleteItem = async (id) => {
-    if (confirmDeleteId !== id) {
-      setConfirmDeleteId(id);
-      return;
-    }
+    if (confirmDeleteId !== id) { setConfirmDeleteId(id); return; }
     try {
       const res  = await fetch(`http://localhost:5001/inventory/${id}`, { method: "DELETE" });
       const data = await res.json();
-      if (data.success) {
-        await fetchInventory(isAdmin ? selectedBranch : userBranch);
-        setConfirmDeleteId(null);
-      } else {
-        alert(data.error || "Failed to delete item");
-      }
-    } catch (err) {
-      alert("Failed to delete item");
-    }
+      if (data.success) { await fetchInventory(isAdmin ? selectedBranch : userBranch); setConfirmDeleteId(null); }
+      else alert(data.error || "Failed to delete item");
+    } catch { alert("Failed to delete item"); }
   };
-
+ 
   const openEditModal = (item) => {
     setEditingItem(item);
-    setFormData({
-      name:     item.name,
-      category: item.category,
-      branch:   item.branch,
-      stock:    item.stock,
-      minStock: item.min_stock,
-      price:    item.price,
-    });
+    setFormData({ name: item.name, category: item.category, branch: item.branch, stock: item.stock, minStock: item.min_stock, price: item.price });
     setShowEditModal(true);
   };
-
-  const resetForm = () => {
-    setFormData({
-      name: '', category: '',
-      branch: isAdmin ? '' : userBranch,
-      stock: 0, minStock: 0, price: 0
-    });
-  };
-
+ 
+  const resetForm = () =>
+    setFormData({ name: "", category: "", branch: isAdmin ? "" : userBranch, stock: 0, minStock: 0, price: 0 });
+ 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
-  const grouped = selectedBranch === "all"
-    ? inventory.reduce((acc, item) => {
-        const branch = item.branch || "Unassigned";
-        if (!acc[branch]) acc[branch] = [];
-        acc[branch].push(item);
-        return acc;
-      }, {})
-    : { [selectedBranch]: inventory };
-
-  const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
-
-  return (
+ 
+  // ── derived ──
+  const lowStockCount = inventory.filter((i) => i.stock < i.min_stock).length;
+  const totalValue    = inventory.reduce((s, i) => s + i.price * i.stock, 0);
+ 
+  const filteredInv = inventory.filter((i) =>
+    (!searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    (selectedBranch === "all" || i.branch === selectedBranch)
+  );
+ 
+  const grouped = filteredInv.reduce((acc, item) => {
+    const b = item.branch || "Unassigned";
+    if (!acc[b]) acc[b] = [];
+    acc[b].push(item);
+    return acc;
+  }, {});
+ 
+  // For the modal branch field — flat list from brands prop
+  const allBranchNames = brands.flatMap((br) => br.branches?.map((b) => b.name) || []);
+ 
+  const FormFields = () => (
     <>
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon green"></div>
-          <div className="stat-value">{inventory.length}</div>
-          <div className="stat-label">
-            {selectedBranch === "all" ? "Total Items (All Branches)" : `Items in ${selectedBranch}`}
+      <InputField label="Item Name" type="text" name="name" value={formData.name} onChange={handleInputChange} required />
+      <SelectField label="Category" name="category" value={formData.category} onChange={handleInputChange} required>
+        <option value="">Select category</option>
+        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+      </SelectField>
+ 
+      {/* Branch field — dropdown if admin, readonly pill if staff */}
+      {isAdmin ? (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+            Branch
+          </label>
+          <BrandBranchSelect
+            value={formData.branch}
+            onChange={(val) => setFormData((p) => ({ ...p, branch: val === "all" ? "" : val }))}
+            brands={brands}
+            placeholder="Select a branch"
+          />
+        </div>
+      ) : (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.07em" }}>Branch</label>
+          <div style={{
+            padding: "9px 12px", borderRadius: 10, border: "1px solid #b2dfdb",
+            background: "#f5f5f5", fontSize: 13.5, color: "#5a7a65", fontWeight: 600,
+          }}>
+            {userBranch || "—"}
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon orange"></div>
-          <div className="stat-value">{lowStockCount}</div>
-          <div className="stat-label">Low Stock Items</div>
-        </div>
+      )}
+ 
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <InputField label="Stock" type="number" name="stock" value={formData.stock} onChange={handleInputChange} required />
+        <InputField label="Min Stock" type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} required />
+        <InputField label="Price (₱)" type="number" step="0.01" name="price" value={formData.price} onChange={handleInputChange} required />
       </div>
-
-      <div className="section">
-
-        <div className="section-header">
-          <h2 className="section-title">Inventory Management</h2>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-
+    </>
+  );
+ 
+  return (
+    <div style={{
+      fontFamily: "'Montserrat', sans-serif",
+      background: "linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)",
+      minHeight: "100vh",
+      padding: "24px 32px 40px",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        * { font-family: 'Montserrat', sans-serif !important; box-sizing: border-box; }
+      `}</style>
+ 
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 26 }}>
+        <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "#00897b", marginBottom: 4 }}>
+          Stock Management
+        </div>
+        <h1 style={{ fontSize: 28, fontWeight: 600, color: "#0d2b1e", letterSpacing: "-0.7px", margin: 0 }}>
+          Inventory Management
+        </h1>
+      </div>
+ 
+      {/* ── Stat cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
+        <StatCard
+          label="Total Items" value={inventory.length}
+          icon={Package} iconBg="linear-gradient(135deg,#d1fae5,#6ee7b7)"
+          badge={selectedBranch === "all" ? "All branches" : selectedBranch}
+     badgeColor="#065f46"
+        />
+        <StatCard
+          label="Low Stock" value={lowStockCount}
+          icon={AlertTriangle} iconBg="linear-gradient(135deg,#fef9c3,#fde68a)"
+          badge="Needs reorder"
+           badgeColor="#92400e"
+        />
+        <StatCard
+          label="Total Est. Value" value={fmtPeso(totalValue)}
+          icon={DollarSign} iconBg="linear-gradient(135deg,#d1fae5,#a7f3d0)"
+          badge="Current stock"
+           badgeColor="#065f46"
+        />
+        <StatCard
+          label="Categories" value={CATEGORIES.length}
+          icon={Grid3X3} iconBg="linear-gradient(135deg,#ccfbf1,#99f6e4)"
+          badge="Product types"
+         badgeColor="#1e40af"
+        />
+      </div>
+ 
+      {/* ── Main card ── */}
+      <div style={{
+        background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 22,
+        padding: "24px 28px", boxShadow: "0 2px 20px rgba(0,140,60,0.07)",
+      }}>
+        {/* toolbar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+ 
+            {/* search */}
+            <div style={{ position: "relative" }}>
+              <Search size={14} color="#5a7a65" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
+              <input
+                type="text"
+                placeholder="Search items..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  paddingLeft: 32, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
+                  borderRadius: 10, border: "1px solid #b2dfdb",
+                  background: "#f0fdf5", fontSize: 13, color: "#0d2b1e",
+                  outline: "none", fontFamily: "inherit", width: 220,
+                }}
+              />
+            </div>
+ 
+            {/* Brand-Branch grouped dropdown (Admin only) */}
             {isAdmin && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ fontSize: 13, color: 'var(--gray-600)', fontWeight: 600 }}>
-                  Branch:
-                </label>
-                <div style={{ minWidth: 220 }}>
-                  <BranchSelect
-                    name="branchFilter"
-                    value={selectedBranch === "all" ? "" : selectedBranch}
-                    onChange={e => setSelectedBranch(e.target.value || "all")}
-                    placeholder="All Branches"
-                  />
-                </div>
-              </div>
+              <BrandBranchSelect
+                value={selectedBranch}
+                onChange={setSelectedBranch}
+                brands={brands}
+                placeholder="All Branches"
+              />
             )}
-
+ 
+            {/* Non-admin branch badge */}
             {!isAdmin && userBranch && (
               <span style={{
-                padding: '6px 14px',
-                backgroundColor: 'rgba(46,125,50,0.1)',
-                color: 'var(--green-primary)',
-                borderRadius: 20, fontSize: 13, fontWeight: 600
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 16px", background: "linear-gradient(135deg,#d1fae5,#a7f3d0)",
+                color: "#065f46", borderRadius: 20, fontSize: 12, fontWeight: 700,
               }}>
+                <Store size={12} />
                 {userBranch}
               </span>
             )}
-
-            <button className="btn btn-primary"
-              onClick={() => { resetForm(); setShowAddModal(true); }}>
-              + Add New Item
-            </button>
-
           </div>
-        </div> 
-
+ 
+          {/* Add button */}
+          <button
+            onClick={() => { resetForm(); setShowAddModal(true); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "10px 22px", borderRadius: 11, border: "none",
+              background: "linear-gradient(135deg,#00c853,#00897b)",
+              color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer",
+              fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+              letterSpacing: "0.02em",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            <Plus size={15} /> Add New Item
+          </button>
+        </div>
+ 
+        {/* ── Table area ── */}
         {loading ? (
-          <p style={{ color: '#888', padding: '1rem 0' }}>Loading inventory...</p>
-        ) : (
-          <>
-            {selectedBranch === "all" ? (
-              Object.entries(grouped)
-              .sort(([a], [b]) => {
-                if (a === "Head Office") return -1;
-                if (b === "Head Office") return 1;
-                return a.localeCompare(b);
-              })
-              .map(([branch, items]) => (
-                <div key={branch} style={{ marginBottom: 32 }}>
-                  <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '10px 16px', backgroundColor: 'var(--green-primary)',
-                    borderRadius: '10px 10px 0 0', color: '#fff'
-                  }}>
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>{branch}</span>
-                    <span style={{ fontSize: 13, opacity: 0.85 }}>
-                      {items.length} items &nbsp;|&nbsp;
-                      {items.filter(i => i.stock < i.min_stock).length} low stock
-                    </span>
-                  </div>
-                  <div className="table-container" style={{
-                    border: '1px solid var(--gray-200)',
-                    borderTop: 'none', borderRadius: '0 0 10px 10px'
-                  }}>
-                    <BranchTable
-                      items={items}
-                      onEdit={openEditModal}
-                      onDelete={handleDeleteItem}
-                      confirmDeleteId={confirmDeleteId}
-                      setConfirmDeleteId={setConfirmDeleteId}
-                    />
-                  </div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
+            Loading inventory...
+          </div>
+        ) : selectedBranch === "all" ? (
+          Object.entries(grouped)
+            .sort(([a], [b]) => {
+              if (a === "Head Office") return -1;
+              if (b === "Head Office") return 1;
+              return a.localeCompare(b);
+            })
+            .map(([branch, items]) => (
+              <div key={branch} style={{ marginBottom: 28 }}>
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "11px 18px",
+                  background: "linear-gradient(135deg,#00c853,#00897b)",
+                  borderRadius: "14px 14px 0 0", color: "#fff",
+                }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
+                    <Store size={15} /> {branch}
+                  </span>
+                  <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>
+                    {items.length} items &nbsp;·&nbsp; {items.filter((i) => i.stock < i.min_stock).length} low stock
+                  </span>
                 </div>
-              ))
-            ) : (
-              <div className="table-container">
-                <BranchTable
-                  items={inventory}
-                  onEdit={openEditModal}
-                  onDelete={handleDeleteItem}
-                  confirmDeleteId={confirmDeleteId}
-                  setConfirmDeleteId={setConfirmDeleteId}
-                />
+                <div style={{ border: "1px solid #d1eedd", borderTop: "none", borderRadius: "0 0 14px 14px", overflow: "hidden" }}>
+                  <BranchTable items={items} onEdit={openEditModal} onDelete={handleDeleteItem}
+                    confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
+                </div>
               </div>
-            )}
-          </>
+            ))
+        ) : (
+          <div style={{ border: "1px solid #d1eedd", borderRadius: 14, overflow: "hidden" }}>
+            <BranchTable items={filteredInv} onEdit={openEditModal} onDelete={handleDeleteItem}
+              confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
+          </div>
         )}
-
-      </div> {/* closes .section */}
-
+      </div>
+ 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Add New Inventory Item</h2>
-            </div>
-            <form onSubmit={handleAddItem}>
-              <div className="form-group">
-                <label className="form-label">Item Name</label>
-                <input type="text" name="name" className="form-input"
-                  value={formData.name} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select name="category" className="form-select"
-                  value={formData.category} onChange={handleInputChange} required>
-                  <option value="">Select Category</option>
-                  <option value="Medicine">Medicine</option>
-                  <option value="Supplement">Supplement</option>
-                  <option value="Antibiotic">Antibiotic</option>
-                  <option value="Personal Care">Personal Care</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Branch</label>
-                <BranchSelect
-                  name="branch"
-                  value={formData.branch}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!isAdmin}
-                  placeholder="Select Branch"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Initial Stock</label>
-                <input type="number" name="stock" className="form-input"
-                  value={formData.stock} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Minimum Stock</label>
-                <input type="number" name="minStock" className="form-input"
-                  value={formData.minStock} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Price (₱)</label>
-                <input type="number" name="price" step="0.01" className="form-input"
-                  value={formData.price} onChange={handleInputChange} required />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary"
-                  onClick={() => setShowAddModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Item</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title="Add New Inventory Item" onClose={() => setShowAddModal(false)} onSubmit={handleAddItem}>
+          <FormFields />
+        </Modal>
       )}
-
+ 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Edit Inventory Item</h2>
-            </div>
-            <form onSubmit={handleEditItem}>
-              <div className="form-group">
-                <label className="form-label">Item Name</label>
-                <input type="text" name="name" className="form-input"
-                  value={formData.name} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select name="category" className="form-select"
-                  value={formData.category} onChange={handleInputChange} required>
-                  <option value="Medicine">Medicine</option>
-                  <option value="Supplement">Supplement</option>
-                  <option value="Antibiotic">Antibiotic</option>
-                  <option value="Personal Care">Personal Care</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Branch</label>
-                <BranchSelect
-                  name="branch"
-                  value={formData.branch}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!isAdmin}
-                  placeholder="Select Branch"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Current Stock</label>
-                <input type="number" name="stock" className="form-input"
-                  value={formData.stock} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Minimum Stock</label>
-                <input type="number" name="minStock" className="form-input"
-                  value={formData.minStock} onChange={handleInputChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Price (₱)</label>
-                <input type="number" name="price" step="0.01" className="form-input"
-                  value={formData.price} onChange={handleInputChange} required />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => {
-                  setShowEditModal(false); setEditingItem(null);
-                }}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title="Edit Inventory Item" onClose={() => { setShowEditModal(false); setEditingItem(null); }} onSubmit={handleEditItem}>
+          <FormFields />
+        </Modal>
       )}
-
-    </> // closes fragment
-  );
-} // closes InventoryContent
-
-// Extracted table component to avoid repetition
-function BranchTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId }) {
-  if (items.length === 0) {
-    return <p style={{ padding: '1rem', color: '#aaa', fontStyle: 'italic' }}>No items in this branch.</p>;
-  }
-  return (
-    <table>
-      <thead>
-        <tr>
-          <th>Item Name</th>
-          <th>Category</th>
-          <th>Stock</th>
-          <th>Min Stock</th>
-          <th>Price</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map(item => (
-          <tr key={item.id}>
-            <td><strong>{item.name}</strong></td>
-            <td>{item.category}</td>
-            <td>{item.stock}</td>
-            <td>{item.min_stock}</td>
-            <td>₱{parseFloat(item.price).toFixed(2)}</td>
-            <td>
-              <span className={`status-badge ${item.stock < item.min_stock ? 'status-low' : 'status-ok'}`}>
-                {item.stock < item.min_stock ? 'LOW STOCK' : 'OK'}
-              </span>
-            </td>
-            <td>
-              <div className="action-buttons">
-                <button className="btn btn-primary btn-sm" onClick={() => onEdit(item)}>Edit</button>
-                {confirmDeleteId === item.id ? (
-                  <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>Sure?</span>
-                    <button className="btn btn-danger btn-sm" onClick={() => onDelete(item.id)}>Yes</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setConfirmDeleteId(null)}>No</button>
-                  </span>
-                ) : (
-                  <button className="btn btn-danger btn-sm" onClick={() => onDelete(item.id)}>Delete</button>
-                )}
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    </div>
   );
 }
 
