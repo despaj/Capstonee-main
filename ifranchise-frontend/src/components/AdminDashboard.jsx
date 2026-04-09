@@ -46,6 +46,15 @@ export default function AdminDashboard() {
     else setUser(currentUser);
   }, []);
 
+   const [brands, setBrands] = useState([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5001/brands")
+      .then(res => res.json())
+      .then(data => setBrands(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Failed to fetch brands:", err));
+  }, []);
+
   const [applications, setApplications] = useState([]);
   useEffect(() => { fetchApplications(); }, []);
 
@@ -278,7 +287,7 @@ export default function AdminDashboard() {
 
         <div className="content-area">
           {activeModule === 'dashboard'     && <DashboardContent />}
-          {activeModule === 'inventory'     && <InventoryContent user={user} />}
+          {activeModule === 'inventory'     && <InventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'    && <MobileShopContent />}
           {activeModule === 'receipts'      && <Receipts />}
           {activeModule === 'applications'  && (
@@ -295,7 +304,7 @@ export default function AdminDashboard() {
           {activeModule === 'reports'       && <ReportsContent />}
           {activeModule === 'communication' && <CommunicationContent />}
           {/* ── NEW ── */}
-          {activeModule === 'brandBranch'   && <BrandManagementContent />}
+          {activeModule === 'brandBranch'   &&<BrandManagementContent brands={brands} onBrandsChange={setBrands} />}
           {activeModule === 'profile'       && <ProfileContent user={user} />}
         </div>
       </main>
@@ -331,8 +340,8 @@ export default function AdminDashboard() {
   );
 }
 
-function BrandManagementContent() {
-  const [brands, setBrands] = useState([]);
+function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
+  const [brands, setBrands] = useState(propBrands || []);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRegion, setFilterRegion] = useState('all');
@@ -351,33 +360,19 @@ function BrandManagementContent() {
 
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
-
+  
   useEffect(() => { fetchBrands(); }, []);
 
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const res  = await fetch('http://localhost:5001/brands');
+      const res  = await fetch("http://localhost:5001/brands");
       const data = await res.json();
-      setBrands(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setBrands(list);
+      onBrandsChange?.(list);
     } catch (err) {
-      console.error('Failed to fetch brands:', err);
-      // Fallback demo data so the UI is never empty during development
-      setBrands([
-        {
-          id: 1, name: 'iFranchise Corp', region: 'NCR', contact_email: 'hq@ifranchise.com', contact_phone: '+63 2 8888 0000', description: 'Main corporate brand',
-          branches: [
-            { id: 1, name: 'Head Office', region: 'NCR',      manager: 'Maria Santos', contact: '+63 917 000 0001', address: 'Makati City',   status: 'Active' },
-            { id: 2, name: 'Branch B',    region: 'Region 4A', manager: 'Jose Reyes',  contact: '+63 917 000 0002', address: 'Calamba, Laguna', status: 'Active' },
-          ],
-        },
-        {
-          id: 2, name: 'iPharma Mart', region: 'Region 4A', contact_email: 'info@ipharma.com', contact_phone: '+63 2 8888 1111', description: 'Pharmaceutical franchise brand',
-          branches: [
-            { id: 3, name: 'Branch C', region: 'Region 4A', manager: 'Ana Cruz', contact: '+63 917 000 0003', address: 'Imus, Cavite', status: 'Review' },
-          ],
-        },
-      ]);
+      console.error("Failed to fetch brands:", err);
     } finally {
       setLoading(false);
     }
@@ -1398,15 +1393,21 @@ function InventoryContent({ user, brands = [] }) {
   useEffect(() => { fetchInventory(isAdmin ? selectedBranch : userBranch); }, [selectedBranch, isAdmin, userBranch]);
 
   const fetchInventory = async (branch) => {
-    setLoading(true);
-    try {
-      const query = branch && branch !== "all" ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(`http://localhost:5001/inventory${query}`);
-      const data = await res.json();
-      setInventory(data);
-    } catch (err) { console.error("Error fetching inventory:", err); }
-    finally { setLoading(false); }
-  };
+  setLoading(true);
+  try {
+    const query = branch && branch !== "all" 
+      ? `?branch=${encodeURIComponent(branch)}` 
+      : ""; // no query param = return everything
+    const res = await fetch(`http://localhost:5001/inventory${query}`);
+    const data = await res.json();
+    setInventory(Array.isArray(data) ? data : []);
+  } catch (err) { 
+    console.error("Error fetching inventory:", err); 
+  } finally { 
+    setLoading(false); 
+  }
+};
+
 
   const handleAddItem = async (e) => {
     e.preventDefault();
@@ -1446,8 +1447,26 @@ function InventoryContent({ user, brands = [] }) {
 
   const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
   const totalValue    = inventory.reduce((s, i) => s + i.price * i.stock, 0);
-  const filteredInv   = inventory.filter(i => (!searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase())) && (selectedBranch === "all" || i.branch === selectedBranch));
-  const grouped = filteredInv.reduce((acc, item) => { const b = item.branch || "Unassigned"; if (!acc[b]) acc[b] = []; acc[b].push(item); return acc; }, {});
+
+  const searchFiltered = inventory.filter(i =>
+    !searchQuery ||
+    i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    i.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Used when a specific branch is selected
+  const filteredInv = searchFiltered.filter(i =>
+    selectedBranch === "all" || i.branch === selectedBranch
+  );
+
+  const grouped = brands.reduce((acc, brand) => {
+    (brand.branches || []).forEach(branch => {
+      const key = `${brand.name} — ${branch.name}`;
+      // fill with matching inventory items, or empty array if none
+      acc[key] = searchFiltered.filter(i => i.branch === branch.name);
+    });
+    return acc;
+  }, {});
 
   const FormFields = () => (
     <>
@@ -1505,21 +1524,43 @@ function InventoryContent({ user, brands = [] }) {
         {loading ? (
           <div style={{ padding:"48px 0", textAlign:"center", color:"#5a7a65", fontSize:14, fontWeight:600 }}>Loading inventory...</div>
         ) : selectedBranch === "all" ? (
-          Object.entries(grouped).sort(([a],[b]) => { if(a==="Head Office") return -1; if(b==="Head Office") return 1; return a.localeCompare(b); }).map(([branch, items]) => (
-            <div key={branch} style={{ marginBottom:28 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 18px", background:"linear-gradient(135deg,#00c853,#00897b)", borderRadius:"14px 14px 0 0", color:"#fff" }}>
-                <span style={{ display:"flex", alignItems:"center", gap:8, fontWeight:800, fontSize:14 }}><Store size={15}/> {branch}</span>
-                <span style={{ fontSize:12, opacity:0.85, fontWeight:600 }}>{items.length} items · {items.filter(i=>i.stock<i.min_stock).length} low stock</span>
-              </div>
-              <div style={{ border:"1px solid #d1eedd", borderTop:"none", borderRadius:"0 0 14px 14px", overflow:"hidden" }}>
-                <BranchTable items={items} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
-              </div>
-            </div>
-          ))
-        ) : (
+  Object.entries(grouped)
+    .sort(([a],[b]) => {
+      if (a === "Head Office") return -1;
+      if (b === "Head Office") return 1;
+      return a.localeCompare(b);
+    })
+    .map(([branchKey, items]) => (
+  <div key={branchKey} style={{ marginBottom:28 }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 18px", background:"linear-gradient(135deg,#00c853,#00897b)", borderRadius:"14px 14px 0 0", color:"#fff" }}>
+      <span style={{ display:"flex", alignItems:"center", gap:8, fontWeight:800, fontSize:14 }}>
+        <Store size={15}/> {branchKey}
+      </span>
+      <span style={{ fontSize:12, opacity:0.85, fontWeight:600 }}>
+        {items.length} items · {items.filter(i => i.stock < i.min_stock).length} low stock
+      </span>
+    </div>
+    <div style={{ border:"1px solid #d1eedd", borderTop:"none", borderRadius:"0 0 14px 14px", overflow:"hidden" }}>
+      {items.length === 0 ? (
+        <div style={{ padding:"24px", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+          No inventory items for this branch yet.
+        </div>
+      ) : (
+        <BranchTable
+          items={items}
+          onEdit={openEditModal}
+          onDelete={handleDeleteItem}
+          confirmDeleteId={confirmDeleteId}
+          setConfirmDeleteId={setConfirmDeleteId}
+        />
+      )}
+    </div>
+  </div>
+))
+) : (
           <div style={{ border:"1px solid #d1eedd", borderRadius:14, overflow:"hidden" }}>
-            <BranchTable items={filteredInv} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
-          </div>
+    <BranchTable items={filteredInv} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} />
+  </div>
         )}
       </div>
       {showAddModal && <Modal title="Add New Inventory Item" onClose={() => setShowAddModal(false)} onSubmit={handleAddItem}><FormFields/></Modal>}

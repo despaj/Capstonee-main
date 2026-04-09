@@ -15,7 +15,7 @@
 
   app.use(cookieParser());
   app.use(cors({
-    origin: ["http://localhost:3000", "http://localhost:8081"],
+    origin: ["http://localhost:3000","http://localhost:3001", "http://localhost:8081"],
     credentials: true
   }));
   app.use(express.json());
@@ -50,7 +50,7 @@
         sameSite: "lax",
         maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
       });
-      console.log(`🆕 New device_id created: ${deviceId}`);
+      console.log(`New device_id created: ${deviceId}`);
     }
     return deviceId;
   }
@@ -823,19 +823,10 @@ app.delete("/receipts/:id", async (req, res) => {
 // GET all inventory
 app.get("/inventory", async (req, res) => {
   try {
-    const { branch } = req.query; // ?branch=Branch A
-    
-    let query  = "SELECT * FROM inventory";
-    let params = [];
-
-    if (branch && branch !== "all") {
-      query  += " WHERE branch = $1";
-      params  = [branch]; 
-    }
-
-    query += " ORDER BY created_at DESC";
-
-    const result = await pool.query(query, params);
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query("SELECT * FROM inventory WHERE branch = $1 ORDER BY name", [branch])
+      : await pool.query("SELECT * FROM inventory ORDER BY name"); // no filter = all
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch inventory" });
@@ -903,13 +894,26 @@ app.get("/branches", async (req, res) => {
   }
 });
 
+app.put("/branches/:id", async (req, res) => {
+  const { name, brand_id, region, manager, contact, address, status } = req.body;
+  try {
+    const result = await pool.query(
+      "UPDATE branches SET name=$1, brand_id=$2, region=$3, manager=$4, contact=$5, address=$6, status=$7 WHERE id=$8 RETURNING *",
+      [name, brand_id, region, manager, contact, address, status, req.params.id]
+    );
+    res.json({ success: true, branch: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update branch" });
+  }
+});
+
 app.post("/branches", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, brand_id, region, manager, contact, address, status } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Branch name is required" });
     const result = await pool.query(
-      "INSERT INTO branches (name) VALUES ($1) RETURNING *",
-      [name.trim()]
+      "INSERT INTO branches (name, brand_id, region, manager, contact, address, status) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+      [name.trim(), brand_id, region, manager, contact, address, status || 'Active']
     );
     res.json({ success: true, branch: result.rows[0] });
   } catch (err) {
@@ -936,6 +940,61 @@ app.delete("/branches/:id", async (req, res) => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 
+  //brands
+  app.get("/brands", async (req, res) => {
+  try {
+    const brandsResult   = await pool.query("SELECT * FROM brands ORDER BY name");
+    const branchesResult = await pool.query("SELECT * FROM branches ORDER BY name");
+
+    const brands = brandsResult.rows.map(brand => ({
+      ...brand,
+      branches: branchesResult.rows.filter(br => br.brand_id === brand.id)
+    }));
+
+    res.json(brands);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch brands" });
+  }
+});
+
+app.put("/brands/:id", async (req, res) => {
+  const { name, region, contact_email, contact_phone, description } = req.body;
+  try {
+    const result = await pool.query(
+      "UPDATE brands SET name=$1, region=$2, contact_email=$3, contact_phone=$4, description=$5 WHERE id=$6 RETURNING *",
+      [name, region, contact_email, contact_phone, description, req.params.id]
+    );
+    res.json({ success: true, brand: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update brand" });
+  }
+});
+
+app.post("/brands", async (req, res) => {
+  try {
+    const { name, region, contact_email, contact_phone, description } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Brand name is required" });
+    const result = await pool.query(
+      "INSERT INTO brands (name, region, contact_email, contact_phone, description) VALUES ($1,$2,$3,$4,$5) RETURNING *",
+      [name.trim(), region, contact_email, contact_phone, description]
+    );
+    res.json({ success: true, brand: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23505")
+      return res.status(400).json({ error: "Brand already exists" });
+    res.status(500).json({ error: "Failed to add brand" });
+  }
+});
+
+app.delete("/brands/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM brands WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete brands" });
+  }
+});
+
   // GET all shop items
 app.get("/shop-items", async (req, res) => {
   try {
@@ -959,7 +1018,6 @@ app.get("/shop-items", async (req, res) => {
   }
 });
 
-// ADD shop item (✅ ADD STOCK + VISIBILITY + SHOP + BRAND)
 app.post("/shop-items", async (req, res) => {
   try {
     const { name, price, image_url, shop, brand, stock, is_visible } = req.body;
@@ -975,7 +1033,7 @@ app.post("/shop-items", async (req, res) => {
     res.status(500).json({ error: "Failed to add shop item" });
   }
 });
-// DELETE shop item
+
 app.delete("/shop-items/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM shop_items WHERE id = $1", [req.params.id]);
