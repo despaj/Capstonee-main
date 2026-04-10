@@ -380,6 +380,15 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
 
   const handleAddBrand = async (e) => {
     e.preventDefault();
+
+    const duplicate = brands.some(
+      (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      alert(`A brand named "${brandForm.name}" already exists. Please use a unique name.`);
+      return;
+    }
+
     try {
       const res  = await fetch('http://localhost:5001/brands', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -417,6 +426,17 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   /* ── BRANCH CRUD ── */
   const handleAddBranch = async (e) => {
     e.preventDefault();
+
+    // ── Uniqueness check: branch names must be unique within the same brand ──
+    const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
+    const duplicate = parentBrand?.branches?.some(
+      (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      alert(`A branch named "${branchForm.name}" already exists under this brand. Please use a unique name.`);
+      return;
+    }
+
     try {
       const res  = await fetch('http://localhost:5001/branches', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -773,7 +793,20 @@ function BrandFormFields({ form, setForm }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div><label style={lbl}>Contact Email</label><input type="email" style={inputSt} {...f('contact_email')} /></div>
-        <div><label style={lbl}>Contact Phone</label><input type="tel" style={inputSt} {...f('contact_phone')} /></div>
+        <div><label style={lbl}>Contact Number</label><input type="tel" style={inputSt} {...f('contact')}
+        maxLength={11} 
+        onKeyDown={(e) => {
+            const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End', 'Control'];
+            const isShortcut = (e.ctrlKey || e.metaKey) && ['a','c','v','x','z','y'].includes(e.key.toLowerCase());
+            if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) {
+              e.preventDefault();
+            }
+          }}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+            setForm(prev => ({ ...prev, contact: digits }));
+          }}
+        /></div>
       </div>
       <div><label style={lbl}>Description</label><textarea style={{ ...inputSt, resize: 'vertical', minHeight: 72 }} {...f('description')} /></div>
     </div>
@@ -809,7 +842,20 @@ function BranchFormFields({ form, setForm, brands }) {
       </div>
       <div><label style={lbl}>Branch Manager</label><input style={inputSt} {...f('manager')} /></div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div><label style={lbl}>Contact Number</label><input type="tel" style={inputSt} {...f('contact')} /></div>
+        <div><label style={lbl}>Contact Number</label><input type="tel" style={inputSt} {...f('contact')}
+        maxLength={11} 
+        onKeyDown={(e) => {
+            const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End', 'Control'];
+            const isShortcut = (e.ctrlKey || e.metaKey) && ['a','c','v','x','z','y'].includes(e.key.toLowerCase());
+            if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) {
+              e.preventDefault();
+            }
+          }}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+            setForm(prev => ({ ...prev, contact: digits }));
+          }}
+        /></div>
         <div><label style={lbl}>Address</label><input style={inputSt} {...f('address')} /></div>
       </div>
     </div>
