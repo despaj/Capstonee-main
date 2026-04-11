@@ -594,59 +594,53 @@
 app.post("/upload", upload.single("receipt"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    if (!process.env.MINDEE_API_KEY || !process.env.MINDEE_MODEL_ID)
-      return res.status(500).json({ error: "Mindee API key or Model ID missing" });
+    if (!process.env.MINDEE_API_KEY)
+      return res.status(500).json({ error: "Mindee API key missing" });
 
-    const mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
+    const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
+
     const inputSource = new mindee.PathInput({ inputPath: req.file.path });
-    const productParams = { modelId: process.env.MINDEE_MODEL_ID };
 
     const response = await mindeeClient.enqueueAndGetResult(
-      mindee.product.Extraction,
+      mindee.v2.product.Extraction,
       inputSource,
-      productParams
+      { modelId: process.env.MINDEE_MODEL_ID }
     );
 
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
-    const fields = response.rawHttp?.inference?.result?.fields || {};
+    const fields = response.rawHttp.inference.result.fields;
+    console.log("Extracted fields:", { merchant, date, total, currency, lineItems });
 
-    const getValue = (field) => field?.value ?? null;
+    const merchant = fields?.supplier_name?.value                ?? null;
+    const date     = fields?.date?.value                         ?? null;
+    const total    = fields?.total_amount?.value                 ?? null;
+    const currency = fields?.locale?.fields?.currency?.value     ?? "PHP";
 
-    const merchant = getValue(fields.supplier_name);
-    const date     = getValue(fields.date);
-    const total    = getValue(fields.total_amount);
-    const currency = getValue(fields.locale?.fields?.currency) || "PHP";
+    const lineItems = (fields?.line_items?.items ?? []).map(item => ({
+      description: item.fields?.description?.value || "Item",
+      quantity:    item.fields?.quantity?.value    || 0,
+      unitPrice:   item.fields?.unit_price?.value  || 0,
+      totalPrice:  item.fields?.total_price?.value || 0,
+    }));
 
-    const lineItems = Array.isArray(fields.line_items?.items)
-      ? fields.line_items.items.map(item => ({
-          description: item.fields?.description?.value || "Item",
-          quantity:    item.fields?.quantity?.value    || 0,
-          unitPrice:   item.fields?.unit_price?.value  || 0,
-          totalPrice:  item.fields?.total_price?.value || 0,
-        }))
-      : [];
-
-    const client = await pool.connect();
+      const client = await pool.connect();
     let savedReceipt;
     try {
       await client.query("BEGIN");
-
       const receiptResult = await client.query(
         `INSERT INTO receipts (merchant, date, total_amount, currency)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
+        VALUES ($1, $2, $3, $4) RETURNING *`,
         [merchant, date, total, currency]
       );
       savedReceipt = receiptResult.rows[0];
-
       for (const item of lineItems) {
         await client.query(
           `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
-           VALUES ($1, $2, $3, $4, $5)`,
+          VALUES ($1, $2, $3, $4, $5)`,
           [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
         );
       }
-
       await client.query("COMMIT");
     } catch (dbErr) {
       await client.query("ROLLBACK");
@@ -655,20 +649,14 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
       client.release();
     }
 
-    res.json({
-      id:       savedReceipt.id,
-      merchant: merchant || "N/A",
-      date:     date     || "N/A",
-      total:    total    ?? "N/A",
-      currency,
-      lineItems,
-    });
+    res.json({ id: savedReceipt.id, merchant, date, total, currency, lineItems });
 
-  } catch (err) {
-    console.error("OCR error:", err.response?.data || err.message || err);
-    res.status(500).json({ error: "OCR failed", details: err.message || err });
-  }
-});
+      } catch (err) {
+        console.error("OCR error:", err.response?.data || err.message || err);
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: "OCR failed", details: err.message || err });
+      }
+    });
 
 app.get("/receipts", async (req, res) => {
   try {
@@ -739,91 +727,95 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    const mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
-    const inputSource  = new mindee.PathInput({ inputPath: req.file.path });
+    const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
 
-    const response = await mindeeClient.parse(
-      mindee.product.InvoiceV4, inputSource
+    const inputSource = new mindee.PathInput({ inputPath: req.file.path });
+
+    const response = await mindeeClient.enqueueAndGetResult(
+      mindee.v2.product.Extraction,
+      inputSource,
+      { modelId: process.env.MINDEE_MODEL_ID }
     );
 
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
-    const doc = response.document.inference.prediction;
+    const fields = response.rawHttp.inference.result.fields;
 
-    const merchant  = doc.supplierName?.value  ?? null;
-    const date      = doc.date?.value          ?? null;
-    const total     = doc.totalNet?.value      ?? doc.totalAmount?.value ?? null;
-    const currency  = doc.locale?.currency     ?? "PHP";
+    const merchant = fields?.supplier_name?.value                ?? null;
+    const date     = fields?.date?.value                         ?? null;
+    const total    = fields?.total_amount?.value                 ?? null;
+    const currency = fields?.locale?.fields?.currency?.value     ?? "PHP";
 
-    const lineItems = (doc.lineItems ?? []).map(item => ({
-      description: item.description || "Item",
-      quantity:    item.quantity    || 0,
-      unitPrice:   item.unitPrice   || 0,
-      totalPrice:  item.totalAmount || 0,
+    const lineItems = (fields?.line_items?.items ?? []).map(item => ({
+      description: item.fields?.description?.value || "Item",
+      quantity:    item.fields?.quantity?.value    || 0,
+      unitPrice:   item.fields?.unit_price?.value  || 0,
+      totalPrice:  item.fields?.total_price?.value || 0,
     }));
 
-    res.json({ merchant, date, total, currency, lineItems });
+        res.json({ merchant, date, total, currency, lineItems });
 
-  } catch (err) {
-    console.error("OCR extract error:", err.message);
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: "OCR failed", details: err.message });
-  }
-});
-app.post("/receipts/save", async (req, res) => {
-  const { merchant, date, total, currency, lineItems } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+      } catch (err) {
+        console.error("OCR extract error:", err.message);
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        res.status(500).json({ error: "OCR failed", details: err.message });
+      }
+    });
 
-    const receiptResult = await client.query(
-      `INSERT INTO receipts (merchant, date, total_amount, currency)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [merchant, date, total, currency || "PHP"]
-    );
-    const savedReceipt = receiptResult.rows[0];
+    app.post("/receipts/save", async (req, res) => {
+      const { merchant, date, total, currency, lineItems } = req.body;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-    for (const item of (lineItems || [])) {
-      await client.query(
-        `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
-      );
-    }
+        const receiptResult = await client.query(
+          `INSERT INTO receipts (merchant, date, total_amount, currency)
+          VALUES ($1, $2, $3, $4) RETURNING *`,
+          [merchant, date, total, currency || "PHP"]
+        );
+        const savedReceipt = receiptResult.rows[0];
 
-    await client.query("COMMIT");
-    res.json({ id: savedReceipt.id, success: true });
+        for (const item of (lineItems || [])) {
+          await client.query(
+            `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
+            VALUES ($1, $2, $3, $4, $5)`,
+            [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
+          );
+        }
 
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("Save receipt error:", err.message);
-    res.status(500).json({ error: "Failed to save receipt" });
-  } finally {
-    client.release();
-  }
-});
+        await client.query("COMMIT");
+        res.json({ id: savedReceipt.id, success: true });
 
-app.delete("/receipts/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete receipt" });
-  }
-});
+      } catch (err) {
+        await client.query("ROLLBACK");
+        console.error("Save receipt error:", err.message);
+        res.status(500).json({ error: "Failed to save receipt" });
+      } finally {
+        client.release();
+      }
+    });
 
-// GET all inventory
-app.get("/inventory", async (req, res) => {
-  try {
-    const { branch } = req.query;
-    const result = branch
-      ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
-      : await pool.query("SELECT * FROM inventory ORDER BY name");
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch inventory" });
-  }
-});
+    app.delete("/receipts/:id", async (req, res) => {
+      try {
+        await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
+        res.json({ success: true });
+      } catch (err) {
+        res.status(500).json({ error: "Failed to delete receipt" });
+      }
+    });
+
+    // GET all inventory
+    app.get("/inventory", async (req, res) => {
+      try {
+        const { branch } = req.query;
+        const result = branch
+          ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
+          : await pool.query("SELECT * FROM inventory ORDER BY name");
+        res.json(result.rows);
+      } catch (err) {
+        res.status(500).json({ error: "Failed to fetch inventory" });
+      }
+    });
 
 // POST add item
 app.post("/inventory", async (req, res) => {
