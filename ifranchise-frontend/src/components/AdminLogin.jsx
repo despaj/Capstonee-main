@@ -175,7 +175,7 @@ export default function AdminLogin() {
     }
 
     try {
-      const res = await fetch("http://localhost:5001/login", {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -263,7 +263,7 @@ export default function AdminLogin() {
     setStep("otp");
 
     try {
-      const res = await fetch("http://localhost:5001/send-otp-after-login", {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-after-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: otpEmail.trim() }),
@@ -289,7 +289,7 @@ export default function AdminLogin() {
 
     try {
       // credentials: "include" receives the device_token cookie set by the server
-      const res = await fetch("http://localhost:5001/verify-otp-login", {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: otpEmail.trim(), otp: otp.trim() }),
@@ -323,8 +323,7 @@ export default function AdminLogin() {
     setStep("forgotPasswordOtp");
 
     try {
-      // credentials: "include" so the cookie jar is available for the reset step
-      const res = await fetch("http://localhost:5001/send-forgot-password-otp", {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-forgot-password-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail.trim() }),
@@ -409,7 +408,7 @@ export default function AdminLogin() {
     }
 
     try {
-      const res = await fetch("http://localhost:5001/reset-password", {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -446,8 +445,7 @@ export default function AdminLogin() {
   const handleLogout = async () => {
     if (window.confirm("Are you sure you want to logout?")) {
       try {
-        // Call backend to clear device token from DB and clear the cookie
-        await fetch("http://localhost:5001/logout", {
+        await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
           method: "POST",
           credentials: "include",
         });
@@ -743,7 +741,7 @@ export default function AdminLogin() {
                   setResendDisabled(true);
                   setResendTimer(30);
 
-                  const res = await fetch("http://localhost:5001/send-forgot-password-otp", {
+                  const res = await fetch(`${process.env.REACT_APP_API_URL}/send-forgot-password-otp`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: forgotEmail }),
@@ -824,7 +822,7 @@ export default function AdminLogin() {
                   setResendDisabled(true);
                   setResendTimer(30);
 
-                  const res = await fetch("http://localhost:5001/send-otp-after-login", {
+                  const res = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-after-login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: otpEmail }),

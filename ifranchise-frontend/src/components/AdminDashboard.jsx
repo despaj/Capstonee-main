@@ -49,7 +49,7 @@ export default function AdminDashboard() {
    const [brands, setBrands] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5001/brands")
+    fetch(`${process.env.REACT_APP_API_URL}/brands`)
       .then(res => res.json())
       .then(data => setBrands(Array.isArray(data) ? data : []))
       .catch(err => console.error("Failed to fetch brands:", err));
@@ -60,7 +60,7 @@ export default function AdminDashboard() {
 
   const fetchApplications = async () => {
     try {
-      const response = await fetch('http://localhost:5001/applications');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
       const data = await response.json();
       setApplications(data);
     } catch (error) {
@@ -72,7 +72,7 @@ export default function AdminDashboard() {
   const handleDeleteApplication = async (id) => {
     if (window.confirm('Are you sure you want to delete this application?')) {
       try {
-        const response = await fetch(`http://localhost:5001/applications/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, { method: 'DELETE' });
         const data = await response.json();
         if (data.success) {
           setApplications(applications.filter(app => app.id !== id));
@@ -87,7 +87,7 @@ export default function AdminDashboard() {
 
   const handleApproveApplication = async (id) => {
     try {
-      const response = await fetch(`http://localhost:5001/applications/${id}/status`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'approved' }),
@@ -368,7 +368,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const res  = await fetch("http://localhost:5001/brands");
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setBrands(list);
@@ -392,7 +392,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
     }
 
     try {
-      const res  = await fetch('http://localhost:5001/brands', {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(brandForm),
       });
@@ -405,7 +405,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
   const handleEditBrand = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`http://localhost:5001/brands/${selectedBrand.id}`, {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(brandForm),
       });
@@ -418,7 +418,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
   const handleDeleteBrand = async (id) => {
     if (confirmDeleteId !== `brand-${id}`) { setConfirmDeleteId(`brand-${id}`); return; }
     try {
-      const res  = await fetch(`http://localhost:5001/brands/${id}`, { method: 'DELETE' });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setConfirmDeleteId(null); }
       else alert(data.error || 'Failed to delete brand');
@@ -440,7 +440,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
     }
 
     try {
-      const res  = await fetch('http://localhost:5001/branches', {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(branchForm),
       });
@@ -453,7 +453,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
   const handleEditBranch = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`http://localhost:5001/branches/${selectedBranch.id}`, {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(branchForm),
       });
@@ -466,7 +466,7 @@ const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:
   const handleDeleteBranch = async (id) => {
     if (confirmDeleteId !== `branch-${id}`) { setConfirmDeleteId(`branch-${id}`); return; }
     try {
-      const res  = await fetch(`http://localhost:5001/branches/${id}`, { method: 'DELETE' });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setConfirmDeleteId(null); }
       else alert(data.error || 'Failed to delete branch');
@@ -778,7 +778,6 @@ function BmModal({ title, onClose, onSubmit, children }) {
   );
 }
 
-/* ── Brand form fields ── */
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState('');
 
@@ -1155,7 +1154,7 @@ function MobileShopContent() {
   React.useEffect(() => { fetchItems(); }, []);
 
   const fetchItems = async () => {
-    const res = await fetch("http://localhost:5001/shop-items");
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
     const data = await res.json();
     setItems(data);
   };
@@ -1177,7 +1176,7 @@ function MobileShopContent() {
     if (loading) return;
     if (!validate()) return;
     setLoading(true);
-    await fetch("http://localhost:5001/shop-items", {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ name:newItem.name, price:Number(newItem.price), image_url:newItem.image_url, shop:newItem.shop, brand:newItem.brand, stock:Number(newItem.stock) }),
     });
@@ -1187,8 +1186,8 @@ function MobileShopContent() {
     fetchItems();
   };
 
-  const deleteItem    = async (id) => { await fetch(`http://localhost:5001/shop-items/${id}`, { method:"DELETE" }); fetchItems(); };
-  const toggleVisibility = async (id) => { await fetch(`http://localhost:5001/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
+  const deleteItem    = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); fetchItems(); };
+  const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
 
   return (
     <div style={{ maxWidth:"900px", margin:"0 auto" }}>
@@ -1312,7 +1311,7 @@ function BranchSelect({ value, onChange, name, required, disabled, placeholder }
 
   const fetchBranches = async () => {
     try {
-      const res = await fetch("http://localhost:5001/branches");
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`);
       const data = await res.json();
       setBranches(data);
     } catch (err) { console.error("Failed to fetch branches", err); }
@@ -1322,7 +1321,7 @@ function BranchSelect({ value, onChange, name, required, disabled, placeholder }
     if (!newBranch.trim()) return;
     setAdding(true); setError("");
     try {
-      const res = await fetch("http://localhost:5001/branches", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newBranch.trim() }) });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newBranch.trim() }) });
       const data = await res.json();
       if (data.success) { await fetchBranches(); onChange({ target:{ name, value:newBranch.trim() } }); setNewBranch(""); setShowAddInput(false); }
       else setError(data.error || "Failed to add branch");
@@ -1677,7 +1676,7 @@ function InventoryContent({ user, brands = [] }) {
     const query = branch && branch !== "all" 
       ? `?branch=${encodeURIComponent(branch)}` 
       : ""; // no query param = return everything
-    const res = await fetch(`http://localhost:5001/inventory${query}`);
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${query}`);
     const data = await res.json();
     setInventory(Array.isArray(data) ? data : []);
   } catch (err) { 
@@ -1692,7 +1691,7 @@ function InventoryContent({ user, brands = [] }) {
     e.preventDefault();
     const payload = { ...formData, branch:isAdmin?formData.branch:userBranch };
     try {
-      const res = await fetch("http://localhost:5001/inventory", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const data = await res.json();
       if (data.success) { await fetchInventory(isAdmin?selectedBranch:userBranch); setShowAddModal(false); resetForm(); }
       else alert(data.error || "Failed to add item");
@@ -1703,7 +1702,7 @@ function InventoryContent({ user, brands = [] }) {
     e.preventDefault();
     const payload = { ...formData, branch:isAdmin?formData.branch:userBranch };
     try {
-      const res = await fetch(`http://localhost:5001/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const data = await res.json();
       if (data.success) { await fetchInventory(isAdmin?selectedBranch:userBranch); setShowEditModal(false); setEditingItem(null); resetForm(); }
       else alert(data.error || "Failed to update item");
@@ -1713,7 +1712,7 @@ function InventoryContent({ user, brands = [] }) {
   const handleDeleteItem = async (id) => {
     if (confirmDeleteId !== id) { setConfirmDeleteId(id); return; }
     try {
-      const res = await fetch(`http://localhost:5001/inventory/${id}`, { method:"DELETE" });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method:"DELETE" });
       const data = await res.json();
       if (data.success) { await fetchInventory(isAdmin?selectedBranch:userBranch); setConfirmDeleteId(null); }
       else alert(data.error || "Failed to delete item");
@@ -1875,7 +1874,7 @@ function UsersContent() {
   useEffect(() => { fetchUsers(); }, []);
 
   const fetchUsers = async () => {
-    try { const response = await fetch("http://localhost:5001/users"); const data = await response.json(); setUsers(data); }
+    try { const response = await fetch(`${process.env.REACT_APP_API_URL}/users`); const data = await response.json(); setUsers(data); }
     catch (error) { console.error("Error fetching users:", error); alert("Failed to load users"); }
   };
 
@@ -1894,7 +1893,7 @@ function UsersContent() {
     const passwordCheck = validatePasswordStrength(formData.password);
     if (!passwordCheck.isValid) { alert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character"); return; }
     try {
-      const response = await fetch("http://localhost:5001/users", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
       const data = await response.json();
       if (data.success) { await fetchUsers(); setShowAddModal(false); resetForm(); alert('User added successfully!'); }
       else alert(data.error || 'Failed to add user');
@@ -1904,7 +1903,7 @@ function UsersContent() {
   const handleEditUser = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5001/users/${editingUser.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
       const data = await response.json();
       if (data.success) { await fetchUsers(); setShowEditModal(false); setEditingUser(null); resetForm(); alert('User updated successfully!'); }
       else alert(data.error || 'Failed to update user');
@@ -1914,7 +1913,7 @@ function UsersContent() {
   const handleDeleteUser = async (id) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        const response = await fetch(`http://localhost:5001/users/${id}`, { method:"DELETE" });
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, { method:"DELETE" });
         const data = await response.json();
         if (data.success) { await fetchUsers(); alert('User deleted successfully!'); }
         else alert(data.error || 'Failed to delete user');
@@ -2045,7 +2044,7 @@ function ProfileContent({ user }) {
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      const response = await fetch("http://localhost:5001/send-otp-password-change", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:emailToSend }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:emailToSend }) });
       const data = await response.json();
       if (data.success) { setOtpSent(true); alert(`OTP has been sent to ${emailToSend}`); }
       else alert(data.message || data.error || 'Failed to send OTP');
@@ -2056,7 +2055,7 @@ function ProfileContent({ user }) {
     try {
       setOtpError('');
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(`http://localhost:5001/users/${user.id}/password`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ currentPassword:formData.currentPassword, newPassword:formData.newPassword, email:emailToVerify, otp:otp.trim() }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ currentPassword:formData.currentPassword, newPassword:formData.newPassword, email:emailToVerify, otp:otp.trim() }) });
       const data = await response.json();
       if (data.success) {
         setShowOtpModal(false); setShowSuccessModal(true);
@@ -2082,7 +2081,7 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:5001/users/${user.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:formData.name, email:formData.email, role:formData.role, branch:user.branch }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:formData.name, email:formData.email, role:formData.role, branch:user.branch }) });
       const data = await response.json();
       if (data.success) { alert('Profile updated successfully!'); const updatedUser = {...user,name:formData.name,email:formData.email}; localStorage.setItem('user',JSON.stringify(updatedUser)); }
       else alert(data.error || 'Failed to update profile');
