@@ -15,7 +15,7 @@
 
   app.use(cookieParser());
   app.use(cors({
-    origin: ["http://localhost:3000","http://localhost:3001", "http://localhost:8081"],
+    origin: ["http://localhost:3000","https://franchisync.vercel.app", "http://localhost:8081"],
     credentials: true
   }));
   app.use(express.json());
