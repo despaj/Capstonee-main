@@ -32,6 +32,7 @@
   });
 
   const otpStore = {};
+
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
@@ -144,29 +145,29 @@
 });
 
   app.post("/send-otp-after-login", async (req, res) => {
+    console.log("1. Route hit");
     const { email } = req.body;
+    console.log("2. Email received:", email);
+    
     try {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log("3. OTP generated:", otp);
+      
       otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
+      console.log("4. OTP stored");
 
+      console.log("5. Attempting to send email...");
       await transporter.sendMail({
         from: `"iFranchise" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: "Your iFranchise Login OTP",
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #2E7D32;">Your iFranchise Login OTP</h2>
-            <p>Your one-time password is:</p>
-            <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
-            <p style="color: #666;">This code will expire in 3 minutes.</p>
-            <p style="color: #999; font-size: 12px;">If you didn't request this code, please ignore this email.</p>
-          </div>`,
+        html: `...`,
       });
 
-      console.log(` OTP sent to ${email}: ${otp}`);
+      console.log("6. Email sent successfully to:", email);
       res.json({ success: true });
     } catch (err) {
-      console.error("Error sending OTP:", err);
+      console.error("7. Error sending OTP:", err);
       res.status(500).json({ message: "Failed to send OTP" });
     }
   });
