@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "http://localhost:5001";
+const API = process.env.REACT_APP_API_URL;
 
 // const GREEN        = "#1a6c2e";
 // const GREEN_LIGHT  = "#e8f5e9";

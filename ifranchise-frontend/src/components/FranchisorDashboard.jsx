@@ -728,7 +728,7 @@ function InventorySummaryContent() {
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:5001/inventory')
+    fetch(`${process.env.REACT_APP_API_URL}/inventory`)
       .then(r => r.json())
       .then(data => setInventory(data))
       .catch(err => console.error(err))
@@ -935,7 +935,7 @@ function ProfileContent({ user }) {
       const emailToSend = formData.personalEmail || formData.email;
       console.log('Sending OTP to email:', emailToSend);
       
-      const response = await fetch("http://localhost:5001/send-otp-password-change", {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -967,7 +967,7 @@ function ProfileContent({ user }) {
       console.log('Changing password with OTP for email:', emailToVerify);
       console.log('OTP entered:', otp);
       
-      const response = await fetch(`http://localhost:5001/users/${user.id}/password`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1053,7 +1053,7 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:5001/users/${user.id}`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

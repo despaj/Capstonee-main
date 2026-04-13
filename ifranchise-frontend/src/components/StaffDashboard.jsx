@@ -639,7 +639,7 @@ function BranchSelect({ value, onChange, name, required, disabled, placeholder }
 
   const fetchBranches = async () => {
     try {
-      const res  = await fetch("http://localhost:5001/branches");
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`);
       const data = await res.json();
       setBranches(data);
     } catch (err) {
@@ -652,7 +652,7 @@ function BranchSelect({ value, onChange, name, required, disabled, placeholder }
     setAdding(true);
     setError("");
     try {
-      const res  = await fetch("http://localhost:5001/branches", {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: newBranch.trim() }),
@@ -780,7 +780,7 @@ function InventoryContent({ user }) {
     try {
       const query = branch && branch !== "all"
         ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res  = await fetch(`http://localhost:5001/inventory${query}`);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory${query}`);
       const data = await res.json();
       setInventory(data);
     } catch (err) {
@@ -794,7 +794,7 @@ function InventoryContent({ user }) {
     e.preventDefault();
     const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
     try {
-      const res  = await fetch("http://localhost:5001/inventory", {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -816,7 +816,7 @@ function InventoryContent({ user }) {
     e.preventDefault();
     const payload = { ...formData, branch: isAdmin ? formData.branch : userBranch };
     try {
-      const res  = await fetch(`http://localhost:5001/inventory/${editingItem.id}`, {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -841,7 +841,7 @@ function InventoryContent({ user }) {
       return;
     }
     try {
-      const res  = await fetch(`http://localhost:5001/inventory/${id}`, { method: "DELETE" });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
         await fetchInventory(isAdmin ? selectedBranch : userBranch);
@@ -940,7 +940,7 @@ function InventoryContent({ user }) {
                 color: 'var(--green-primary)',
                 borderRadius: 20, fontSize: 13, fontWeight: 600
               }}>
-                📍 {userBranch}
+                {userBranch}
               </span>
             )}
 
@@ -1289,7 +1289,7 @@ function ProfileContent({ user }) {
       const emailToSend = formData.personalEmail || formData.email;
       console.log('Sending OTP to email:', emailToSend);
       
-      const response = await fetch("http://localhost:5001/send-otp-password-change", {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1321,7 +1321,7 @@ function ProfileContent({ user }) {
       console.log('Changing password with OTP for email:', emailToVerify);
       console.log('OTP entered:', otp);
       
-      const response = await fetch(`http://localhost:5001/users/${user.id}/password`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1407,7 +1407,7 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:5001/users/${user.id}`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

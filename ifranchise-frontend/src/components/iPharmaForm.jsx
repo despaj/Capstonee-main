@@ -701,7 +701,7 @@ export default function IPharmaForm() {
                   onClick={async () => {
                     if (validatePage3()) {
                       try {
-                        const response = await fetch('http://localhost:5001/ipharma-applications', {
+                        const response = await fetch(`${process.env.REACT_APP_API_URL}/ipharma-applications`, {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',

@@ -214,7 +214,7 @@ function InventoryContent({ user }) {
     setLoading(true);
     try {
       const query = userBranch ? `?branch=${encodeURIComponent(userBranch)}` : '';
-      const res   = await fetch(`http://localhost:5001/inventory${query}`);
+      const res   = await fetch(`${process.env.REACT_APP_API_URL}/inventory${query}`);
       const data  = await res.json();
       setInventory(data);
     } catch (err) { console.error('Error fetching inventory:', err); }
@@ -224,7 +224,7 @@ function InventoryContent({ user }) {
   const handleAddItem = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch('http://localhost:5001/inventory', {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, branch: userBranch, stock: parseInt(formData.stock), minStock: parseInt(formData.minStock), price: parseFloat(formData.price) }),
       });
@@ -237,7 +237,7 @@ function InventoryContent({ user }) {
   const handleEditItem = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`http://localhost:5001/inventory/${editingItem.id}`, {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, branch: userBranch, stock: parseInt(formData.stock), minStock: parseInt(formData.minStock), price: parseFloat(formData.price) }),
       });
@@ -250,7 +250,7 @@ function InventoryContent({ user }) {
   const handleDeleteItem = async (id) => {
     if (confirmDeleteId !== id) { setConfirmDeleteId(id); return; }
     try {
-      const res  = await fetch(`http://localhost:5001/inventory/${id}`, { method: 'DELETE' });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) { await fetchInventory(); setConfirmDeleteId(null); }
       else alert(data.error || 'Failed to delete item');
@@ -510,7 +510,7 @@ function ProfileContent({ user }) {
   const sendOtp = async () => {
     const emailToSend = formData.personalEmail || formData.email;
     try {
-      const res  = await fetch('http://localhost:5001/send-otp-password-change', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: emailToSend }) });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: emailToSend }) });
       const data = await res.json();
       if (data.success) { setOtpSent(true); alert(`OTP has been sent to ${emailToSend}`); }
       else alert(data.message || data.error || 'Failed to send OTP');
@@ -521,7 +521,7 @@ function ProfileContent({ user }) {
     setOtpError('');
     const emailToVerify = formData.personalEmail || formData.email;
     try {
-      const res  = await fetch(`http://localhost:5001/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: formData.currentPassword, newPassword: formData.newPassword, email: emailToVerify, otp: otp.trim() }) });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: formData.currentPassword, newPassword: formData.newPassword, email: emailToVerify, otp: otp.trim() }) });
       const data = await res.json();
       if (data.success) {
         setShowOtpModal(false); setShowSuccessModal(true);
@@ -546,7 +546,7 @@ function ProfileContent({ user }) {
 
   const updateProfile = async () => {
     try {
-      const res  = await fetch(`http://localhost:5001/users/${user.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: formData.name, email: formData.email, role: formData.role, branch: user.branch }) });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: formData.name, email: formData.email, role: formData.role, branch: user.branch }) });
       const data = await res.json();
       if (data.success) {
         alert('Profile updated successfully!');
