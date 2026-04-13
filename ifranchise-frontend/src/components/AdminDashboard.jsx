@@ -355,8 +355,10 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [selectedBranch,  setSelectedBranch]  = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const emptyBrand  = { name: '', region: '', contact_email: '', contact_phone: '', description: '' };
+  const emptyBrand  = { name: '', region: '', categories: [], contact_email: '', contact_phone: '', description: '' };
   const emptyBranch = { name: '', brand_id: '', region: '', manager: '', contact: '', address: '', status: 'Active' };
+  
+const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:5, display:'block' };
 
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
@@ -643,7 +645,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
                 <button
                   onClick={() => {
                     setSelectedBrand(brand);
-                    setBrandForm({ name: brand.name, region: brand.region, contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
+                    setBrandForm({ name: brand.name, region: brand.region, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
                     setShowEditBrandModal(true);
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, border: '1.5px solid rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -752,7 +754,6 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   );
 }
 
-/* ── Reusable modal shell for BrandManagement ── */
 function BmModal({ title, onClose, onSubmit, children }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
@@ -779,36 +780,129 @@ function BmModal({ title, onClose, onSubmit, children }) {
 
 /* ── Brand form fields ── */
 function BrandFormFields({ form, setForm }) {
+  const [catInput, setCatInput] = useState('');
+
   const f = (field) => ({ value: form[field], onChange: e => setForm(p => ({ ...p, [field]: e.target.value })) });
   const inputSt = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #b2dfdb', fontSize: 13, color: '#0d2b1e', background: '#f0fdf5', fontFamily: 'inherit', outline: 'none', marginTop: 4, boxSizing: 'border-box' };
   const lbl = { display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.07em' };
+
+  const addCategory = () => {
+    const val = catInput.trim();
+    if (!val) return;
+    if ((form.categories || []).map(c => c.toLowerCase()).includes(val.toLowerCase())) {
+      alert(`"${val}" is already in the list.`); return;
+    }
+    setForm(f => ({ ...f, categories: [...(f.categories || []), val] }));
+    setCatInput('');
+  };
+
+  const removeCategory = (cat) =>
+    setForm(f => ({ ...f, categories: f.categories.filter(c => c !== cat) }));
+
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <div><label style={lbl}>Brand Name *</label><input style={inputSt} {...f('name')} required /></div>
-      <div><label style={lbl}>Region *</label>
+
+      {/* Brand Name */}
+      <div>
+        <label style={lbl}>Brand Name *</label>
+        <input style={inputSt} {...f('name')} placeholder="Enter brand name" required />
+      </div>
+
+      {/* Region */}
+      <div>
+        <label style={lbl}>Region *</label>
         <select style={{ ...inputSt, appearance: 'none', cursor: 'pointer' }} {...f('region')} required>
           <option value="">Select region</option>
-          {['NCR', 'Region 3', 'Region 4A', 'Region 4B', 'Region 5', 'Region 7', 'Region 11'].map(r => <option key={r}>{r}</option>)}
+          {['NCR', 'Region 3', 'Region 4A', 'Region 4B', 'Region 5', 'Region 7', 'Region 11'].map(r => (
+            <option key={r}>{r}</option>
+          ))}
         </select>
       </div>
+
+      {/* Contact Email + Phone */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div><label style={lbl}>Contact Email</label><input type="email" style={inputSt} {...f('contact_email')} /></div>
-        <div><label style={lbl}>Contact Number</label><input type="tel" style={inputSt} {...f('contact')}
-        maxLength={11} 
-        onKeyDown={(e) => {
-            const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End', 'Control'];
-            const isShortcut = (e.ctrlKey || e.metaKey) && ['a','c','v','x','z','y'].includes(e.key.toLowerCase());
-            if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) {
-              e.preventDefault();
-            }
-          }}
-          onChange={(e) => {
-            const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
-            setForm(prev => ({ ...prev, contact: digits }));
-          }}
-        /></div>
+        <div>
+          <label style={lbl}>Contact Email</label>
+          <input type="email" style={inputSt} {...f('contact_email')} placeholder="brand@example.com" />
+        </div>
+        <div>
+          <label style={lbl}>Contact Phone</label>
+          <input
+            type="tel" style={inputSt}
+            maxLength={11}
+            value={form.contact_phone}
+            onKeyDown={(e) => {
+              const allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
+              const isShortcut = (e.ctrlKey || e.metaKey) && ['a','c','v','x','z','y'].includes(e.key.toLowerCase());
+              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
+            }}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+              setForm(prev => ({ ...prev, contact_phone: digits }));
+            }}
+            placeholder="09XXXXXXXXX"
+          />
+        </div>
       </div>
-      <div><label style={lbl}>Description</label><textarea style={{ ...inputSt, resize: 'vertical', minHeight: 72 }} {...f('description')} /></div>
+
+      {/* Description */}
+      <div>
+        <label style={lbl}>Description</label>
+        <textarea
+          style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }}
+          {...f('description')} rows={3} placeholder="Brief description of the brand..."
+        />
+      </div>
+
+      {/* Categories */}
+      <div>
+        <label style={lbl}>Categories</label>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <input
+            style={{ ...inputSt, marginTop: 0, flex: 1 }}
+            placeholder="e.g. Medicine, Supplement, Antibiotic..."
+            value={catInput}
+            onChange={e => setCatInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+          />
+          <button
+            type="button" onClick={addCategory}
+            style={{
+              padding: '9px 16px', borderRadius: 10, border: 'none',
+              background: 'linear-gradient(135deg,#2E7D32,#00897b)',
+              color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+            }}
+          >
+            <Plus size={13} /> Add
+          </button>
+        </div>
+        {(form.categories || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic', marginTop: 6 }}>
+            No categories yet. Type one above and press Add or Enter.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+            {form.categories.map(cat => (
+              <span key={cat} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px', borderRadius: 20,
+                background: '#e0f2f1', border: '1.5px solid #00897b',
+                color: '#00695c', fontSize: 12, fontWeight: 700,
+              }}>
+                {cat}
+                <button
+                  type="button" onClick={() => removeCategory(cat)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: '#00897b' }}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -861,10 +955,6 @@ function BranchFormFields({ form, setForm, brands }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ALL EXISTING COMPONENTS BELOW (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const fmt = (n) => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + n; };
@@ -1423,6 +1513,148 @@ function StatCard({ label, value, icon: Icon, iconBg, badge, badgeBg, badgeColor
   );
 }
 
+// const FormFields = ({ formData, handleInputChange, setFormData, isAdmin, userBranch, brands }) => (
+//   <>
+//     <InputField label="Item Name" type="text" name="name" value={formData.name} onChange={handleInputChange} required />
+//     <SelectField label="Category" name="category" value={formData.category} onChange={handleInputChange} required>
+//       <option value="">Select category</option>
+//       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+//     </SelectField>
+//     {isAdmin ? (
+//       <div style={{ marginBottom:14 }}>
+//         <label style={{ display:"block", fontSize:11, fontWeight:800, color:"#5a7a65", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</label>
+//         <BrandBranchSelect value={formData.branch} onChange={val => setFormData(p => ({ ...p, branch:val==="all"?"":val }))} brands={brands} placeholder="Select a branch" />
+//       </div>
+//     ) : (
+//       <div style={{ marginBottom:14 }}>
+//         <label style={{ display:"block", fontSize:11, fontWeight:800, color:"#5a7a65", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</label>
+//         <div style={{ padding:"9px 12px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f5f5f5", fontSize:13.5, color:"#5a7a65", fontWeight:600 }}>{userBranch || "—"}</div>
+//       </div>
+//     )}
+//     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+//       <InputField label="Stock" type="number" name="stock" value={formData.stock} onChange={handleInputChange} required />
+//       <InputField label="Min Stock" type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} required />
+//       <InputField label="Price (₱)" type="number" step="0.01" name="price" value={formData.price} onChange={handleInputChange} required />
+//     </div>
+//   </>
+// );
+
+function FormFields({ formData, handleInputChange, setFormData, isAdmin, userBranch, brands, selectedBrandId, setSelectedBrandId }) {
+
+  const selectedBrand   = brands.find(b => String(b.id) === String(selectedBrandId));
+  const branchOptions   = selectedBrand?.branches || [];
+  const categoryOptions = (selectedBrand?.categories?.length > 0) ? selectedBrand.categories : CATEGORIES;
+
+  const handleBrandChange = (e) => {
+    setSelectedBrandId(e.target.value);
+    setFormData(f => ({ ...f, branch: '', category: '' }));
+  };
+
+  const labelStyle = { fontSize:12, fontWeight:700, color:'#065f46', marginBottom:5, display:'block' };
+  const inputStyle = {
+    width:'100%', padding:'9px 12px', borderRadius:10,
+    border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e',
+    background:'#f0fdf5', fontFamily:'inherit', outline:'none',
+    appearance:'none',
+  };
+  const disabledStyle = { ...inputStyle, opacity:0.6, cursor:'not-allowed' };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {/* Item Name */}
+      <div>
+        <label style={labelStyle}>Item Name *</label>
+        <input
+          style={inputStyle} name="name" placeholder="Enter item name" required
+          value={formData.name} onChange={handleInputChange}
+        />
+      </div>
+
+      {/* Brand (admin only) */}
+      {isAdmin && (
+        <div>
+          <label style={labelStyle}>Brand *</label>
+          <select
+            style={{ ...inputStyle, cursor:'pointer' }}
+            value={selectedBrandId} onChange={handleBrandChange} required
+          >
+            <option value="">Select brand...</option>
+            {brands.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Branch */}
+      {isAdmin ? (
+        <div>
+          <label style={labelStyle}>Branch *</label>
+          <select
+            style={selectedBrandId ? { ...inputStyle, cursor:'pointer' } : disabledStyle}
+            name="branch" value={formData.branch}
+            onChange={handleInputChange} required
+            disabled={!selectedBrandId}
+          >
+            <option value="">{selectedBrandId ? 'Select branch...' : 'Select a brand first'}</option>
+            {branchOptions.map(br => (
+              <option key={br.id} value={br.name}>{br.name}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div>
+          <label style={labelStyle}>Branch</label>
+          <input style={disabledStyle} value={userBranch} disabled />
+        </div>
+      )}
+
+      {/* Category */}
+      <div>
+        <label style={labelStyle}>Category *</label>
+        <select
+          style={(isAdmin && !selectedBrandId) ? disabledStyle : { ...inputStyle, cursor:'pointer' }}
+          name="category" value={formData.category}
+          onChange={handleInputChange} required
+          disabled={isAdmin && !selectedBrandId}
+        >
+          <option value="">{(isAdmin && !selectedBrandId) ? 'Select a brand first' : 'Select category...'}</option>
+          {categoryOptions.map(cat => (
+            <option key={cat} value={cat}>{cat}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Stock · Min Stock · Price */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+        <div>
+          <label style={labelStyle}>Stock *</label>
+          <input
+            style={inputStyle} type="number" name="stock" min="0" required
+            value={formData.stock} onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Min Stock *</label>
+          <input
+            style={inputStyle} type="number" name="minStock" min="0" required
+            value={formData.minStock} onChange={handleInputChange}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Price (₱) *</label>
+          <input
+            style={inputStyle} type="number" name="price" min="0" step="0.01" required
+            value={formData.price} onChange={handleInputChange}
+          />
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 function InventoryContent({ user, brands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
@@ -1434,6 +1666,7 @@ function InventoryContent({ user, brands = [] }) {
   const [editingItem, setEditingItem]         = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [searchQuery, setSearchQuery]         = useState("");
+  const [selectedBrandId, setSelectedBrandId] = useState('');
   const [formData, setFormData] = useState({ name:"", category:"", branch:isAdmin?"":userBranch, stock:0, minStock:0, price:0 });
 
   useEffect(() => { fetchInventory(isAdmin ? selectedBranch : userBranch); }, [selectedBranch, isAdmin, userBranch]);
@@ -1487,8 +1720,17 @@ function InventoryContent({ user, brands = [] }) {
     } catch { alert("Failed to delete item"); }
   };
 
-  const openEditModal = (item) => { setEditingItem(item); setFormData({ name:item.name, category:item.category, branch:item.branch, stock:item.stock, minStock:item.min_stock, price:item.price }); setShowEditModal(true); };
-  const resetForm = () => setFormData({ name:"", category:"", branch:isAdmin?"":userBranch, stock:0, minStock:0, price:0 });
+  const openEditModal = (item) => {
+  const ownerBrand = brands.find(b => b.branches?.some(br => br.name === item.branch));
+  setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : '');
+  setEditingItem(item);
+  setFormData({ name:item.name, category:item.category, branch:item.branch, stock:item.stock, minStock:item.min_stock, price:item.price });
+  setShowEditModal(true);
+};
+const resetForm = () => {
+    setFormData({ name:'', category:'', branch: isAdmin ? '' : userBranch, stock:0, minStock:0, price:0 });
+    setSelectedBrandId('');
+  };
   const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]:value })); };
 
   const lowStockCount = inventory.filter(i => i.stock < i.min_stock).length;
@@ -1513,32 +1755,6 @@ function InventoryContent({ user, brands = [] }) {
     });
     return acc;
   }, {});
-
-  const FormFields = () => (
-    <>
-      <InputField label="Item Name" type="text" name="name" value={formData.name} onChange={handleInputChange} required />
-      <SelectField label="Category" name="category" value={formData.category} onChange={handleInputChange} required>
-        <option value="">Select category</option>
-        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-      </SelectField>
-      {isAdmin ? (
-        <div style={{ marginBottom:14 }}>
-          <label style={{ display:"block", fontSize:11, fontWeight:800, color:"#5a7a65", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</label>
-          <BrandBranchSelect value={formData.branch} onChange={val => setFormData(p => ({ ...p, branch:val==="all"?"":val }))} brands={brands} placeholder="Select a branch" />
-        </div>
-      ) : (
-        <div style={{ marginBottom:14 }}>
-          <label style={{ display:"block", fontSize:11, fontWeight:800, color:"#5a7a65", marginBottom:5, textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</label>
-          <div style={{ padding:"9px 12px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f5f5f5", fontSize:13.5, color:"#5a7a65", fontWeight:600 }}>{userBranch || "—"}</div>
-        </div>
-      )}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-        <InputField label="Stock" type="number" name="stock" value={formData.stock} onChange={handleInputChange} required />
-        <InputField label="Min Stock" type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} required />
-        <InputField label="Price (₱)" type="number" step="0.01" name="price" value={formData.price} onChange={handleInputChange} required />
-      </div>
-    </>
-  );
 
   return (
     <div style={{ fontFamily:"'Montserrat',sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 32px 40px" }}>
@@ -1609,9 +1825,19 @@ function InventoryContent({ user, brands = [] }) {
   </div>
         )}
       </div>
-      {showAddModal && <Modal title="Add New Inventory Item" onClose={() => setShowAddModal(false)} onSubmit={handleAddItem}><FormFields/></Modal>}
-      {showEditModal && <Modal title="Edit Inventory Item" onClose={() => { setShowEditModal(false); setEditingItem(null); }} onSubmit={handleEditItem}><FormFields/></Modal>}
-    </div>
+      {showAddModal && (
+        <Modal title="Add New Inventory Item" onClose={() => setShowAddModal(false)} onSubmit={handleAddItem}>
+          <FormFields formData={formData} handleInputChange={handleInputChange} setFormData={setFormData} isAdmin={isAdmin} userBranch={userBranch} brands={brands} 
+          selectedBrandId={selectedBrandId} setSelectedBrandId={setSelectedBrandId}  />
+        </Modal>
+      )}
+      {showEditModal && (
+        <Modal title="Edit Inventory Item" onClose={() => { setShowEditModal(false); setEditingItem(null); }} onSubmit={handleEditItem}>
+          <FormFields formData={formData} handleInputChange={handleInputChange} setFormData={setFormData} isAdmin={isAdmin} userBranch={userBranch} brands={brands}
+           selectedBrandId={selectedBrandId} setSelectedBrandId={setSelectedBrandId}  />
+        </Modal>
+      )}
+  </div>
   );
 }
 

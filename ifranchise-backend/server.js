@@ -941,32 +941,33 @@ app.delete("/branches/:id", async (req, res) => {
   }
 });
 
+// POST /brands
+app.post("/brands", async (req, res) => {
+  try {
+    const { name, region, contact_email, contact_phone, description, categories } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: "Brand name is required" });
+    const result = await pool.query(
+      "INSERT INTO brands (name, region, contact_email, contact_phone, description, categories) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+      [name.trim(), region, contact_email, contact_phone, description, categories || []]
+    );
+    res.json({ success: true, brand: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23505") return res.status(400).json({ error: "Brand already exists" });
+    res.status(500).json({ error: "Failed to add brand" });
+  }
+});
+
+// PUT /brands/:id
 app.put("/brands/:id", async (req, res) => {
-  const { name, region, contact_email, contact_phone, description } = req.body;
+  const { name, region, contact_email, contact_phone, description, categories } = req.body;
   try {
     const result = await pool.query(
-      "UPDATE brands SET name=$1, region=$2, contact_email=$3, contact_phone=$4, description=$5 WHERE id=$6 RETURNING *",
-      [name, region, contact_email, contact_phone, description, req.params.id]
+      "UPDATE brands SET name=$1, region=$2, contact_email=$3, contact_phone=$4, description=$5, categories=$6 WHERE id=$7 RETURNING *",
+      [name, region, contact_email, contact_phone, description, categories || [], req.params.id]
     );
     res.json({ success: true, brand: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: "Failed to update brand" });
-  }
-});
-
-app.post("/brands", async (req, res) => {
-  try {
-    const { name, region, contact_email, contact_phone, description } = req.body;
-    if (!name?.trim()) return res.status(400).json({ error: "Brand name is required" });
-    const result = await pool.query(
-      "INSERT INTO brands (name, region, contact_email, contact_phone, description) VALUES ($1,$2,$3,$4,$5) RETURNING *",
-      [name.trim(), region, contact_email, contact_phone, description]
-    );
-    res.json({ success: true, brand: result.rows[0] });
-  } catch (err) {
-    if (err.code === "23505")
-      return res.status(400).json({ error: "Brand already exists" });
-    res.status(500).json({ error: "Failed to add brand" });
   }
 });
 

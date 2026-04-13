@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import AdminLogin from './components/AdminLogin';
-import iFranchiseForm from './components/ApplyFranchise';
 import IPharmaForm from './components/iPharmaForm';
 import AdminDashboard from './components/AdminDashboard';
 import ApplyFranchise from './components/ApplyFranchise';
