@@ -41,7 +41,18 @@
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
   });
+
+  transporter.verify((error, success) => {
+  if (error) {
+    console.error("Transporter verification failed:", error);
+  } else {
+    console.log("Mail server is ready");
+  }
+});
 
   function getOrCreateDeviceId(req, res) {
     let deviceId = req.cookies?.device_id;
