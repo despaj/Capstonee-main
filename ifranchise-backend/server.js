@@ -9,7 +9,9 @@
   const multer = require("multer");
   const fs = require("fs");
   const mindee = require("mindee");
-
+  const { Resend } = require("resend");
+  
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const app = express();
   const PORT = process.env.PORT || 5001;
 
@@ -33,25 +35,18 @@
 
   const otpStore = {};
 
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-  });
-
-  transporter.verify((error, success) => {
-  if (error) {
-    console.error("Transporter verification failed:", error);
-  } else {
-    console.log("Mail server is ready");
-  }
+  await resend.emails.send({
+  from: "onboarding@resend.dev",
+  to: email,
+  subject: "Your iFranchise Login OTP",
+  html: `
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+      <h2 style="color: #2E7D32;">Your iFranchise Login OTP</h2>
+      <p>Your one-time password is:</p>
+      <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
+      <p style="color: #666;">This code will expire in 3 minutes.</p>
+      <p style="color: #999; font-size: 12px;">If you didn't request this code, please ignore this email.</p>
+    </div>`
 });
 
   function getOrCreateDeviceId(req, res) {
