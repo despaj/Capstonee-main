@@ -2,7 +2,6 @@
   const express = require("express");
   const cors = require("cors");
   const { Pool } = require("pg");
-  const nodemailer = require("nodemailer");
   const { v4: uuidv4 } = require("uuid");
   const crypto = require("crypto");
   const cookieParser = require("cookie-parser");
@@ -34,20 +33,6 @@
   });
 
   const otpStore = {};
-
-  await resend.emails.send({
-  from: "onboarding@resend.dev",
-  to: email,
-  subject: "Your iFranchise Login OTP",
-  html: `
-    <div style="font-family: Arial, sans-serif; padding: 20px;">
-      <h2 style="color: #2E7D32;">Your iFranchise Login OTP</h2>
-      <p>Your one-time password is:</p>
-      <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
-      <p style="color: #666;">This code will expire in 3 minutes.</p>
-      <p style="color: #999; font-size: 12px;">If you didn't request this code, please ignore this email.</p>
-    </div>`
-});
 
   function getOrCreateDeviceId(req, res) {
     let deviceId = req.cookies?.device_id;
@@ -163,11 +148,17 @@
       console.log("4. OTP stored");
 
       console.log("5. Attempting to send email...");
-      await transporter.sendMail({
-        from: `"iFranchise" <${process.env.EMAIL_USER}>`,
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
         to: email,
         subject: "Your iFranchise Login OTP",
-        html: `...`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #2E7D32;">Password Reset Request</h2>
+            <p>Your one-time password is:</p>
+            <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
+            <p style="color: #666;">This code will expire in 3 minutes.</p>
+          </div>`
       });
 
       console.log("6. Email sent successfully to:", email);
@@ -303,8 +294,8 @@
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
-      await transporter.sendMail({
-        from: `"iFranchise" <${process.env.EMAIL_USER}>`,
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
         to: email,
         subject: "OTP for Password Change",
         html: `
@@ -313,8 +304,7 @@
             <p>Your one-time password is:</p>
             <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
             <p style="color: #666;">This code will expire in 3 minutes.</p>
-            <p style="color: #999; font-size: 12px;">If you didn't request this code, please ignore this email.</p>
-          </div>`,
+          </div>`
       });
 
       console.log(`Password change OTP sent to ${email}`);
@@ -382,18 +372,17 @@
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
-      await transporter.sendMail({
-        from: `"iFranchise" <${process.env.EMAIL_USER}>`,
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
         to: email,
         subject: "Password Reset OTP - iFranchise",
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px;">
             <h2 style="color: #2E7D32;">Password Reset Request</h2>
-            <p>You requested to reset your password. Your one-time password is:</p>
+            <p>Your one-time password is:</p>
             <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
             <p style="color: #666;">This code will expire in 3 minutes.</p>
-            <p style="color: #999; font-size: 12px;">If you didn't request this, please ignore this email.</p>
-          </div>`,
+          </div>`
       });
 
       console.log(`Password reset OTP sent to ${email}: ${otp}`);
