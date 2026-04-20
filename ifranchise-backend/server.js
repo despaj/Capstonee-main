@@ -608,12 +608,11 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
 
     const fields = response.rawHttp.inference.result.fields;
-    console.log("Extracted fields:", { merchant, date, total, currency, lineItems });
 
-    const merchant = fields?.supplier_name?.value                ?? null;
-    const date     = fields?.date?.value                         ?? null;
-    const total    = fields?.total_amount?.value                 ?? null;
-    const currency = fields?.locale?.fields?.currency?.value     ?? "PHP";
+    const merchant  = fields?.supplier_name?.value            ?? null;
+    const date      = fields?.date?.value                     ?? null;
+    const total     = fields?.total_amount?.value             ?? null;
+    const currency  = fields?.locale?.fields?.currency?.value ?? "PHP";
 
     const lineItems = (fields?.line_items?.items ?? []).map(item => ({
       description: item.fields?.description?.value || "Item",
@@ -622,7 +621,9 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
       totalPrice:  item.fields?.total_price?.value || 0,
     }));
 
-      const client = await pool.connect();
+    console.log("Extracted fields:", { merchant, date, total, currency, lineItems });
+
+    const client = await pool.connect();
     let savedReceipt;
     try {
       await client.query("BEGIN");
