@@ -1666,6 +1666,277 @@ function InvModal({ title, onClose, onSubmit, children }) {
   );
 }
 
+function FormFields({
+  formData, handleInputChange, handleCostChange, setFormData,
+  isAdmin, userBranch, brandList, formBrandId, setFormBrandId,
+  categoryOptions, nonAdminCategoryOptions, nonAdminBrand,
+  formBranchOptions, onCancel,
+}) {
+  const catOptions     = isAdmin ? categoryOptions : nonAdminCategoryOptions;
+  const brandSelected  = !!formBrandId;
+  const branchSelected = !!formData.branch;
+
+  // ── ingredient search state ──
+  const [ingSearch,       setIngSearch]       = useState("");
+  const [ingResults,      setIngResults]      = useState([]);
+  const [ingSearching,    setIngSearching]    = useState(false);
+  const [selectedIngs,    setSelectedIngs]    = useState(formData.ingredients || []);
+  const [showIngDropdown, setShowIngDropdown] = useState(false);
+  const ingRef = useRef(null);
+
+  // close dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => { if (ingRef.current && !ingRef.current.contains(e.target)) setShowIngDropdown(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // search ingredients from server
+  useEffect(() => {
+    if (!ingSearch.trim()) { setIngResults([]); setShowIngDropdown(false); return; }
+    const timeout = setTimeout(async () => {
+      setIngSearching(true);
+      try {
+        const branch = isAdmin ? formData.branch : userBranch;
+        const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
+        const data = await res.json();
+        const filtered = (Array.isArray(data) ? data : []).filter(i =>
+          i.name.toLowerCase().includes(ingSearch.toLowerCase()) &&
+          !selectedIngs.find(s => s.ingredient_id === i.id)
+        );
+        setIngResults(filtered);
+        setShowIngDropdown(true);
+      } catch { setIngResults([]); }
+      finally { setIngSearching(false); }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [ingSearch, formData.branch, isAdmin, userBranch, selectedIngs]);
+
+  const addIngredient = (ing) => {
+    const newList = [...selectedIngs, { ingredient_id: ing.id, name: ing.name, unit: ing.unit, quantity: "", cost_per_unit: ing.cost_per_unit }];
+    setSelectedIngs(newList);
+    setFormData(p => ({ ...p, ingredients: newList }));
+    setIngSearch("");
+    setIngResults([]);
+    setShowIngDropdown(false);
+  };
+
+  const removeIngredient = (ingredient_id) => {
+    const newList = selectedIngs.filter(i => i.ingredient_id !== ingredient_id);
+    setSelectedIngs(newList);
+    setFormData(p => ({ ...p, ingredients: newList }));
+  };
+
+  const updateIngQty = (ingredient_id, quantity) => {
+    const newList = selectedIngs.map(i => i.ingredient_id === ingredient_id ? { ...i, quantity } : i);
+    setSelectedIngs(newList);
+    setFormData(p => ({ ...p, ingredients: newList }));
+  };
+
+  // compute total ingredient cost per product
+  const totalIngCost = selectedIngs.reduce((sum, i) => {
+    const qty  = parseFloat(i.quantity) || 0;
+    const cost = parseFloat(i.cost_per_unit) || 0;
+    return sum + qty * cost;
+  }, 0);
+
+  return (
+    <>
+      {/* 1. Item Name */}
+      <InvField label="Item Name">
+        <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
+      </InvField>
+
+      {/* 2. Ingredients */}
+      <InvField label="Ingredients">
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+
+          {/* search box */}
+          <div ref={ingRef} style={{ position:"relative" }}>
+            <div style={{ position:"relative" }}>
+              <SearchIcon size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted, pointerEvents:"none" }}/>
+              <input
+                type="text"
+                value={ingSearch}
+                onChange={e => setIngSearch(e.target.value)}
+                onFocus={() => ingResults.length > 0 && setShowIngDropdown(true)}
+                placeholder="Search ingredients to add…"
+                style={{ ...invInputSt, paddingLeft:30 }}
+              />
+              {ingSearching && (
+                <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", fontSize:11, color:C.muted }}>searching…</span>
+              )}
+            </div>
+
+            {/* dropdown results */}
+            {showIngDropdown && ingResults.length > 0 && (
+              <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 4px 20px rgba(0,0,0,0.12)", zIndex:200, maxHeight:180, overflowY:"auto" }}>
+                {ingResults.map(ing => (
+                  <div key={ing.id} onMouseDown={() => addIngredient(ing)}
+                    style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:`1px solid #f2faf5` }}
+                    onMouseEnter={e => e.currentTarget.style.background="#f0fdf5"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    <span style={{ fontWeight:600, color:C.ink }}>{ing.name}</span>
+                    <span style={{ fontSize:11, color:C.muted }}>{ing.unit} · ₱{parseFloat(ing.cost_per_unit||0).toFixed(4)}/{ing.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* no results */}
+            {showIngDropdown && ingResults.length === 0 && ingSearch.trim() && !ingSearching && (
+              <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 4px 20px rgba(0,0,0,0.12)", zIndex:200, padding:"10px 13px", fontSize:12, color:C.muted, fontStyle:"italic" }}>
+                No ingredients found for "{ingSearch}"
+              </div>
+            )}
+          </div>
+
+          {/* selected ingredients list */}
+          {selectedIngs.length > 0 && (
+            <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden" }}>
+              {/* header */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 80px 24px", gap:8, padding:"6px 10px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Ingredient</span>
+                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Qty / Unit</span>
+                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Cost</span>
+                <span/>
+              </div>
+
+              {/* rows */}
+              {selectedIngs.map(ing => {
+                const lineCost = (parseFloat(ing.quantity)||0) * (parseFloat(ing.cost_per_unit)||0);
+                return (
+                  <div key={ing.ingredient_id} style={{ display:"grid", gridTemplateColumns:"1fr 100px 80px 24px", gap:8, padding:"7px 10px", alignItems:"center", borderBottom:`1px solid #f2faf5` }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:C.ink }}>{ing.name}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={ing.quantity}
+                        onChange={e => updateIngQty(ing.ingredient_id, e.target.value)}
+                        placeholder="0"
+                        style={{ ...invInputSt, padding:"5px 7px", width:58, fontSize:12 }}
+                      />
+                      <span style={{ fontSize:11, color:C.muted, whiteSpace:"nowrap" }}>{ing.unit}</span>
+                    </div>
+                    <span style={{ fontSize:12, color:C.muted }}>
+                      {lineCost > 0 ? `₱${lineCost.toFixed(2)}` : "—"}
+                    </span>
+                    <button type="button" onClick={() => removeIngredient(ing.ingredient_id)}
+                      style={{ background:"none", border:"none", cursor:"pointer", color:"#e53935", padding:2, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      <XIcon size={13}/>
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* total ingredient cost */}
+              <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:6, padding:"7px 10px", background:"#f9fefb", borderTop:`1px solid ${C.border}` }}>
+                <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Total ingredient cost per unit:</span>
+                <span style={{ fontSize:13, fontWeight:800, color:C.green }}>₱{totalIngCost.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {selectedIngs.length === 0 && (
+            <div style={{ fontSize:12, color:C.muted, fontStyle:"italic", padding:"6px 2px" }}>
+              No ingredients added yet. Search above to add.
+            </div>
+          )}
+        </div>
+      </InvField>
+
+      {/* 3. Brand */}
+      {isAdmin ? (
+        <InvField label="Brand">
+          <select
+            style={{ ...invInputSt, cursor:"pointer" }}
+            value={formBrandId}
+            onChange={e => { setFormBrandId(e.target.value); setFormData(p => ({ ...p, branch:"", category:"" })); }}
+            required
+          >
+            <option value="">Select brand...</option>
+            {brandList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        </InvField>
+      ) : (
+        <InvField label="Brand">
+          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{nonAdminBrand?.name||"—"}</div>
+        </InvField>
+      )}
+
+      {/* 4. Branch */}
+      {isAdmin ? (
+        <InvField label="Branch">
+          <select
+            style={{ ...invInputSt, cursor:brandSelected?"pointer":"not-allowed", opacity:brandSelected?1:0.55 }}
+            name="branch"
+            value={formData.branch}
+            onChange={e => setFormData(p => ({ ...p, branch:e.target.value, category:"" }))}
+            required
+            disabled={!brandSelected}
+          >
+            <option value="">{brandSelected ? "Select branch..." : "Select a brand first"}</option>
+            {formBranchOptions.map(br => <option key={br} value={br}>{br}</option>)}
+          </select>
+        </InvField>
+      ) : (
+        <InvField label="Branch">
+          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{userBranch||"—"}</div>
+        </InvField>
+      )}
+
+      {/* 5. Category */}
+      <InvField label="Category">
+        <select
+          style={{ ...invInputSt, cursor:(isAdmin&&!branchSelected)?"not-allowed":"pointer", opacity:(isAdmin&&!branchSelected)?0.55:1 }}
+          name="category"
+          value={formData.category}
+          onChange={handleInputChange}
+          required
+          disabled={isAdmin && !branchSelected}
+        >
+          <option value="">{isAdmin&&!branchSelected ? "Select a branch first" : "Select category..."}</option>
+          {catOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        </select>
+      </InvField>
+
+      {/* 6. Cost + Margin */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        <InvField label="Product Cost (₱)">
+          <input type="number" name="cost" value={formData.cost} onChange={handleCostChange} step="0.01" min="0" style={invInputSt} placeholder="0.00"/>
+        </InvField>
+        <InvField label="Profit Margin (%)">
+          <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }} title="Fixed at 40%"/>
+        </InvField>
+      </div>
+      {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
+        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
+          Cost: <strong>{fmtPeso(formData.cost)}</strong>
+          <span style={{ color:C.muted }}>+</span>
+          <strong>{DEFAULT_PROFIT_MARGIN}%</strong>
+          <span style={{ color:C.muted }}>=</span>
+          Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
+        </div>
+      )}
+
+      {/* 7. Stock / Min Stock / Price */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+        <InvField label="Stock Qty"><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
+        <InvField label="Min Stock"><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
+        <InvField label="Selling Price (₱)"><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></InvField>
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+        <button type="button" onClick={onCancel} style={btnSt}>Cancel</button>
+        <button type="submit" style={btnPrimarySt}>Save Item</button>
+      </div>
+    </>
+  );
+}
+
 function InventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
@@ -1699,6 +1970,8 @@ function InventoryContent({ user, brands: propBrands = [] }) {
   const [editingItem,     setEditingItem]     = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [page,            setPage]            = useState(0);
+  // ── NEW: tracks which brand is selected in the form ──
+  const [formBrandId,     setFormBrandId]     = useState("");
 
   const emptyForm = useCallback(() => ({
     name:"", category:"", branch:isAdmin?"":userBranch, cost:"", stock:0, minStock:0, price:"",
@@ -1746,26 +2019,40 @@ function InventoryContent({ user, brands: propBrands = [] }) {
   const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
 
   const handleAddItem = async (e) => {
-    e.preventDefault();
-    const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      const d   = await res.json();
-      if (d.success) { await refetch(); setShowAddModal(false); setFormData(emptyForm()); }
-      else alert(d.error||"Failed to add item");
-    } catch { alert("Failed to add item"); }
-  };
+  e.preventDefault();
+  const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+    const d   = await res.json();
+    if (d.success) {
+      // save ingredients recipe if any were added
+      if (formData.ingredients?.length > 0) {
+        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ ingredients: formData.ingredients.map(i => ({ ingredient_id:i.ingredient_id, quantity:parseFloat(i.quantity)||0, unit:i.unit })) })
+        });
+      }
+      await refetch(); setShowAddModal(false); setFormData(emptyForm()); setFormBrandId("");
+    } else alert(d.error||"Failed to add item");
+  } catch { alert("Failed to add item"); }
+};
 
-  const handleEditItem = async (e) => {
-    e.preventDefault();
-    const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      const d   = await res.json();
-      if (d.success) { await refetch(); setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); }
-      else alert(d.error||"Failed to update item");
-    } catch { alert("Failed to update item"); }
-  };
+const handleEditItem = async (e) => {
+  e.preventDefault();
+  const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+    const d   = await res.json();
+    if (d.success) {
+      // always save ingredients (even empty = clears recipe)
+      await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ ingredients: (formData.ingredients||[]).map(i => ({ ingredient_id:i.ingredient_id, quantity:parseFloat(i.quantity)||0, unit:i.unit })) })
+      });
+      await refetch(); setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId("");
+    } else alert(d.error||"Failed to update item");
+  } catch { alert("Failed to update item"); }
+};
 
   const handleDeleteItem = async (id) => {
     try {
@@ -1776,11 +2063,30 @@ function InventoryContent({ user, brands: propBrands = [] }) {
     } catch { alert("Failed to delete"); }
   };
 
-  const openEditModal = (item) => {
-    setEditingItem(item);
-    setFormData({ name:item.name, category:item.category, branch:item.branch, cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price });
-    setShowEditModal(true);
-  };
+  const openEditModal = async (item) => {
+  setEditingItem(item);
+  const ownerBrand = brandList.find(b =>
+    (b.branches||[]).some(br => (typeof br==="string"?br:br.name) === item.branch)
+  );
+  setFormBrandId(ownerBrand ? String(ownerBrand.id) : "");
+
+  // fetch existing recipe for this item
+  let ingredients = [];
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${item.id}/ingredients`);
+    const data = await res.json();
+    ingredients = Array.isArray(data) ? data.map(r => ({
+      ingredient_id : r.ingredient_id,
+      name          : r.ingredient_name,
+      unit          : r.unit,
+      quantity      : r.quantity,
+      cost_per_unit : r.cost_per_unit,
+    })) : [];
+  } catch { ingredients = []; }
+
+  setFormData({ name:item.name, category:item.category, branch:item.branch, cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price, ingredients });
+  setShowEditModal(true);
+};
 
   const handleCostChange = (e) => {
     const cost  = e.target.value;
@@ -1841,52 +2147,38 @@ function InventoryContent({ user, brands: propBrands = [] }) {
     return "All Inventory";
   })();
 
-  const FormFields = () => (
-    <>
-      <InvField label="Item Name">
-        <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
-      </InvField>
-      <InvField label="Category">
-        <CategorySelect value={formData.category} onChange={val=>setFormData(p=>({...p,category:val}))} categories={categories} onAddCategory={cat=>setCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}/>
-      </InvField>
-      {isAdmin ? (
-        <InvField label="Branch">
-          <BranchSearchSelect value={formData.branch} onChange={val=>setFormData(p=>({...p,branch:val}))} allBranches={allBranches}/>
-        </InvField>
-      ) : (
-        <InvField label="Branch">
-          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{userBranch||"—"}</div>
-        </InvField>
-      )}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <InvField label="Product Cost (₱)">
-          <input type="number" name="cost" value={formData.cost} onChange={handleCostChange} step="0.01" min="0" style={invInputSt} placeholder="0.00"/>
-        </InvField>
-        <InvField label="Profit Margin (%)">
-          <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }} title="Fixed at 40%"/>
-        </InvField>
-      </div>
-      {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
-        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
-          Cost: <strong>{fmtPeso(formData.cost)}</strong>
-          <span style={{ color:C.muted }}>+</span>
-          <strong>{DEFAULT_PROFIT_MARGIN}%</strong>
-          <span style={{ color:C.muted }}>=</span>
-          Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
-        </div>
-      )}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-        <InvField label="Stock Qty"><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
-        <InvField label="Min Stock"><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
-        <InvField label="Selling Price (₱)"><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></InvField>
-      </div>
-      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-        <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); }} style={btnSt}>Cancel</button>
-        <button type="submit" style={btnPrimarySt}>Save Item</button>
-      </div>
-    </>
-  );
+  // ── derive selected brand object from formBrandId ──
+  const activeBrandForForm = useMemo(() => {
+    if (!formBrandId) return null;
+    return brandList.find(b => String(b.id) === String(formBrandId)) || null;
+  }, [formBrandId, brandList]);
 
+  // ── branches that belong to the selected brand ──
+  const formBranchOptions = useMemo(() => {
+    if (!activeBrandForForm) return [];
+    return (activeBrandForForm.branches || []).map(br => typeof br === "string" ? br : br.name);
+  }, [activeBrandForForm]);
+
+  // ── categories that belong to the selected brand ──
+  const categoryOptions = useMemo(() => {
+    if (activeBrandForForm?.categories?.length > 0) return activeBrandForForm.categories;
+    return categories;
+  }, [activeBrandForForm, categories]);
+
+  // ── for non-admin: resolve their brand once ──
+  const nonAdminBrand = useMemo(() => {
+    if (isAdmin) return null;
+    return brandList.find(b =>
+      (b.branches||[]).some(br => (typeof br==="string"?br:br.name) === userBranch)
+    ) || null;
+  }, [isAdmin, userBranch, brandList]);
+
+  const nonAdminCategoryOptions = useMemo(() => {
+    if (nonAdminBrand?.categories?.length > 0) return nonAdminBrand.categories;
+    return categories;
+  }, [nonAdminBrand, categories]);
+
+ 
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
@@ -1921,7 +2213,7 @@ function InventoryContent({ user, brands: propBrands = [] }) {
             <FileIcon size={13}/> Import Excel
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
           </label>
-          <button onClick={() => { setFormData({ ...emptyForm(), branch:isAdmin?(filterBranch||""):userBranch }); setShowAddModal(true); }} style={btnPrimarySt}>
+          <button onClick={() => { setFormData({ ...emptyForm(), branch:isAdmin?(filterBranch||""):userBranch }); setFormBrandId(isAdmin?(filterBrand||""):(nonAdminBrand?String(nonAdminBrand.id):"")); setShowAddModal(true); }} style={btnPrimarySt}>
             <PlusIcon size={13}/> Add New Item
           </button>
         </div>
@@ -1957,8 +2249,28 @@ function InventoryContent({ user, brands: propBrands = [] }) {
         )}
       </div>
 
-      {showAddModal  && <InvModal title="Add New Inventory Item" onClose={() => { setShowAddModal(false);  setFormData(emptyForm()); }} onSubmit={handleAddItem}><FormFields/></InvModal>}
-      {showEditModal && <InvModal title="Edit Inventory Item"    onClose={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); }} onSubmit={handleEditItem}><FormFields/></InvModal>}
+      {showAddModal && (
+        <InvModal title="Add New Inventory Item" onClose={() => { setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); }} onSubmit={handleAddItem}>
+          <FormFields
+            formData={formData} handleInputChange={handleInputChange} handleCostChange={handleCostChange} setFormData={setFormData}
+            isAdmin={isAdmin} userBranch={userBranch} brandList={brandList} formBrandId={formBrandId} setFormBrandId={setFormBrandId}
+            categoryOptions={categoryOptions} nonAdminCategoryOptions={nonAdminCategoryOptions} nonAdminBrand={nonAdminBrand}
+            formBranchOptions={formBranchOptions}
+            onCancel={() => { setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); }}
+          />
+        </InvModal>
+      )}
+      {showEditModal && (
+      <InvModal title="Edit Inventory Item" onClose={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); }} onSubmit={handleEditItem}>
+        <FormFields
+          formData={formData} handleInputChange={handleInputChange} handleCostChange={handleCostChange} setFormData={setFormData}
+          isAdmin={isAdmin} userBranch={userBranch} brandList={brandList} formBrandId={formBrandId} setFormBrandId={setFormBrandId}
+          categoryOptions={categoryOptions} nonAdminCategoryOptions={nonAdminCategoryOptions} nonAdminBrand={nonAdminBrand}
+          formBranchOptions={formBranchOptions}
+          onCancel={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); }}
+        />
+      </InvModal>
+      )}
     </div>
   );
 }

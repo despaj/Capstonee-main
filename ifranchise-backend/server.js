@@ -803,57 +803,75 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
       }
     });
 
-    // GET all inventory
-    app.get("/inventory", async (req, res) => {
-      try {
-        const { branch } = req.query;
-        const result = branch
-          ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
-          : await pool.query("SELECT * FROM inventory ORDER BY name");
-        res.json(result.rows);
-      } catch (err) {
-        res.status(500).json({ error: "Failed to fetch inventory" });
-      }
-    });
+ app.get("/inventory", async (req, res) => {
+  try {
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
+      : await pool.query("SELECT * FROM inventory ORDER BY name");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch inventory" });
+  }
+});
 
-// POST add item
 app.post("/inventory", async (req, res) => {
   try {
-    const { name, category, branch, stock, minStock, price } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price } = req.body;
 
-    if (!branch) 
+    if (!branch)
       return res.status(400).json({ error: "Branch is required" });
 
     const result = await pool.query(
-      `INSERT INTO inventory (name, category, branch, stock, min_stock, price)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, category, branch, parseInt(stock), parseInt(minStock), parseFloat(price)]
+      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [
+        name,
+        category,
+        branch,
+        brand || null,
+        parseInt(stock) || 0,
+        parseInt(min_stock ?? minStock) || 0,
+        parseFloat(cost) || 0,
+        parseFloat(price) || 0,
+      ]
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
+    console.error("POST /inventory error:", err);
     res.status(500).json({ error: "Failed to add inventory item" });
   }
 });
 
-// PUT update item
 app.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, stock, minStock, price } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price } = req.body;
+
     const result = await pool.query(
       `UPDATE inventory
-       SET name=$1, category=$2, branch=$3, stock=$4, min_stock=$5, price=$6, updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
-      [name, category, branch, parseInt(stock), parseInt(minStock), parseFloat(price), req.params.id]
+       SET name=$1, category=$2, branch=$3, brand=$4, stock=$5, min_stock=$6, cost=$7, price=$8, updated_at=NOW()
+       WHERE id=$9 RETURNING *`,
+      [
+        name,
+        category,
+        branch,
+        brand || null,
+        parseInt(stock) || 0,
+        parseInt(min_stock ?? minStock) || 0,
+        parseFloat(cost) || 0,
+        parseFloat(price) || 0,
+        req.params.id,
+      ]
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Item not found" });
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
+    console.error("PUT /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to update inventory item" });
   }
 });
 
-// DELETE item
 app.delete("/inventory/:id", async (req, res) => {
   try {
     const result = await pool.query(
@@ -864,7 +882,178 @@ app.delete("/inventory/:id", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     res.json({ success: true });
   } catch (err) {
+    console.error("DELETE /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to delete inventory item" });
+  }
+});
+
+// ─── INGREDIENTS ───────────────────────────────────────────
+
+app.get("/ingredients", async (req, res) => {
+  try {
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query("SELECT * FROM ingredients WHERE branch=$1 ORDER BY name", [branch])
+      : await pool.query("SELECT * FROM ingredients ORDER BY name");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredients error:", err);
+    res.status(500).json({ error: "Failed to fetch ingredients" });
+  }
+});
+
+app.post("/ingredients", async (req, res) => {
+  try {
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit } = req.body;
+    if (!name || !unit)
+      return res.status(400).json({ error: "Name and unit are required" });
+    const result = await pool.query(
+      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [name, branch||null, brand||null, unit, parseFloat(stock)||0, parseFloat(min_stock)||0, parseFloat(cost_per_unit)||0]
+    );
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    console.error("POST /ingredients error:", err);
+    res.status(500).json({ error: "Failed to add ingredient" });
+  }
+});
+
+app.put("/ingredients/:id", async (req, res) => {
+  try {
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit } = req.body;
+    const result = await pool.query(
+      `UPDATE ingredients SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6, cost_per_unit=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [name, branch||null, brand||null, unit, parseFloat(stock)||0, parseFloat(min_stock)||0, parseFloat(cost_per_unit)||0, req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Ingredient not found" });
+    res.json({ success: true, item: result.rows[0] });
+  } catch (err) {
+    console.error("PUT /ingredients/:id error:", err);
+    res.status(500).json({ error: "Failed to update ingredient" });
+  }
+});
+
+app.delete("/ingredients/:id", async (req, res) => {
+  try {
+    const result = await pool.query("DELETE FROM ingredients WHERE id=$1 RETURNING id", [req.params.id]);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Ingredient not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /ingredients/:id error:", err);
+    res.status(500).json({ error: "Failed to delete ingredient" });
+  }
+});
+
+// ─── PRODUCT INGREDIENTS (recipe) ──────────────────────────
+
+// Get the recipe for a specific inventory product
+app.get("/inventory/:id/ingredients", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pi.*, i.name AS ingredient_name, i.unit AS ingredient_unit,
+              i.stock AS ingredient_stock, i.cost_per_unit
+       FROM product_ingredients pi
+       JOIN ingredients i ON i.id = pi.ingredient_id
+       WHERE pi.inventory_id = $1
+       ORDER BY i.name`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /inventory/:id/ingredients error:", err);
+    res.status(500).json({ error: "Failed to fetch product ingredients" });
+  }
+});
+
+// Save (replace) the full recipe for a product
+app.post("/inventory/:id/ingredients", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { ingredients } = req.body; // [{ ingredient_id, quantity, unit }]
+    await client.query("BEGIN");
+    // delete old recipe first then insert fresh
+    await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [req.params.id]);
+    for (const ing of ingredients) {
+      await client.query(
+        `INSERT INTO product_ingredients (inventory_id, ingredient_id, quantity, unit)
+         VALUES ($1,$2,$3,$4)`,
+        [req.params.id, ing.ingredient_id, parseFloat(ing.quantity), ing.unit]
+      );
+    }
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /inventory/:id/ingredients error:", err);
+    res.status(500).json({ error: "Failed to save recipe" });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── DEDUCT INGREDIENTS WHEN A PRODUCT IS SOLD ─────────────
+
+// Call this when a sale happens: POST /inventory/:id/sell { quantity: 2 }
+app.post("/inventory/:id/sell", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { quantity = 1 } = req.body; // how many units of the product were sold
+    await client.query("BEGIN");
+
+    // 1. deduct product stock
+    const productResult = await client.query(
+      `UPDATE inventory SET stock = stock - $1, updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [parseInt(quantity), req.params.id]
+    );
+    if (productResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Product not found" });
+    }
+    if (productResult.rows[0].stock < 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Insufficient product stock" });
+    }
+
+    // 2. fetch recipe
+    const recipe = await client.query(
+      `SELECT pi.ingredient_id, pi.quantity, i.stock AS current_stock, i.name
+       FROM product_ingredients pi
+       JOIN ingredients i ON i.id = pi.ingredient_id
+       WHERE pi.inventory_id = $1`,
+      [req.params.id]
+    );
+
+    // 3. check all ingredients have enough stock
+    for (const row of recipe.rows) {
+      const needed = parseFloat(row.quantity) * parseInt(quantity);
+      if (parseFloat(row.current_stock) < needed) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: `Insufficient stock for ingredient: ${row.name}` });
+      }
+    }
+
+    // 4. deduct each ingredient
+    for (const row of recipe.rows) {
+      const deduct = parseFloat(row.quantity) * parseInt(quantity);
+      await client.query(
+        `UPDATE ingredients SET stock = stock - $1, updated_at = NOW() WHERE id = $2`,
+        [deduct, row.ingredient_id]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ success: true, product: productResult.rows[0] });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /inventory/:id/sell error:", err);
+    res.status(500).json({ error: "Failed to process sale" });
+  } finally {
+    client.release();
   }
 });
 
