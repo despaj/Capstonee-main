@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ifranchise-frontend && npm install && npm run build",
+  "outputDirectory": "ifranchise-frontend/build",
+  "installCommand": "cd ifranchise-frontend && npm install"
+}
