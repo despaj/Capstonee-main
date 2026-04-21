@@ -96,7 +96,7 @@ export default function AdminDashboard() {
 
  const navigation = [
   { id: 'dashboard',        label: 'Dashboard',            icon: <Home size={20} /> },
-  { id: 'inventory',        label: 'Inventory Management', icon: <Box size={20} /> },
+  { id: 'inventory',        label: 'Menu Inventory', icon: <Box size={20} /> },
   { id: 'stockInventory',   label: 'Stock Inventory',      icon: <Layers size={20} /> },       // NEW
   { id: 'pos',              label: 'POS',                  icon: <DollarSign size={20} /> },    // NEW
   { id: 'mobileShop',       label: 'Mobile Shop Supplies', icon: <ShoppingCart size={20} /> },
@@ -869,8 +869,7 @@ function DashboardContent() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
         .db-root * { box-sizing:border-box; }
-        .db-eyebrow { font-family:'Montserrat',sans-serif; font-size:11px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; color:#00897b; margin-bottom:4px; }
-        .db-heading { font-family:'Montserrat',sans-serif; font-size:28px; font-weight:700; color:#0d2b1e; letter-spacing:-0.7px; margin-bottom:20px; }
+       
         .db-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
         @media(max-width:900px){ .db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
         .db-kpi-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
@@ -899,9 +898,7 @@ function DashboardContent() {
       `}</style>
 
       <div className="db-root">
-        <div className="db-eyebrow">DASHBOARD</div>
-        <h1 className="db-heading">Sales Trend Analysis</h1>
-
+       
         {viewingArchive && (
           <div className="db-viewing-banner">
             <span style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:14 }}>
@@ -1110,10 +1107,23 @@ function DashboardContent() {
 const msInputStyle = { width:"100%", padding:"0.75rem", borderRadius:"8px", border:"1px solid var(--gray-300)", marginTop:"0.3rem", fontSize:"0.9rem" };
 
 function MobileShopContent() {
-  const [items,   setItems]   = useState([]);
-  const [errors,  setErrors]  = useState({});
-  const [loading, setLoading] = useState(false);
-  const [newItem, setNewItem] = useState({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+  const msInputStyle = {
+    width: "100%",
+    padding: "0.6rem 0.75rem",
+    borderRadius: "8px",
+    border: `1px solid ${C.border}`,
+    marginTop: "0.3rem",
+    fontSize: "0.875rem",
+    color: C.ink,
+    background: C.white,
+    outline: "none",
+    boxSizing: "border-box",
+  };
+  const [items,         setItems]         = useState([]);
+  const [errors,        setErrors]        = useState({});
+  const [loading,       setLoading]       = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [newItem,       setNewItem]       = useState({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -1140,8 +1150,8 @@ function MobileShopContent() {
     if (loading || !validate()) return;
     setLoading(true);
     await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ name:newItem.name, price:Number(newItem.price), image_url:newItem.image_url, shop:newItem.shop, brand:newItem.brand, stock:Number(newItem.stock) }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name:newItem.name, price:Number(newItem.price), image_url:newItem.image_url, shop:newItem.shop, brand:newItem.brand, stock:Number(newItem.stock) }),
     });
     setNewItem({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
     setErrors({});
@@ -1149,78 +1159,230 @@ function MobileShopContent() {
     fetchItems();
   };
 
-  const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); fetchItems(); };
+  const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
   const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
 
-  const vStyle = { fontWeight:"600", marginBottom:"0.3rem" };
-  const lStyle = { fontSize:"0.8rem", color:"var(--gray-500)", marginTop:"0.5rem" };
+  // ── Shared label/value styles ──────────────────────────────────────────────
+  const fieldLabel = { fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 };
+  const fieldValue = { fontSize:13, fontWeight:700, color:C.ink };
+
+  // ── Form field wrapper ─────────────────────────────────────────────────────
+  const Field = ({ label, error, children }) => (
+    <div>
+      <label style={{ fontSize:"0.8rem", fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
+      {children}
+      {error && <p style={{ color:"#e53935", fontSize:"0.72rem", marginTop:3, fontWeight:600 }}>{error}</p>}
+    </div>
+  );
 
   return (
-    <div style={{ maxWidth:"900px", margin:"0 auto" }}>
-      <div style={{ background:"#fff", padding:"2rem", borderRadius:"12px", boxShadow:"0 2px 10px rgba(0,0,0,0.05)" }}>
-        <h2 style={{ color:"var(--green-primary)", marginBottom:"1.5rem" }}>Mobile Shop</h2>
-        <div style={{ marginBottom:"2rem" }}>
-          <h3 style={{ color:"var(--green-primary)", fontSize:"1.1rem", marginBottom:"1rem", paddingBottom:"0.5rem", borderBottom:"1px solid var(--gray-200)" }}>Add New Item</h3>
-          <div style={{ display:"grid", gap:"1rem" }}>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Shop</label>
+    <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+
+      {/* ── Add New Item card ──────────────────────────────────────────────── */}
+      <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 2px 12px rgba(0,0,0,0.04)", marginBottom:24, overflow:"hidden" }}>
+
+        {/* Card header */}
+        <div style={{ padding:"14px 20px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:15, fontWeight:900, color:C.green, letterSpacing:"-0.01em" }}>Add New Item</span>
+        </div>
+
+        <div style={{ padding:"20px 24px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
+
+            <Field label="Shop">
               <select value={newItem.shop} onChange={e => setNewItem({...newItem, shop:e.target.value})} style={msInputStyle}>
                 <option value="Coffee Spot">Coffee Spot</option>
                 <option value="iPharma">iPharma</option>
               </select>
-            </div>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Item Name</label>
-              <input value={newItem.name} onChange={e => setNewItem({...newItem, name:e.target.value})} style={{ ...msInputStyle, border:errors.name?"1px solid red":msInputStyle.border }}/>
-              {errors.name && <p style={{ color:"red", fontSize:"0.75rem" }}>{errors.name}</p>}
-            </div>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Brand (Optional)</label>
-              <input value={newItem.brand} onChange={e => setNewItem({...newItem, brand:e.target.value})} style={msInputStyle}/>
-            </div>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Price</label>
-              <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})} style={{ ...msInputStyle, border:errors.price?"1px solid red":msInputStyle.border }}/>
-              {errors.price && <p style={{ color:"red", fontSize:"0.75rem" }}>{errors.price}</p>}
-            </div>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Stock</label>
-              <input type="number" value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})} style={{ ...msInputStyle, border:errors.stock?"1px solid red":msInputStyle.border }}/>
-              {errors.stock && <p style={{ color:"red", fontSize:"0.75rem" }}>{errors.stock}</p>}
-            </div>
-            <div>
-              <label style={{ fontSize:"0.85rem", color:"var(--gray-500)" }}>Image URL</label>
-              <input value={newItem.image_url} onChange={e => setNewItem({...newItem, image_url:e.target.value})} style={{ ...msInputStyle, border:errors.image_url?"1px solid red":msInputStyle.border }}/>
-              {errors.image_url && <p style={{ color:"red", fontSize:"0.75rem" }}>{errors.image_url}</p>}
+            </Field>
+
+            <Field label="Item Name" error={errors.name}>
+              <input
+                value={newItem.name}
+                onChange={e => setNewItem({...newItem, name:e.target.value})}
+                style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}` }}
+                placeholder="e.g. Espresso"
+              />
+            </Field>
+
+            <Field label="Brand (Optional)">
+              <input
+                value={newItem.brand}
+                onChange={e => setNewItem({...newItem, brand:e.target.value})}
+                style={msInputStyle}
+                placeholder="e.g. Nescafé"
+              />
+            </Field>
+
+            <Field label="Price" error={errors.price}>
+              <input
+                value={newItem.price}
+                onChange={e => setNewItem({...newItem, price:e.target.value})}
+                style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }}
+                placeholder="0.00"
+              />
+            </Field>
+
+            <Field label="Stock" error={errors.stock}>
+              <input
+                type="number"
+                value={newItem.stock}
+                onChange={e => setNewItem({...newItem, stock:e.target.value})}
+                style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }}
+                placeholder="0"
+              />
+            </Field>
+
+            <Field label="Image URL" error={errors.image_url}>
+              <input
+                value={newItem.image_url}
+                onChange={e => setNewItem({...newItem, image_url:e.target.value})}
+                style={{ ...msInputStyle, border:`1px solid ${errors.image_url ? "#e53935" : C.border}` }}
+                placeholder="https://..."
+              />
               {newItem.image_url && !errors.image_url && (
-                <img src={newItem.image_url} alt="preview" style={{ marginTop:"10px", width:"120px", height:"120px", objectFit:"cover", borderRadius:"8px", border:"1px solid #ddd" }} onError={e => (e.target.style.display="none")}/>
+                <img
+                  src={newItem.image_url} alt="preview"
+                  style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
+                  onError={e => (e.target.style.display="none")}
+                />
               )}
-            </div>
+            </Field>
+
           </div>
-          <button className="btn btn-primary" style={{ marginTop:"1.5rem", opacity:loading?0.6:1 }} onClick={addItem} disabled={loading}>{loading?"Adding...":"Add Item"}</button>
+
+          <div style={{ marginTop:"1.25rem" }}>
+            <button
+              onClick={addItem}
+              disabled={loading}
+              style={{
+                display:"inline-flex", alignItems:"center", gap:6,
+                padding:"8px 20px", borderRadius:8, border:"none",
+                background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
+                color: C.white, fontWeight:800, fontSize:13,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                boxShadow:"0 2px 8px rgba(0,0,0,0.08)",
+              }}
+            >
+              {loading ? "Adding…" : <><span style={{ fontSize:15 }}>+</span> Add Item</>}
+            </button>
+          </div>
         </div>
-        <div>
-          <h3 style={{ color:"var(--green-primary)", fontSize:"1.1rem", marginBottom:"1rem", paddingBottom:"0.5rem", borderBottom:"1px solid var(--gray-200)" }}>Shop Items</h3>
-          {items.map(item => (
-            <div key={item.id} style={{ marginBottom:"1.5rem", padding:"1rem", border:"1px solid var(--gray-200)", borderRadius:"10px" }}>
-              <div style={{ display:"flex", gap:"1rem" }}>
-                <img src={item.image_url} alt="" style={{ width:"100px", height:"100px", borderRadius:"8px", objectFit:"cover" }}/>
-                <div style={{ flex:1 }}>
-                  <p style={lStyle}>Shop</p><p style={vStyle}>{item.shop}</p>
-                  <p style={lStyle}>Item Name</p><p style={vStyle}>{item.name}</p>
-                  {item.brand && <><p style={lStyle}>Brand</p><p style={vStyle}>{item.brand}</p></>}
-                  <p style={lStyle}>Price</p><p style={vStyle}>₱{item.price}</p>
-                  <p style={lStyle}>Stock</p><p style={vStyle}>{item.stock}</p>
-                  <p style={lStyle}>Status</p><p style={vStyle}>{item.is_visible?"Visible":"Hidden"}</p>
-                </div>
-              </div>
-              <div style={{ marginTop:"1rem", display:"flex", gap:"0.5rem" }}>
-                <button className="btn btn-secondary" onClick={() => toggleVisibility(item.id)}>{item.is_visible?"Hide":"Show"}</button>
-                <button className="btn btn-danger"    onClick={() => deleteItem(item.id)}>Delete</button>
-              </div>
-            </div>
-          ))}
+      </div>
+
+      {/* ── Shop Items card ────────────────────────────────────────────────── */}
+      <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 2px 12px rgba(0,0,0,0.04)", overflow:"hidden" }}>
+
+        {/* Card header */}
+        <div style={{ padding:"14px 20px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontSize:15, fontWeight:900, color:C.green, letterSpacing:"-0.01em" }}>Shop Items</span>
+          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
         </div>
+
+        {items.length === 0 ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
+            No shop items yet. Add one above.
+          </div>
+        ) : (
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr>
+                  {["Image","Shop","Item Name","Brand","Price","Stock","Status",""].map((label, i) => (
+                    <th key={i} style={{
+                      padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11,
+                      color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase",
+                      borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap",
+                      background:"#f0fdf5",
+                      ...(i === 7 ? { minWidth:150 } : {}),
+                    }}>
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(item => {
+                  const isConfirm = confirmDelete === item.id;
+                  return (
+                    <tr
+                      key={item.id}
+                      style={{ borderBottom:`1px solid #f2faf5` }}
+                      onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
+                      onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                    >
+                      {/* Image */}
+                      <td style={{ padding:"10px 12px" }}>
+                        <img
+                          src={item.image_url} alt=""
+                          style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }}
+                          onError={e => (e.target.style.display="none")}
+                        />
+                      </td>
+
+                      {/* Shop */}
+                      <td style={{ padding:"10px 12px" }}>
+                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>
+                          {item.shop}
+                        </span>
+                      </td>
+
+                      {/* Item Name */}
+                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
+
+                      {/* Brand */}
+                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                        {item.brand || <span style={{ fontStyle:"italic" }}>—</span>}
+                      </td>
+
+                      {/* Price */}
+                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+
+                      {/* Stock */}
+                      <td style={{ padding:"10px 12px", fontWeight:500, color:C.ink }}>{item.stock}</td>
+
+                      {/* Status */}
+                      <td style={{ padding:"10px 12px" }}>
+                        <span style={{
+                          padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600,
+                          background: item.is_visible ? "#e0f2f1" : "#fce4ec",
+                          color:       item.is_visible ? "#00695c"  : "#c62828",
+                        }}>
+                          {item.is_visible ? "Visible" : "Hidden"}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding:"10px 12px" }}>
+                        <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                          <button
+                            onClick={() => toggleVisibility(item.id)}
+                            style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}
+                          >
+                            {item.is_visible ? "Hide" : "Show"}
+                          </button>
+                          <button
+                            onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
+                            style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}
+                          >
+                            <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
+                          </button>
+                          {isConfirm && (
+                            <button onClick={() => setConfirmDelete(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1546,63 +1708,84 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
     );
   }
 
-  function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
-    const [sort, setSort] = useState({ col:"name", asc:true });
+ // Replace your InventoryTable function with this updated version:
 
-    const sorted = useMemo(() => {
-      return [...items].sort((a, b) => {
-        let va = a[sort.col]??""; let vb = b[sort.col]??"";
-        if (typeof va==="string") va=va.toLowerCase();
-        if (typeof vb==="string") vb=vb.toLowerCase();
-        if (va<vb) return sort.asc?-1:1;
-        if (va>vb) return sort.asc?1:-1;
-        return 0;
-      });
-    }, [items, sort]);
+function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
+  const [sort, setSort] = useState({ col:"name", asc:true });
+  const [expandedRows, setExpandedRows] = useState({});
 
-    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-    const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
+  const sorted = useMemo(() => {
+    return [...items].sort((a, b) => {
+      let va = a[sort.col]??""; let vb = b[sort.col]??"";
+      if (typeof va==="string") va=va.toLowerCase();
+      if (typeof vb==="string") vb=vb.toLowerCase();
+      if (va<vb) return sort.asc?-1:1;
+      if (va>vb) return sort.asc?1:-1;
+      return 0;
+    });
+  }, [items, sort]);
 
-    const handleSort = (col) => { setSort(s => ({ col, asc:s.col===col?!s.asc:true })); setPage(0); };
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
 
-    const Th = ({ col, label, style:s }) => {
-      const active = sort.col === col;
-      return (
-        <th onClick={() => handleSort(col)} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
-          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
-            {label}
-            {active ? (sort.asc?<SortAscIcon/>:<SortDescIcon/>) : <span style={{ opacity:0.25 }}><SortDescIcon/></span>}
-          </span>
-        </th>
-      );
-    };
+  const handleSort = (col) => { setSort(s => ({ col, asc:s.col===col?!s.asc:true })); setPage(0); };
 
-    if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No inventory items match your current filters.</div>;
+  const toggleRow = (id) => setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
 
+  const Th = ({ col, label, style:s }) => {
+    const active = sort.col === col;
     return (
-      <div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr>
-                <Th col="name"      label="Item Name"  style={{ minWidth:160 }}/>
-                <Th col="category"  label="Category"   style={{ minWidth:110 }}/>
-                <Th col="branch"    label="Branch"     style={{ minWidth:130 }}/>
-                <Th col="stock"     label="Stock"      style={{ minWidth:72  }}/>
-                <Th col="min_stock" label="Min Stock"  style={{ minWidth:80  }}/>
-                <Th col="cost"      label="Cost"       style={{ minWidth:90  }}/>
-                <Th col="price"     label="Price"      style={{ minWidth:90  }}/>
-                <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map(item => {
-                const low       = item.stock < item.min_stock;
-                const isConfirm = confirmDeleteId === item.id;
-                return (
-                  <tr key={item.id} style={{ borderBottom:`1px solid #f2faf5` }}
+      <th onClick={() => handleSort(col)} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+          {label}
+          {active ? (sort.asc?<SortAscIcon/>:<SortDescIcon/>) : <span style={{ opacity:0.25 }}><SortDescIcon/></span>}
+        </span>
+      </th>
+    );
+  };
+
+  // Non-sortable header cell
+  const ThStatic = ({ label, style:s }) => (
+    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+      {label}
+    </th>
+  );
+
+  if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No inventory items match your current filters.</div>;
+
+  return (
+    <div>
+      <div style={{ overflowX:"auto" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <thead>
+            <tr>
+              <Th col="name"      label="Item Name"   style={{ minWidth:160 }}/>
+              <Th col="category"  label="Category"    style={{ minWidth:110 }}/>
+              <Th col="branch"    label="Branch"      style={{ minWidth:130 }}/>
+              <Th col="stock"     label="Stock"       style={{ minWidth:72  }}/>
+              <Th col="min_stock" label="Min Stock"   style={{ minWidth:80  }}/>
+              <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
+              <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
+              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
+              <Th col="qty"       label="Qty"         style={{ minWidth:72  }}/>
+              <Th col="unit"      label="Unit"        style={{ minWidth:80  }}/>
+              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map(item => {
+              const low        = item.stock < item.min_stock;
+              const isConfirm  = confirmDeleteId === item.id;
+              const ingredients = item.ingredients || [];
+              const isExpanded = expandedRows[item.id];
+
+              return (
+                <React.Fragment key={item.id}>
+                  <tr
+                    style={{ borderBottom: isExpanded ? "none" : `1px solid #f2faf5` }}
                     onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
-                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                  >
                     <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
@@ -1617,8 +1800,48 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
                       </span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+
                     <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
                     <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+
+                    {/* ── Ingredients cell ─────────────────────────────────── */}
+                    <td style={{ padding:"10px 12px" }}>
+                      {ingredients.length === 0 ? (
+                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
+                      ) : (
+                        <button
+                          onClick={() => toggleRow(item.id)}
+                          style={{
+                            display:"inline-flex", alignItems:"center", gap:5,
+                            padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700,
+                            background: isExpanded ? C.greenMid : C.greenLt,
+                            color: C.greenDk,
+                            border:`1px solid ${C.greenMid}`,
+                            cursor:"pointer",
+                          }}
+                        >
+                          🧪 {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
+                          <ChevronIcon size={10} dir={isExpanded ? "up" : "down"} color={C.greenDk}/>
+                        </button>
+                      )}
+                    </td>
+
+                    {/* ── Qty cell ─────────────────────────────────────────── */}
+                    <td style={{ padding:"10px 12px", fontWeight:600, color:C.ink }}>
+                      {item.qty != null ? item.qty : <span style={{ color:C.muted, fontStyle:"italic" }}>—</span>}
+                    </td>
+
+                    {/* ── Unit cell ─────────────────────────────────────────── */}
+                    <td style={{ padding:"10px 12px" }}>
+                      {item.unit ? (
+                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#f0fdf5", color:C.greenDk, border:`1px solid ${C.greenMid}` }}>
+                          {item.unit}
+                        </span>
+                      ) : (
+                        <span style={{ color:C.muted, fontStyle:"italic" }}>—</span>
+                      )}
+                    </td>
+
                     <td style={{ padding:"10px 12px" }}>
                       <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                         <button onClick={() => onEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={12}/> Edit</button>
@@ -1630,32 +1853,70 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
                       </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
-            <span style={{ fontSize:12, color:C.muted }}>
-              Showing <strong style={{ color:C.ink }}>{(page*PAGE_SIZE+1).toLocaleString()}–{Math.min((page+1)*PAGE_SIZE, sorted.length).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{sorted.length.toLocaleString()}</strong> items
-            </span>
-            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-              {[{label:"«",action:()=>setPage(0),disabled:page===0},{label:"‹",action:()=>setPage(p=>Math.max(0,p-1)),disabled:page===0}].map(({label,action,disabled})=>(
-                <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
-              ))}
-              {Array.from({length:totalPages},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-                <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
-              ))}
-              {[{label:"›",action:()=>setPage(p=>Math.min(totalPages-1,p+1)),disabled:page>=totalPages-1},{label:"»",action:()=>setPage(totalPages-1),disabled:page>=totalPages-1}].map(({label,action,disabled})=>(
-                <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
-              ))}
-            </div>
-          </div>
-        )}
+
+                  {/* ── Expanded ingredient rows ──────────────────────────── */}
+                  {isExpanded && ingredients.length > 0 && (
+                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
+                      <td colSpan={11} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
+                        <div style={{
+                          display:"flex", flexWrap:"wrap", gap:6,
+                          padding:"10px 14px",
+                          background:C.greenLt,
+                          borderRadius:10,
+                          border:`1px solid ${C.greenMid}`,
+                        }}>
+                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
+                            Ingredients required per unit:
+                          </span>
+                          {ingredients.map((ing, idx) => (
+                            <span key={idx} style={{
+                              display:"inline-flex", alignItems:"center", gap:5,
+                              padding:"4px 10px", borderRadius:20,
+                              fontSize:12, fontWeight:600,
+                              background:C.white,
+                              color:C.ink,
+                              border:`1px solid ${C.border}`,
+                            }}>
+                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
+                              <span style={{ color:C.muted }}>×</span>
+                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
+                              {ing.unit && (
+                                <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    );
-  }
+
+      {totalPages > 1 && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+          <span style={{ fontSize:12, color:C.muted }}>
+            Showing <strong style={{ color:C.ink }}>{(page*PAGE_SIZE+1).toLocaleString()}–{Math.min((page+1)*PAGE_SIZE, sorted.length).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{sorted.length.toLocaleString()}</strong> items
+          </span>
+          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+            {[{label:"«",action:()=>setPage(0),disabled:page===0},{label:"‹",action:()=>setPage(p=>Math.max(0,p-1)),disabled:page===0}].map(({label,action,disabled})=>(
+              <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
+            ))}
+            {Array.from({length:totalPages},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+              <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+            ))}
+            {[{label:"›",action:()=>setPage(p=>Math.min(totalPages-1,p+1)),disabled:page>=totalPages-1},{label:"»",action:()=>setPage(totalPages-1),disabled:page>=totalPages-1}].map(({label,action,disabled})=>(
+              <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
   function InvModal({ title, onClose, onSubmit, children }) {
     return (
@@ -2043,10 +2304,7 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
       <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
-        <div style={{ marginBottom:22 }}>
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>Stock Management</div>
-          <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>Inventory Management</h1>
-        </div>
+    
 
         <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
           <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -2752,11 +3010,7 @@ function StockInventoryContent({ user, brands: propBrands = [] }) {
     <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
-      {/* Page header */}
-      <div style={{ marginBottom:22 }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>POS Integration</div>
-        <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>Stock Inventory</h1>
-      </div>
+
 
       {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:18 }}>
@@ -2954,12 +3208,14 @@ function POSContent({ user, brands: propBrands = [] }) {
   const [paymentMethod,    setPaymentMethod]    = useState("Cash");
   const [cashReceived,     setCashReceived]     = useState("");
   const [discountPct,      setDiscountPct]      = useState(0);
+  const [vatEnabled,       setVatEnabled]       = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastReceipt,      setLastReceipt]      = useState(null);
   const [processing,       setProcessing]       = useState(false);
   const [txPage,           setTxPage]           = useState(0);
   const [noteInput,        setNoteInput]        = useState("");
 
+  const VAT_RATE   = 0.12;
   const TX_PAGE_SIZE = 20;
 
   // ── Fetch products (menu items + shop items combined) ─────────────────────
@@ -3026,7 +3282,9 @@ function POSContent({ user, brands: propBrands = [] }) {
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal      = cart.reduce((s, c) => s + (c.price||0) * c.qty, 0);
   const discountAmt   = subtotal * (discountPct / 100);
-  const totalAmt      = subtotal - discountAmt;
+  const discountedAmt = subtotal - discountAmt;
+  const vatAmt        = vatEnabled ? discountedAmt * VAT_RATE : 0;
+  const totalAmt      = discountedAmt + vatAmt;
   const changeDue     = paymentMethod === "Cash" ? Math.max(0, parseFloat(cashReceived||0) - totalAmt) : 0;
   const cashShortfall = paymentMethod === "Cash" && cashReceived !== "" ? parseFloat(cashReceived||0) - totalAmt : 0;
 
@@ -3049,6 +3307,8 @@ function POSContent({ user, brands: propBrands = [] }) {
         discount_pct:   discountPct,
         subtotal,
         discount_amt:   discountAmt,
+        vat_enabled:    vatEnabled,
+        vat_amt:        vatAmt,
         total:          totalAmt,
         change_due:     changeDue,
         note:           noteInput,
@@ -3153,11 +3413,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{ marginBottom:22 }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>Point of Sale</div>
-        <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>POS Terminal</h1>
-      </div>
+   
 
       {/* KPI cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
@@ -3334,6 +3590,28 @@ function POSContent({ user, brands: propBrands = [] }) {
                   </div>
                 </div>
 
+                {/* VAT Toggle */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+                    VAT (12%)
+                  </label>
+                  <div
+                    onClick={() => setVatEnabled(v => !v)}
+                    style={{
+                      width:44, height:24, borderRadius:12, cursor:"pointer", position:"relative",
+                      background: vatEnabled ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0",
+                      transition:"background .2s",
+                      flexShrink:0,
+                    }}
+                  >
+                    <div style={{
+                      position:"absolute", top:3, left: vatEnabled ? 23 : 3,
+                      width:18, height:18, borderRadius:"50%", background:"#fff",
+                      boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s",
+                    }}/>
+                  </div>
+                </div>
+
                 {/* Totals */}
                 <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:5 }}>
@@ -3342,6 +3620,11 @@ function POSContent({ user, brands: propBrands = [] }) {
                   {discountPct > 0 && (
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.warn, marginBottom:5 }}>
                       <span>Discount ({discountPct}%)</span><span style={{ fontWeight:700 }}>−{fmtPHP(discountAmt)}</span>
+                    </div>
+                  )}
+                  {vatEnabled && (
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#1565c0", marginBottom:5 }}>
+                      <span>VAT (12%)</span><span style={{ fontWeight:700 }}>+{fmtPHP(vatAmt)}</span>
                     </div>
                   )}
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, color:C.ink, fontWeight:800, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
@@ -3441,7 +3724,7 @@ function POSContent({ user, brands: propBrands = [] }) {
                   <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                     <thead>
                       <tr>
-                        {["#","Date","Branch","Shop","Cashier","Items","Subtotal","Discount","Total","Payment","Status"].map(h=>(
+                        {["#","Date","Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].map(h=>(
                           <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f0fdf5", whiteSpace:"nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -3474,6 +3757,11 @@ function POSContent({ user, brands: propBrands = [] }) {
                           <td style={{ padding:"10px 12px" }}>
                             {tx.discount_pct > 0
                               ? <span style={{ color:C.warn, fontWeight:700 }}>−{tx.discount_pct}%</span>
+                              : <span style={{ color:C.muted }}>—</span>}
+                          </td>
+                          <td style={{ padding:"10px 12px" }}>
+                            {tx.vat_enabled
+                              ? <span style={{ color:"#1565c0", fontWeight:700 }}>+{fmtPHP(tx.vat_amt)}</span>
                               : <span style={{ color:C.muted }}>—</span>}
                           </td>
                           <td style={{ padding:"10px 12px", fontWeight:800, color:C.green }}>{fmtPHP(tx.total)}</td>
@@ -3533,6 +3821,12 @@ function POSContent({ user, brands: propBrands = [] }) {
                 <div style={{ fontSize:13, marginBottom:4, display:"flex", justifyContent:"space-between" }}>
                   <span style={{ color:C.warn }}>Discount ({lastReceipt.discount_pct}%)</span>
                   <span style={{ fontWeight:700, color:C.warn }}>−{fmtPHP(lastReceipt.discount_amt)}</span>
+                </div>
+              )}
+              {lastReceipt.vat_enabled && (
+                <div style={{ fontSize:13, marginBottom:4, display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ color:"#1565c0" }}>VAT (12%)</span>
+                  <span style={{ fontWeight:700, color:"#1565c0" }}>+{fmtPHP(lastReceipt.vat_amt)}</span>
                 </div>
               )}
               <div style={{ fontSize:16, fontWeight:900, display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.border}`, paddingTop:8, marginBottom:8 }}>
