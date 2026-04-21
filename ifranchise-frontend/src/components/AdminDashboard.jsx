@@ -94,20 +94,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const navigation = [
-    { id: 'dashboard',    label: 'Dashboard',            icon: <Home size={20} /> },
-    { id: 'inventory',    label: 'Inventory Management', icon: <Box size={20} /> },
-    { id: 'mobileShop',   label: 'Mobile Shop Supplies', icon: <ShoppingCart size={20} /> },
-    { id: 'receipts',     label: 'View Liquidation',     icon: <FileText size={20} /> },
-    { id: 'applications', label: 'View Applications',    icon: <FileCheck size={20} /> },
-    { id: 'users',        label: 'User Management',      icon: <Users size={20} /> },
-    { id: 'reports',      label: 'Sales & Reports',      icon: <BarChart2 size={20} /> },
-    { id: 'communication',label: 'Communication',        icon: <MessageCircle size={20} /> },
-    { id: 'brandBranch',  label: 'Brand & Branch',       icon: <GitBranch size={20} /> },
-    { id: 'profile',      label: 'Edit Profile',         icon: <User size={20} /> },
-    { id: 'logout',       label: 'Logout',               icon: <LogOut size={20} />, action: handleLogout },
-  ];
-
+ const navigation = [
+  { id: 'dashboard',        label: 'Dashboard',            icon: <Home size={20} /> },
+  { id: 'inventory',        label: 'Inventory Management', icon: <Box size={20} /> },
+  { id: 'stockInventory',   label: 'Stock Inventory',      icon: <Layers size={20} /> },       // NEW
+  { id: 'pos',              label: 'POS',                  icon: <DollarSign size={20} /> },    // NEW
+  { id: 'mobileShop',       label: 'Mobile Shop Supplies', icon: <ShoppingCart size={20} /> },
+  { id: 'mobileOrders',     label: 'View Mobile Orders',   icon: <Package size={20} /> },       // NEW
+  { id: 'receipts',         label: 'View Liquidation',     icon: <FileText size={20} /> },
+  { id: 'applications',     label: 'View Applications',    icon: <FileCheck size={20} /> },
+  { id: 'users',            label: 'User Management',      icon: <Users size={20} /> },
+  { id: 'reports',          label: 'Sales & Reports',      icon: <BarChart2 size={20} /> },
+  { id: 'communication',    label: 'Communication',        icon: <MessageCircle size={20} /> },
+  { id: 'brandBranch',      label: 'Brand & Branch',       icon: <GitBranch size={20} /> },
+  { id: 'profile',          label: 'Edit Profile',         icon: <User size={20} /> },
+  { id: 'logout',           label: 'Logout',               icon: <LogOut size={20} />, action: handleLogout },
+];
   const handleCreateAccount   = (applicant) => { setSelectedApplicant(applicant); setShowCreateAccountModal(true); };
   const handleViewApplication = (applicant) => { setSelectedApplicant(applicant); setShowViewApplicationModal(true); };
 
@@ -261,6 +263,10 @@ export default function AdminDashboard() {
           {activeModule === 'dashboard'     && <DashboardContent />}
           {activeModule === 'inventory'     && <InventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'    && <MobileShopContent />}
+          {activeModule === 'mobileOrders'   && <MobileOrdersContent />}
+        {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+{activeModule === 'pos' && <POSContent user={user} brands={brands} />}
+
           {activeModule === 'receipts'      && <Receipts />}
           {activeModule === 'applications'  && (
             <ApplicationsContent
@@ -1262,1027 +1268,861 @@ function ApplicationsContent({ applications, onView, onDelete, onApprove, onCrea
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// INVENTORY
-// ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_PROFIT_MARGIN = 40;
-const PAGE_SIZE = 50;
-const DEFAULT_CATEGORIES = ["Medicine","Vitamins","Supplements","Coffee","Sports Drink","Equipment","Personal Care","Other"];
+  // ─────────────────────────────────────────────────────────────────────────────
+  // INVENTORY
+  // ─────────────────────────────────────────────────────────────────────────────
+  const DEFAULT_PROFIT_MARGIN = 40;
+  const PAGE_SIZE = 50;
+  const DEFAULT_CATEGORIES = ["Medicine","Vitamins","Supplements","Coffee","Sports Drink","Equipment","Personal Care","Other"];
 
-const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
-function findMatchingBranch(sheetName, allBranches) {
-  const s = sheetName.toLowerCase().replace(/[^a-z0-9]/g, "");
-  let best = null, bestScore = 0;
-  allBranches.forEach(({ branch }) => {
-    const b = branch.toLowerCase().replace(/[^a-z0-9]/g, "");
-    let score = 0;
-    if (s === b) score = 100;
-    else if (s.includes(b) || b.includes(s)) score = 70;
-    else { for (let i = 0; i < b.length; i++) if (s.includes(b[i])) score++; }
-    if (score > bestScore) { bestScore = score; best = branch; }
-  });
-  return bestScore > 3 ? best : null;
-}
+  function findMatchingBranch(sheetName, allBranches) {
+    const s = sheetName.toLowerCase().replace(/[^a-z0-9]/g, "");
+    let best = null, bestScore = 0;
+    allBranches.forEach(({ branch }) => {
+      const b = branch.toLowerCase().replace(/[^a-z0-9]/g, "");
+      let score = 0;
+      if (s === b) score = 100;
+      else if (s.includes(b) || b.includes(s)) score = 70;
+      else { for (let i = 0; i < b.length; i++) if (s.includes(b[i])) score++; }
+      if (score > bestScore) { bestScore = score; best = branch; }
+    });
+    return bestScore > 3 ? best : null;
+  }
 
-const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
-  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
-  ok:"#2e7d32", okBg:"#e8f5e9",
-};
-
-const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
-  fontSize:13, color:C.ink, outline:"none",
-  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
-};
-const invLabelSt = {
-  display:"block", fontSize:11, fontWeight:800,
-  color:C.muted, marginBottom:5,
-  textTransform:"uppercase", letterSpacing:"0.07em",
-};
-const btnSt = {
-  display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.white,
-  fontSize:13, fontWeight:700, cursor:"pointer",
-  fontFamily:"inherit", whiteSpace:"nowrap",
-};
-const btnPrimarySt = {
-  ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
-  color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
-};
-const smallBtnSt = {
-  display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 10px", borderRadius:7,
-  fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:C.white,
-};
-
-const SearchIcon   = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const PlusIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon    = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const EditIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon    = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const TagIcon      = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
-const XIcon        = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const ChevronIcon  = ({ size=12, dir="down", ...p }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d[dir]}/></svg>; };
-const FilterIcon   = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const SortAscIcon  = ({ size=12, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon = ({ size=12, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m6 9 6 6 6-6"/></svg>;
-
-function InvField({ label, style: s, children }) {
-  return (
-    <div style={{ marginBottom:13, ...s }}>
-      {label && <label style={invLabelSt}>{label}</label>}
-      {children}
-    </div>
-  );
-}
-
-function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
-  const [brandQ,  setBrandQ]  = useState("");
-  const [branchQ, setBranchQ] = useState("");
-  const [openB,   setOpenB]   = useState(false);
-  const [openBr,  setOpenBr]  = useState(false);
-  const brandRef  = useRef(null);
-  const branchRef = useRef(null);
-
-  useEffect(() => {
-    const fn = (e) => {
-      if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
-      if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
-    };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  const selectedBrand    = brands.find(b => b.id === activeBrand);
-  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==="string"?br:br.name) : [];
-  const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
-  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8, transition:"background .08s" });
-
-  return (
-    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-      <div ref={brandRef} style={{ position:"relative", minWidth:180 }}>
-        <div onClick={() => { setOpenB(v=>!v); setBrandQ(""); }}
-          style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
-          <FilterIcon size={12} color={C.green}/>
-          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
-            {selectedBrand ? `${selectedBrand.emoji||"🏪"} ${selectedBrand.name}` : "All Brands"}
-          </span>
-          <ChevronIcon dir={openB?"up":"down"} style={{ position:"absolute", right:10, color:C.muted, flexShrink:0 }}/>
-        </div>
-        {openB && (
-          <div style={dropSt}>
-            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
-              <div style={{ position:"relative" }}>
-                <SearchIcon size={11} style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
-                <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search brand…" onClick={e => e.stopPropagation()}
-                  style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-              </div>
-            </div>
-            <div style={optSt(!activeBrand)} onMouseDown={() => { onChangeBrand(null); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>All Brands</div>
-            {filteredBrands.map(b => (
-              <div key={b.id} style={optSt(activeBrand===b.id)} onMouseDown={() => { onChangeBrand(b.id); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>
-                <span style={{ fontSize:16 }}>{b.emoji||"🏪"}</span> {b.name}
-                <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches||[]).length} branches</span>
-              </div>
-            ))}
-            {filteredBrands.length===0 && <div style={{ padding:"12px 14px", fontSize:13, color:C.muted, fontStyle:"italic" }}>No brands found</div>}
-          </div>
-        )}
-      </div>
-
-      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45, transition:"opacity .15s" }}>
-        <div onClick={() => { if(activeBrand){setOpenBr(v=>!v);setBranchQ("");} }}
-          style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
-          <StoreIcon size={12} color={activeBrand?C.green:C.muted}/>
-          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
-            {activeBranch||(activeBrand?"All Branches":"Select brand first")}
-          </span>
-          {activeBrand && <ChevronIcon dir={openBr?"up":"down"} style={{ position:"absolute", right:10, color:C.muted, flexShrink:0 }}/>}
-        </div>
-        {openBr && activeBrand && (
-          <div style={dropSt}>
-            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
-              <div style={{ position:"relative" }}>
-                <SearchIcon size={11} style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
-                <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search branch…" onClick={e => e.stopPropagation()}
-                  style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-              </div>
-            </div>
-            <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(null); setBranchQ(""); setOpenBr(false); }}>All Branches</div>
-            {filteredBranches.map(br => (
-              <div key={br} style={optSt(activeBranch===br)} onMouseDown={() => { onChangeBranch(br); setBranchQ(""); setOpenBr(false); }}>
-                <StoreIcon size={12} color={C.green}/> {br}
-              </div>
-            ))}
-            {filteredBranches.length===0 && <div style={{ padding:"12px 14px", fontSize:13, color:C.muted, fontStyle:"italic" }}>No branches found</div>}
-          </div>
-        )}
-      </div>
-
-      {(activeBrand || activeBranch) && (
-        <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-          {activeBrand && !activeBranch && (
-            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px 3px 8px", borderRadius:20, fontSize:11, fontWeight:700, background:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}` }}>
-              {selectedBrand?.emoji} {selectedBrand?.name}
-              <XIcon size={10} style={{ cursor:"pointer" }} onClick={() => { onChangeBrand(null); onChangeBranch(null); }}/>
-            </span>
-          )}
-          {activeBranch && (
-            <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px 3px 8px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f7fa", color:"#00695c", border:"1px solid #b2ebf2" }}>
-              <StoreIcon size={10}/> {activeBranch}
-              <XIcon size={10} style={{ cursor:"pointer" }} onClick={() => onChangeBranch(null)}/>
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BranchSearchSelect({ value, onChange, allBranches }) {
-  const [query, setQuery] = useState(value||"");
-  const [open,  setOpen]  = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => { setQuery(value||""); }, [value]);
-  useEffect(() => {
-    const fn = (e) => { if(ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  const filtered = allBranches.filter(({ branch, brand }) =>
-    !query || branch.toLowerCase().includes(query.toLowerCase()) || brand.toLowerCase().includes(query.toLowerCase())
-  );
-
-  return (
-    <div ref={ref} style={{ position:"relative" }}>
-      <div style={{ position:"relative" }}>
-        <SearchIcon size={12} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
-        <input type="text" value={query} placeholder="Search branch…"
-          onChange={e => { setQuery(e.target.value); setOpen(true); onChange(""); }}
-          onFocus={() => setOpen(true)}
-          style={{ ...invInputSt, paddingLeft:30 }}/>
-      </div>
-      {open && filtered.length > 0 && (
-        <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:400, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.1)", maxHeight:190, overflowY:"auto" }}>
-          {filtered.map(({ branch, brand }) => (
-            <div key={branch} onMouseDown={e => { e.preventDefault(); onChange(branch); setQuery(branch); setOpen(false); }}
-              onMouseEnter={e => e.currentTarget.style.background=C.bg}
-              onMouseLeave={e => e.currentTarget.style.background="transparent"}
-              style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontWeight:600, color:C.ink }}>{branch}</span>
-              <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{brand}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CategorySelect({ value, onChange, categories, onAddCategory }) {
-  const [adding, setAdding] = useState(false);
-  const [newCat, setNewCat] = useState("");
-  const handleAdd = () => {
-    const t = newCat.trim();
-    if (!t) return;
-    onAddCategory(t); onChange(t);
-    setNewCat(""); setAdding(false);
+  const C = {
+    green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
+    teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
+    bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
+    ok:"#2e7d32", okBg:"#e8f5e9",
   };
-  return (
-    <div>
-      <div style={{ display:"flex", gap:6 }}>
-        <select value={value} onChange={e => onChange(e.target.value)} style={{ ...invInputSt, flex:1 }}>
-          <option value="">Select category…</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button type="button" title="Add new category" onClick={() => setAdding(v=>!v)}
-          style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
-          <TagIcon size={14}/>
-        </button>
+
+  const invInputSt = {
+    height:36, padding:"0 11px", borderRadius:9,
+    border:`1px solid ${C.border}`, background:C.bg,
+    fontSize:13, color:C.ink, outline:"none",
+    fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+  };
+  const invLabelSt = {
+    display:"block", fontSize:11, fontWeight:800,
+    color:C.muted, marginBottom:5,
+    textTransform:"uppercase", letterSpacing:"0.07em",
+  };
+  const btnSt = {
+    display:"inline-flex", alignItems:"center", gap:6,
+    height:36, padding:"0 16px", borderRadius:9,
+    border:`1px solid ${C.border}`, background:C.white,
+    fontSize:13, fontWeight:700, cursor:"pointer",
+    fontFamily:"inherit", whiteSpace:"nowrap",
+  };
+  const btnPrimarySt = {
+    ...btnSt,
+    background:`linear-gradient(135deg,${C.teal},${C.green})`,
+    color:C.white, border:"none",
+    boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
+  };
+  const smallBtnSt = {
+    display:"inline-flex", alignItems:"center", gap:4,
+    height:28, padding:"0 10px", borderRadius:7,
+    fontSize:12, fontWeight:600, cursor:"pointer",
+    fontFamily:"inherit", background:C.white,
+  };
+
+  const SearchIcon   = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+  const PlusIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+  const StoreIcon    = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+  const FileIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
+  const EditIcon     = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+  const TrashIcon    = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+  const TagIcon      = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
+  const XIcon        = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+  const ChevronIcon  = ({ size=12, dir="down", ...p }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><path d={d[dir]}/></svg>; };
+  const FilterIcon   = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+  const SortAscIcon  = ({ size=12, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m18 15-6-6-6 6"/></svg>;
+  const SortDescIcon = ({ size=12, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" {...p}><path d="m6 9 6 6 6-6"/></svg>;
+
+  function InvField({ label, style: s, children }) {
+    return (
+      <div style={{ marginBottom:13, ...s }}>
+        {label && <label style={invLabelSt}>{label}</label>}
+        {children}
       </div>
-      {adding && (
-        <div style={{ display:"flex", gap:6, marginTop:6 }}>
-          <input autoFocus type="text" value={newCat} onChange={e => setNewCat(e.target.value)}
-            onKeyDown={e => { if(e.key==="Enter"){e.preventDefault();handleAdd();} }}
-            placeholder="New category…" style={{ ...invInputSt, flex:1 }}/>
-          <button type="button" onClick={handleAdd} style={{ ...btnPrimarySt, padding:"0 14px" }}>Add</button>
-          <button type="button" onClick={() => { setAdding(false); setNewCat(""); }}
-            style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935" }}>
-            <XIcon size={13}/>
+    );
+  }
+
+  function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
+    const [brandQ,  setBrandQ]  = useState("");
+    const [branchQ, setBranchQ] = useState("");
+    const [openB,   setOpenB]   = useState(false);
+    const [openBr,  setOpenBr]  = useState(false);
+    const brandRef  = useRef(null);
+    const branchRef = useRef(null);
+
+    useEffect(() => {
+      const fn = (e) => {
+        if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
+        if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
+      };
+      document.addEventListener("mousedown", fn);
+      return () => document.removeEventListener("mousedown", fn);
+    }, []);
+
+    const selectedBrand    = brands.find(b => b.id === activeBrand);
+    const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==="string"?br:br.name) : [];
+    const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+    const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+    const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+    const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8, transition:"background .08s" });
+
+    return (
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+        <div ref={brandRef} style={{ position:"relative", minWidth:180 }}>
+          <div onClick={() => { setOpenB(v=>!v); setBrandQ(""); }}
+            style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
+            <FilterIcon size={12} color={C.green}/>
+            <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
+              {selectedBrand ? `${selectedBrand.emoji||"🏪"} ${selectedBrand.name}` : "All Brands"}
+            </span>
+            <ChevronIcon dir={openB?"up":"down"} style={{ position:"absolute", right:10, color:C.muted, flexShrink:0 }}/>
+          </div>
+          {openB && (
+            <div style={dropSt}>
+              <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+                <div style={{ position:"relative" }}>
+                  <SearchIcon size={11} style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
+                  <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search brand…" onClick={e => e.stopPropagation()}
+                    style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+                </div>
+              </div>
+              <div style={optSt(!activeBrand)} onMouseDown={() => { onChangeBrand(null); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>All Brands</div>
+              {filteredBrands.map(b => (
+                <div key={b.id} style={optSt(activeBrand===b.id)} onMouseDown={() => { onChangeBrand(b.id); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>
+                  <span style={{ fontSize:16 }}>{b.emoji||"🏪"}</span> {b.name}
+                  <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches||[]).length} branches</span>
+                </div>
+              ))}
+              {filteredBrands.length===0 && <div style={{ padding:"12px 14px", fontSize:13, color:C.muted, fontStyle:"italic" }}>No brands found</div>}
+            </div>
+          )}
+        </div>
+
+        <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45, transition:"opacity .15s" }}>
+          <div onClick={() => { if(activeBrand){setOpenBr(v=>!v);setBranchQ("");} }}
+            style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+            <StoreIcon size={12} color={activeBrand?C.green:C.muted}/>
+            <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
+              {activeBranch||(activeBrand?"All Branches":"Select brand first")}
+            </span>
+            {activeBrand && <ChevronIcon dir={openBr?"up":"down"} style={{ position:"absolute", right:10, color:C.muted, flexShrink:0 }}/>}
+          </div>
+          {openBr && activeBrand && (
+            <div style={dropSt}>
+              <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+                <div style={{ position:"relative" }}>
+                  <SearchIcon size={11} style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
+                  <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search branch…" onClick={e => e.stopPropagation()}
+                    style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+                </div>
+              </div>
+              <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(null); setBranchQ(""); setOpenBr(false); }}>All Branches</div>
+              {filteredBranches.map(br => (
+                <div key={br} style={optSt(activeBranch===br)} onMouseDown={() => { onChangeBranch(br); setBranchQ(""); setOpenBr(false); }}>
+                  <StoreIcon size={12} color={C.green}/> {br}
+                </div>
+              ))}
+              {filteredBranches.length===0 && <div style={{ padding:"12px 14px", fontSize:13, color:C.muted, fontStyle:"italic" }}>No branches found</div>}
+            </div>
+          )}
+        </div>
+
+        {(activeBrand || activeBranch) && (
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            {activeBrand && !activeBranch && (
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px 3px 8px", borderRadius:20, fontSize:11, fontWeight:700, background:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}` }}>
+                {selectedBrand?.emoji} {selectedBrand?.name}
+                <XIcon size={10} style={{ cursor:"pointer" }} onClick={() => { onChangeBrand(null); onChangeBranch(null); }}/>
+              </span>
+            )}
+            {activeBranch && (
+              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px 3px 8px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f7fa", color:"#00695c", border:"1px solid #b2ebf2" }}>
+                <StoreIcon size={10}/> {activeBranch}
+                <XIcon size={10} style={{ cursor:"pointer" }} onClick={() => onChangeBranch(null)}/>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function BranchSearchSelect({ value, onChange, allBranches }) {
+    const [query, setQuery] = useState(value||"");
+    const [open,  setOpen]  = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => { setQuery(value||""); }, [value]);
+    useEffect(() => {
+      const fn = (e) => { if(ref.current && !ref.current.contains(e.target)) setOpen(false); };
+      document.addEventListener("mousedown", fn);
+      return () => document.removeEventListener("mousedown", fn);
+    }, []);
+
+    const filtered = allBranches.filter(({ branch, brand }) =>
+      !query || branch.toLowerCase().includes(query.toLowerCase()) || brand.toLowerCase().includes(query.toLowerCase())
+    );
+
+    return (
+      <div ref={ref} style={{ position:"relative" }}>
+        <div style={{ position:"relative" }}>
+          <SearchIcon size={12} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
+          <input type="text" value={query} placeholder="Search branch…"
+            onChange={e => { setQuery(e.target.value); setOpen(true); onChange(""); }}
+            onFocus={() => setOpen(true)}
+            style={{ ...invInputSt, paddingLeft:30 }}/>
+        </div>
+        {open && filtered.length > 0 && (
+          <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:400, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.1)", maxHeight:190, overflowY:"auto" }}>
+            {filtered.map(({ branch, brand }) => (
+              <div key={branch} onMouseDown={e => { e.preventDefault(); onChange(branch); setQuery(branch); setOpen(false); }}
+                onMouseEnter={e => e.currentTarget.style.background=C.bg}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontWeight:600, color:C.ink }}>{branch}</span>
+                <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{brand}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function CategorySelect({ value, onChange, categories, onAddCategory }) {
+    const [adding, setAdding] = useState(false);
+    const [newCat, setNewCat] = useState("");
+    const handleAdd = () => {
+      const t = newCat.trim();
+      if (!t) return;
+      onAddCategory(t); onChange(t);
+      setNewCat(""); setAdding(false);
+    };
+    return (
+      <div>
+        <div style={{ display:"flex", gap:6 }}>
+          <select value={value} onChange={e => onChange(e.target.value)} style={{ ...invInputSt, flex:1 }}>
+            <option value="">Select category…</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button type="button" title="Add new category" onClick={() => setAdding(v=>!v)}
+            style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
+            <TagIcon size={14}/>
           </button>
         </div>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value, sub, accent }) {
-  return (
-    <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-      <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:accent||C.green, marginBottom:5 }}>{label}</div>
-      <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{sub}</div>}
-    </div>
-  );
-}
-
-function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
-  const [sort, setSort] = useState({ col:"name", asc:true });
-
-  const sorted = useMemo(() => {
-    return [...items].sort((a, b) => {
-      let va = a[sort.col]??""; let vb = b[sort.col]??"";
-      if (typeof va==="string") va=va.toLowerCase();
-      if (typeof vb==="string") vb=vb.toLowerCase();
-      if (va<vb) return sort.asc?-1:1;
-      if (va>vb) return sort.asc?1:-1;
-      return 0;
-    });
-  }, [items, sort]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
-
-  const handleSort = (col) => { setSort(s => ({ col, asc:s.col===col?!s.asc:true })); setPage(0); };
-
-  const Th = ({ col, label, style:s }) => {
-    const active = sort.col === col;
-    return (
-      <th onClick={() => handleSort(col)} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
-        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
-          {label}
-          {active ? (sort.asc?<SortAscIcon/>:<SortDescIcon/>) : <span style={{ opacity:0.25 }}><SortDescIcon/></span>}
-        </span>
-      </th>
-    );
-  };
-
-  if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No inventory items match your current filters.</div>;
-
-  return (
-    <div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-          <thead>
-            <tr>
-              <Th col="name"      label="Item Name"  style={{ minWidth:160 }}/>
-              <Th col="category"  label="Category"   style={{ minWidth:110 }}/>
-              <Th col="branch"    label="Branch"     style={{ minWidth:130 }}/>
-              <Th col="stock"     label="Stock"      style={{ minWidth:72  }}/>
-              <Th col="min_stock" label="Min Stock"  style={{ minWidth:80  }}/>
-              <Th col="cost"      label="Cost"       style={{ minWidth:90  }}/>
-              <Th col="price"     label="Price"      style={{ minWidth:90  }}/>
-              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map(item => {
-              const low       = item.stock < item.min_stock;
-              const isConfirm = confirmDeleteId === item.id;
-              return (
-                <tr key={item.id} style={{ borderBottom:`1px solid #f2faf5` }}
-                  onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
-                  onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                  <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                  <td style={{ padding:"10px 12px" }}>
-                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
-                  </td>
-                  <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
-                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
-                  </td>
-                  <td style={{ padding:"10px 12px" }}>
-                    <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
-                      {item.stock}
-                      {low && <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:C.warn }}/>}
-                    </span>
-                  </td>
-                  <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
-                  <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
-                  <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                  <td style={{ padding:"10px 12px" }}>
-                    <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                      <button onClick={() => onEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={12}/> Edit</button>
-                      <button onClick={() => { if(isConfirm){onDelete(item.id);setConfirmDeleteId(null);}else setConfirmDeleteId(item.id); }}
-                        style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
-                        <TrashIcon size={12}/> {isConfirm?"Confirm?":"Delete"}
-                      </button>
-                      {isConfirm && <button onClick={() => setConfirmDeleteId(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {totalPages > 1 && (
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
-          <span style={{ fontSize:12, color:C.muted }}>
-            Showing <strong style={{ color:C.ink }}>{(page*PAGE_SIZE+1).toLocaleString()}–{Math.min((page+1)*PAGE_SIZE, sorted.length).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{sorted.length.toLocaleString()}</strong> items
-          </span>
-          <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-            {[{label:"«",action:()=>setPage(0),disabled:page===0},{label:"‹",action:()=>setPage(p=>Math.max(0,p-1)),disabled:page===0}].map(({label,action,disabled})=>(
-              <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
-            ))}
-            {Array.from({length:totalPages},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-              <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
-            ))}
-            {[{label:"›",action:()=>setPage(p=>Math.min(totalPages-1,p+1)),disabled:page>=totalPages-1},{label:"»",action:()=>setPage(totalPages-1),disabled:page>=totalPages-1}].map(({label,action,disabled})=>(
-              <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
-            ))}
+        {adding && (
+          <div style={{ display:"flex", gap:6, marginTop:6 }}>
+            <input autoFocus type="text" value={newCat} onChange={e => setNewCat(e.target.value)}
+              onKeyDown={e => { if(e.key==="Enter"){e.preventDefault();handleAdd();} }}
+              placeholder="New category…" style={{ ...invInputSt, flex:1 }}/>
+            <button type="button" onClick={handleAdd} style={{ ...btnPrimarySt, padding:"0 14px" }}>Add</button>
+            <button type="button" onClick={() => { setAdding(false); setNewCat(""); }}
+              style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935" }}>
+              <XIcon size={13}/>
+            </button>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InvModal({ title, onClose, onSubmit, children }) {
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
-      onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
-      <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:500, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{title}</h2>
-          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
-        </div>
-        <form onSubmit={onSubmit}>{children}</form>
+        )}
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function FormFields({
-  formData, handleInputChange, handleCostChange, setFormData,
-  isAdmin, userBranch, brandList, formBrandId, setFormBrandId,
-  categoryOptions, nonAdminCategoryOptions, nonAdminBrand,
-  formBranchOptions, onCancel,
-}) {
-  const catOptions     = isAdmin ? categoryOptions : nonAdminCategoryOptions;
-  const brandSelected  = !!formBrandId;
-  const branchSelected = !!formData.branch;
+  function StatCard({ label, value, sub, accent }) {
+    return (
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+        <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:accent||C.green, marginBottom:5 }}>{label}</div>
+        <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{value}</div>
+        {sub && <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{sub}</div>}
+      </div>
+    );
+  }
 
-  // ── ingredient search state ──
-  const [ingSearch,       setIngSearch]       = useState("");
-  const [ingResults,      setIngResults]      = useState([]);
-  const [ingSearching,    setIngSearching]    = useState(false);
-  const [selectedIngs,    setSelectedIngs]    = useState(formData.ingredients || []);
-  const [showIngDropdown, setShowIngDropdown] = useState(false);
-  const ingRef = useRef(null);
+  function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
+    const [sort, setSort] = useState({ col:"name", asc:true });
 
-  // close dropdown when clicking outside
-  useEffect(() => {
-    const handler = (e) => { if (ingRef.current && !ingRef.current.contains(e.target)) setShowIngDropdown(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    const sorted = useMemo(() => {
+      return [...items].sort((a, b) => {
+        let va = a[sort.col]??""; let vb = b[sort.col]??"";
+        if (typeof va==="string") va=va.toLowerCase();
+        if (typeof vb==="string") vb=vb.toLowerCase();
+        if (va<vb) return sort.asc?-1:1;
+        if (va>vb) return sort.asc?1:-1;
+        return 0;
+      });
+    }, [items, sort]);
 
-  // search ingredients from server
-  useEffect(() => {
-    if (!ingSearch.trim()) { setIngResults([]); setShowIngDropdown(false); return; }
-    const timeout = setTimeout(async () => {
-      setIngSearching(true);
-      try {
-        const branch = isAdmin ? formData.branch : userBranch;
-        const q = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
-        const data = await res.json();
-        const filtered = (Array.isArray(data) ? data : []).filter(i =>
-          i.name.toLowerCase().includes(ingSearch.toLowerCase()) &&
-          !selectedIngs.find(s => s.ingredient_id === i.id)
-        );
-        setIngResults(filtered);
-        setShowIngDropdown(true);
-      } catch { setIngResults([]); }
-      finally { setIngSearching(false); }
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [ingSearch, formData.branch, isAdmin, userBranch, selectedIngs]);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
 
-  const addIngredient = (ing) => {
-    const newList = [...selectedIngs, { ingredient_id: ing.id, name: ing.name, unit: ing.unit, quantity: "", cost_per_unit: ing.cost_per_unit }];
-    setSelectedIngs(newList);
-    setFormData(p => ({ ...p, ingredients: newList }));
-    setIngSearch("");
-    setIngResults([]);
-    setShowIngDropdown(false);
-  };
+    const handleSort = (col) => { setSort(s => ({ col, asc:s.col===col?!s.asc:true })); setPage(0); };
 
-  const removeIngredient = (ingredient_id) => {
-    const newList = selectedIngs.filter(i => i.ingredient_id !== ingredient_id);
-    setSelectedIngs(newList);
-    setFormData(p => ({ ...p, ingredients: newList }));
-  };
+    const Th = ({ col, label, style:s }) => {
+      const active = sort.col === col;
+      return (
+        <th onClick={() => handleSort(col)} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+            {label}
+            {active ? (sort.asc?<SortAscIcon/>:<SortDescIcon/>) : <span style={{ opacity:0.25 }}><SortDescIcon/></span>}
+          </span>
+        </th>
+      );
+    };
 
-  const updateIngQty = (ingredient_id, quantity) => {
-    const newList = selectedIngs.map(i => i.ingredient_id === ingredient_id ? { ...i, quantity } : i);
-    setSelectedIngs(newList);
-    setFormData(p => ({ ...p, ingredients: newList }));
-  };
+    if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No inventory items match your current filters.</div>;
 
-  // compute total ingredient cost per product
-  const totalIngCost = selectedIngs.reduce((sum, i) => {
-    const qty  = parseFloat(i.quantity) || 0;
-    const cost = parseFloat(i.cost_per_unit) || 0;
-    return sum + qty * cost;
-  }, 0);
-
-  return (
-    <>
-      {/* 1. Item Name */}
-      <InvField label="Item Name">
-        <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
-      </InvField>
-
-      {/* 2. Ingredients */}
-      <InvField label="Ingredients">
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-
-          {/* search box */}
-          <div ref={ingRef} style={{ position:"relative" }}>
-            <div style={{ position:"relative" }}>
-              <SearchIcon size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted, pointerEvents:"none" }}/>
-              <input
-                type="text"
-                value={ingSearch}
-                onChange={e => setIngSearch(e.target.value)}
-                onFocus={() => ingResults.length > 0 && setShowIngDropdown(true)}
-                placeholder="Search ingredients to add…"
-                style={{ ...invInputSt, paddingLeft:30 }}
-              />
-              {ingSearching && (
-                <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", fontSize:11, color:C.muted }}>searching…</span>
-              )}
-            </div>
-
-            {/* dropdown results */}
-            {showIngDropdown && ingResults.length > 0 && (
-              <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 4px 20px rgba(0,0,0,0.12)", zIndex:200, maxHeight:180, overflowY:"auto" }}>
-                {ingResults.map(ing => (
-                  <div key={ing.id} onMouseDown={() => addIngredient(ing)}
-                    style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:`1px solid #f2faf5` }}
-                    onMouseEnter={e => e.currentTarget.style.background="#f0fdf5"}
+    return (
+      <div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr>
+                <Th col="name"      label="Item Name"  style={{ minWidth:160 }}/>
+                <Th col="category"  label="Category"   style={{ minWidth:110 }}/>
+                <Th col="branch"    label="Branch"     style={{ minWidth:130 }}/>
+                <Th col="stock"     label="Stock"      style={{ minWidth:72  }}/>
+                <Th col="min_stock" label="Min Stock"  style={{ minWidth:80  }}/>
+                <Th col="cost"      label="Cost"       style={{ minWidth:90  }}/>
+                <Th col="price"     label="Price"      style={{ minWidth:90  }}/>
+                <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map(item => {
+                const low       = item.stock < item.min_stock;
+                const isConfirm = confirmDeleteId === item.id;
+                return (
+                  <tr key={item.id} style={{ borderBottom:`1px solid #f2faf5` }}
+                    onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
                     onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                    <span style={{ fontWeight:600, color:C.ink }}>{ing.name}</span>
-                    <span style={{ fontSize:11, color:C.muted }}>{ing.unit} · ₱{parseFloat(ing.cost_per_unit||0).toFixed(4)}/{ing.unit}</span>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
+                    </td>
+                    <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
+                    </td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
+                        {item.stock}
+                        {low && <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:C.warn }}/>}
+                      </span>
+                    </td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                        <button onClick={() => onEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={12}/> Edit</button>
+                        <button onClick={() => { if(isConfirm){onDelete(item.id);setConfirmDeleteId(null);}else setConfirmDeleteId(item.id); }}
+                          style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
+                          <TrashIcon size={12}/> {isConfirm?"Confirm?":"Delete"}
+                        </button>
+                        {isConfirm && <button onClick={() => setConfirmDeleteId(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+            <span style={{ fontSize:12, color:C.muted }}>
+              Showing <strong style={{ color:C.ink }}>{(page*PAGE_SIZE+1).toLocaleString()}–{Math.min((page+1)*PAGE_SIZE, sorted.length).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{sorted.length.toLocaleString()}</strong> items
+            </span>
+            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+              {[{label:"«",action:()=>setPage(0),disabled:page===0},{label:"‹",action:()=>setPage(p=>Math.max(0,p-1)),disabled:page===0}].map(({label,action,disabled})=>(
+                <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
+              ))}
+              {Array.from({length:totalPages},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+                <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+              ))}
+              {[{label:"›",action:()=>setPage(p=>Math.min(totalPages-1,p+1)),disabled:page>=totalPages-1},{label:"»",action:()=>setPage(totalPages-1),disabled:page>=totalPages-1}].map(({label,action,disabled})=>(
+                <button key={label} onClick={action} disabled={disabled} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:disabled?0.35:1 }}>{label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function InvModal({ title, onClose, onSubmit, children }) {
+    return (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
+        onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
+        <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:500, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{title}</h2>
+            <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
+          </div>
+          <form onSubmit={onSubmit}>{children}</form>
+        </div>
+      </div>
+    );
+  }
+  function InventoryContent({ user, brands: propBrands = [] }) {
+    const isAdmin    = user?.role === "Administrator";
+    const userBranch = user?.branch || "";
+
+    const brandList = propBrands.length > 0 ? propBrands : [
+      { id:"ipharma",     name:"iPharma",      emoji:"💊", branches:["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
+      { id:"coffeesport", name:"Coffee Sport", emoji:"☕", branches:["HQ","BGC Branch","Ortigas","Cubao"] },
+    ];
+
+    const allBranches = useMemo(() => {
+      const out = [];
+      brandList.forEach(b => {
+        (b.branches||[]).forEach(br => {
+          const name = typeof br==="string"?br:br.name;
+          if (!out.find(x => x.branch===name)) out.push({ brand:b.name, branch:name });
+        });
+      });
+      return out;
+    }, [brandList]);
+
+    const [inventory,       setInventory]       = useState([]);
+    const [loading,         setLoading]         = useState(false);
+    const [categories,      setCategories]      = useState(DEFAULT_CATEGORIES);
+    const [filterBrand,     setFilterBrand]     = useState(null);
+    const [filterBranch,    setFilterBranch]    = useState(null);
+    const [filterCategory,  setFilterCategory]  = useState("");
+    const [filterStatus,    setFilterStatus]    = useState("");
+    const [searchQuery,     setSearchQuery]     = useState("");
+    const [showAddModal,    setShowAddModal]    = useState(false);
+    const [showEditModal,   setShowEditModal]   = useState(false);
+    const [editingItem,     setEditingItem]     = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+    const [page,            setPage]            = useState(0);
+
+    // ── Stock items (for ingredient picker) ──────────────────────────────────
+    const [stockItems, setStockItems] = useState([]);
+
+    const fetchStockItems = useCallback(async () => {
+      try {
+        const q   = !isAdmin && userBranch ? `?branch=${encodeURIComponent(userBranch)}` : "";
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/stock-inventory${q}`);
+        const d   = await res.json();
+        setStockItems(Array.isArray(d) ? d : []);
+      } catch { setStockItems([]); }
+    }, [isAdmin, userBranch]);
+
+    // ── Ingredient picker state ───────────────────────────────────────────────
+    const [ingSearch,   setIngSearch]   = useState("");
+    const [ingQty,      setIngQty]      = useState("1");
+    const [ingUnit,     setIngUnit]     = useState("");
+    const [ingPicked,   setIngPicked]   = useState(null);
+    const [ingDropOpen, setIngDropOpen] = useState(false);
+    const ingRef = useRef(null);
+
+    useEffect(() => {
+      const fn = e => { if (ingRef.current && !ingRef.current.contains(e.target)) setIngDropOpen(false); };
+      document.addEventListener("mousedown", fn);
+      return () => document.removeEventListener("mousedown", fn);
+    }, []);
+
+    const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
+
+    const emptyForm = useCallback(() => ({
+      name:"", category:"", branch:isAdmin?"":userBranch, cost:"", stock:0, minStock:0, price:"",
+      ingredients: [],
+    }), [isAdmin, userBranch]);
+    const [formData, setFormData] = useState(emptyForm);
+
+    const fetchInventory = useCallback(async (branch) => {
+      setLoading(true);
+      try {
+        const q   = branch ? `?branch=${encodeURIComponent(branch)}` : "";
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
+        const d   = await res.json();
+        setInventory(Array.isArray(d) ? d : []);
+      } catch (err) {
+        console.error(err); setInventory([]);
+      } finally { setLoading(false); }
+    }, []);
+
+    useEffect(() => {
+      if (!isAdmin) { fetchInventory(userBranch); return; }
+      fetchInventory(filterBranch||undefined);
+    }, [filterBranch, isAdmin, userBranch, fetchInventory]);
+
+    useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
+
+    useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
+
+    const filteredItems = useMemo(() => {
+      const q = searchQuery.toLowerCase();
+      return inventory.filter(i => {
+        if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
+        if (filterBranch) { if (i.branch!==filterBranch) return false; }
+        else if (filterBrand) {
+          const brand = brandList.find(b => b.id===filterBrand);
+          if (brand) { const names=(brand.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
+        }
+        if (filterCategory && i.category!==filterCategory) return false;
+        if (filterStatus==="low" && i.stock>=i.min_stock) return false;
+        if (filterStatus==="ok"  && i.stock< i.min_stock) return false;
+        return true;
+      });
+    }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
+
+    const lowCount   = filteredItems.filter(i => i.stock < i.min_stock).length;
+    const totalValue = filteredItems.reduce((s, i) => s + (i.price||0)*(i.stock||0), 0);
+
+    const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
+
+    const handleAddItem = async (e) => {
+      e.preventDefault();
+      const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+        const d   = await res.json();
+        if (d.success) { await refetch(); setShowAddModal(false); setFormData(emptyForm()); resetIngPicker(); }
+        else alert(d.error||"Failed to add item");
+      } catch { alert("Failed to add item"); }
+    };
+
+    const handleEditItem = async (e) => {
+      e.preventDefault();
+      const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+        const d   = await res.json();
+        if (d.success) { await refetch(); setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker(); }
+        else alert(d.error||"Failed to update item");
+      } catch { alert("Failed to update item"); }
+    };
+
+    const handleDeleteItem = async (id) => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method:"DELETE" });
+        const d   = await res.json();
+        if (d.success) { await refetch(); setConfirmDeleteId(null); }
+        else alert(d.error||"Failed to delete");
+      } catch { alert("Failed to delete"); }
+    };
+
+    const openEditModal = (item) => {
+      setEditingItem(item);
+      setFormData({
+        name:item.name, category:item.category, branch:item.branch,
+        cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price,
+        ingredients: (item.ingredients||[]).map(x=>({...x})),
+      });
+      setShowEditModal(true);
+    };
+
+    const handleCostChange = (e) => {
+      const cost  = e.target.value;
+      const price = cost !== "" ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN/100)).toFixed(2) : "";
+      setFormData(p => ({ ...p, cost, price }));
+    };
+    const handleInputChange = (e) => { const { name, value } = e.target; setFormData(p => ({ ...p, [name]:value })); };
+
+    // ── Ingredient helpers ────────────────────────────────────────────────────
+    const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
+
+    const addIngredient = () => {
+      if (!ingPicked) return;
+      const already = (formData.ingredients||[]).find(x => x.stock_item_id === ingPicked.id);
+      if (already) { alert("Already added"); return; }
+      setFormData(f => ({
+        ...f,
+        ingredients: [...(f.ingredients||[]), {
+          stock_item_id: ingPicked.id,
+          name:          ingPicked.name,
+          qty_required:  parseFloat(ingQty) || 1,
+          unit:          ingUnit || ingPicked.unit,
+        }],
+      }));
+      resetIngPicker();
+    };
+
+    const removeIngredient = idx =>
+      setFormData(f => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== idx) }));
+
+    const updateIngQtyInForm = (idx, qty) =>
+      setFormData(f => ({
+        ...f,
+        ingredients: f.ingredients.map((ing, i) => i === idx ? { ...ing, qty_required: parseFloat(qty) || 0 } : ing),
+      }));
+
+    const ingFiltered = stockItems.filter(s =>
+      !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase())
+    );
+
+    const excelRef = useRef(null);
+    const importExcel = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const wb       = XLSX.read(ev.target.result, { type:"array" });
+        const newItems = [];
+        wb.SheetNames.forEach(sheetName => {
+          const ws   = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+          const matchedBranch = findMatchingBranch(sheetName, allBranches);
+          const brandName     = matchedBranch ? (allBranches.find(x => x.branch===matchedBranch)?.brand||"") : "";
+          const sheetCats = [...new Set(rows.map(r => String(r.category||r.Category||r.CATEGORY||"").trim()).filter(Boolean))];
+          sheetCats.forEach(c => setCategories(prev => prev.includes(c)?prev:[...prev,c]));
+          rows.forEach(row => {
+            const name = String(row.name||row.Name||row["ITEM NAME"]||row["Item Name"]||row.item_name||"").trim();
+            if (!name) return;
+            const category = String(row.category||row.Category||row.CATEGORY||"Other").trim();
+            const cost     = parseFloat(row.cost||row.Cost||row.COST||0)||0;
+            const rawPrice = parseFloat(row.price||row.Price||row.PRICE||row.selling_price||0)||0;
+            const price    = rawPrice>0?rawPrice:(cost>0?parseFloat((cost*1.4).toFixed(2)):0);
+            const stock    = parseInt(row.stock||row.Stock||row.STOCK||row.qty||row.Qty||0)||0;
+            const minStock = parseInt(row.min_stock||row["Min Stock"]||row.minstock||0)||0;
+            const branch   = String(row.branch||row.Branch||matchedBranch||"").trim();
+            newItems.push({ name, category, branch:branch||"Unknown", brand:brandName, cost, stock, min_stock:minStock, price });
+          });
+        });
+        let saved = 0;
+        for (const item of newItems) {
+          try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item) });
+            const d   = await res.json();
+            if (d.success) saved++;
+          } catch { /* skip */ }
+        }
+        e.target.value = "";
+        alert(`Parsed ${newItems.length} row(s). Saved ${saved} to server.`);
+        refetch();
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    const anyFilter = filterBrand||filterBranch||filterCategory||filterStatus||searchQuery;
+    const clearAll  = () => { setFilterBrand(null); setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+
+    const viewLabel = (() => {
+      if (filterBranch) return `${brandList.find(b=>b.id===filterBrand)?.name||""} – ${filterBranch}`;
+      if (filterBrand)  return `${brandList.find(b=>b.id===filterBrand)?.name||""} – All Branches`;
+      return "All Inventory";
+    })();
+
+    // ── Ingredient Picker Section (reusable inside FormFields) ────────────────
+    const IngredientPicker = () => (
+      <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
+        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>
+          🧪 Ingredients Required
+        </div>
+
+        {/* Picker row */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
+          <div ref={ingRef} style={{ position:"relative" }}>
+            <input
+              style={invInputSt}
+              value={ingSearch}
+              onChange={e => { setIngSearch(e.target.value); setIngPicked(null); setIngDropOpen(true); }}
+              onFocus={() => setIngDropOpen(true)}
+              placeholder="Search stock ingredient…"
+            />
+            {ingDropOpen && ingFiltered.length > 0 && (
+              <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:500, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.10)", maxHeight:160, overflowY:"auto" }}>
+                {ingFiltered.map(s => (
+                  <div key={s.id}
+                    onMouseDown={e => { e.preventDefault(); setIngPicked(s); setIngSearch(s.name); setIngUnit(s.unit); setIngDropOpen(false); }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f0fdf5"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    style={{ padding:"8px 12px", cursor:"pointer", fontSize:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span style={{ fontWeight:600, color:C.ink }}>{s.name}</span>
+                    <span style={{ fontSize:11, color:C.muted, background:"#dcfce7", padding:"2px 8px", borderRadius:20 }}>{s.unit} · {s.branch}</span>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* no results */}
-            {showIngDropdown && ingResults.length === 0 && ingSearch.trim() && !ingSearching && (
-              <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 4px 20px rgba(0,0,0,0.12)", zIndex:200, padding:"10px 13px", fontSize:12, color:C.muted, fontStyle:"italic" }}>
-                No ingredients found for "{ingSearch}"
-              </div>
-            )}
           </div>
-
-          {/* selected ingredients list */}
-          {selectedIngs.length > 0 && (
-            <div style={{ border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden" }}>
-              {/* header */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 80px 24px", gap:8, padding:"6px 10px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Ingredient</span>
-                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Qty / Unit</span>
-                <span style={{ fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>Cost</span>
-                <span/>
-              </div>
-
-              {/* rows */}
-              {selectedIngs.map(ing => {
-                const lineCost = (parseFloat(ing.quantity)||0) * (parseFloat(ing.cost_per_unit)||0);
-                return (
-                  <div key={ing.ingredient_id} style={{ display:"grid", gridTemplateColumns:"1fr 100px 80px 24px", gap:8, padding:"7px 10px", alignItems:"center", borderBottom:`1px solid #f2faf5` }}>
-                    <span style={{ fontSize:13, fontWeight:600, color:C.ink }}>{ing.name}</span>
-                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={ing.quantity}
-                        onChange={e => updateIngQty(ing.ingredient_id, e.target.value)}
-                        placeholder="0"
-                        style={{ ...invInputSt, padding:"5px 7px", width:58, fontSize:12 }}
-                      />
-                      <span style={{ fontSize:11, color:C.muted, whiteSpace:"nowrap" }}>{ing.unit}</span>
-                    </div>
-                    <span style={{ fontSize:12, color:C.muted }}>
-                      {lineCost > 0 ? `₱${lineCost.toFixed(2)}` : "—"}
-                    </span>
-                    <button type="button" onClick={() => removeIngredient(ing.ingredient_id)}
-                      style={{ background:"none", border:"none", cursor:"pointer", color:"#e53935", padding:2, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <XIcon size={13}/>
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* total ingredient cost */}
-              <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:6, padding:"7px 10px", background:"#f9fefb", borderTop:`1px solid ${C.border}` }}>
-                <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Total ingredient cost per unit:</span>
-                <span style={{ fontSize:13, fontWeight:800, color:C.green }}>₱{totalIngCost.toFixed(2)}</span>
-              </div>
-            </div>
-          )}
-
-          {selectedIngs.length === 0 && (
-            <div style={{ fontSize:12, color:C.muted, fontStyle:"italic", padding:"6px 2px" }}>
-              No ingredients added yet. Search above to add.
-            </div>
-          )}
-        </div>
-      </InvField>
-
-      {/* 3. Brand */}
-      {isAdmin ? (
-        <InvField label="Brand">
-          <select
-            style={{ ...invInputSt, cursor:"pointer" }}
-            value={formBrandId}
-            onChange={e => { setFormBrandId(e.target.value); setFormData(p => ({ ...p, branch:"", category:"" })); }}
-            required
-          >
-            <option value="">Select brand...</option>
-            {brandList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          <input
+            type="number" style={invInputSt} value={ingQty} min="0" step="any"
+            onChange={e => setIngQty(e.target.value)} placeholder="Qty" title="Qty required"
+          />
+          <select style={invInputSt} value={ingUnit} onChange={e => setIngUnit(e.target.value)}>
+            <option value="">unit</option>
+            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
-        </InvField>
-      ) : (
-        <InvField label="Brand">
-          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{nonAdminBrand?.name||"—"}</div>
-        </InvField>
-      )}
-
-      {/* 4. Branch */}
-      {isAdmin ? (
-        <InvField label="Branch">
-          <select
-            style={{ ...invInputSt, cursor:brandSelected?"pointer":"not-allowed", opacity:brandSelected?1:0.55 }}
-            name="branch"
-            value={formData.branch}
-            onChange={e => setFormData(p => ({ ...p, branch:e.target.value, category:"" }))}
-            required
-            disabled={!brandSelected}
-          >
-            <option value="">{brandSelected ? "Select branch..." : "Select a brand first"}</option>
-            {formBranchOptions.map(br => <option key={br} value={br}>{br}</option>)}
-          </select>
-        </InvField>
-      ) : (
-        <InvField label="Branch">
-          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{userBranch||"—"}</div>
-        </InvField>
-      )}
-
-      {/* 5. Category */}
-      <InvField label="Category">
-        <select
-          style={{ ...invInputSt, cursor:(isAdmin&&!branchSelected)?"not-allowed":"pointer", opacity:(isAdmin&&!branchSelected)?0.55:1 }}
-          name="category"
-          value={formData.category}
-          onChange={handleInputChange}
-          required
-          disabled={isAdmin && !branchSelected}
-        >
-          <option value="">{isAdmin&&!branchSelected ? "Select a branch first" : "Select category..."}</option>
-          {catOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-      </InvField>
-
-      {/* 6. Cost + Margin */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        <InvField label="Product Cost (₱)">
-          <input type="number" name="cost" value={formData.cost} onChange={handleCostChange} step="0.01" min="0" style={invInputSt} placeholder="0.00"/>
-        </InvField>
-        <InvField label="Profit Margin (%)">
-          <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }} title="Fixed at 40%"/>
-        </InvField>
-      </div>
-      {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
-        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
-          Cost: <strong>{fmtPeso(formData.cost)}</strong>
-          <span style={{ color:C.muted }}>+</span>
-          <strong>{DEFAULT_PROFIT_MARGIN}%</strong>
-          <span style={{ color:C.muted }}>=</span>
-          Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
-        </div>
-      )}
-
-      {/* 7. Stock / Min Stock / Price */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-        <InvField label="Stock Qty"><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
-        <InvField label="Min Stock"><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
-        <InvField label="Selling Price (₱)"><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></InvField>
-      </div>
-
-      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-        <button type="button" onClick={onCancel} style={btnSt}>Cancel</button>
-        <button type="submit" style={btnPrimarySt}>Save Item</button>
-      </div>
-    </>
-  );
-}
-
-function InventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Administrator";
-  const userBranch = user?.branch || "";
-
-  const brandList = propBrands.length > 0 ? propBrands : [
-    { id:"ipharma",     name:"iPharma",      emoji:"💊", branches:["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
-    { id:"coffeesport", name:"Coffee Sport", emoji:"☕", branches:["HQ","BGC Branch","Ortigas","Cubao"] },
-  ];
-
-  const allBranches = useMemo(() => {
-    const out = [];
-    brandList.forEach(b => {
-      (b.branches||[]).forEach(br => {
-        const name = typeof br==="string"?br:br.name;
-        if (!out.find(x => x.branch===name)) out.push({ brand:b.name, branch:name });
-      });
-    });
-    return out;
-  }, [brandList]);
-
-  const [inventory,       setInventory]       = useState([]);
-  const [loading,         setLoading]         = useState(false);
-  const [categories,      setCategories]      = useState(DEFAULT_CATEGORIES);
-  const [filterBrand,     setFilterBrand]     = useState(null);
-  const [filterBranch,    setFilterBranch]    = useState(null);
-  const [filterCategory,  setFilterCategory]  = useState("");
-  const [filterStatus,    setFilterStatus]    = useState("");
-  const [searchQuery,     setSearchQuery]     = useState("");
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [showEditModal,   setShowEditModal]   = useState(false);
-  const [editingItem,     setEditingItem]     = useState(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [page,            setPage]            = useState(0);
-  // ── NEW: tracks which brand is selected in the form ──
-  const [formBrandId,     setFormBrandId]     = useState("");
-
-  const emptyForm = useCallback(() => ({
-    name:"", category:"", branch:isAdmin?"":userBranch, cost:"", stock:0, minStock:0, price:"",
-  }), [isAdmin, userBranch]);
-  const [formData, setFormData] = useState(emptyForm);
-
-  const fetchInventory = useCallback(async (branch) => {
-    setLoading(true);
-    try {
-      const q   = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
-      const d   = await res.json();
-      setInventory(Array.isArray(d) ? d : []);
-    } catch (err) {
-      console.error(err); setInventory([]);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    if (!isAdmin) { fetchInventory(userBranch); return; }
-    fetchInventory(filterBranch||undefined);
-  }, [filterBranch, isAdmin, userBranch, fetchInventory]);
-
-  useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
-
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter(i => {
-      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-      if (filterBranch) { if (i.branch!==filterBranch) return false; }
-      else if (filterBrand) {
-        const brand = brandList.find(b => b.id===filterBrand);
-        if (brand) { const names=(brand.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
-      }
-      if (filterCategory && i.category!==filterCategory) return false;
-      if (filterStatus==="low" && i.stock>=i.min_stock) return false;
-      if (filterStatus==="ok"  && i.stock< i.min_stock) return false;
-      return true;
-    });
-  }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
-
-  const lowCount   = filteredItems.filter(i => i.stock < i.min_stock).length;
-  const totalValue = filteredItems.reduce((s, i) => s + (i.price||0)*(i.stock||0), 0);
-
-  const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
-
-  const handleAddItem = async (e) => {
-  e.preventDefault();
-  const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-    const d   = await res.json();
-    if (d.success) {
-      // save ingredients recipe if any were added
-      if (formData.ingredients?.length > 0) {
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ ingredients: formData.ingredients.map(i => ({ ingredient_id:i.ingredient_id, quantity:parseFloat(i.quantity)||0, unit:i.unit })) })
-        });
-      }
-      await refetch(); setShowAddModal(false); setFormData(emptyForm()); setFormBrandId("");
-    } else alert(d.error||"Failed to add item");
-  } catch { alert("Failed to add item"); }
-};
-
-const handleEditItem = async (e) => {
-  e.preventDefault();
-  const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-    const d   = await res.json();
-    if (d.success) {
-      // always save ingredients (even empty = clears recipe)
-      await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ ingredients: (formData.ingredients||[]).map(i => ({ ingredient_id:i.ingredient_id, quantity:parseFloat(i.quantity)||0, unit:i.unit })) })
-      });
-      await refetch(); setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId("");
-    } else alert(d.error||"Failed to update item");
-  } catch { alert("Failed to update item"); }
-};
-
-  const handleDeleteItem = async (id) => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method:"DELETE" });
-      const d   = await res.json();
-      if (d.success) { await refetch(); setConfirmDeleteId(null); }
-      else alert(d.error||"Failed to delete");
-    } catch { alert("Failed to delete"); }
-  };
-
-  const openEditModal = async (item) => {
-  setEditingItem(item);
-  const ownerBrand = brandList.find(b =>
-    (b.branches||[]).some(br => (typeof br==="string"?br:br.name) === item.branch)
-  );
-  setFormBrandId(ownerBrand ? String(ownerBrand.id) : "");
-
-  // fetch existing recipe for this item
-  let ingredients = [];
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${item.id}/ingredients`);
-    const data = await res.json();
-    ingredients = Array.isArray(data) ? data.map(r => ({
-      ingredient_id : r.ingredient_id,
-      name          : r.ingredient_name,
-      unit          : r.unit,
-      quantity      : r.quantity,
-      cost_per_unit : r.cost_per_unit,
-    })) : [];
-  } catch { ingredients = []; }
-
-  setFormData({ name:item.name, category:item.category, branch:item.branch, cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price, ingredients });
-  setShowEditModal(true);
-};
-
-  const handleCostChange = (e) => {
-    const cost  = e.target.value;
-    const price = cost !== "" ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN/100)).toFixed(2) : "";
-    setFormData(p => ({ ...p, cost, price }));
-  };
-  const handleInputChange = (e) => { const { name, value } = e.target; setFormData(p => ({ ...p, [name]:value })); };
-
-  const excelRef = useRef(null);
-  const importExcel = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const wb       = XLSX.read(ev.target.result, { type:"array" });
-      const newItems = [];
-      wb.SheetNames.forEach(sheetName => {
-        const ws   = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-        const matchedBranch = findMatchingBranch(sheetName, allBranches);
-        const brandName     = matchedBranch ? (allBranches.find(x => x.branch===matchedBranch)?.brand||"") : "";
-        const sheetCats = [...new Set(rows.map(r => String(r.category||r.Category||r.CATEGORY||"").trim()).filter(Boolean))];
-        sheetCats.forEach(c => setCategories(prev => prev.includes(c)?prev:[...prev,c]));
-        rows.forEach(row => {
-          const name = String(row.name||row.Name||row["ITEM NAME"]||row["Item Name"]||row.item_name||"").trim();
-          if (!name) return;
-          const category = String(row.category||row.Category||row.CATEGORY||"Other").trim();
-          const cost     = parseFloat(row.cost||row.Cost||row.COST||0)||0;
-          const rawPrice = parseFloat(row.price||row.Price||row.PRICE||row.selling_price||0)||0;
-          const price    = rawPrice>0?rawPrice:(cost>0?parseFloat((cost*1.4).toFixed(2)):0);
-          const stock    = parseInt(row.stock||row.Stock||row.STOCK||row.qty||row.Qty||0)||0;
-          const minStock = parseInt(row.min_stock||row["Min Stock"]||row.minstock||0)||0;
-          const branch   = String(row.branch||row.Branch||matchedBranch||"").trim();
-          newItems.push({ name, category, branch:branch||"Unknown", brand:brandName, cost, stock, min_stock:minStock, price });
-        });
-      });
-      let saved = 0;
-      for (const item of newItems) {
-        try {
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item) });
-          const d   = await res.json();
-          if (d.success) saved++;
-        } catch { /* skip */ }
-      }
-      e.target.value = "";
-      alert(`Parsed ${newItems.length} row(s). Saved ${saved} to server.`);
-      refetch();
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const anyFilter = filterBrand||filterBranch||filterCategory||filterStatus||searchQuery;
-  const clearAll  = () => { setFilterBrand(null); setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
-
-  const viewLabel = (() => {
-    if (filterBranch) return `${brandList.find(b=>b.id===filterBrand)?.name||""} – ${filterBranch}`;
-    if (filterBrand)  return `${brandList.find(b=>b.id===filterBrand)?.name||""} – All Branches`;
-    return "All Inventory";
-  })();
-
-  // ── derive selected brand object from formBrandId ──
-  const activeBrandForForm = useMemo(() => {
-    if (!formBrandId) return null;
-    return brandList.find(b => String(b.id) === String(formBrandId)) || null;
-  }, [formBrandId, brandList]);
-
-  // ── branches that belong to the selected brand ──
-  const formBranchOptions = useMemo(() => {
-    if (!activeBrandForForm) return [];
-    return (activeBrandForForm.branches || []).map(br => typeof br === "string" ? br : br.name);
-  }, [activeBrandForForm]);
-
-  // ── categories that belong to the selected brand ──
-  const categoryOptions = useMemo(() => {
-    if (activeBrandForForm?.categories?.length > 0) return activeBrandForForm.categories;
-    return categories;
-  }, [activeBrandForForm, categories]);
-
-  // ── for non-admin: resolve their brand once ──
-  const nonAdminBrand = useMemo(() => {
-    if (isAdmin) return null;
-    return brandList.find(b =>
-      (b.branches||[]).some(br => (typeof br==="string"?br:br.name) === userBranch)
-    ) || null;
-  }, [isAdmin, userBranch, brandList]);
-
-  const nonAdminCategoryOptions = useMemo(() => {
-    if (nonAdminBrand?.categories?.length > 0) return nonAdminBrand.categories;
-    return categories;
-  }, [nonAdminBrand, categories]);
-
- 
-  return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
-
-      <div style={{ marginBottom:22 }}>
-        <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>Stock Management</div>
-        <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>Inventory Management</h1>
-      </div>
-
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-            <SearchIcon size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
-            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
-            {searchQuery && <XIcon size={12} onClick={() => setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}/>}
-          </div>
-          {isAdmin && (
-            <BrandBranchFilter brands={brandList} activeBrand={filterBrand} activeBranch={filterBranch}
-              onChangeBrand={id => { setFilterBrand(id); setFilterBranch(null); }} onChangeBranch={setFilterBranch}/>
-          )}
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
-            <option value="">All Categories</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
-          <div style={{ flex:1 }}/>
-          <label style={{ ...btnSt, cursor:"pointer" }}>
-            <FileIcon size={13}/> Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-          <button onClick={() => { setFormData({ ...emptyForm(), branch:isAdmin?(filterBranch||""):userBranch }); setFormBrandId(isAdmin?(filterBrand||""):(nonAdminBrand?String(nonAdminBrand.id):"")); setShowAddModal(true); }} style={btnPrimarySt}>
-            <PlusIcon size={13}/> Add New Item
+          <button type="button" onClick={addIngredient}
+            style={{ ...btnPrimarySt, height:36, padding:"0 14px", flexShrink:0 }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add
           </button>
         </div>
-        {anyFilter && (
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-            {searchQuery    && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={() => setSearchQuery("")}/>}
-            {filterBrand && !filterBranch && <Chip label={`${brandList.find(b=>b.id===filterBrand)?.emoji||""} ${brandList.find(b=>b.id===filterBrand)?.name}`} color={C.greenDk} bg={C.greenLt} onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
-            {filterBranch   && <Chip label={filterBranch}   color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
-            {filterCategory && <Chip label={filterCategory} color="#00695c" bg="#e0f2f1" onRemove={() => setFilterCategory("")}/>}
-            {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={() => setFilterStatus("")}/>}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+
+        {/* Linked ingredients list */}
+        {(!formData.ingredients || formData.ingredients.length === 0) ? (
+          <div style={{ textAlign:"center", padding:"12px 0", color:C.muted, fontSize:12, fontStyle:"italic" }}>
+            No ingredients linked yet.
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {formData.ingredients.map((ing, idx) => (
+              <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 100px 70px auto", gap:8, alignItems:"center", background:C.white, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 12px" }}>
+                <span style={{ fontSize:13, fontWeight:700, color:C.ink }}>{ing.name}</span>
+                <input
+                  type="number" value={ing.qty_required} min="0" step="any"
+                  onChange={e => updateIngQtyInForm(idx, e.target.value)}
+                  style={{ ...invInputSt, textAlign:"center" }}
+                />
+                <span style={{ fontSize:11, color:C.muted, background:"#f0fdf5", padding:"3px 8px", borderRadius:20, textAlign:"center" }}>{ing.unit}</span>
+                <button type="button" onClick={() => removeIngredient(idx)}
+                  style={{ ...smallBtnSt, height:28, width:28, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935", flexShrink:0 }}>
+                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
+    );
 
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
-        <StatCard label="Showing"    value={filteredItems.length.toLocaleString()} sub={`of ${inventory.length.toLocaleString()} total`}/>
-        <StatCard label="Low Stock"  value={lowCount} sub="Needs reorder" accent={C.warn}/>
-        <StatCard label="Est. Value" value={fmtPeso(totalValue)} sub="Filtered selection"/>
-        <StatCard label="Categories" value={categories.length} sub="Product types" accent="#1565c0"/>
-      </div>
-
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}><StoreIcon size={14}/> {viewLabel}</span>
-          <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
-        </div>
-        {loading ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
+    const FormFields = () => (
+      <>
+        <InvField label="Item Name">
+          <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
+        </InvField>
+        <InvField label="Category">
+          <CategorySelect value={formData.category} onChange={val=>setFormData(p=>({...p,category:val}))} categories={categories} onAddCategory={cat=>setCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}/>
+        </InvField>
+        {isAdmin ? (
+          <InvField label="Branch">
+            <BranchSearchSelect value={formData.branch} onChange={val=>setFormData(p=>({...p,branch:val}))} allBranches={allBranches}/>
+          </InvField>
         ) : (
-          <InventoryTable items={filteredItems} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} page={page} setPage={setPage}/>
+          <InvField label="Branch">
+            <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{userBranch||"—"}</div>
+          </InvField>
         )}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <InvField label="Product Cost (₱)">
+            <input type="number" name="cost" value={formData.cost} onChange={handleCostChange} step="0.01" min="0" style={invInputSt} placeholder="0.00"/>
+          </InvField>
+          <InvField label="Profit Margin (%)">
+            <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }} title="Fixed at 40%"/>
+          </InvField>
+        </div>
+        {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
+          <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
+            Cost: <strong>{fmtPeso(formData.cost)}</strong>
+            <span style={{ color:C.muted }}>+</span>
+            <strong>{DEFAULT_PROFIT_MARGIN}%</strong>
+            <span style={{ color:C.muted }}>=</span>
+            Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
+          </div>
+        )}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+          <InvField label="Stock Qty"><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
+          <InvField label="Min Stock"><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></InvField>
+          <InvField label="Selling Price (₱)"><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></InvField>
+        </div>
+
+        {/* ── Ingredient Picker ── */}
+        <InvField label="Ingredients">
+         {IngredientPicker()}
+        </InvField>
+
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+          <button type="button" onClick={() => { setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); resetIngPicker(); }} style={btnSt}>Cancel</button>
+          <button type="submit" style={btnPrimarySt}>Save Item</button>
+        </div>
+      </>
+    );
+
+    return (
+      <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+
+        <div style={{ marginBottom:22 }}>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>Stock Management</div>
+          <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>Inventory Management</h1>
+        </div>
+
+        <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+              <SearchIcon size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}/>
+              <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
+              {searchQuery && <XIcon size={12} onClick={() => setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}/>}
+            </div>
+            {isAdmin && (
+              <BrandBranchFilter brands={brandList} activeBrand={filterBrand} activeBranch={filterBranch}
+                onChangeBrand={id => { setFilterBrand(id); setFilterBranch(null); }} onChangeBranch={setFilterBranch}/>
+            )}
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
+              <option value="">All Categories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
+              <option value="">All Status</option>
+              <option value="low">Low Stock</option>
+              <option value="ok">In Stock</option>
+            </select>
+            <div style={{ flex:1 }}/>
+            <label style={{ ...btnSt, cursor:"pointer" }}>
+              <FileIcon size={13}/> Import Excel
+              <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
+            </label>
+            <button onClick={() => { setFormData({ ...emptyForm(), branch:isAdmin?(filterBranch||""):userBranch }); setShowAddModal(true); }} style={btnPrimarySt}>
+              <PlusIcon size={13}/> Add New Item
+            </button>
+          </div>
+          {anyFilter && (
+            <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
+              {searchQuery    && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={() => setSearchQuery("")}/>}
+              {filterBrand && !filterBranch && <Chip label={`${brandList.find(b=>b.id===filterBrand)?.emoji||""} ${brandList.find(b=>b.id===filterBrand)?.name}`} color={C.greenDk} bg={C.greenLt} onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
+              {filterBranch   && <Chip label={filterBranch}   color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
+              {filterCategory && <Chip label={filterCategory} color="#00695c" bg="#e0f2f1" onRemove={() => setFilterCategory("")}/>}
+              {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={() => setFilterStatus("")}/>}
+              <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
+          <StatCard label="Showing"    value={filteredItems.length.toLocaleString()} sub={`of ${inventory.length.toLocaleString()} total`}/>
+          <StatCard label="Low Stock"  value={lowCount} sub="Needs reorder" accent={C.warn}/>
+          <StatCard label="Est. Value" value={fmtPeso(totalValue)} sub="Filtered selection"/>
+          <StatCard label="Categories" value={categories.length} sub="Product types" accent="#1565c0"/>
+        </div>
+
+        <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+          <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+            <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}><StoreIcon size={14}/> {viewLabel}</span>
+            <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
+          </div>
+          {loading ? (
+            <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
+          ) : (
+            <InventoryTable items={filteredItems} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} page={page} setPage={setPage}/>
+          )}
+        </div>
+
+        {showAddModal  && <InvModal title="Add New Inventory Item" onClose={() => { setShowAddModal(false);  setFormData(emptyForm()); resetIngPicker(); }} onSubmit={handleAddItem}>{FormFields()}</InvModal>}
+        {showEditModal && <InvModal title="Edit Inventory Item"    onClose={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker(); }} onSubmit={handleEditItem}>{FormFields()}</InvModal>}
       </div>
+    );
+  }
 
-      {showAddModal && (
-        <InvModal title="Add New Inventory Item" onClose={() => { setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); }} onSubmit={handleAddItem}>
-          <FormFields
-            formData={formData} handleInputChange={handleInputChange} handleCostChange={handleCostChange} setFormData={setFormData}
-            isAdmin={isAdmin} userBranch={userBranch} brandList={brandList} formBrandId={formBrandId} setFormBrandId={setFormBrandId}
-            categoryOptions={categoryOptions} nonAdminCategoryOptions={nonAdminCategoryOptions} nonAdminBrand={nonAdminBrand}
-            formBranchOptions={formBranchOptions}
-            onCancel={() => { setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); }}
-          />
-        </InvModal>
-      )}
-      {showEditModal && (
-      <InvModal title="Edit Inventory Item" onClose={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); }} onSubmit={handleEditItem}>
-        <FormFields
-          formData={formData} handleInputChange={handleInputChange} handleCostChange={handleCostChange} setFormData={setFormData}
-          isAdmin={isAdmin} userBranch={userBranch} brandList={brandList} formBrandId={formBrandId} setFormBrandId={setFormBrandId}
-          categoryOptions={categoryOptions} nonAdminCategoryOptions={nonAdminCategoryOptions} nonAdminBrand={nonAdminBrand}
-          formBranchOptions={formBranchOptions}
-          onCancel={() => { setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); }}
-        />
-      </InvModal>
-      )}
-    </div>
-  );
-}
-
-function Chip({ label, color, bg, onRemove }) {
-  return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
-      {label}
-      <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
-    </span>
-  );
-}
+  function Chip({ label, color, bg, onRemove }) {
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
+        {label}
+        <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
+      </span>
+    );
+  }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTS
@@ -2690,7 +2530,1056 @@ function CreateAccountModal({ applicant, onClose }) {
     </div>
   );
 }
+function StockInventoryContent({ user, brands: propBrands = [] }) {
+  const isAdmin    = user?.role === "Administrator";
+  const userBranch = user?.branch || "";
 
+  const brandList = propBrands.length > 0 ? propBrands : [
+    { id: "ipharma",     name: "iPharma",      emoji: "💊", branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
+    { id: "coffeesport", name: "Coffee Sport", emoji: "☕", branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
+  ];
+
+  const allBranches = useMemo(() => {
+    const out = [];
+    brandList.forEach(b =>
+      (b.branches || []).forEach(br => {
+        const name = typeof br === "string" ? br : br.name;
+        if (!out.find(x => x.branch === name)) out.push({ brand: b.name, branch: name });
+      })
+    );
+    return out;
+  }, [brandList]);
+
+  // ── Stock Items ──────────────────────────────────────────────────────────
+  const [stockItems,      setStockItems]      = useState([]);
+  const [loadingStock,    setLoadingStock]    = useState(false);
+  const [stockSearch,     setStockSearch]     = useState("");
+  const [stockBrand,      setStockBrand]      = useState(null);
+  const [stockBranch,     setStockBranch]     = useState(null);
+  const [stockUnitFilter, setStockUnitFilter] = useState("");
+  const [stockStatusFilt, setStockStatusFilt] = useState("");
+  const [stockPage,       setStockPage]       = useState(0);
+  const [stockSort,       setStockSort]       = useState({ col: "name", asc: true });
+  const [confirmDelStock, setConfirmDelStock] = useState(null);
+
+  // ── Modals ───────────────────────────────────────────────────────────────
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [editingStock,   setEditingStock]   = useState(null);
+
+  const emptyStock = useCallback(() => ({
+    name: "", branch: isAdmin ? "" : userBranch, brand: "",
+    unit: "pcs", stock: 0, min_stock: 0, cost_per_unit: "",
+  }), [isAdmin, userBranch]);
+
+  const [stockForm, setStockForm] = useState(emptyStock);
+
+  // ── Fetch ────────────────────────────────────────────────────────────────
+  const fetchStock = useCallback(async () => {
+    setLoadingStock(true);
+    try {
+      const q   = !isAdmin && userBranch ? `?branch=${encodeURIComponent(userBranch)}` : "";
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/stock-inventory${q}`);
+      const d   = await res.json();
+      setStockItems(Array.isArray(d) ? d : []);
+    } catch { setStockItems([]); }
+    finally { setLoadingStock(false); }
+  }, [isAdmin, userBranch]);
+
+  useEffect(() => { fetchStock(); }, [fetchStock]);
+
+  // ── Derived / filtered ───────────────────────────────────────────────────
+  const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
+
+  const filteredStock = useMemo(() => {
+    const q = stockSearch.toLowerCase();
+    return [...stockItems]
+      .filter(i => {
+        if (q && !i.name.toLowerCase().includes(q) && !(i.branch||"").toLowerCase().includes(q)) return false;
+        if (stockBranch && i.branch !== stockBranch) return false;
+        else if (stockBrand && !stockBranch) {
+          const b = brandList.find(x => x.id === stockBrand);
+          if (b) {
+            const names = (b.branches||[]).map(br => typeof br==="string"?br:br.name);
+            if (!names.includes(i.branch)) return false;
+          }
+        }
+        if (stockUnitFilter && i.unit !== stockUnitFilter) return false;
+        if (stockStatusFilt === "low" && i.stock >= i.min_stock) return false;
+        if (stockStatusFilt === "ok"  && i.stock <  i.min_stock) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        let va = a[stockSort.col] ?? ""; let vb = b[stockSort.col] ?? "";
+        if (typeof va === "string") va = va.toLowerCase();
+        if (typeof vb === "string") vb = vb.toLowerCase();
+        if (va < vb) return stockSort.asc ? -1 : 1;
+        if (va > vb) return stockSort.asc ? 1 : -1;
+        return 0;
+      });
+  }, [stockItems, stockSearch, stockBrand, stockBranch, stockUnitFilter, stockStatusFilt, stockSort, brandList]);
+
+  const lowCount   = stockItems.filter(i => i.stock < i.min_stock).length;
+  const totalValue = stockItems.reduce((s, i) => s + (i.cost_per_unit||0)*(i.stock||0), 0);
+
+  const STOCK_PAGE_SIZE = 50;
+  const stockPageItems  = filteredStock.slice(stockPage * STOCK_PAGE_SIZE, (stockPage+1) * STOCK_PAGE_SIZE);
+
+  // ── CRUD – Stock ──────────────────────────────────────────────────────────
+  const saveStock = async e => {
+    e.preventDefault();
+    const payload = { stockForm, branch: isAdmin ? stockForm.branch : userBranch };
+    const url     = editingStock ? `${process.env.REACT_APP_API_URL}/stock-inventory/${editingStock.id}` : `${process.env.REACT_APP_API_URL}/stock-inventory`;
+    const method  = editingStock ? "PUT" : "POST";
+    try {
+      const res = await fetch(url, { method, headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+      const d   = await res.json();
+      if (d.success) { await fetchStock(); setShowStockModal(false); setEditingStock(null); setStockForm(emptyStock()); }
+      else alert(d.error || "Failed to save");
+    } catch { alert("Failed to save stock item"); }
+  };
+
+  const deleteStock = async id => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/stock-inventory/${id}`, { method: "DELETE" });
+      const d   = await res.json();
+      if (d.success) { await fetchStock(); setConfirmDelStock(null); }
+      else alert(d.error || "Failed to delete");
+    } catch { alert("Failed to delete"); }
+  };
+
+  // ── Sort header ───────────────────────────────────────────────────────────
+  const SortTh = ({ col, label, minW }) => {
+    const active = stockSort.col === col;
+    return (
+      <th onClick={() => { setStockSort(s => ({ col, asc: s.col===col ? !s.asc : true })); setStockPage(0); }}
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color: active ? C.green : C.muted,
+          letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`,
+          cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", minWidth: minW }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+          {label}
+          {active ? (stockSort.asc
+            ? <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            : <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          ) : <span style={{ opacity:0.25 }}><svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>}
+        </span>
+      </th>
+    );
+  };
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  const Pagination = ({ page, setPage, total, pageSize }) => {
+    const totalPgs = Math.max(1, Math.ceil(total / pageSize));
+    if (totalPgs <= 1) return null;
+    return (
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+        <span style={{ fontSize:12, color:C.muted }}>
+          Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize, total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
+        </span>
+        <div style={{ display:"flex", gap:4 }}>
+          {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
+            <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          ))}
+          {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+            <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+          ))}
+          {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
+            <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Stock Modal Form ──────────────────────────────────────────────────────
+  const StockModalForm = () => (
+    <div style={{ display:"grid", gap:14 }}>l
+      <div>
+        <label style={invLabelSt}>Ingredient Name *</label>
+        <input style={invInputSt} value={stockForm.name}onChange={e=>setStockForm(f=>({...f,name:e.target.value}))}required placeholder="e.g. Coffee Beans" />
+      </div>
+      {isAdmin ? (
+        <div>
+          <label style={invLabelSt}>Branch *</label>
+          <BranchSearchSelect value={stockForm.branch} onChange={val=>setStockForm(f=>({...f,branch:val}))} allBranches={allBranches} />
+        </div>
+      ) : (
+        <div>
+          <label style={invLabelSt}>Branch</label>
+          <div style={{invInputSt, padding:"9px 12px", height:"auto", background:"#f5f5f5", color:C.muted, fontWeight:700 }}>{userBranch||"—"}</div>
+        </div>
+      )}
+      <div>
+        <label style={invLabelSt}>Brand</label>
+        <select style={invInputSt} value={stockForm.brand} onChange={e=>setStockForm(f=>({...f,brand:e.target.value}))}>
+          <option value="">Select brand…</option>
+          {brandList.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
+        </select>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div>
+          <label style={invLabelSt}>Unit *</label>
+          <select style={invInputSt} value={stockForm.unit} onChange={e=>setStockForm(f=>({...f,unit:e.target.value}))} required>
+            {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={invLabelSt}>Cost per Unit (₱) *</label>
+          <input type="number" style={invInputSt} value={stockForm.cost_per_unit} min="0" step="0.01"
+            onChange={e=>setStockForm(f=>({...f,cost_per_unit:e.target.value}))} required placeholder="0.00" />
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div>
+          <label style={invLabelSt}>Current Stock *</label>
+          <input type="number" style={invInputSt} value={stockForm.stock} min="0"
+            onChange={e=>setStockForm(f=>({...f,stock:e.target.value}))} required />
+        </div>
+        <div>
+          <label style={invLabelSt}>Minimum Stock *</label>
+          <input type="number" style={invInputSt} value={stockForm.min_stock} min="0"
+            onChange={e=>setStockForm(f=>({...f,min_stock:e.target.value}))} required />
+        </div>
+      </div>
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
+        <button type="button" onClick={()=>{setShowStockModal(false);setEditingStock(null);setStockForm(emptyStock());}} style={btnSt}>Cancel</button>
+        <button type="submit" style={btnPrimarySt}>Save Ingredient</button>
+      </div>
+    </div>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+
+      {/* Page header */}
+      <div style={{ marginBottom:22 }}>
+        <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>POS Integration</div>
+        <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>Stock Inventory</h1>
+      </div>
+
+      {/* Stat cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:18 }}>
+        {[
+          { label:"Total Ingredients", value:stockItems.length.toLocaleString(),     sub:"Registered",    accent:C.green },
+          { label:"Low Stock Alerts",  value:lowCount,                                sub:"Needs reorder", accent:"#e65100" },
+          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis", accent:"#1565c0" },
+        ].map((s,i) => (
+          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" placeholder="Search ingredient or branch…" value={stockSearch}
+              onChange={e=>setStockSearch(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }} />
+            {stockSearch && (
+              <svg onClick={()=>setStockSearch("")} width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer" }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            )}
+          </div>
+          {isAdmin && (
+            <BrandBranchFilter brands={brandList} activeBrand={stockBrand} activeBranch={stockBranch}
+              onChangeBrand={id=>{setStockBrand(id);setStockBranch(null);}} onChangeBranch={setStockBranch} />
+          )}
+          <select value={stockUnitFilter} onChange={e=>setStockUnitFilter(e.target.value)} style={{ ...invInputSt, width:120 }}>
+            <option value="">All Units</option>
+            {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={stockStatusFilt} onChange={e=>setStockStatusFilt(e.target.value)} style={{ ...invInputSt, width:130 }}>
+            <option value="">All Status</option>
+            <option value="low">Low Stock</option>
+            <option value="ok">In Stock</option>
+          </select>
+          <div style={{ flex:1 }} />
+          <button onClick={()=>{setEditingStock(null);setStockForm(emptyStock());setShowStockModal(true);}} style={btnPrimarySt}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Ingredient
+          </button>
+        </div>
+      </div>
+
+      {/* Stock table */}
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Stock Ingredients
+          </span>
+          <span style={{ fontSize:12, opacity:0.9 }}>{filteredStock.length} items · {lowCount} low stock</span>
+        </div>
+
+        {loadingStock ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading…</div>
+        ) : filteredStock.length === 0 ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
+            <div style={{ fontSize:"2.5rem", marginBottom:10 }}></div>
+            No ingredients found. Add your first ingredient above.
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead>
+                  <tr>
+                    <SortTh col="name"          label="Ingredient"     minW={150} />
+                    <SortTh col="branch"         label="Branch"         minW={120} />
+                    <SortTh col="brand"          label="Brand"          minW={100} />
+                    <SortTh col="unit"           label="Unit"           minW={70}  />
+                    <SortTh col="stock"          label="Stock"          minW={80}  />
+                    <SortTh col="min_stock"      label="Min Stock"      minW={80}  />
+                    <SortTh col="cost_per_unit"  label="Cost/Unit"      minW={90}  />
+                    <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:140 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockPageItems.map(item => {
+                    const low   = item.stock < item.min_stock;
+                    const isDel = confirmDelStock === item.id;
+                    return (
+                      <tr key={item.id} style={{ borderBottom:`1px solid #f2faf5` }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                            <span style={{ fontSize:16 }}>🧪</span>
+                            {item.name}
+                          </div>
+                        </td>
+                        <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                            {item.branch}
+                          </span>
+                        </td>
+                        <td style={{ padding:"10px 12px" }}>
+                          {item.brand
+                            ? <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.brand}</span>
+                            : <span style={{ color:C.muted, fontSize:12 }}>—</span>}
+                        </td>
+                        <td style={{ padding:"10px 12px" }}>
+                          <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#f3e8ff", color:"#6a1b9a" }}>{item.unit}</span>
+                        </td>
+                        <td style={{ padding:"10px 12px" }}>
+                          <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
+                            {item.stock}
+                            {low && (
+                              <span title="Low stock!" style={{ display:"inline-flex", alignItems:"center", gap:3, background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>
+                                ⚠️ LOW
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+                        <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>
+                          ₱{Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                        </td>
+                        <td style={{ padding:"10px 12px" }}>
+                          <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                            <button onClick={()=>{ setEditingStock(item); setStockForm({ name:item.name, branch:item.branch||"", brand:item.brand||"", unit:item.unit||"pcs", stock:item.stock, min_stock:item.min_stock, cost_per_unit:item.cost_per_unit||"" }); setShowStockModal(true); }}
+                              style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
+                              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              Edit
+                            </button>
+                            <button onClick={()=>{ if(isDel){deleteStock(item.id);}else setConfirmDelStock(item.id); }}
+                              style={{ ...smallBtnSt, border:isDel?"none":"1px solid #ffcdd2", color:isDel?C.white:"#e53935", background:isDel?"#e53935":C.white }}>
+                              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                              {isDel ? "Confirm?" : "Delete"}
+                            </button>
+                            {isDel && <button onClick={()=>setConfirmDelStock(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          {Pagination({ page:stockPage, setPage:setStockPage, total:filteredStock.length, pageSize:STOCK_PAGE_SIZE })}
+          </>
+        )}
+      </div>
+
+      {/* ── Stock Modal ───────────────────────────────────────────────────── */}
+      {showStockModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
+          onClick={e=>{ if(e.target===e.currentTarget){setShowStockModal(false);setEditingStock(null);setStockForm(emptyStock());} }}>
+          <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:500, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+              <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>
+                {editingStock ? "Edit Ingredient" : "Add Stock Ingredient"}
+              </h2>
+              <button onClick={()=>{setShowStockModal(false);setEditingStock(null);setStockForm(emptyStock());}}
+                style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}>
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <form onSubmit={saveStock}>{StockModalForm()}</form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+//POS CONTENT
+
+function POSContent({ user, brands: propBrands = [] }) {
+  const isAdmin    = user?.role === "Administrator";
+  const userBranch = user?.branch || "";
+
+  const brandList = propBrands.length > 0 ? propBrands : [
+    { id: "ipharma",     name: "iPharma",       branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
+    { id: "coffeesport", name: "Coffee Sport", branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
+  ];
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const [menuItems,        setMenuItems]        = useState([]);
+  const [shopItems,        setShopItems]        = useState([]);
+  const [cart,             setCart]             = useState([]);
+  const [transactions,     setTransactions]     = useState([]);
+  const [loadingTx,        setLoadingTx]        = useState(false);
+  const [activeShop,       setActiveShop]       = useState("Coffee Spot");
+  const [activeBranch,     setActiveBranch]     = useState(isAdmin ? "" : userBranch);
+  const [searchProduct,    setSearchProduct]    = useState("");
+  const [txSearch,         setTxSearch]         = useState("");
+  const [txDateFrom,       setTxDateFrom]       = useState("");
+  const [txDateTo,         setTxDateTo]         = useState("");
+  const [activeTab,        setActiveTab]        = useState("cashier");  // "cashier" | "history"
+  const [paymentMethod,    setPaymentMethod]    = useState("Cash");
+  const [cashReceived,     setCashReceived]     = useState("");
+  const [discountPct,      setDiscountPct]      = useState(0);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [lastReceipt,      setLastReceipt]      = useState(null);
+  const [processing,       setProcessing]       = useState(false);
+  const [txPage,           setTxPage]           = useState(0);
+  const [noteInput,        setNoteInput]        = useState("");
+
+  const TX_PAGE_SIZE = 20;
+
+  // ── Fetch products (menu items + shop items combined) ─────────────────────
+  const fetchProducts = useCallback(async () => {
+    try {
+      const [menuRes, shopRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/menu-items`),
+        fetch(`${process.env.REACT_APP_API_URL}/shop-items`),
+      ]);
+      const menuData = await menuRes.json();
+      const shopData = await shopRes.json();
+      setMenuItems(Array.isArray(menuData) ? menuData : []);
+      setShopItems(Array.isArray(shopData) ? shopData : []);
+    } catch { setMenuItems([]); setShopItems([]); }
+  }, []);
+
+  const fetchTransactions = useCallback(async () => {
+    setLoadingTx(true);
+    try {
+      const q = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions${q}`);
+      const d   = await res.json();
+      setTransactions(Array.isArray(d) ? d : []);
+    } catch { setTransactions([]); }
+    finally { setLoadingTx(false); }
+  }, [activeBranch]);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
+  useEffect(() => { setTxPage(0); }, [txSearch, txDateFrom, txDateTo]);
+
+  // ── Merged product list filtered by shop + branch + search ────────────────
+  const allProducts = useMemo(() => {
+    const menu = menuItems
+      .filter(m => m.shop === activeShop || !m.shop)
+      .map(m => ({ ...m, source: "menu", displayName: m.name }));
+    const shop = shopItems
+      .filter(s => s.shop === activeShop && s.is_visible !== false)
+      .map(s => ({ ...s, source: "shop", displayName: s.name }));
+    const combined = [...menu, ...shop];
+    const q = searchProduct.toLowerCase();
+    return combined.filter(p => !q || p.displayName.toLowerCase().includes(q) || (p.category||"").toLowerCase().includes(q));
+  }, [menuItems, shopItems, activeShop, searchProduct]);
+
+  // ── Cart helpers ──────────────────────────────────────────────────────────
+  const addToCart = (product) => {
+    setCart(prev => {
+      const existing = prev.find(c => c.id === product.id && c.source === product.source);
+      if (existing) return prev.map(c => c.id === product.id && c.source === product.source ? { ...c, qty: c.qty + 1 } : c);
+      return [...prev, { ...product, qty: 1 }];
+    });
+  };
+
+  const updateQty = (id, source, delta) => {
+    setCart(prev => prev
+      .map(c => c.id === id && c.source === source ? { ...c, qty: Math.max(0, c.qty + delta) } : c)
+      .filter(c => c.qty > 0)
+    );
+  };
+
+  const removeFromCart = (id, source) => setCart(prev => prev.filter(c => !(c.id === id && c.source === source)));
+  const clearCart = () => { setCart([]); setCashReceived(""); setDiscountPct(0); setNoteInput(""); };
+
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const subtotal      = cart.reduce((s, c) => s + (c.price||0) * c.qty, 0);
+  const discountAmt   = subtotal * (discountPct / 100);
+  const totalAmt      = subtotal - discountAmt;
+  const changeDue     = paymentMethod === "Cash" ? Math.max(0, parseFloat(cashReceived||0) - totalAmt) : 0;
+  const cashShortfall = paymentMethod === "Cash" && cashReceived !== "" ? parseFloat(cashReceived||0) - totalAmt : 0;
+
+  // ── Process sale ──────────────────────────────────────────────────────────
+  const processSale = async () => {
+    if (cart.length === 0) { alert("Cart is empty."); return; }
+    if (paymentMethod === "Cash" && parseFloat(cashReceived||0) < totalAmt) {
+      alert("Cash received is less than total amount."); return;
+    }
+    if (!activeBranch && isAdmin) { alert("Please select a branch first."); return; }
+
+    setProcessing(true);
+    try {
+      const payload = {
+        branch:         activeBranch || userBranch,
+        cashier:        user?.name || "Staff",
+        shop:           activeShop,
+        payment_method: paymentMethod,
+        cash_received:  paymentMethod === "Cash" ? parseFloat(cashReceived) : totalAmt,
+        discount_pct:   discountPct,
+        subtotal,
+        discount_amt:   discountAmt,
+        total:          totalAmt,
+        change_due:     changeDue,
+        note:           noteInput,
+        items: cart.map(c => ({
+          id:       c.id,
+          source:   c.source,
+          name:     c.displayName,
+          price:    c.price,
+          qty:      c.qty,
+          subtotal: c.price * c.qty,
+        })),
+      };
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+
+      if (d.success) {
+        const receipt = { ...payload, id: d.id, date: new Date().toLocaleString() };
+        setLastReceipt(receipt);
+        setShowReceiptModal(true);
+        clearCart();
+        fetchTransactions();
+        fetchProducts(); // refresh stock counts
+      } else {
+        alert(d.error || "Failed to process sale");
+      }
+    } catch { alert("Failed to process sale. Check server connection."); }
+    finally { setProcessing(false); }
+  };
+
+  // ── Filtered transactions ─────────────────────────────────────────────────
+  const filteredTx = useMemo(() => {
+    const q = txSearch.toLowerCase();
+    return transactions.filter(tx => {
+      if (q && !String(tx.id).includes(q) && !(tx.cashier||"").toLowerCase().includes(q) && !(tx.branch||"").toLowerCase().includes(q)) return false;
+      if (txDateFrom && tx.created_at < txDateFrom) return false;
+      if (txDateTo   && tx.created_at > txDateTo + "T23:59:59") return false;
+      return true;
+    });
+  }, [transactions, txSearch, txDateFrom, txDateTo]);
+
+  const txTotalPages  = Math.max(1, Math.ceil(filteredTx.length / TX_PAGE_SIZE));
+  const txPageItems   = filteredTx.slice(txPage * TX_PAGE_SIZE, (txPage+1) * TX_PAGE_SIZE);
+
+  const todayStr      = new Date().toISOString().slice(0,10);
+  const todaySales    = transactions.filter(tx => (tx.created_at||"").startsWith(todayStr));
+  const todayRevenue  = todaySales.reduce((s, tx) => s + (tx.total||0), 0);
+  const todayCount    = todaySales.length;
+  const todayAvg      = todayCount > 0 ? todayRevenue / todayCount : 0;
+
+  const fmtPHP = n => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+  // ── Branch selector (admin only) ──────────────────────────────────────────
+  const allBranches = useMemo(() => {
+    const out = [];
+    brandList.forEach(b => (b.branches||[]).forEach(br => {
+      const name = typeof br === "string" ? br : br.name;
+      if (!out.includes(name)) out.push(name);
+    }));
+    return out;
+  }, [brandList]);
+
+  // ── Receipt printer ───────────────────────────────────────────────────────
+  const printReceipt = () => window.print();
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  const Pagination = ({ page, setPage, total, pageSize }) => {
+    const totalPgs = Math.max(1, Math.ceil(total / pageSize));
+    if (totalPgs <= 1) return null;
+    return (
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+        <span style={{ fontSize:12, color:C.muted }}>
+          Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize, total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
+        </span>
+        <div style={{ display:"flex", gap:4 }}>
+          {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
+            <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          ))}
+          {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+            <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+          ))}
+          {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
+            <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @media print {
+          body > * { display: none !important; }
+          .pos-receipt-print { display: block !important; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ marginBottom:22 }}>
+        <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:C.green, marginBottom:3 }}>Point of Sale</div>
+        <h1 style={{ fontSize:26, fontWeight:900, color:C.ink, letterSpacing:"-0.6px", margin:0 }}>POS Terminal</h1>
+      </div>
+
+      {/* KPI cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
+        {[
+          { label:"Today's Revenue",     value:fmtPHP(todayRevenue), sub:"All transactions today",     accent:C.green },
+          { label:"Transactions Today",  value:todayCount,           sub:"Completed sales",            accent:"#1565c0" },
+          { label:"Average Order Value", value:fmtPHP(todayAvg),     sub:"Per transaction",            accent:"#6a1b9a" },
+          { label:"Items in Cart",       value:cart.reduce((s,c)=>s+c.qty,0), sub:"Current session",  accent:C.warn },
+        ].map((s,i)=>(
+          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tab switcher */}
+      <div style={{ display:"flex", gap:4, background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:5, marginBottom:18, width:"fit-content", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+        {[{id:"cashier",label:"Cashier"},{id:"history",label:" Transaction History"}].map(tab=>(
+          <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+            style={{ padding:"8px 22px", borderRadius:10, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+              background: activeTab===tab.id ? `linear-gradient(135deg,${C.teal},${C.green})` : "transparent",
+              color: activeTab===tab.id ? C.white : C.muted,
+              boxShadow: activeTab===tab.id ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
+              transition:"all .15s",
+            }}>
+            {tab.label}
+            {tab.id==="history" && transactions.length>0 && (
+              <span style={{ marginLeft:7, background:"rgba(255,255,255,0.25)", padding:"1px 8px", borderRadius:20, fontSize:11 }}>{transactions.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── CASHIER TAB ───────────────────────────────────────────────────── */}
+      {activeTab === "cashier" && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 380px", gap:18, alignItems:"start" }}>
+
+          {/* LEFT — product browser */}
+          <div>
+            {/* Toolbar */}
+            <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                {/* Shop tabs */}
+                <div style={{ display:"flex", gap:4, background:"#f0fdf5", borderRadius:10, padding:3 }}>
+                  {["Coffee Spot","iPharma"].map(shop=>(
+                    <button key={shop} onClick={()=>setActiveShop(shop)}
+                      style={{ padding:"6px 16px", borderRadius:8, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                        background: activeShop===shop ? `linear-gradient(135deg,${C.teal},${C.green})` : "transparent",
+                        color: activeShop===shop ? C.white : C.muted, transition:"all .15s",
+                      }}>
+                      {shop === "Coffee Spot" } {shop}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Branch selector (admin) */}
+                {isAdmin && (
+                  <select value={activeBranch} onChange={e=>setActiveBranch(e.target.value)}
+                    style={{ ...invInputSt, width:180 }}>
+                    <option value="">Select Branch…</option>
+                    {allBranches.map(b=><option key={b} value={b}>{b}</option>)}
+                  </select>
+                )}
+
+                {/* Search */}
+                <div style={{ position:"relative", flex:"1 1 200px" }}>
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  <input type="text" placeholder="Search products…" value={searchProduct}
+                    onChange={e=>setSearchProduct(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Product grid */}
+            {allProducts.length === 0 ? (
+              <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:"48px 0", textAlign:"center", color:C.muted }}>
+                <div style={{ fontSize:"2.5rem", marginBottom:10 }}></div>
+                <div style={{ fontWeight:700, fontSize:14 }}>No products found</div>
+                <div style={{ fontSize:12, marginTop:4 }}>Add items via Mobile Shop Supplies or Menu Items in Stock Inventory.</div>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:12 }}>
+                {allProducts.map(product => {
+                  const inCart = cart.find(c=>c.id===product.id && c.source===product.source);
+                  return (
+                    <div key={`${product.source}-${product.id}`}
+                      onClick={()=>addToCart(product)}
+                      style={{ background:C.white, border:`2px solid ${inCart?C.green:C.border}`, borderRadius:14, padding:"14px 12px", cursor:"pointer", transition:"all .15s", boxShadow: inCart?"0 4px 16px rgba(0,180,90,0.18)":"0 1px 6px rgba(0,140,60,0.05)", position:"relative" }}
+                      onMouseEnter={e=>{if(!inCart)e.currentTarget.style.borderColor=C.teal;}}
+                      onMouseLeave={e=>{if(!inCart)e.currentTarget.style.borderColor=C.border;}}>
+                      {inCart && (
+                        <div style={{ position:"absolute", top:8, right:8, background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white, borderRadius:20, fontSize:11, fontWeight:800, padding:"2px 8px" }}>
+                          ×{inCart.qty}
+                        </div>
+                      )}
+                      {product.image_url ? (
+                        <img src={product.image_url} alt="" style={{ width:"100%", height:90, objectFit:"cover", borderRadius:9, marginBottom:10 }} onError={e=>e.target.style.display="none"} />
+                      ) : (
+                        <div style={{ width:"100%", height:90, borderRadius:9, background:`linear-gradient(135deg,${C.greenLt},${C.greenMid})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"2rem", marginBottom:10 }}>
+                          {activeShop==="Coffee Spot"}
+                        </div>
+                      )}
+                      <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{product.displayName}</div>
+                      {product.category && <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>{product.category}</div>}
+                      <div style={{ fontWeight:800, fontSize:15, color:C.green }}>{fmtPHP(product.price)}</div>
+                      {product.stock !== undefined && (
+                        <div style={{ fontSize:10, color: product.stock<=5?C.warn:C.muted, marginTop:3, fontWeight:600 }}>
+                          Stock: {product.stock} {product.stock<=5}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT — cart + checkout */}
+          <div style={{ position:"sticky", top:80 }}>
+            <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:18, boxShadow:"0 2px 18px rgba(0,140,60,0.09)", overflow:"hidden" }}>
+
+              {/* Cart header */}
+              <div style={{ padding:"14px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+                <span style={{ fontWeight:800, fontSize:14 }}> Order Cart</span>
+                {cart.length > 0 && (
+                  <button onClick={clearCart} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:C.white, borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Cart items */}
+              <div style={{ maxHeight:280, overflowY:"auto", padding: cart.length===0?"0":"8px 0" }}>
+                {cart.length === 0 ? (
+                  <div style={{ padding:"32px 0", textAlign:"center", color:C.muted, fontSize:13 }}>
+                    <div style={{ fontSize:"2rem", marginBottom:8 }}></div>
+                    Tap a product to add it
+                  </div>
+                ) : cart.map(item=>(
+                  <div key={`${item.source}-${item.id}`} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 16px", borderBottom:`1px solid #f0fdf5` }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.displayName}</div>
+                      <div style={{ fontSize:11, color:C.muted }}>{fmtPHP(item.price)} each</div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
+                      <button onClick={()=>updateQty(item.id,item.source,-1)} style={{ width:26, height:26, borderRadius:7, border:`1px solid ${C.border}`, background:C.bg, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:C.ink }}>−</button>
+                      <span style={{ fontSize:13, fontWeight:800, color:C.ink, minWidth:20, textAlign:"center" }}>{item.qty}</span>
+                      <button onClick={()=>updateQty(item.id,item.source,+1)} style={{ width:26, height:26, borderRadius:7, border:`1px solid ${C.border}`, background:C.bg, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:C.green }}>+</button>
+                    </div>
+                    <div style={{ minWidth:60, textAlign:"right", fontWeight:800, fontSize:13, color:C.green }}>{fmtPHP(item.price*item.qty)}</div>
+                    <button onClick={()=>removeFromCart(item.id,item.source)} style={{ background:"none", border:"none", color:"#e53935", cursor:"pointer", padding:2, fontSize:16, lineHeight:1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Checkout panel */}
+              <div style={{ padding:"14px 18px", borderTop:`1px solid ${C.border}` }}>
+
+                {/* Discount */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                  <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", whiteSpace:"nowrap" }}>Discount %</label>
+                  <div style={{ display:"flex", gap:4 }}>
+                    {[0,5,10,15,20].map(d=>(
+                      <button key={d} onClick={()=>setDiscountPct(d)}
+                        style={{ height:28, padding:"0 10px", borderRadius:7, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                          background: discountPct===d ? `linear-gradient(135deg,${C.teal},${C.green})` : C.bg,
+                          color: discountPct===d ? C.white : C.muted,
+                        }}>
+                        {d}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:5 }}>
+                    <span>Subtotal</span><span style={{ fontWeight:700 }}>{fmtPHP(subtotal)}</span>
+                  </div>
+                  {discountPct > 0 && (
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.warn, marginBottom:5 }}>
+                      <span>Discount ({discountPct}%)</span><span style={{ fontWeight:700 }}>−{fmtPHP(discountAmt)}</span>
+                    </div>
+                  )}
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:15, color:C.ink, fontWeight:800, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+                    <span>Total</span><span style={{ color:C.green }}>{fmtPHP(totalAmt)}</span>
+                  </div>
+                </div>
+
+                {/* Payment method */}
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Payment Method</div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {["Cash","GCash","Card","Others"].map(m=>(
+                      <button key={m} onClick={()=>setPaymentMethod(m)}
+                        style={{ flex:1, height:32, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                          background: paymentMethod===m ? `linear-gradient(135deg,${C.teal},${C.green})` : C.bg,
+                          color: paymentMethod===m ? C.white : C.muted, transition:"all .12s",
+                        }}>
+                        {m==="Cash"?"":m==="GCash"?"":m==="Card"?"":"•••"} {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cash received */}
+                {paymentMethod === "Cash" && (
+                  <div style={{ marginBottom:10 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Cash Received</div>
+                    <input type="number" value={cashReceived} onChange={e=>setCashReceived(e.target.value)} placeholder="0.00"
+                      style={{ ...invInputSt, fontSize:16, fontWeight:800, textAlign:"right", color:C.ink }} />
+                    {cashReceived !== "" && (
+                      <div style={{ marginTop:6, fontSize:13, fontWeight:700, textAlign:"right", color: cashShortfall < 0 ? C.warn : C.ok }}>
+                        {cashShortfall < 0 ? ` Short by ${fmtPHP(Math.abs(cashShortfall))}` : ` Change: ${fmtPHP(changeDue)}`}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Note */}
+                <div style={{ marginBottom:12 }}>
+                  <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder="Order note (optional)…" rows={2}
+                    style={{ ...invInputSt, height:"auto", padding:"8px 11px", resize:"none", lineHeight:1.5 }} />
+                </div>
+
+                {/* Charge button */}
+                <button onClick={processSale} disabled={processing || cart.length===0}
+                  style={{ width:"100%", height:46, border:"none", borderRadius:12, fontSize:15, fontWeight:900, cursor: cart.length===0||processing?"not-allowed":"pointer", fontFamily:"inherit",
+                    background: cart.length===0 ? "#e0e0e0" : `linear-gradient(135deg,${C.teal},${C.green})`,
+                    color: cart.length===0 ? "#9e9e9e" : C.white,
+                    boxShadow: cart.length===0 ? "none" : "0 4px 16px rgba(0,180,90,0.35)",
+                    transition:"all .15s", opacity: processing?0.7:1,
+                  }}>
+                  {processing ? "Processing…" : ` Charge ${fmtPHP(totalAmt)}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── HISTORY TAB ───────────────────────────────────────────────────── */}
+      {activeTab === "history" && (
+        <>
+          {/* Filter bar */}
+          <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+              <div style={{ position:"relative", flex:"1 1 200px" }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" placeholder="Search ID, cashier, branch…" value={txSearch}
+                  onChange={e=>setTxSearch(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }} />
+              </div>
+              <input type="date" value={txDateFrom} onChange={e=>setTxDateFrom(e.target.value)} style={{ ...invInputSt, width:150 }} title="From date" />
+              <input type="date" value={txDateTo}   onChange={e=>setTxDateTo(e.target.value)}   style={{ ...invInputSt, width:150 }} title="To date" />
+              {(txSearch||txDateFrom||txDateTo) && (
+                <button onClick={()=>{setTxSearch("");setTxDateFrom("");setTxDateTo("");}}
+                  style={{ ...smallBtnSt, height:36, border:`1px solid ${C.border}`, color:C.muted }}>Clear</button>
+              )}
+            </div>
+          </div>
+
+          {/* Transactions table */}
+          <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+            <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+              <span style={{ fontWeight:800, fontSize:13 }}> Transaction History</span>
+              <span style={{ fontSize:12, opacity:0.9 }}>{filteredTx.length} records</span>
+            </div>
+
+            {loadingTx ? (
+              <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading transactions…</div>
+            ) : filteredTx.length === 0 ? (
+              <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
+                <div style={{ fontSize:"2.5rem", marginBottom:10 }}></div>
+                No transactions found.
+              </div>
+            ) : (
+              <>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                    <thead>
+                      <tr>
+                        {["#","Date","Branch","Shop","Cashier","Items","Subtotal","Discount","Total","Payment","Status"].map(h=>(
+                          <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f0fdf5", whiteSpace:"nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {txPageItems.map(tx=>(
+                        <tr key={tx.id} style={{ borderBottom:`1px solid #f2faf5` }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <td style={{ padding:"10px 12px", fontWeight:700, color:C.muted, fontSize:12 }}>#{tx.id}</td>
+                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12, whiteSpace:"nowrap" }}>
+                            {new Date(tx.created_at).toLocaleString("en-PH",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}
+                          </td>
+                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                            <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+                              <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                              {tx.branch}
+                            </span>
+                          </td>
+                          <td style={{ padding:"10px 12px" }}>
+                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: tx.shop==="Coffee Spot"?"#fff8e1":"#e0f2f1", color: tx.shop==="Coffee Spot"?"#f57f17":"#00695c" }}>
+                              {tx.shop==="Coffee Spot"?"":""} {tx.shop}
+                            </span>
+                          </td>
+                          <td style={{ padding:"10px 12px", color:C.ink, fontWeight:600, fontSize:12 }}>{tx.cashier}</td>
+                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                            {(tx.items||[]).length} item{(tx.items||[]).length!==1?"s":""}
+                          </td>
+                          <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPHP(tx.subtotal)}</td>
+                          <td style={{ padding:"10px 12px" }}>
+                            {tx.discount_pct > 0
+                              ? <span style={{ color:C.warn, fontWeight:700 }}>−{tx.discount_pct}%</span>
+                              : <span style={{ color:C.muted }}>—</span>}
+                          </td>
+                          <td style={{ padding:"10px 12px", fontWeight:800, color:C.green }}>{fmtPHP(tx.total)}</td>
+                          <td style={{ padding:"10px 12px" }}>
+                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600,
+                              background: tx.payment_method==="Cash"?"#e8f5e9":tx.payment_method==="GCash"?"#e3f2fd":"#f3e5f5",
+                              color:      tx.payment_method==="Cash"?"#2e7d32":tx.payment_method==="GCash"?"#1565c0":"#6a1b9a" }}>
+                              {tx.payment_method==="Cash"?"":tx.payment_method==="GCash"?"":"💳"} {tx.payment_method}
+                            </span>
+                          </td>
+                          <td style={{ padding:"10px 12px" }}>
+                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"rgba(16,185,129,0.1)", color:"#059669" }}>
+                              Completed
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination page={txPage} setPage={setTxPage} total={filteredTx.length} pageSize={TX_PAGE_SIZE} />
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Receipt Modal ─────────────────────────────────────────────────── */}
+      {showReceiptModal && lastReceipt && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000 }}
+          onClick={e=>{ if(e.target===e.currentTarget) setShowReceiptModal(false); }}>
+          <div style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:380, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 16px 64px rgba(0,0,0,0.25)" }}>
+
+            {/* Receipt */}
+            <div className="pos-receipt-print">
+              <div style={{ textAlign:"center", marginBottom:20 }}>
+                <div style={{ fontSize:28, marginBottom:4 }}></div>
+                <div style={{ fontWeight:900, fontSize:18, color:C.ink }}>iFranchise POS</div>
+                <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{lastReceipt.branch} · {lastReceipt.shop}</div>
+                <div style={{ fontSize:11, color:C.muted }}>{lastReceipt.date}</div>
+                <div style={{ fontSize:11, color:C.muted }}>Cashier: {lastReceipt.cashier}</div>
+              </div>
+
+              <div style={{ borderTop:`2px dashed ${C.border}`, borderBottom:`2px dashed ${C.border}`, padding:"12px 0", marginBottom:12 }}>
+                {(lastReceipt.items||[]).map((item,i)=>(
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:5 }}>
+                    <span style={{ color:C.ink, fontWeight:600 }}>{item.name} <span style={{ color:C.muted, fontWeight:400 }}>×{item.qty}</span></span>
+                    <span style={{ fontWeight:700, color:C.ink }}>{fmtPHP(item.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ fontSize:13, marginBottom:4, display:"flex", justifyContent:"space-between" }}>
+                <span style={{ color:C.muted }}>Subtotal</span><span style={{ fontWeight:700 }}>{fmtPHP(lastReceipt.subtotal)}</span>
+              </div>
+              {lastReceipt.discount_pct > 0 && (
+                <div style={{ fontSize:13, marginBottom:4, display:"flex", justifyContent:"space-between" }}>
+                  <span style={{ color:C.warn }}>Discount ({lastReceipt.discount_pct}%)</span>
+                  <span style={{ fontWeight:700, color:C.warn }}>−{fmtPHP(lastReceipt.discount_amt)}</span>
+                </div>
+              )}
+              <div style={{ fontSize:16, fontWeight:900, display:"flex", justifyContent:"space-between", borderTop:`1px solid ${C.border}`, paddingTop:8, marginBottom:8 }}>
+                <span style={{ color:C.ink }}>TOTAL</span><span style={{ color:C.green }}>{fmtPHP(lastReceipt.total)}</span>
+              </div>
+              <div style={{ fontSize:13, display:"flex", justifyContent:"space-between", color:C.muted, marginBottom:2 }}>
+                <span>Payment</span><span style={{ fontWeight:700, color:C.ink }}>{lastReceipt.payment_method}</span>
+              </div>
+              {lastReceipt.payment_method === "Cash" && (
+                <>
+                  <div style={{ fontSize:13, display:"flex", justifyContent:"space-between", color:C.muted, marginBottom:2 }}>
+                    <span>Cash Received</span><span style={{ fontWeight:700 }}>{fmtPHP(lastReceipt.cash_received)}</span>
+                  </div>
+                  <div style={{ fontSize:13, display:"flex", justifyContent:"space-between", color:C.muted }}>
+                    <span>Change</span><span style={{ fontWeight:800, color:C.green }}>{fmtPHP(lastReceipt.change_due)}</span>
+                  </div>
+                </>
+              )}
+              {lastReceipt.note && (
+                <div style={{ marginTop:10, fontSize:12, color:C.muted, fontStyle:"italic" }}>Note: {lastReceipt.note}</div>
+              )}
+              <div style={{ textAlign:"center", marginTop:16, fontSize:11, color:C.muted }}>Thank you for your purchase! </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display:"flex", gap:8, marginTop:20 }}>
+              <button onClick={printReceipt} style={{ ...btnSt, flex:1, justifyContent:"center" }}> Print</button>
+              <button onClick={()=>setShowReceiptModal(false)} style={{ ...btnPrimarySt, flex:1, justifyContent:"center" }}> Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+//VIEW MOBILE ORDERS
+
+function MobileOrdersContent() {
+  return (
+    <div className="section">
+      <div className="section-header">
+        <h2 className="section-title">View Mobile Orders</h2>
+      </div>
+      <div className="chart-placeholder">Mobile Orders — Coming Soon</div>
+    </div>
+  );
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // VIEW APPLICATION MODAL
 // ─────────────────────────────────────────────────────────────────────────────
