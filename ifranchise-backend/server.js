@@ -1234,3 +1234,93 @@ app.put("/shop-items/:id/toggle", async (req, res) => {
     res.status(500).json({ error: "Failed to toggle visibility" });
   }
 });
+app.get("/announcements", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT a.*, u.name AS author
+       FROM announcements a
+       LEFT JOIN users u ON a.created_by = u.id
+       ORDER BY a.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Fetch announcements error:", err);
+    res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+app.post("/announcements", async (req, res) => {
+  try {
+    const { title, content, userId } = req.body;
+
+    // 🔥 GET REAL ROLE FROM DB (ONLY SOURCE OF TRUTH)
+    const userResult = await pool.query(
+      "SELECT role FROM users WHERE id=$1",
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userResult.rows[0].role;
+
+    if (userRole !== "Administrator") {
+      return res.status(403).json({ error: "Only admin can post announcements" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO announcements (title, content, created_by)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [title, content, userId]
+    );
+
+    res.json({ success: true, announcement: result.rows[0] });
+
+  } catch (err) {
+    console.error("Create announcement error:", err);
+    res.status(500).json({ error: "Failed to create announcement" });
+  }
+});
+
+app.put("/announcements/:id", async (req, res) => {
+  const { title, content, userId } = req.body;
+
+  const userResult = await pool.query(
+    "SELECT role FROM users WHERE id=$1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0)
+    return res.status(404).json({ error: "User not found" });
+
+  if (userResult.rows[0].role !== "Administrator")
+    return res.status(403).json({ error: "Unauthorized" });
+
+  const result = await pool.query(
+    "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
+    [title, content, req.params.id]
+  );
+
+  res.json(result.rows[0]);
+});
+
+app.delete("/announcements/:id", async (req, res) => {
+  const { userId } = req.body;
+
+  const userResult = await pool.query(
+    "SELECT role FROM users WHERE id=$1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0)
+    return res.status(404).json({ error: "User not found" });
+
+  if (userResult.rows[0].role !== "Administrator")
+    return res.status(403).json({ error: "Unauthorized" });
+
+  await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
+
+  res.json({ success: true });
+});
