@@ -1234,6 +1234,274 @@ app.put("/shop-items/:id/toggle", async (req, res) => {
     res.status(500).json({ error: "Failed to toggle visibility" });
   }
 });
+//announcement
+app.get("/announcements", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT a.*, u.name AS author
+       FROM announcements a
+       LEFT JOIN users u ON a.created_by = u.id
+       ORDER BY a.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Fetch announcements error:", err);
+    res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+app.post("/announcements", async (req, res) => {
+  try {
+    const { title, content, userId } = req.body;
+
+    // 🔥 GET REAL ROLE FROM DB (ONLY SOURCE OF TRUTH)
+    const userResult = await pool.query(
+      "SELECT role FROM users WHERE id=$1",
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userRole = userResult.rows[0].role;
+
+    if (userRole !== "Administrator") {
+      return res.status(403).json({ error: "Only admin can post announcements" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO announcements (title, content, created_by)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [title, content, userId]
+    );
+
+    res.json({ success: true, announcement: result.rows[0] });
+
+  } catch (err) {
+    console.error("Create announcement error:", err);
+    res.status(500).json({ error: "Failed to create announcement" });
+  }
+});
+
+app.put("/announcements/:id", async (req, res) => {
+  const { title, content, userId } = req.body;
+
+  const userResult = await pool.query(
+    "SELECT role FROM users WHERE id=$1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0)
+    return res.status(404).json({ error: "User not found" });
+
+  if (userResult.rows[0].role !== "Administrator")
+    return res.status(403).json({ error: "Unauthorized" });
+
+  const result = await pool.query(
+    "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
+    [title, content, req.params.id]
+  );
+
+  res.json(result.rows[0]);
+});
+
+app.delete("/announcements/:id", async (req, res) => {
+  const { userId } = req.body;
+
+  const userResult = await pool.query(
+    "SELECT role FROM users WHERE id=$1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0)
+    return res.status(404).json({ error: "User not found" });
+
+  if (userResult.rows[0].role !== "Administrator")
+    return res.status(403).json({ error: "Unauthorized" });
+
+  await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
+
+  res.json({ success: true });
+});
+//shop order
+
+app.post("/orders", async (req, res) => {
+  try {
+    const { user_id, address, total_amount } = req.body;
+
+    if (!address || !total_amount) {
+      return res.status(400).json({ error: "Address and total amount are required" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO orders (user_id, address, total_amount, status)
+       VALUES ($1, $2, $3, 'pending')
+       RETURNING *`,
+      [user_id || null, address, parseFloat(total_amount)]
+    );
+
+    res.json({ success: true, order: result.rows[0] });
+  } catch (err) {
+    console.error("POST /orders error:", err);
+    res.status(500).json({ error: "Failed to place order" });
+  }
+});
+
+app.get("/orders", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = user_id
+      ? await pool.query("SELECT * FROM orders WHERE user_id=$1 ORDER BY created_at DESC", [user_id])
+      : await pool.query("SELECT * FROM orders ORDER BY created_at DESC");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+// ─── PUT update order status (cancel, etc.) ─────────────────────────────────
+app.put("/orders/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ["pending", "shipping", "received", "cancelled"];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const result = await pool.query(
+      "UPDATE orders SET status=$1 WHERE id=$2 RETURNING *",
+      [status, req.params.id]
+    );
+
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Order not found" });
+
+    res.json({ success: true, order: result.rows[0] });
+  } catch (err) {
+    console.error("PUT /orders/:id error:", err);
+    res.status(500).json({ error: "Failed to update order status" });
+  }
+});
+
+//profile
+// ─── GET single user by ID ───────────────────────────────────────
+app.get("/api/users/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, role, branch FROM users WHERE id=$1",
+      [req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+
+    const row = result.rows[0];
+
+    // Profile.js expects firstName, lastName etc — map name to firstName
+    const nameParts = (row.name || "").split(" ");
+    res.json({
+      id:            row.id,
+      firstName:     nameParts[0] || "",
+      lastName:      nameParts.slice(1).join(" ") || "",
+      middleInitial: "",
+      email:         row.email,
+      role:          row.role,
+      branch:        row.branch,
+      contactNumber: "",
+      address:       "",
+      age:           "",
+    });
+  } catch (err) {
+    console.error("GET /api/users/:id error:", err);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
+// ─── GET order counts for a user ────────────────────────────────
+app.get("/api/orders/counts", async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const toShip   = await pool.query(
+      "SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='pending'", [userId]
+    );
+    const shipping = await pool.query(
+      "SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='shipping'", [userId]
+    );
+    const received = await pool.query(
+      "SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='received'", [userId]
+    );
+    res.json({
+      toShip:   parseInt(toShip.rows[0].count),
+      shipping: parseInt(shipping.rows[0].count),
+      received: parseInt(received.rows[0].count),
+    });
+  } catch (err) {
+    console.error("GET /api/orders/counts error:", err);
+    res.status(500).json({ error: "Failed to fetch order counts" });
+  }
+});
+
+// ─── PUT update user by ID ───────────────────────────────────────
+app.put("/api/users/:id", async (req, res) => {
+  try {
+    const { firstName, lastName, email, age, address, contactNumber, newPassword } = req.body;
+    const fullName = `${firstName || ""} ${lastName || ""}`.trim();
+
+    let query, params;
+    if (newPassword) {
+      query = `UPDATE users SET name=$1, email=$2, password=$3 WHERE id=$4 RETURNING *`;
+      params = [fullName, email, newPassword, req.params.id];
+    } else {
+      query = `UPDATE users SET name=$1, email=$2 WHERE id=$3 RETURNING *`;
+      params = [fullName, email, req.params.id];
+    }
+
+    const result = await pool.query(query, params);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+
+    const row = result.rows[0];
+    const nameParts = (row.name || "").split(" ");
+    res.json({
+      user: {
+        id:            row.id,
+        firstName:     nameParts[0] || "",
+        lastName:      nameParts.slice(1).join(" ") || "",
+        middleInitial: "",
+        email:         row.email,
+        role:          row.role,
+        branch:        row.branch,
+        contactNumber: "",
+        address:       "",
+        age:           "",
+      }
+    });
+  } catch (err) {
+    console.error("PUT /api/users/:id error:", err);
+    res.status(500).json({ error: "Failed to update user" });
+  }
+});
+
+// ─── POST verify password ────────────────────────────────────────
+app.post("/auth/verify-password", async (req, res) => {
+  try {
+    const { userId, password } = req.body;
+    const result = await pool.query(
+      "SELECT password FROM users WHERE id=$1", [userId]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+    if (result.rows[0].password !== password)
+      return res.status(401).json({ error: "Incorrect password" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /auth/verify-password error:", err);
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
 app.get("/announcements", async (req, res) => {
   try {
     const result = await pool.query(
