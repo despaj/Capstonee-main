@@ -1,4 +1,4 @@
-  require("dotenv").config();
+require("dotenv").config();
   const express = require("express");
   const cors = require("cors");
   const { Pool } = require("pg");
@@ -803,13 +803,27 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
       }
     });
 
- app.get("/inventory", async (req, res) => {
+ // ✅ Replace GET /inventory
+app.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
     const result = branch
       ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
       : await pool.query("SELECT * FROM inventory ORDER BY name");
-    res.json(result.rows);
+
+    // Attach ingredients to each item
+    const items = await Promise.all(result.rows.map(async item => {
+      const ings = await pool.query(
+        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock
+         FROM product_ingredients pi
+         JOIN ingredients i ON i.id = pi.ingredient_id
+         WHERE pi.inventory_id = $1`,
+        [item.id]
+      );
+      return { ...item, ingredients: ings.rows };
+    }));
+
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch inventory" });
   }
@@ -1591,4 +1605,107 @@ app.delete("/announcements/:id", async (req, res) => {
   await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
 
   res.json({ success: true });
+});
+
+// ─── TRANSACTIONS ───────────────────────────────────────────────────────────
+
+app.get("/transactions", async (req, res) => {
+  try {
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query(
+          "SELECT * FROM transactions WHERE branch=$1 ORDER BY created_at DESC",
+          [branch]
+        )
+      : await pool.query("SELECT * FROM transactions ORDER BY created_at DESC");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /transactions error:", err);
+    res.status(500).json({ error: "Failed to fetch transactions" });
+  }
+});
+
+app.post("/transactions", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      branch, cashier, shop, payment_method, cash_received,
+      discount_pct, subtotal, discount_amt, vat_enabled, vat_amt,
+      total, change_due, note, items,
+    } = req.body;
+
+    await client.query("BEGIN");
+
+    // 1. Save the transaction
+    const result = await client.query(
+      `INSERT INTO transactions
+        (branch, cashier, shop, payment_method, cash_received,
+         discount_pct, subtotal, discount_amt, vat_enabled, vat_amt,
+         total, change_due, note, items)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING *`,
+      [
+        branch, cashier, shop, payment_method,
+        parseFloat(cash_received) || 0,
+        parseFloat(discount_pct) || 0,
+        parseFloat(subtotal) || 0,
+        parseFloat(discount_amt) || 0,
+        vat_enabled || false,
+        parseFloat(vat_amt) || 0,
+        parseFloat(total) || 0,
+        parseFloat(change_due) || 0,
+        note || null,
+        JSON.stringify(items || []),
+      ]
+    );
+
+    // 2. For each sold item, deduct its ingredients from stock
+    for (const item of (items || [])) {
+      // Get the inventory item's ingredients (recipe)
+      const recipe = await client.query(
+        `SELECT pi.ingredient_id, pi.quantity, i.name, i.stock
+         FROM product_ingredients pi
+         JOIN ingredients i ON i.id = pi.ingredient_id
+         WHERE pi.inventory_id = $1`,
+        [item.id]
+      );
+
+      for (const ing of recipe.rows) {
+        const deductAmount = parseFloat(ing.quantity) * parseInt(item.qty);
+
+        // Check if enough stock
+        if (parseFloat(ing.stock) < deductAmount) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: `Insufficient stock for ingredient: ${ing.name}. Available: ${ing.stock}, needed: ${deductAmount}`
+          });
+        }
+
+        // Deduct ingredient stock
+        await client.query(
+          `UPDATE ingredients 
+           SET stock = stock - $1, updated_at = NOW() 
+           WHERE id = $2`,
+          [deductAmount, ing.ingredient_id]
+        );
+      }
+
+      // 3. Also deduct the inventory item's own stock
+      await client.query(
+        `UPDATE inventory 
+         SET stock = stock - $1, updated_at = NOW() 
+         WHERE id = $2`,
+        [parseInt(item.qty), item.id]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /transactions error:", err);
+    res.status(500).json({ error: "Failed to save transaction" });
+  } finally {
+    client.release();
+  }
 });
