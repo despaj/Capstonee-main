@@ -965,19 +965,81 @@ app.post("/ingredients", async (req, res) => {
 });
 
 app.put("/ingredients/:id", async (req, res) => {
+  const client = await pool.connect();
   try {
     const { name, branch, brand, unit, stock, min_stock, cost_per_unit } = req.body;
-    const result = await pool.query(
-      `UPDATE ingredients SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6, cost_per_unit=$7, updated_at=NOW()
+
+    await client.query("BEGIN");
+
+    // 1. Update ingredient
+    const result = await client.query(
+      `UPDATE ingredients 
+       SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6, cost_per_unit=$7, updated_at=NOW()
        WHERE id=$8 RETURNING *`,
-      [name, branch||null, brand||null, unit, parseFloat(stock)||0, parseFloat(min_stock)||0, parseFloat(cost_per_unit)||0, req.params.id]
+      [
+        name,
+        branch || null,
+        brand || null,
+        unit,
+        parseFloat(stock) || 0,
+        parseFloat(min_stock) || 0,
+        parseFloat(cost_per_unit) || 0,
+        req.params.id
+      ]
     );
-    if (result.rows.length === 0)
+
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Ingredient not found" });
-    res.json({ success: true, item: result.rows[0] });
+    }
+
+    const ingredientId = req.params.id;
+
+    // 🔥 2. Find all affected menu items
+    const affectedProducts = await client.query(
+      `SELECT DISTINCT inventory_id 
+       FROM product_ingredients
+       WHERE ingredient_id = $1`,
+      [ingredientId]
+    );
+
+    // 🔥 3. Recalculate cost for each product
+    for (const row of affectedProducts.rows) {
+      const inventoryId = row.inventory_id;
+
+      const costResult = await client.query(
+        `SELECT SUM(pi.quantity * i.cost_per_unit) AS total_cost
+         FROM product_ingredients pi
+         JOIN ingredients i ON i.id = pi.ingredient_id
+         WHERE pi.inventory_id = $1`,
+        [inventoryId]
+      );
+
+      const totalCost = parseFloat(costResult.rows[0].total_cost) || 0;
+
+      // Update inventory cost
+      await client.query(
+        `UPDATE inventory 
+         SET cost = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [totalCost, inventoryId]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      item: result.rows[0],
+      updatedProducts: affectedProducts.rows.length
+    });
+
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("PUT /ingredients/:id error:", err);
     res.status(500).json({ error: "Failed to update ingredient" });
+  } finally {
+    client.release();
   }
 });
 
@@ -1018,10 +1080,17 @@ app.get("/inventory/:id/ingredients", async (req, res) => {
 app.post("/inventory/:id/ingredients", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { ingredients } = req.body; // [{ ingredient_id, quantity, unit }]
+    const { ingredients } = req.body;
+
     await client.query("BEGIN");
-    // delete old recipe first then insert fresh
-    await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [req.params.id]);
+
+    // 1. Delete old recipe
+    await client.query(
+      "DELETE FROM product_ingredients WHERE inventory_id=$1",
+      [req.params.id]
+    );
+
+    // 2. Insert new recipe
     for (const ing of ingredients) {
       await client.query(
         `INSERT INTO product_ingredients (inventory_id, ingredient_id, quantity, unit)
@@ -1029,11 +1098,32 @@ app.post("/inventory/:id/ingredients", async (req, res) => {
         [req.params.id, ing.ingredient_id, parseFloat(ing.quantity), ing.unit]
       );
     }
+
+    // 🔥 3. CALCULATE TOTAL COST
+    const costResult = await client.query(
+      `SELECT SUM(pi.quantity * i.cost_per_unit) AS total_cost
+       FROM product_ingredients pi
+       JOIN ingredients i ON i.id = pi.ingredient_id
+       WHERE pi.inventory_id = $1`,
+      [req.params.id]
+    );
+
+    const totalCost = parseFloat(costResult.rows[0].total_cost) || 0;
+
+    // 🔥 4. UPDATE inventory cost automatically
+    await client.query(
+      `UPDATE inventory SET cost = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [totalCost, req.params.id]
+    );
+
     await client.query("COMMIT");
-    res.json({ success: true });
+
+    res.json({ success: true, cost: totalCost });
+
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("POST /inventory/:id/ingredients error:", err);
+    console.error(err);
     res.status(500).json({ error: "Failed to save recipe" });
   } finally {
     client.release();
@@ -1153,6 +1243,81 @@ app.delete("/branches/:id", async (req, res) => {
     res.send("Franchise Backend with Per-Device Per-User Trust is Running");
   });
 
+ app.get("/dashboard/stats", async (req, res) => {
+  try {
+    const { preset, from, to, branch, branches } = req.query;
+
+    const params = [];
+    const conditions = [];
+    let paramIdx = 1;
+
+    // ── Date filter ──────────────────────────────────────────
+    if (from && to) {
+      conditions.push(
+        `created_at >= $${paramIdx} AND created_at <= $${paramIdx + 1}::date + interval '1 day'`
+      );
+      params.push(from, to);
+      paramIdx += 2;
+    } else {
+      const presetMap = {
+        day:   `created_at >= CURRENT_DATE`,
+        week:  `created_at >= date_trunc('week', CURRENT_DATE)`,
+        month: `created_at >= date_trunc('month', CURRENT_DATE)`,
+        year:  `created_at >= date_trunc('year', CURRENT_DATE)`,
+      };
+      conditions.push(presetMap[preset] || presetMap["month"]);
+    }
+
+    // ── Branch filter ────────────────────────────────────────
+    if (branch) {
+      // single branch
+      conditions.push(`branch = $${paramIdx}`);
+      params.push(branch);
+      paramIdx++;
+    } else if (branches) {
+      // multiple branches (brand filter — comma-separated)
+      const list = branches.split(',').map(b => b.trim()).filter(Boolean);
+      if (list.length > 0) {
+        const placeholders = list.map((_, i) => `$${paramIdx + i}`).join(', ');
+        conditions.push(`branch IN (${placeholders})`);
+        params.push(...list);
+        paramIdx += list.length;
+      }
+    }
+
+    const whereClause = conditions.length > 0
+      ? `WHERE ${conditions.join(' AND ')}`
+      : '';
+
+    const result = await pool.query(
+      `SELECT
+         COALESCE(SUM(total), 0)           AS "salesRevenue",
+         COALESCE(SUM(total), 0)           AS "totalSales",
+         COALESCE(SUM(cogs),  0)           AS "cogs",
+         COALESCE(SUM(total) - SUM(cogs), 0) AS "salesProfit",
+         COUNT(*)                          AS "txCount",
+         CASE WHEN COUNT(*) > 0
+              THEN COALESCE(AVG(total), 0)
+              ELSE 0 END                   AS "avgOrder"
+       FROM transactions ${whereClause}`,
+      params
+    );
+
+    const row = result.rows[0];
+    res.json({
+      salesRevenue: parseFloat(row.salesRevenue),
+      totalSales:   parseFloat(row.totalSales),
+      cogs:         parseFloat(row.cogs),
+      salesProfit:  parseFloat(row.salesProfit),
+      txCount:      parseInt(row.txCount),
+      avgOrder:     parseFloat(row.avgOrder),
+    });
+  } catch (err) {
+    console.error("GET /dashboard/stats error:", err);
+    res.status(500).json({ error: "Failed to fetch dashboard stats" });
+  }
+});
+
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
@@ -1174,7 +1339,6 @@ app.delete("/branches/:id", async (req, res) => {
   }
 });
 
-// POST /brands
 app.post("/brands", async (req, res) => {
   try {
     const { name, region, contact_email, contact_phone, description, categories } = req.body;
@@ -1190,7 +1354,7 @@ app.post("/brands", async (req, res) => {
   }
 });
 
-// PUT /brands/:id
+
 app.put("/brands/:id", async (req, res) => {
   const { name, region, contact_email, contact_phone, description, categories } = req.body;
   try {
@@ -1213,7 +1377,7 @@ app.delete("/brands/:id", async (req, res) => {
   }
 });
 
-  // GET all shop items
+  //shop items
 app.get("/shop-items", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -1416,7 +1580,7 @@ app.get("/orders", async (req, res) => {
   }
 });
 
-// ─── PUT update order status (cancel, etc.) ─────────────────────────────────
+
 app.put("/orders/:id", async (req, res) => {
   try {
     const { status } = req.body;
@@ -1442,7 +1606,6 @@ app.put("/orders/:id", async (req, res) => {
 });
 
 //profile
-// ─── GET single user by ID ───────────────────────────────────────
 app.get("/api/users/:id", async (req, res) => {
   try {
     const result = await pool.query(
@@ -1453,6 +1616,7 @@ app.get("/api/users/:id", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
 
     const row = result.rows[0];
+
     const nameParts = (row.name || "").split(" ");
     res.json({
       id:            row.id,
@@ -1472,7 +1636,6 @@ app.get("/api/users/:id", async (req, res) => {
   }
 });
 
-// ─── GET order counts for a user ────────────────────────────────
 app.get("/api/orders/counts", async (req, res) => {
   const { userId } = req.query;
   try {
@@ -1496,7 +1659,7 @@ app.get("/api/orders/counts", async (req, res) => {
   }
 });
 
-// ─── PUT update user by ID ───────────────────────────────────────
+
 app.put("/api/users/:id", async (req, res) => {
   try {
     const { firstName, lastName, email, age, address, contactNumber, newPassword } = req.body;
@@ -1537,7 +1700,6 @@ app.put("/api/users/:id", async (req, res) => {
   }
 });
 
-// ─── POST verify password ────────────────────────────────────────
 app.post("/auth/verify-password", async (req, res) => {
   try {
     const { userId, password } = req.body;
@@ -1574,6 +1736,7 @@ app.post("/announcements", async (req, res) => {
   try {
     const { title, content, userId } = req.body;
 
+    
     const userResult = await pool.query(
       "SELECT role FROM users WHERE id=$1",
       [userId]
@@ -1645,7 +1808,6 @@ app.delete("/announcements/:id", async (req, res) => {
   res.json({ success: true });
 });
 
-// ─── TRANSACTIONS ───────────────────────────────────────────────────────────
 app.get("/transactions", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -1671,15 +1833,30 @@ app.post("/transactions", async (req, res) => {
       total, change_due, note, items,
     } = req.body;
 
-    await client.query("BEGIN");
+  await client.query("BEGIN");
 
-    // 1. Save the transaction
+    
+   let cogs = 0;
+
+for (const item of (items || [])) {
+  const price = parseFloat(item.price || 0);
+  const qty   = parseInt(item.qty || 0);
+
+const product = await client.query(
+  "SELECT cost FROM inventory WHERE id = $1",
+  [item.id]
+);
+
+const costPerItem = parseFloat(product.rows[0]?.cost || 0);
+cogs += costPerItem * qty;
+}
+
     const result = await client.query(
       `INSERT INTO transactions
         (branch, cashier, shop, payment_method, cash_received,
          discount_pct, subtotal, discount_amt, vat_enabled, vat_amt,
-         total, change_due, note, items)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         total, change_due, note, items, cogs)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING *`,
       [
         branch, cashier, shop, payment_method,
@@ -1693,12 +1870,11 @@ app.post("/transactions", async (req, res) => {
         parseFloat(change_due) || 0,
         note || null,
         JSON.stringify(items || []),
+        cogs,
       ]
     );
 
-    // 2. For each sold item, deduct its ingredients from stock
     for (const item of (items || [])) {
-      // Get the inventory item's ingredients (recipe)
       const recipe = await client.query(
         `SELECT pi.ingredient_id, pi.quantity, i.name, i.stock
          FROM product_ingredients pi
@@ -1710,7 +1886,6 @@ app.post("/transactions", async (req, res) => {
       for (const ing of recipe.rows) {
         const deductAmount = parseFloat(ing.quantity) * parseInt(item.qty);
 
-        // Check if enough stock
         if (parseFloat(ing.stock) < deductAmount) {
           await client.query("ROLLBACK");
           return res.status(400).json({
@@ -1718,7 +1893,6 @@ app.post("/transactions", async (req, res) => {
           });
         }
 
-        // Deduct ingredient stock
         await client.query(
           `UPDATE ingredients 
            SET stock = stock - $1, updated_at = NOW() 
@@ -1727,7 +1901,6 @@ app.post("/transactions", async (req, res) => {
         );
       }
 
-      // 3. Also deduct the inventory item's own stock
       await client.query(
         `UPDATE inventory 
          SET stock = stock - $1, updated_at = NOW() 

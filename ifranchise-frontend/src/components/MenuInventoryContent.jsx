@@ -70,7 +70,7 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
-// ─── BrandBranchFilter ────────────────────────────────────────────────────────
+
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = useState("");
   const [branchQ, setBranchQ] = useState("");
@@ -138,7 +138,7 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   );
 }
 
-// ─── BranchSearchSelect ───────────────────────────────────────────────────────
+
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -174,7 +174,7 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
   );
 }
 
-// ─── CategorySelect ───────────────────────────────────────────────────────────
+
 function CategorySelect({ value, onChange, categories, onAddCategory }) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -206,7 +206,6 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
   );
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
@@ -230,7 +229,6 @@ function Pagination({ page, setPage, total, pageSize }) {
   );
 }
 
-// ─── InventoryTable ───────────────────────────────────────────────────────────
 function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
   const [sort, setSort]           = useState({ col:"name", asc:true });
   const [expandedRows, setExpanded] = useState({});
@@ -359,7 +357,6 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
@@ -374,8 +371,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [inventory,       setInventory]       = useState([]);
+    const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
   const [categories,      setCategories]      = useState(DEFAULT_CATEGORIES);
@@ -390,7 +386,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [page,            setPage]            = useState(0);
 
-  // Ingredient picker state
+  
   const [ingSearch,   setIngSearch]   = useState("");
   const [ingQty,      setIngQty]      = useState("1");
   const [ingUnit,     setIngUnit]     = useState("");
@@ -410,7 +406,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   }), [isAdmin, userBranch]);
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  
   const fetchInventory = useCallback(async (branch) => {
     setLoading(true);
     try {
@@ -442,7 +438,7 @@ const fetchStockItems = useCallback(async (branch) => {
 
   const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
 
-  // ── Filtered ───────────────────────────────────────────────────────────────
+  
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventory.filter(i => {
@@ -458,12 +454,23 @@ const fetchStockItems = useCallback(async (branch) => {
       return true;
     });
   }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
+  const computedCost = useMemo(() => {
+  if (!formData.ingredients || formData.ingredients.length === 0) return 0;
 
+  return formData.ingredients.reduce((total, ing) => {
+    const stock = stockItems.find(s => s.id === ing.stock_item_id);
+    if (!stock) return total;
+
+    const costPerUnit = parseFloat(stock.cost_per_unit || 0);
+    const qty = parseFloat(ing.qty_required || 0);
+
+    return total + (costPerUnit * qty);
+  }, 0);
+}, [formData.ingredients, stockItems]);
   const lowCount   = filteredItems.filter(i => i.stock < i.min_stock).length;
   const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
 
-  // ── CRUD ───────────────────────────────────────────────────────────────────
-  // ✅ Replace handleAddItem
+
 const handleAddItem = async e => {
   e.preventDefault();
   const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
@@ -473,7 +480,7 @@ const handleAddItem = async e => {
     });
     const d = await res.json();
     if (d.success) {
-      // Save the ingredient recipe
+      
       if (formData.ingredients && formData.ingredients.length > 0) {
         await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
           method:"POST",
@@ -492,7 +499,7 @@ const handleAddItem = async e => {
   } catch { alert("Failed to add item"); }
 };
 
-// ✅ Replace handleEditItem
+
 const handleEditItem = async e => {
   e.preventDefault();
   const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
@@ -502,7 +509,7 @@ const handleEditItem = async e => {
     });
     const d = await res.json();
     if (d.success) {
-      // Always save recipe (even if empty, to clear old ones)
+     
       await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -533,7 +540,7 @@ const handleEditItem = async e => {
     setFormData({
       name:item.name, category:item.category, branch:item.branch,
       cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price,
-      // Pre-load existing ingredients
+     
       ingredients: (item.ingredients||[]).map(ing => ({
         stock_item_id: ing.stock_item_id,
         name:          ing.name,
@@ -545,16 +552,29 @@ const handleEditItem = async e => {
     setShowEditModal(true);
   };
 
-  // ── Form helpers ───────────────────────────────────────────────────────────
-  const handleCostChange = e => {
+  useEffect(() => {
+  const cost = computedCost.toFixed(2);
+
+  const price =
+    cost > 0
+      ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2)
+      : "";
+
+  setFormData(prev => ({
+    ...prev,
+    cost,
+    price,
+  }));
+}, [computedCost]);
+
+    const handleCostChange = e => {
     const cost = e.target.value;
-    const price= cost!==""?(parseFloat(cost)*(1+DEFAULT_PROFIT_MARGIN/100)).toFixed(2):"";
+   const price = cost !== "" ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN/100)).toFixed(2) : "";
     setFormData(p=>({...p,cost,price}));
   };
   const handleInputChange = e => { const {name,value}=e.target; setFormData(p=>({...p,[name]:value})); };
 
-  // ── Ingredient picker helpers ──────────────────────────────────────────────
-  const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
+    const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
 
   const addIngredient = () => {
     if (!ingPicked) return;
@@ -573,9 +593,17 @@ const handleEditItem = async e => {
   const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
   const updateIngQty = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
 
-  const ingFiltered = stockItems.filter(s => !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase()));
+  const ingFiltered = stockItems.filter(s => {
+  const matchesSearch =
+    !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase());
 
-  // ── Excel import ───────────────────────────────────────────────────────────
+const matchesBranch =
+  formData.branch && s.branch === formData.branch;
+
+  return matchesSearch && matchesBranch;
+});
+
+
   const excelRef = useRef(null);
   const importExcel = e => {
     const file = e.target.files[0];
@@ -614,7 +642,7 @@ const handleEditItem = async e => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ── Ingredient Picker UI ───────────────────────────────────────────────────
+  
   const IngredientPicker = () => (
     <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
       <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>🧪 Ingredients Required</div>
@@ -670,8 +698,7 @@ const handleEditItem = async e => {
     </div>
   );
 
-  // ── Form fields ────────────────────────────────────────────────────────────
-  const FormFields = () => (
+    const FormFields = () => (
     <>
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Item Name</label>
@@ -695,10 +722,16 @@ const handleEditItem = async e => {
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:13 }}>
         <div>
           <label style={invLabelSt}>Product Cost (₱)</label>
-          <input type="number" name="cost" value={formData.cost} onChange={handleCostChange} step="0.01" min="0" style={invInputSt} placeholder="0.00"/>
+         <input
+  type="number"
+  name="cost"
+  value={formData.cost}
+  readOnly
+  style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}
+/>
         </div>
         <div>
-          <label style={invLabelSt}>Profit Margin (%)</label>
+          <label style={invLabelSt}>Profit Markup (%)</label>
           <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
         </div>
       </div>

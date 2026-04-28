@@ -13,9 +13,6 @@ import {
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw, Eye,  Clock, Download
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHARED DESIGN TOKENS
-// ─────────────────────────────────────────────────────────────────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -141,16 +138,31 @@ export default function AdminDashboard() {
   const [showViewApplicationModal, setShowViewApplicationModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
+  const [preset, setPreset] = useState("month");
+  const [stats, setStats] = useState(null);
   const handleLogout = () => setShowLogoutModal(true);
   const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
-
+  const [transactions, setTransactions] = useState([]);
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
     if (userString) return JSON.parse(userString);
     navigate('/login');
     return null;
   };
+
+  useEffect(() => {
+    fetch(`http://localhost:5001/dashboard/stats?preset=${preset}`)
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(err => console.error(err));
+  }, [preset]);
+
+  useEffect(() => {
+    fetch("http://localhost:5001/transactions")
+      .then(res => res.json())
+      .then(data => setTransactions(data))
+      .catch(err => console.error("Failed to fetch transactions", err));
+  }, []);
 
   const [user, setUser] = useState(getUserFromStorage);
 
@@ -330,7 +342,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="content-area">
-          {activeModule === 'dashboard'      && <DashboardContent />}
+          {activeModule === 'dashboard' && <DashboardContent transactions={transactions} brands={brands} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <POSContent user={user} brands={brands} />}
@@ -816,27 +828,95 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DASHBOARD (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
-function DashboardContent() {
+
+function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today   = new Date();
   const fmt8    = (d) => d.toISOString().slice(0, 10);
-  const fmtAmt  = (n) => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const fmtAmt  = (n) => '₱' + Number(n||0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
   const fmtShort= (n) => { if(n>=1_000_000) return '₱'+(n/1_000_000).toFixed(1)+'M'; if(n>=1_000) return '₱'+(n/1_000).toFixed(0)+'k'; return '₱'+n; };
 
-  const [rangeMode,      setRangeMode]      = useState('preset');
-  const [preset,         setPreset]         = useState('month');
-  const [customFrom,     setCustomFrom]     = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [customTo,       setCustomTo]       = useState(fmt8(today));
-  const [appliedRange,   setAppliedRange]   = useState(null);
-  const [archives,       setArchives]       = useState(() => { try { return JSON.parse(localStorage.getItem('dashboardArchives')||'[]'); } catch { return []; } });
-  const [showArchivePanel,   setShowArchivePanel]   = useState(false);
-  const [viewingArchive,     setViewingArchive]     = useState(null);
-  const [archiveYearInput,   setArchiveYearInput]   = useState(String(today.getFullYear()));
-  const [archiveConfirm,     setArchiveConfirm]     = useState(false);
-  const [tooltip,            setTooltip]            = useState(null);
+  const [rangeMode,    setRangeMode]    = useState('preset');
+  const [preset,       setPreset]       = useState('month');
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem('dashboardArchives')||'[]'); } catch { return []; } });
+  const [showArchivePanel,  setShowArchivePanel]  = useState(false);
+  const [viewingArchive,    setViewingArchive]    = useState(null);
+  const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
+  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
+  const [tooltip,           setTooltip]           = useState(null);
   const svgRef = useRef(null);
+
+    const [filterBrand,    setFilterBrand]    = useState(null);
+  const [filterBranch,   setFilterBranch]   = useState(null);
+  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
+  const [branchDropOpen, setBranchDropOpen] = useState(false);
+  const [brandQ,  setBrandQ]  = useState('');
+  const [branchQ, setBranchQ] = useState('');
+  const brandRef  = useRef(null);
+  const branchRef = useRef(null);
+
+    const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  useEffect(() => {
+    const fn = (e) => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const brandList      = propBrands.length > 0 ? propBrands : [];
+  const selectedBrand  = brandList.find(b => b.id === filterBrand);
+  const branchList     = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name) : [];
+  const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+
+const fetchKpis = useCallback(async () => {
+  setKpiLoading(true);
+  try {
+    const params = new URLSearchParams();
+    if (rangeMode === 'preset') {
+      params.set('preset', preset);
+    } else if (appliedRange) {
+      params.set('from', appliedRange.from);
+      params.set('to', appliedRange.to);
+    } else {
+      params.set('preset', 'month');
+    }
+
+    if (filterBranch) {
+      params.set('branch', filterBranch);
+    } else if (filterBrand && selectedBrand) {
+      const branchNames = (selectedBrand.branches || [])
+        .map(br => (typeof br === 'string' ? br : br.name));
+      if (branchNames.length > 0) params.set('branches', branchNames.join(','));
+    }
+
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+    const data = await res.json();
+    if (!data.error) setKpiData(data);
+  } catch (err) {
+    console.error('Failed to fetch dashboard stats:', err);
+  } finally {
+    setKpiLoading(false);
+  }
+}, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => {
+    if (!viewingArchive) fetchKpis();
+  }, [fetchKpis, viewingArchive]);
+
+  
+  const filterLabel = (() => {
+    if (filterBranch) return filterBranch;
+    if (filterBrand)  return selectedBrand?.name + ' – All Branches';
+    return 'All Brands & Branches';
+  })();
 
   const getRangeLabel = () => {
     if (viewingArchive) return `Archive: ${viewingArchive.year}`;
@@ -845,35 +925,101 @@ function DashboardContent() {
     return map[preset] || 'This Month';
   };
 
-  const chartData = useMemo(() => {
+    const chartData = useMemo(() => {
     if (viewingArchive) return viewingArchive.chartData;
-    const configs = {
-      day:   { labels:['6AM','8AM','10AM','12PM','2PM','4PM','6PM','8PM'],   base:8000,    noise:5000   },
-      week:  { labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],            base:45000,   noise:30000  },
-      month: { labels:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], base:280000, noise:180000 },
-      year:  { labels:['2020','2021','2022','2023','2024','2025'],            base:2500000, noise:1800000 },
-      custom:{ labels:['Week 1','Week 2','Week 3','Week 4'],                  base:120000,  noise:80000  },
-    };
-    const key = rangeMode === 'custom' ? 'custom' : preset;
-    const { labels, base, noise } = configs[key];
-    const seed   = key.charCodeAt(0) * 7;
-    const values = labels.map((_, i) => Math.round(base + noise * (0.4 + 0.6 * Math.abs(Math.sin(i * 1.4 + seed)))));
+
+    // Apply brand/branch filter
+    let txList = transactions;
+    if (filterBranch) {
+      txList = transactions.filter(tx => tx.branch === filterBranch);
+    } else if (filterBrand && selectedBrand) {
+      const branchNames = (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name);
+      txList = transactions.filter(tx => branchNames.includes(tx.branch));
+    }
+
+    if (!txList.length) return { labels: [], values: [] };
+
+    const now = new Date();
+
+    const filtered = txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === "day") return d.toDateString() === now.toDateString();
+      if (preset === "week") {
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        start.setHours(0,0,0,0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23,59,59,999);
+        return d >= start && d <= end;
+      }
+      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === "year")  return d.getFullYear() === now.getFullYear();
+      if (rangeMode === 'custom' && appliedRange) {
+        const from = new Date(appliedRange.from);
+        const to   = new Date(appliedRange.to);
+        return d >= from && d <= to;
+      }
+      return true;
+    });
+
+    let grouped = {};
+
+    if (preset === "day") {
+      filtered.forEach(tx => {
+        const hour  = new Date(tx.created_at).getHours();
+        const label = `${hour}:00`;
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "week") {
+      filtered.forEach(tx => {
+        const label = new Date(tx.created_at).toLocaleDateString("en-US", { weekday: "short" });
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "month") {
+      filtered.forEach(tx => {
+        const day   = new Date(tx.created_at).getDate();
+        const label = `Day ${day}`;
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "year") {
+      filtered.forEach(tx => {
+        const label = new Date(tx.created_at).toLocaleDateString("en-US", { month: "short" });
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (rangeMode === 'custom' && appliedRange) {
+      const from     = new Date(appliedRange.from);
+      const to       = new Date(appliedRange.to);
+      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
+      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
+      const labels   = Array.from({length: numWeeks}, (_, i) => `Week ${i+1}`);
+      const values   = Array(numWeeks).fill(0);
+      filtered.forEach(tx => {
+        const d       = new Date(tx.created_at);
+        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks-1);
+        values[weekIdx] += tx.total || 0;
+      });
+      return { labels, values };
+    }
+
+    const labels = Object.keys(grouped);
+    const values = labels.map(l => grouped[l]);
     return { labels, values };
-  }, [preset, rangeMode, viewingArchive]);
+  }, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
 
   const values    = chartData.values;
   const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
-  const avg       = useMemo(() => Math.round(total / values.length), [total, values.length]);
-  const peak      = useMemo(() => Math.max(...values), [values]);
-  const low       = useMemo(() => Math.min(...values), [values]);
-  const peakLabel = chartData.labels[values.indexOf(peak)];
-  const pctChange = values.length > 1 ? (((values[values.length-1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
+  const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length-1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
   const trending  = Number(pctChange) >= 0;
 
   const SVG_W = 820, SVG_H = 260, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
   const plotW = SVG_W - PAD_L - PAD_R;
   const plotH = SVG_H - PAD_T - PAD_B;
-  const maxV  = peak * 1.18;
+  const maxV  = peak > 0 ? peak * 1.18 : 1;
 
   const pts = useMemo(() => values.map((v, i) => ({
     x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
@@ -897,7 +1043,7 @@ function DashboardContent() {
   );
 
   const handleMouseMove = useCallback((e) => {
-    if (!svgRef.current) return;
+    if (!svgRef.current || !pts.length) return;
     const rect = svgRef.current.getBoundingClientRect();
     const mx   = ((e.clientX - rect.left) / rect.width) * SVG_W;
     let best = pts[0], bestDist = Infinity;
@@ -909,7 +1055,7 @@ function DashboardContent() {
     const year = parseInt(archiveYearInput);
     if (isNaN(year) || year < 2000 || year > 2100) { alert('Please enter a valid year (2000–2100)'); return; }
     if (archives.find(a => a.year === year)) { alert(`Year ${year} is already archived.`); return; }
-    const snapshot = { year, label:`Full Year ${year}`, savedAt:new Date().toLocaleString(), chartData, kpis:{ totalSales:total, avgSales:avg, peakSales:peak, lowSales:low } };
+    const snapshot = { year, label:`Full Year ${year}`, savedAt:new Date().toLocaleString(), chartData, kpis:{ totalSales:kpiData?.totalSales||total, avgSales:avg, peakSales:peak, lowSales:low } };
     const updated  = [...archives, snapshot].sort((a, b) => b.year - a.year);
     setArchives(updated);
     localStorage.setItem('dashboardArchives', JSON.stringify(updated));
@@ -932,12 +1078,30 @@ function DashboardContent() {
     setViewingArchive(null);
   };
 
-  const kpiCards = [
-    { label:'Sales Revenue', value:null },
-    { label:'Sales Profit',  value:null },
-    { label:'Cost of Sales', value:null },
-    { label:'Total Sales',   value:total, note:getRangeLabel() },
+    const kpiCards = [
+    { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Total Sales',    value: kpiData ? kpiData.totalSales   : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
   ];
+
+   const dropSt = {
+    position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400,
+    background:'#fff', border:'1px solid #b2dfdb', borderRadius:11,
+    boxShadow:'0 8px 28px rgba(0,0,0,0.10)', maxHeight:220, overflowY:'auto',
+  };
+  const optSt = (active) => ({
+    padding:'9px 14px', cursor:'pointer', fontSize:13,
+    color: active ? '#00695c' : '#0d2b1e', fontWeight: active ? 700 : 500,
+    background: active ? '#e0f2f1' : 'transparent',
+    display:'flex', alignItems:'center', gap:8,
+  });
+  const filterInputSt = {
+    height:36, padding:'0 11px', borderRadius:9,
+    border:'1px solid #b2dfdb', background:'#f0fdf5',
+    fontSize:13, color:'#0d2b1e', outline:'none',
+    fontFamily:'inherit', boxSizing:'border-box', width:'100%',
+  };
 
   return (
     <div style={{ fontFamily:"'Poppins', sans-serif" }}>
@@ -969,9 +1133,13 @@ function DashboardContent() {
         .db-archive-row:hover { background:#e8fdf0; }
         .db-archive-btn { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
         .db-viewing-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+        .db-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#e0f2f1; color:#00695c; border:1px solid #b2dfdb; cursor:pointer; }
+        .db-filter-chip:hover { background:#b2dfdb; }
+        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
       `}</style>
 
       <div className="db-root">
+
         {viewingArchive && (
           <div className="db-viewing-banner">
             <span style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:14 }}>
@@ -985,21 +1153,133 @@ function DashboardContent() {
           </div>
         )}
 
+        {/* KPI Cards */}
         <div className="db-kpi-grid">
           {kpiCards.map((k, i) => (
             <div key={i} className="db-kpi-card">
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
                 <div>
                   <div style={{ fontSize:10.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', marginBottom:5 }}>{k.label}</div>
-                  {k.value !== null && k.value !== undefined
-                    ? <div style={{ fontSize:22, fontWeight:800, color:'#0d2b1e' }}>{fmtAmt(k.value)}</div>
-                    : <div className="db-placeholder-val">— Pending connection</div>}
+                  {kpiLoading && k.value === null
+                    ? <div className="db-placeholder-val">Loading…</div>
+                    : k.value !== null && k.value !== undefined
+                      ? <div style={{ fontSize:22, fontWeight:800, color:'#0d2b1e' }}>{fmtAmt(k.value)}</div>
+                      : <div className="db-placeholder-val">— Pending connection</div>
+                  }
                 </div>
               </div>
               <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>{k.note}</span>
             </div>
           ))}
         </div>
+
+        <div style={{ background:'#fff', border:'1px solid rgba(0,168,76,0.12)', borderRadius:16, padding:'14px 18px', marginBottom:18, boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:6 }}>
+              <Globe size={12} color="#00897b"/> Filter by
+            </span>
+
+          
+            <div ref={brandRef} style={{ position:'relative', minWidth:190 }}>
+              <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(''); }}
+                style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor:'pointer', paddingRight:28, userSelect:'none', color: filterBrand ? '#0d2b1e' : '#5a7a65' }}>
+                <Globe size={12} color="#00897b"/>
+                <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+                  {selectedBrand ? selectedBrand.name : 'All Brands'}
+                </span>
+                <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>
+              </div>
+              {brandDropOpen && (
+                <div style={dropSt}>
+                  <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+                    <div style={{ position:'relative' }}>
+                      <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+                      <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
+                        placeholder="Search brand…" onClick={e => e.stopPropagation()}
+                        style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+                    </div>
+                  </div>
+                  <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>
+                    All Brands
+                  </div>
+                  {filteredBrands.map(b => (
+                    <div key={b.id} style={optSt(filterBrand === b.id)}
+                      onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
+                      <span style={{ fontSize:16 }}>{b.emoji||'🏪'}</span> {b.name}
+                      <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
+                    </div>
+                  ))}
+                  {filteredBrands.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No brands found</div>}
+                </div>
+              )}
+            </div>
+
+          
+            <div ref={branchRef} style={{ position:'relative', minWidth:200, opacity: filterBrand ? 1 : 0.45, transition:'opacity .15s' }}>
+              <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(''); } }}
+                style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor: filterBrand ? 'pointer' : 'not-allowed', paddingRight:28, userSelect:'none', color: filterBranch ? '#0d2b1e' : '#5a7a65' }}>
+                <Store size={12} color={filterBrand ? '#00897b' : '#5a7a65'}/>
+                <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+                  {filterBranch || (filterBrand ? 'All Branches' : 'Select brand first')}
+                </span>
+                {filterBrand && <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>}
+              </div>
+              {branchDropOpen && filterBrand && (
+                <div style={dropSt}>
+                  <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+                    <div style={{ position:'relative' }}>
+                      <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+                      <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
+                        placeholder="Search branch…" onClick={e => e.stopPropagation()}
+                        style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+                    </div>
+                  </div>
+                  <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>
+                    All Branches
+                  </div>
+                  {filteredBranches.map(br => (
+                    <div key={br} style={optSt(filterBranch === br)}
+                      onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(''); }}>
+                      <Store size={11} color="#00897b"/> {br}
+                    </div>
+                  ))}
+                  {filteredBranches.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No branches found</div>}
+                </div>
+              )}
+            </div>
+
+         
+            {(filterBrand || filterBranch) && (
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+                {filterBrand && !filterBranch && (
+                  <span className="db-filter-chip" onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+                    {selectedBrand?.emoji} {selectedBrand?.name} <X size={10}/>
+                  </span>
+                )}
+                {filterBranch && (
+                  <span className="db-filter-chip" onClick={() => setFilterBranch(null)}>
+                    <Store size={10}/> {filterBranch} <X size={10}/>
+                  </span>
+                )}
+                <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }}
+                  style={{ padding:'3px 10px', borderRadius:20, border:'1px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {kpiLoading && (
+              <span style={{ fontSize:11, color:'#5a7a65', display:'flex', alignItems:'center', gap:5 }}>
+                <RefreshCw size={11} style={{ animation:'spin 1s linear infinite' }}/> Loading…
+              </span>
+            )}
+
+            <div style={{ marginLeft:'auto', fontSize:12, color:'#94a3b8', fontWeight:600 }}>
+              {transactions.length.toLocaleString()} transactions · {filterLabel}
+            </div>
+          </div>
+        </div>
+
 
         <div className="db-toolbar">
           <div className="db-tab-group">
@@ -1030,6 +1310,7 @@ function DashboardContent() {
           </button>
         </div>
 
+        {/* Archive panel */}
         {showArchivePanel && (
           <div className="db-archive-panel">
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
@@ -1075,100 +1356,130 @@ function DashboardContent() {
           </div>
         )}
 
+        
         <div className="db-chart-card">
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
             <div style={{ fontFamily:'Montserrat,sans-serif', fontWeight:700, fontSize:15, color:'#0d2b1e', display:'flex', alignItems:'center', gap:8 }}>
               <BarChart size={16} color="#00897b"/> Revenue Overview
               <span style={{ fontSize:11, fontWeight:600, color:'#5a7a65', background:'#f0fdf5', padding:'3px 10px', borderRadius:8, border:'1px solid #d1eedd' }}>{getRangeLabel()}</span>
-            </div>
-            <div style={{ fontSize:11, color:'#94a3b8', display:'flex', alignItems:'center', gap:5 }}>
-              <RefreshCw size={11}/> Placeholder data — connect POS &amp; Inventory
-            </div>
-          </div>
-
-          <div className="db-chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
-            <svg ref={svgRef} style={{ width:'100%', display:'block', overflow:'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="gLine2" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#e9cd30"/><stop offset="100%" stopColor="#ffa875"/>
-                </linearGradient>
-                <linearGradient id="gArea2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00c853" stopOpacity="0.20"/><stop offset="100%" stopColor="#00c853" stopOpacity="0.01"/>
-                </linearGradient>
-                <filter id="glow2"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-              </defs>
-              {yTicks.map((t, i) => (
-                <g key={i}>
-                  <line x1={PAD_L} y1={t.y} x2={SVG_W-PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4"/>
-                  <text x={PAD_L-8} y={t.y+4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
-                </g>
-              ))}
-              <path d={areaPath} fill="url(#gArea2)"/>
-              <path d={linePath} fill="none" stroke="url(#gLine2)" strokeWidth="3" strokeLinecap="round" filter="url(#glow2)"/>
-              {pts.map((p, i) => (
-                <text key={i} x={p.x} y={SVG_H-6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
-              ))}
-              {tooltip && (
-                <>
-                  <line x1={tooltip.x} y1={tooltip.y+7} x2={tooltip.x} y2={PAD_T+plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55"/>
-                  <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#glow2)"/>
-                </>
+              {(filterBrand || filterBranch) && (
+                <span style={{ fontSize:11, fontWeight:700, color:'#00695c', background:'#e0f2f1', padding:'3px 10px', borderRadius:8, border:'1px solid #b2dfdb', display:'flex', alignItems:'center', gap:5 }}>
+                  {filterBranch
+                    ? <><Store size={10}/> {filterBranch}</>
+                    : <><Globe size={10}/> {selectedBrand?.name}</>}
+                </span>
               )}
-            </svg>
-            {tooltip && (
-              <div className="db-tooltip" style={{ left:`${(tooltip.x/SVG_W)*100}%`, top:`${(tooltip.y/SVG_H)*100}%` }}>
-                <div style={{ fontSize:10.5, opacity:0.6, marginBottom:2 }}>{tooltip.label}</div>
-                <div style={{ fontSize:15, fontWeight:800, color:'#a7f3d0' }}>{fmtAmt(tooltip.value)}</div>
+            </div>
+            {kpiData && (
+              <div style={{ fontSize:12, color:'#00897b', fontWeight:700, display:'flex', alignItems:'center', gap:5 }}>
+                <Check size={11} color="#10B981"/> Live: {fmtAmt(kpiData.totalSales)} · {kpiData.txCount} txns
               </div>
             )}
           </div>
+
+          {values.length === 0 || (total === 0 && !kpiLoading) ? (
+            <div style={{ height:200, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fffe', borderRadius:12, border:'1px dashed #b2dfdb', color:'#5a7a65' }}>
+              <BarChart2 size={32} color="#b2dfdb"/>
+              <div style={{ fontWeight:700, fontSize:14, marginTop:10 }}>No sales data for this selection</div>
+              <div style={{ fontSize:12, marginTop:4, color:'#94a3b8' }}>Try a different range, brand, or branch</div>
+            </div>
+          ) : (
+            <div className="db-chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
+              <svg ref={svgRef} style={{ width:'100%', display:'block', overflow:'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="gLine2" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#e9cd30"/><stop offset="100%" stopColor="#ffa875"/>
+                  </linearGradient>
+                  <linearGradient id="gArea2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00c853" stopOpacity="0.20"/><stop offset="100%" stopColor="#00c853" stopOpacity="0.01"/>
+                  </linearGradient>
+                  <filter id="glow2"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                {yTicks.map((t, i) => (
+                  <g key={i}>
+                    <line x1={PAD_L} y1={t.y} x2={SVG_W-PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4"/>
+                    <text x={PAD_L-8} y={t.y+4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
+                  </g>
+                ))}
+                <path d={areaPath} fill="url(#gArea2)"/>
+                <path d={linePath} fill="none" stroke="url(#gLine2)" strokeWidth="3" strokeLinecap="round" filter="url(#glow2)"/>
+                {pts.map((p, i) => (
+                  <text key={i} x={p.x} y={SVG_H-6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
+                ))}
+                {tooltip && (
+                  <>
+                    <line x1={tooltip.x} y1={tooltip.y+7} x2={tooltip.x} y2={PAD_T+plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55"/>
+                    <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#glow2)"/>
+                  </>
+                )}
+              </svg>
+              {tooltip && (
+                <div className="db-tooltip" style={{ left:`${(tooltip.x/SVG_W)*100}%`, top:`${(tooltip.y/SVG_H)*100}%` }}>
+                  <div style={{ fontSize:10.5, opacity:0.6, marginBottom:2 }}>{tooltip.label}</div>
+                  <div style={{ fontSize:15, fontWeight:800, color:'#a7f3d0' }}>{fmtAmt(tooltip.value)}</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
+        {/* Insights */}
         <div className="db-ins-grid">
           <div className="db-ins-card">
             <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Peak Performance</div>
             <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              Highest revenue on <strong>{peakLabel}</strong> ({getRangeLabel()}). Outperformed average by <strong>{fmtAmt(peak - avg)}</strong>.
+              {total > 0
+                ? <>{kpiData ? <>Transactions: <strong>{kpiData.txCount}</strong> · </> : ''}Highest revenue on <strong>{peakLabel}</strong> ({getRangeLabel()}). Outperformed average by <strong>{fmtAmt(peak - avg)}</strong>.</>
+                : 'No data available for the selected filters and range.'}
             </p>
-            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{fmtAmt(peak)}</div>
+            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{total > 0 ? fmtAmt(peak) : '—'}</div>
           </div>
           <div className="db-ins-card">
             <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Trend Direction</div>
             <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              Sales are <strong>{trending ? 'trending upward ↑' : 'trending downward ↓'}</strong> with a <strong>{Math.abs(pctChange)}% change</strong> from start to end of selected range.
+              {total > 0
+                ? <>Sales are <strong>{trending ? 'trending upward ↑' : 'trending downward ↓'}</strong> with a <strong>{Math.abs(pctChange)}% change</strong> from start to end of selected range.</>
+                : 'No transactions to analyze trends.'}
             </p>
             <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:trending?'#00897b':'#d97706' }}>
-              {trending ? '+' : '-'}{Math.abs(pctChange)}%
+              {total > 0 ? `${trending?'+':'-'}${Math.abs(pctChange)}%` : '—'}
             </div>
           </div>
           <div className="db-ins-card">
             <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Revenue Summary</div>
             <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              Average: <strong>{fmtAmt(avg)}</strong> · Total: <strong>{fmtAmt(total)}</strong><br/>
-              <span style={{ color:'#94a3b8', fontSize:11 }}>Sales Profit, Revenue &amp; Cost of Sales will reflect once POS &amp; Inventory are connected.</span>
+              {kpiData
+                ? <>Transactions: <strong>{kpiData.txCount}</strong> · Avg order: <strong>{fmtAmt(kpiData.avgOrder)}</strong><br/>Total revenue: <strong>{fmtAmt(kpiData.totalSales)}</strong> · Scope: <strong>{filterLabel}</strong></>
+                : total > 0
+                  ? <>Average: <strong>{fmtAmt(avg)}</strong> · Total: <strong>{fmtAmt(total)}</strong> · Scope: <strong>{filterLabel}</strong></>
+                  : <>No sales recorded for <strong>{filterLabel}</strong> in this period.</>}
             </p>
-            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{fmtAmt(avg)}</div>
+            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{total > 0 ? fmtAmt(kpiData?.totalSales ?? avg) : '—'}</div>
           </div>
         </div>
 
+        {/* Bottom KPI cards */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
           {[
-            { label:'Sales Revenue',  desc:'Total income from sales. Will pull from POS transactions.',      icon:'💰' },
-            { label:'Sales Profit',   desc:'Net profit after deducting cost of sales from revenue.',         icon:'📈' },
-            { label:'Cost of Sales',  desc:'Total cost of goods sold. Will pull from Inventory movements.',  icon:'🧾' },
+            { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, desc:'Total income from sales pulled from POS transactions.', icon:'💰' },
+            { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, desc:'Net profit after deducting cost of sales from revenue.', icon:'📈' },
+            { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, desc:'Total cost of goods sold from Inventory movements.', icon:'🧾' },
           ].map((k, i) => (
-            <div key={i} style={{ background:'#fff', border:'1.5px dashed #a7f3d0', borderRadius:16, padding:'18px 20px', boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
+            <div key={i} style={{ background:'#fff', border: k.value !== null ? '1.5px solid #b2dfdb' : '1.5px dashed #a7f3d0', borderRadius:16, padding:'18px 20px', boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
                 <span style={{ fontSize:22 }}>{k.icon}</span>
                 <span style={{ fontWeight:800, fontSize:13, color:'#0d2b1e' }}>{k.label}</span>
               </div>
               <p style={{ fontSize:11.5, color:'#5a7a65', lineHeight:1.6, marginBottom:12 }}>{k.desc}</p>
-              <div style={{ background:'#f0fdf5', borderRadius:10, padding:'8px 12px', fontSize:12, fontWeight:700, color:'#94a3b8', display:'flex', alignItems:'center', gap:6 }}>
-                <RefreshCw size={11} color="#b2dfdb"/> Awaiting POS / Inventory connection
-              </div>
+              {k.value !== null
+                ? <div style={{ background:'#e0f2f1', borderRadius:10, padding:'8px 12px', fontSize:16, fontWeight:800, color:'#00695c' }}>{fmtAmt(k.value)}</div>
+                : <div style={{ background:'#f0fdf5', borderRadius:10, padding:'8px 12px', fontSize:12, fontWeight:700, color:'#94a3b8', display:'flex', alignItems:'center', gap:6 }}>
+                    <RefreshCw size={11} color="#b2dfdb"/> Awaiting POS / Inventory connection
+                  </div>}
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );
@@ -1177,6 +1488,7 @@ function DashboardContent() {
 // ─────────────────────────────────────────────────────────────────────────────
 // MOBILE SHOP (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
+
 function MobileShopContent() {
   const msInputStyle = {
     width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
@@ -1189,6 +1501,9 @@ function MobileShopContent() {
   const [loading,       setLoading]       = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [newItem,       setNewItem]       = useState({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+
+  
+  const excelRef = useRef(null);
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -1211,6 +1526,7 @@ function MobileShopContent() {
     return Object.keys(newErrors).length === 0;
   };
 
+
   const addItem = async () => {
     if (loading || !validate()) return;
     setLoading(true);
@@ -1222,6 +1538,49 @@ function MobileShopContent() {
     setErrors({});
     setLoading(false);
     fetchItems();
+  };
+
+
+  const importExcel = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const wb         = XLSX.read(ev.target.result, { type: "array" });
+      const rows_to_save = [];
+      wb.SheetNames.forEach(sheetName => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+        rows.forEach(row => {
+          const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
+          const price = parseFloat(row.price || row.Price || 0) || 0;
+          if (!name || price <= 0) return; // skip blank / zero-price rows
+          rows_to_save.push({
+            name,
+            price,
+            stock:     parseInt(row.stock     || row.Stock     || 0) || 0,
+            shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
+            brand:     String(row.brand     || row.Brand     || "").trim(),
+            image_url: String(row.image_url || row["Image URL"] || "").trim(),
+          });
+        });
+      });
+      let saved = 0;
+      for (const item of rows_to_save) {
+        try {
+          const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item),
+          });
+          const d = await res.json();
+          if (d.success) saved++;
+        } catch {}
+      }
+      e.target.value = "";
+      alert(`Parsed ${rows_to_save.length} row(s). Saved ${saved}.`);
+      fetchItems();
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
@@ -1243,7 +1602,6 @@ function MobileShopContent() {
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Add New Item</span>
         </div>
-
         <div style={{ padding:"20px 24px" }}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
             <Field label="Shop">
@@ -1278,7 +1636,26 @@ function MobileShopContent() {
             </Field>
           </div>
 
-          <div style={{ marginTop:"1.25rem" }}>
+          {/* ── Action buttons row ─────────────────────────────────────────── */}
+          <div style={{ marginTop:"1.25rem", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            {/* Import Excel */}
+            <label style={{
+              display:"inline-flex", alignItems:"center", gap:6,
+              height:36, padding:"0 16px", borderRadius:9,
+              border:`1px solid ${C.border}`, background:C.white,
+              fontSize:13, fontWeight:700, cursor:"pointer",
+              fontFamily:"inherit", whiteSpace:"nowrap",
+            }}>
+              {/* File icon inline so no extra import needed */}
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              Import Excel
+              <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
+            </label>
+
+            {/* Add Item */}
             <button onClick={addItem} disabled={loading}
               style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:9, border:"none",
                 background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
@@ -1287,6 +1664,11 @@ function MobileShopContent() {
               {loading ? "Adding…" : <><span style={{ fontSize:15 }}>+</span> Add Item</>}
             </button>
           </div>
+
+          {/* ── Excel column hint ──────────────────────────────────────────── */}
+          <p style={{ marginTop:10, fontSize:11, color:C.muted, fontStyle:"italic" }}>
+            Excel columns: <strong>name</strong>, <strong>price</strong>, <strong>stock</strong> — <em>shop</em>, <em>brand</em>, <em>image_url</em> optional.
+          </p>
         </div>
       </div>
 
@@ -1295,7 +1677,6 @@ function MobileShopContent() {
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
           <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
         </div>
-
         {items.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
         ) : (
@@ -2894,7 +3275,7 @@ function POSContent({ user, brands: propBrands = [] }) {
 
   const brandList = propBrands.length > 0 ? propBrands : [
     { id: "ipharma",     name: "iPharma",       branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
-    { id: "coffeesport", name: "Coffee Sport",  branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
+    { id: "coffeespot", name: "Coffee Spot",  branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
   ];
 
   const [menuItems,        setMenuItems]        = useState([]);
@@ -2926,9 +3307,7 @@ function POSContent({ user, brands: propBrands = [] }) {
   const fetchProducts = useCallback(async () => {
     try {
       const branchQ = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-      const [menuRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`)
-      ]);
+      const menuRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`);
       const menuData = await menuRes.json();
       setMenuItems(Array.isArray(menuData) ? menuData : []);
     } catch { setMenuItems([]); }
@@ -3020,7 +3399,7 @@ function POSContent({ user, brands: propBrands = [] }) {
 
   const todayStr     = new Date().toISOString().slice(0,10);
   const todaySales   = transactions.filter(tx => (tx.created_at||"").startsWith(todayStr));
-  const todayRevenue = todaySales.reduce((s, tx) => s+(tx.total||0), 0);
+  const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total||0), 0);
   const todayCount   = todaySales.length;
   const todayAvg     = todayCount > 0 ? todayRevenue/todayCount : 0;
 
@@ -3117,7 +3496,9 @@ function POSContent({ user, brands: propBrands = [] }) {
                   {!activeBranch ? "Select a branch to view products" : "No products found for this branch"}
                 </div>
                 <div style={{ fontSize:12, marginTop:4 }}>
-                  {!activeBranch ? "Choose a branch from the dropdown above to load its menu." : "Add items via Menu Inventory and assign them to this branch."}
+                  {!activeBranch
+                    ? "Choose a branch from the dropdown above to load its menu."
+                    : "Add items via Menu Inventory and assign them to this branch."}
                 </div>
               </div>
             ) : (

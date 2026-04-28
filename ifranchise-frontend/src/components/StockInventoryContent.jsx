@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -41,19 +41,18 @@ const smallBtnSt = {
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 50;
 
-// ─── Mini SVG icons ───────────────────────────────────────────────────────────
 const SearchIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
 const EditIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
 const TrashIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 const XIcon       = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const PlusIcon    = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 const StoreIcon   = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const FileIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
 const SortAscIcon = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
 const SortDescIcon= ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
 const FilterIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
 const ChevronIcon = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
 
-// ─── BrandBranchFilter ────────────────────────────────────────────────────────
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = useState("");
   const [branchQ, setBranchQ] = useState("");
@@ -143,7 +142,6 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   );
 }
 
-// ─── BranchSearchSelect ───────────────────────────────────────────────────────
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -186,7 +184,6 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
   );
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
@@ -210,7 +207,6 @@ function Pagination({ page, setPage, total, pageSize }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
 export default function StockInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
@@ -228,8 +224,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     return out;
   }, [brandList]);
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [items,      setItems]      = useState([]);
+    const [items,      setItems]      = useState([]);
   const [loading,    setLoading]    = useState(false);
   const [search,     setSearch]     = useState("");
   const [brand,      setBrand]      = useState(null);
@@ -242,14 +237,15 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const [showModal,  setShowModal]  = useState(false);
   const [editing,    setEditing]    = useState(null);
 
+    const excelRef = useRef(null);
+
   const emptyForm = useCallback(() => ({
     name:"", branch: isAdmin ? "" : userBranch, brand:"",
     unit:"pcs", stock:0, min_stock:0, cost_per_unit:"",
   }), [isAdmin, userBranch]);
   const [form, setForm] = useState(emptyForm);
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchItems = useCallback(async () => {
+    const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const q   = !isAdmin && userBranch ? `?branch=${encodeURIComponent(userBranch)}` : "";
@@ -263,8 +259,49 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   useEffect(() => { fetchItems(); }, [fetchItems]);
   useEffect(() => { setPage(0); }, [search, brand, branch, unitFilter, statusFilt]);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
+    const importExcel = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const wb    = XLSX.read(ev.target.result, { type: "array" });
+      const rows_to_save = [];
+      wb.SheetNames.forEach(sheetName => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+        rows.forEach(row => {
+          const name = String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim();
+          if (!name) return;
+          rows_to_save.push({
+            name,
+            branch:        String(row.branch         || row.Branch         || "").trim() || "Unknown",
+            brand:         String(row.brand           || row.Brand           || "").trim(),
+            unit:          String(row.unit             || row.Unit             || "pcs").trim(),
+            stock:         parseFloat(row.stock        || row.Stock           || 0) || 0,
+            min_stock:     parseFloat(row.min_stock    || row["Min Stock"]    || 0) || 0,
+            cost_per_unit: parseFloat(row.cost_per_unit|| row["Cost/Unit"]   || 0) || 0,
+          });
+        });
+      });
+      let saved = 0;
+      for (const item of rows_to_save) {
+        try {
+          const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item),
+          });
+          const d = await res.json();
+          if (d.success) saved++;
+        } catch {}
+      }
+      e.target.value = "";
+      alert(`Parsed ${rows_to_save.length} row(s). Saved ${saved}.`);
+      fetchItems();
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+    const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return [...items]
       .filter(i => {
@@ -291,8 +328,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const totalValue = items.reduce((s, i) => s + (i.cost_per_unit||0)*(i.stock||0), 0);
   const pageItems  = filtered.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
 
-  // ── CRUD ───────────────────────────────────────────────────────────────────
-  const saveItem = async e => {
+    const saveItem = async e => {
     e.preventDefault();
     const payload = { ...form, branch: isAdmin ? form.branch : userBranch };
     const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
@@ -322,8 +358,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
   const closeModal = () => { setShowModal(false); setEditing(null); setForm(emptyForm()); };
 
-  // ── Sort header ────────────────────────────────────────────────────────────
-  const SortTh = ({ col, label, minW }) => {
+    const SortTh = ({ col, label, minW }) => {
     const active = sort.col === col;
     return (
       <th onClick={() => { setSort(s => ({ col, asc: s.col===col?!s.asc:true })); setPage(0); }}
@@ -383,6 +418,11 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
             <option value="ok">In Stock</option>
           </select>
           <div style={{ flex:1 }} />
+          {/* ── Import Excel button ── */}
+          <label style={{ ...btnSt, cursor:"pointer" }}>
+            <FileIcon size={13}/> Import Excel
+            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
+          </label>
           <button onClick={()=>{ setEditing(null); setForm(emptyForm()); setShowModal(true); }} style={btnPrimarySt}>
             <PlusIcon/> Add Ingredient
           </button>
@@ -547,4 +587,4 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       )}
     </div>
   );
-} 
+}
