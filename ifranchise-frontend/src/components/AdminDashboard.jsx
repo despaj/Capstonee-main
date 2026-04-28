@@ -1485,9 +1485,14 @@ const fetchKpis = useCallback(async () => {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MOBILE SHOP (unchanged)
-// ─────────────────────────────────────────────────────────────────────────────
+// MOBILE SHOP
+const Field = ({ label, error, children }) => (
+    <div>
+      <label style={{ fontSize:"0.8rem", fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
+      {children}
+      {error && <p style={{ color:"#e53935", fontSize:"0.72rem", marginTop:3, fontWeight:600 }}>{error}</p>}
+    </div>
+  );
 
 function MobileShopContent() {
   const msInputStyle = {
@@ -1500,9 +1505,11 @@ function MobileShopContent() {
   const [errors,        setErrors]        = useState({});
   const [loading,       setLoading]       = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [newItem,       setNewItem]       = useState({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+  const [editingItem,   setEditingItem]   = useState(null); // holds the item being edited
+  const [editErrors,    setEditErrors]    = useState({});
+  const [editLoading,   setEditLoading]   = useState(false);
+  const [newItem,       setNewItem]       = useState({ name:"", price:"", unit:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
 
-  
   const excelRef = useRef(null);
 
   useEffect(() => { fetchItems(); }, []);
@@ -1526,38 +1533,70 @@ function MobileShopContent() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateEdit = () => {
+    const errs = {};
+    if (!editingItem.name.trim()) errs.name = "Item name is required";
+    if (!editingItem.price) errs.price = "Price is required";
+    else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
+    if (editingItem.stock === "" || editingItem.stock === undefined) errs.stock = "Stock is required";
+    else if (isNaN(editingItem.stock) || Number(editingItem.stock) < 0) errs.stock = "Stock must be 0 or more";
+    if (!editingItem.image_url.trim()) errs.image_url = "Image URL is required";
+    else { try { new URL(editingItem.image_url); } catch { errs.image_url = "Invalid URL"; } }
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const addItem = async () => {
     if (loading || !validate()) return;
     setLoading(true);
     await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name:newItem.name, price:Number(newItem.price), image_url:newItem.image_url, shop:newItem.shop, brand:newItem.brand, stock:Number(newItem.stock) }),
+      body: JSON.stringify({
+        name: newItem.name, price: Number(newItem.price), unit: newItem.unit,
+        image_url: newItem.image_url, shop: newItem.shop, brand: newItem.brand,
+        stock: Number(newItem.stock),
+      }),
     });
-    setNewItem({ name:"", price:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+    setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
     setErrors({});
     setLoading(false);
     fetchItems();
   };
 
+  const saveEdit = async () => {
+    if (editLoading || !validateEdit()) return;
+    setEditLoading(true);
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editingItem.name, price: Number(editingItem.price), unit: editingItem.unit || "",
+        image_url: editingItem.image_url, shop: editingItem.shop, brand: editingItem.brand,
+        stock: Number(editingItem.stock), is_visible: editingItem.is_visible,
+      }),
+    });
+    setEditingItem(null);
+    setEditErrors({});
+    setEditLoading(false);
+    fetchItems();
+  };
 
   const importExcel = e => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async ev => {
-      const wb         = XLSX.read(ev.target.result, { type: "array" });
+      const wb = XLSX.read(ev.target.result, { type: "array" });
       const rows_to_save = [];
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
           const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
           const price = parseFloat(row.price || row.Price || 0) || 0;
-          if (!name || price <= 0) return; // skip blank / zero-price rows
+          if (!name || price <= 0) return;
           rows_to_save.push({
-            name,
-            price,
-            stock:     parseInt(row.stock     || row.Stock     || 0) || 0,
+            name, price,
+            unit:      String(row.unit      || row.Unit      || "").trim(),
+            stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
             shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
             brand:     String(row.brand     || row.Brand     || "").trim(),
             image_url: String(row.image_url || row["Image URL"] || "").trim(),
@@ -1568,8 +1607,7 @@ function MobileShopContent() {
       for (const item of rows_to_save) {
         try {
           const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(item),
           });
           const d = await res.json();
@@ -1586,18 +1624,77 @@ function MobileShopContent() {
   const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
   const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
 
-  const Field = ({ label, error, children }) => (
-    <div>
-      <label style={{ fontSize:"0.8rem", fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
-      {children}
-      {error && <p style={{ color:"#e53935", fontSize:"0.72rem", marginTop:3, fontWeight:600 }}>{error}</p>}
-    </div>
-  );
-
   return (
     <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
+      {/* ── Edit Modal ──────────────────────────────────────────────────── */}
+      {editingItem && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
+            {/* Header */}
+            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Edit Item</span>
+              <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
+                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+            </div>
+            {/* Body */}
+            <div style={{ padding:"20px 24px" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
+                <Field label="Shop">
+                  <select value={editingItem.shop} onChange={e => setEditingItem({...editingItem, shop:e.target.value})} style={msInputStyle}>
+                    <option value="Coffee Spot">Coffee Spot</option>
+                    <option value="iPharma">iPharma</option>
+                  </select>
+                </Field>
+                <Field label="Item Name" error={editErrors.name}>
+                  <input value={editingItem.name} onChange={e => setEditingItem({...editingItem, name:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
+                </Field>
+                <Field label="Brand (Optional)">
+                  <input value={editingItem.brand || ""} onChange={e => setEditingItem({...editingItem, brand:e.target.value})} style={msInputStyle} placeholder="e.g. Nescafé"/>
+                </Field>
+                <Field label="Price" error={editErrors.price}>
+                  <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+                </Field>
+                <Field label="Unit (Optional)">
+                  <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
+                    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+                </Field>
+                <Field label="Stock" error={editErrors.stock}>
+                  <input type="number" value={editingItem.stock} onChange={e => setEditingItem({...editingItem, stock:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
+                </Field>
+                <Field label="Image URL" error={editErrors.image_url}>
+                  <input value={editingItem.image_url || ""} onChange={e => setEditingItem({...editingItem, image_url:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
+                  {editingItem.image_url && !editErrors.image_url && (
+                    <img src={editingItem.image_url} alt="preview"
+                      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
+                      onError={e => (e.target.style.display="none")}/>
+                  )}
+                </Field>
+              </div>
+              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
+                <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
+                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button onClick={saveEdit} disabled={editLoading}
+                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
+                    background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
+                    color:C.white, fontWeight:800, fontSize:13, cursor: editLoading ? "not-allowed" : "pointer",
+                    opacity: editLoading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
+                  {editLoading ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add New Item ────────────────────────────────────────────────── */}
       <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", marginBottom:24, overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Add New Item</span>
@@ -1621,6 +1718,10 @@ function MobileShopContent() {
               <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
                 style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
             </Field>
+            <Field label="Unit (Optional)">
+              <input value={newItem.unit} onChange={e => setNewItem({...newItem, unit:e.target.value})}
+                style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+            </Field>
             <Field label="Stock" error={errors.stock}>
               <input type="number" value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})}
                 style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
@@ -1636,9 +1737,7 @@ function MobileShopContent() {
             </Field>
           </div>
 
-          {/* ── Action buttons row ─────────────────────────────────────────── */}
           <div style={{ marginTop:"1.25rem", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            {/* Import Excel */}
             <label style={{
               display:"inline-flex", alignItems:"center", gap:6,
               height:36, padding:"0 16px", borderRadius:9,
@@ -1646,7 +1745,6 @@ function MobileShopContent() {
               fontSize:13, fontWeight:700, cursor:"pointer",
               fontFamily:"inherit", whiteSpace:"nowrap",
             }}>
-              {/* File icon inline so no extra import needed */}
               <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
@@ -1655,7 +1753,6 @@ function MobileShopContent() {
               <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
             </label>
 
-            {/* Add Item */}
             <button onClick={addItem} disabled={loading}
               style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:9, border:"none",
                 background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
@@ -1665,13 +1762,13 @@ function MobileShopContent() {
             </button>
           </div>
 
-          {/* ── Excel column hint ──────────────────────────────────────────── */}
           <p style={{ marginTop:10, fontSize:11, color:C.muted, fontStyle:"italic" }}>
-            Excel columns: <strong>name</strong>, <strong>price</strong>, <strong>stock</strong> — <em>shop</em>, <em>brand</em>, <em>image_url</em> optional.
+            Excel columns: <strong>name</strong>, <strong>price</strong>, <strong>stock</strong> — <em>shop</em>, <em>brand</em>, <em>unit</em>, <em>image_url</em> optional.
           </p>
         </div>
       </div>
 
+      {/* ── Shop Items Table ────────────────────────────────────────────── */}
       <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
@@ -1684,7 +1781,7 @@ function MobileShopContent() {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Brand","Price","Stock","Status",""].map((label, i) => (
+                  {["Image","Shop","Item Name","Brand","Price","Unit","Stock","Status",""].map((label, i) => (
                     <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
                       {label}
                     </th>
@@ -1707,6 +1804,7 @@ function MobileShopContent() {
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.brand || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                       <td style={{ padding:"10px 12px", fontWeight:500, color:C.ink }}>{item.stock}</td>
                       <td style={{ padding:"10px 12px" }}>
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
@@ -1715,9 +1813,16 @@ function MobileShopContent() {
                       </td>
                       <td style={{ padding:"10px 12px" }}>
                         <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                          {/* Edit */}
+                          <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
+                            style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
+                            ✏️ Edit
+                          </button>
+                          {/* Hide/Show */}
                           <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
                             {item.is_visible ? "Hide" : "Show"}
                           </button>
+                          {/* Delete */}
                           <button onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
                             style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
                             <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
@@ -1738,9 +1843,8 @@ function MobileShopContent() {
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
-// APPLICATIONS — restyled to match BrandManagement design language
+// APPLICATIONS — 
 // ─────────────────────────────────────────────────────────────────────────────
 function ApplicationsContent({ applications: initialApps }) {
   const [applications, setApplications] = useState(initialApps);
