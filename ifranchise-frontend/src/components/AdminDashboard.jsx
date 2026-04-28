@@ -10,11 +10,11 @@ import {
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
-  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw,
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw, Eye,  Clock, Download
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED DESIGN TOKENS (used by POSContent, MobileShopContent, etc.)
+// SHARED DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
@@ -52,6 +52,83 @@ const smallBtnSt = {
 const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
 const TrashIcon = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+
+// Shared section wrapper used across all modules
+const BmSection = ({ children, style = {} }) => (
+  <div style={{
+    background: C.white,
+    border: `1px solid rgba(0,168,76,0.12)`,
+    borderRadius: 18,
+    boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+    overflow: "hidden",
+    marginBottom: 24,
+    ...style,
+  }}>
+    {children}
+  </div>
+);
+
+const BmSectionHeader = ({ title, subtitle, action }) => (
+  <div style={{
+    background: `linear-gradient(135deg,#2E7D32,#00897b)`,
+    color: C.white,
+    padding: "16px 22px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  }}>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px" }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{subtitle}</div>}
+    </div>
+    {action && <div style={{ display: "flex", gap: 8 }}>{action}</div>}
+  </div>
+);
+
+const BmStatCard = ({ label, value, sub, icon, bg }) => (
+  <div style={{
+    background: C.white,
+    border: `1px solid rgba(0,168,76,0.12)`,
+    borderRadius: 18,
+    padding: "20px 22px",
+    boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+    transition: "transform .2s, box-shadow .2s",
+  }}
+    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,140,60,0.13)"; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+      <div>
+        <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: "#0d2b1e" }}>{value}</div>
+      </div>
+      <div style={{ width: 44, height: 44, borderRadius: 13, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {icon}
+      </div>
+    </div>
+    <span style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65" }}>{sub}</span>
+  </div>
+);
+
+const bmInput = {
+  width: "100%", padding: "9px 12px", borderRadius: 10,
+  border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
+  background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+  boxSizing: "border-box",
+};
+const bmLabel = {
+  display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+  marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
+};
+const bmActionBtn = (variant = "default") => ({
+  display: "inline-flex", alignItems: "center", gap: 5,
+  padding: "7px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", border: "none",
+  ...(variant === "primary"
+    ? { background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", boxShadow: "0 2px 10px rgba(0,180,90,0.28)" }
+    : variant === "danger"
+    ? { background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }
+    : { background: "#f0fdf5", color: "#00695c", border: "1.5px solid #b2dfdb" }),
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN DASHBOARD
@@ -203,64 +280,11 @@ export default function AdminDashboard() {
         .user-avatar { width:45px; height:45px; border-radius:50%; background:linear-gradient(135deg,var(--green-primary),var(--green-light)); display:flex; align-items:center; justify-content:center; font-size:1.3rem; cursor:pointer; transition:transform 0.3s ease; }
         .user-avatar:hover { transform:scale(1.1); }
         .content-area { padding:2rem; }
-        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1.5rem; margin-bottom:2rem; }
-        .stat-card { background:var(--white); padding:1.8rem; border-radius:12px; box-shadow:0 2px 8px var(--shadow); transition:all 0.3s ease; }
-        .stat-card:hover { transform:translateY(-4px); box-shadow:0 6px 16px var(--shadow-strong); }
-        .stat-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-        .stat-icon { width:50px; height:50px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
-        .stat-icon.blue { background:rgba(59,130,246,0.1); color:var(--blue); }
-        .stat-icon.green { background:rgba(16,185,129,0.1); color:var(--success); }
-        .stat-icon.orange { background:rgba(245,158,11,0.1); color:var(--orange); }
-        .stat-icon.red { background:rgba(239,68,68,0.1); color:var(--red); }
-        .stat-value { font-family:'Montserrat',sans-serif; font-size:2rem; font-weight:700; color:var(--text-dark); margin-bottom:0.3rem; }
-        .stat-label { font-size:0.9rem; color:var(--gray-500); }
-        .stat-change { font-size:0.85rem; font-weight:600; margin-top:0.5rem; }
-        .stat-change.positive { color:var(--success); } .stat-change.negative { color:var(--red); }
-        .section { background:var(--white); padding:2rem; border-radius:12px; box-shadow:0 2px 8px var(--shadow); margin-bottom:2rem; }
-        .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid var(--gray-200); }
-        .section-title { font-family:'Montserrat',sans-serif; font-size:1.5rem; font-weight:700; color:var(--green-primary); }
-        .btn { padding:0.7rem 1.5rem; border-radius:8px; border:none; font-weight:600; cursor:pointer; transition:all 0.3s ease; font-family:'Montserrat',sans-serif; font-size:0.9rem; }
-        .btn-primary { background:var(--green-primary); color:var(--white); }
-        .btn-primary:hover { background:var(--green-dark); transform:translateY(-2px); box-shadow:0 4px 12px var(--shadow-strong); }
-        .btn-secondary { background:var(--gray-200); color:var(--gray-700); }
-        .btn-secondary:hover { background:var(--gray-300); }
-        .btn-success { background:var(--success); color:var(--white); }
-        .btn-success:hover { background:#059669; }
-        .btn-danger { background:var(--red); color:var(--white); }
-        .btn-danger:hover { background:#DC2626; }
-        .btn-sm { padding:0.5rem 1rem; font-size:0.85rem; text-align:center; white-space:nowrap; }
-        .table-container { overflow-x:auto; }
-        table { width:100%; border-collapse:collapse; }
-        th,td { text-align:left; padding:1rem; border-bottom:1px solid var(--gray-200); }
-        th { font-family:'Montserrat',sans-serif; font-weight:600; color:var(--gray-700); background:var(--gray-100); font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em; }
-        td { color:var(--gray-600); }
-        tr:hover { background:var(--gray-50); }
-        .status-badge { padding:0.4rem 0.8rem; border-radius:20px; font-size:0.8rem; font-weight:600; display:inline-block; }
-        .status-pending { background:rgba(245,158,11,0.1); color:var(--orange); }
-        .status-approved { background:rgba(16,185,129,0.1); color:var(--success); }
-        .status-rejected { background:rgba(239,68,68,0.1); color:var(--red); }
-        .status-low { background:rgba(239,68,68,0.1); color:var(--red); }
-        .status-ok { background:rgba(16,185,129,0.1); color:var(--success); }
-        .action-buttons { display:flex; gap:0.5rem; }
-        .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:2000; animation:fadeIn 0.3s ease; }
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        .modal { background:var(--white); padding:2.5rem; border-radius:16px; max-width:500px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3); animation:slideUp 0.3s ease; }
-        @keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
-        .modal-header { margin-bottom:2rem; }
-        .modal-title { font-family:'Montserrat',sans-serif; font-size:1.6rem; font-weight:700; color:var(--green-primary); margin-bottom:0.5rem; }
-        .form-group { margin-bottom:1.5rem; }
-        .form-label { display:block; font-weight:600; color:var(--gray-700); margin-bottom:0.5rem; font-size:0.9rem; }
-        .form-input,.form-select { width:100%; padding:0.9rem; border:2px solid var(--gray-300); border-radius:8px; font-family:'Poppins',sans-serif; font-size:1rem; transition:all 0.3s ease; }
-        .form-input:focus,.form-select:focus { outline:none; border-color:var(--green-primary); box-shadow:0 0 0 3px rgba(46,125,50,0.1); }
-        .modal-actions { display:flex; gap:1rem; margin-top:2rem; }
-        .modal-actions .btn { flex:1; }
-        .chart-placeholder { background:var(--gray-100); height:300px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--gray-400); font-weight:600; margin-top:1rem; }
         @media(max-width:768px){
           .sidebar{width:${sidebarCollapsed?'0':'280px'};transform:translateX(${sidebarCollapsed?'-100%':'0'});}
           .main-content{margin-left:0;}
           .top-bar{padding:1rem;}
           .content-area{padding:1rem;}
-          .stats-grid{grid-template-columns:1fr;}
           .user-info{display:none;}
         }
       `}</style>
@@ -339,14 +363,22 @@ export default function AdminDashboard() {
       )}
 
       {showLogoutModal && (
-        <div className="modal-overlay" style={{ zIndex: 3000 }} onClick={() => setShowLogoutModal(false)}>
-          <div className="modal" style={{ maxWidth:'400px', textAlign:'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width:'64px', height:'64px', borderRadius:'50%', background:'rgba(239,68,68,0.1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem', fontSize:'2rem' }}>🚪</div>
-            <h2 className="modal-title" style={{ color:'var(--gray-800)' }}>Log out?</h2>
-            <p style={{ color:'var(--gray-500)', fontSize:'0.9rem', margin:'0.5rem 0 2rem' }}>You'll need to sign in again to access your account.</p>
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowLogoutModal(false)}>Cancel</button>
-              <button className="btn btn-danger" onClick={confirmLogout}>Log out</button>
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000 }}
+          onClick={() => setShowLogoutModal(false)}>
+          <div style={{ background:C.white, borderRadius:20, padding:'32px 36px', maxWidth:400, width:'90%', textAlign:'center', boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ width:64, height:64, borderRadius:'50%', background:'#fee2e2', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2rem' }}>🚪</div>
+            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
+            <p style={{ color:'#5a7a65', fontSize:13, marginBottom:28 }}>You'll need to sign in again to access your account.</p>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setShowLogoutModal(false)}
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={confirmLogout}
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'#dc2626', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
+                Log out
+              </button>
             </div>
           </div>
         </div>
@@ -362,8 +394,9 @@ export default function AdminDashboard() {
   );
 }
 
+
 // ─────────────────────────────────────────────────────────────────────────────
-// BRAND MANAGEMENT
+// BRAND MANAGEMENT  (unchanged logic, original styling retained)
 // ─────────────────────────────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brands, setBrands] = useState(propBrands || []);
@@ -527,10 +560,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
       `}</style>
 
       <div className="bm-root">
-        <div style={{ marginBottom:26 }}>
-          <div style={{ fontSize:11, fontWeight:500, letterSpacing:'0.16em', textTransform:'uppercase', color:'#00897b', marginBottom:4 }}>Brand & Branch Settings</div>
-          <h1 style={{ fontSize:28, fontWeight:700, color:'#0d2b1e', letterSpacing:'-0.7px', margin:0 }}>Brand & Branch Management</h1>
-        </div>
+       
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:28 }}>
           {[
@@ -787,7 +817,7 @@ function BranchFormFields({ form, setForm, brands }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DASHBOARD
+// DASHBOARD (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function DashboardContent() {
   const today   = new Date();
@@ -1145,20 +1175,13 @@ function DashboardContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOBILE SHOP
+// MOBILE SHOP (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function MobileShopContent() {
   const msInputStyle = {
-    width: "100%",
-    padding: "0.6rem 0.75rem",
-    borderRadius: "8px",
-    border: `1px solid ${C.border}`,
-    marginTop: "0.3rem",
-    fontSize: "0.875rem",
-    color: C.ink,
-    background: C.white,
-    outline: "none",
-    boxSizing: "border-box",
+    width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
+    border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
+    color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
   };
 
   const [items,         setItems]         = useState([]);
@@ -1216,9 +1239,9 @@ function MobileShopContent() {
     <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
-      <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 2px 12px rgba(0,0,0,0.04)", marginBottom:24, overflow:"hidden" }}>
-        <div style={{ padding:"14px 20px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:15, fontWeight:900, color:C.green, letterSpacing:"-0.01em" }}>Add New Item</span>
+      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", marginBottom:24, overflow:"hidden" }}>
+        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Add New Item</span>
         </div>
 
         <div style={{ padding:"20px 24px" }}>
@@ -1257,20 +1280,20 @@ function MobileShopContent() {
 
           <div style={{ marginTop:"1.25rem" }}>
             <button onClick={addItem} disabled={loading}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:8, border:"none",
+              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:9, border:"none",
                 background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
                 color: C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1, boxShadow:"0 2px 8px rgba(0,0,0,0.08)" }}>
+                opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
               {loading ? "Adding…" : <><span style={{ fontSize:15 }}>+</span> Add Item</>}
             </button>
           </div>
         </div>
       </div>
 
-      <div style={{ background:C.white, borderRadius:14, border:`1px solid ${C.border}`, boxShadow:"0 2px 12px rgba(0,0,0,0.04)", overflow:"hidden" }}>
-        <div style={{ padding:"14px 20px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:15, fontWeight:900, color:C.green, letterSpacing:"-0.01em" }}>Shop Items</span>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
+      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
+        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
+          <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
         </div>
 
         {items.length === 0 ? (
@@ -1281,7 +1304,7 @@ function MobileShopContent() {
               <thead>
                 <tr>
                   {["Image","Shop","Item Name","Brand","Price","Stock","Status",""].map((label, i) => (
-                    <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...(i === 7 ? { minWidth:150 } : {}) }}>
+                    <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
                       {label}
                     </th>
                   ))}
@@ -1291,8 +1314,8 @@ function MobileShopContent() {
                 {items.map(item => {
                   const isConfirm = confirmDelete === item.id;
                   return (
-                    <tr key={item.id} style={{ borderBottom:`1px solid #f2faf5` }}
-                      onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
+                    <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                       onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                       <td style={{ padding:"10px 12px" }}>
                         <img src={item.image_url} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
@@ -1336,74 +1359,557 @@ function MobileShopContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// APPLICATIONS
+// APPLICATIONS — restyled to match BrandManagement design language
 // ─────────────────────────────────────────────────────────────────────────────
-function ApplicationsContent({ applications, onView, onDelete, onApprove, onCreateAccount }) {
+function ApplicationsContent({ applications: initialApps }) {
+  const [applications, setApplications] = useState(initialApps);
+  const [viewApp,      setViewApp]      = useState(null);
+  const [accountApp,   setAccountApp]   = useState(null);
+
+  const handleApprove = async (id) => {
+    try {
+      await fetch(`/applications/${id}/approve`, { method: "PUT" });
+      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
+    } catch { alert("Failed to approve application."); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this application?")) return;
+    try {
+      await fetch(`/applications/${id}`, { method: "DELETE" });
+      setApplications(prev => prev.filter(a => a.id !== id));
+    } catch { alert("Failed to delete application."); }
+  };
+
+  const StatusBadge = ({ status }) => {
+    const map = {
+      pending:  { bg:'rgba(245,158,11,0.1)',  color:'#d97706' },
+      approved: { bg:'rgba(16,185,129,0.1)',  color:'#059669' },
+      rejected: { bg:'rgba(239,68,68,0.1)',   color:'#dc2626' },
+    };
+    const s = map[status] || map['pending'];
+    return <span style={{ background:s.bg, color:s.color, padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>{status?.toUpperCase()}</span>;
+  };
+
   return (
-    <div className="section" style={{ width:'fit-content', maxWidth:'100%' }}>
-      <div className="section-header">
-        <h2 className="section-title">Franchise Applications</h2>
-        <button className="btn btn-secondary">Export to CSV</button>
-      </div>
-      <div className="table-container">
-        <table style={{ minWidth:'900px' }}>
-          <thead>
-            <tr><th>Applicant Name</th><th>Email</th><th>Phone</th><th>Franchise Interest</th><th>Date Applied</th><th>Status</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
-            {applications.map(app => (
-              <tr key={app.id}>
-                <td><strong>{app.name}</strong></td>
-                <td>{app.email}</td><td>{app.phone}</td><td>{app.franchise}</td><td>{app.date}</td>
-                <td><span className={`status-badge status-${app.status}`}>{app.status.toUpperCase()}</span></td>
-                <td>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'0.3rem', width:'170px' }}>
-                    <div style={{ display:'flex', gap:'0.3rem', width:'100%' }}>
-                      <button className="btn btn-secondary btn-sm" style={{ width:'50%' }} onClick={() => onView(app)}>View</button>
-                      <button className="btn btn-success btn-sm"   style={{ width:'60%' }} onClick={() => onCreateAccount(app)}>+Account</button>
-                    </div>
-                    <div style={{ display:'flex', gap:'0.3rem', width:'100%' }}>
-                      <button className="btn btn-primary btn-sm" style={{ width:'50%' }} onClick={() => onApprove(app.id)}>Approve</button>
-                      <button className="btn btn-danger btn-sm"  style={{ width:'50%' }} onClick={() => onDelete(app.id)}>Delete</button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
+    <>
+      {viewApp && (
+        <div onClick={() => setViewApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+              <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>Application Details</h2>
+              <button onClick={() => setViewApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
+            </div>
+            <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>Viewing details for: <strong style={{ color:'#0d2b1e' }}>{viewApp.name}</strong></p>
+            {[['Full Name',viewApp.name],['Email Address',viewApp.email],['Phone Number',viewApp.phone],['Franchise Interest',viewApp.franchise],['Date Applied',viewApp.date],['Status',viewApp.status?.toUpperCase()]].map(([label, val]) => (
+              <div key={label} style={{ marginBottom:14 }}>
+                <label style={bmLabel}>{label}</label>
+                <div style={{ ...bmInput, background:'#f8fffe', cursor:'default', color:'#0d2b1e', display:'flex', alignItems:'center' }}>{val}</div>
+              </div>
             ))}
-          </tbody>
-        </table>
+            {viewApp.message && (
+              <div style={{ marginBottom:14 }}>
+                <label style={bmLabel}>Message</label>
+                <div style={{ ...bmInput, background:'#f8fffe', minHeight:70, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{viewApp.message}</div>
+              </div>
+            )}
+            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:22 }}>
+              <button onClick={() => setViewApp(null)} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)} />}
+
+      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+
+
+        {/* stat cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+          {[
+            { label:'Total Applications', value:applications.length,                                           icon:<FileCheck size={20} color="#065f46"/>, bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All time' },
+            { label:'Pending Review',     value:applications.filter(a=>a.status==='pending').length,           icon:<AlertTriangle size={20} color="#92400e"/>, bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Awaiting action' },
+            { label:'Approved',           value:applications.filter(a=>a.status==='approved').length,          icon:<Check size={20} color="#065f46"/>, bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Successful' },
+            { label:'Rejected',           value:applications.filter(a=>a.status==='rejected').length,          icon:<X size={20} color="#7f1d1d"/>, bg:'linear-gradient(135deg,#fee2e2,#fca5a5)', sub:'Not approved' },
+          ].map((s, i) => <BmStatCard key={i} {...s} />)}
+        </div>
+
+        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Applications List</span>
+            <button style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              Export CSV
+            </button>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:900 }}>
+              <thead>
+                <tr>
+                  {['Applicant Name','Email','Phone','Franchise Interest','Date Applied','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map(app => (
+                  <tr key={app.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                    onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{app.name}</td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.email}</td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.phone}</td>
+                    <td style={{ padding:'12px 14px', color:'#0d2b1e', fontWeight:600 }}>{app.franchise}</td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.date}</td>
+                    <td style={{ padding:'12px 14px' }}><StatusBadge status={app.status} /></td>
+                    <td style={{ padding:'12px 14px' }}>
+                      <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                        <div style={{ display:'flex', gap:5 }}>
+                          <button onClick={() => setViewApp(app)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 10px' }}>View</button>
+                          <button onClick={() => setAccountApp(app)} style={{ ...smallBtnSt, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', height:28, padding:'0 10px' }}>+ Account</button>
+                        </div>
+                        <div style={{ display:'flex', gap:5 }}>
+                          <button onClick={() => handleApprove(app.id)} disabled={app.status==="approved"}
+                            style={{ ...smallBtnSt, border:'none', background:app.status==="approved"?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:app.status==="approved"?'#9e9e9e':'#fff', height:28, padding:'0 10px', opacity:app.status==="approved"?0.6:1 }}>
+                            Approve
+                          </button>
+                          <button onClick={() => handleDelete(app.id)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 10px' }}>Delete</button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // REPORTS
-// ─────────────────────────────────────────────────────────────────────────────
+
+// ── placeholder report submissions ───────────────────────────────────────────
+const PLACEHOLDER_REPORTS = [
+  { id:"RPT-0011", submittedBy:"Carlo Mendoza",   role:"Manager",    brand:"Coffee Spot", branch:"BGC",         period:"April 27, 2026",  status:"pending",  submittedAt:"2026-04-27T17:05:00", comments:[], fileUrl:"#" },
+  { id:"RPT-0010", submittedBy:"Rosa Reyes",       role:"Franchisee", brand:"iPharma",    branch:"Main Branch", period:"Apr 21–27, 2026", status:"reviewed", submittedAt:"2026-04-27T14:30:00", comments:[], fileUrl:"#" },
+  { id:"RPT-0009", submittedBy:"Lena Villanueva",  role:"Manager",    brand:"iPharma",    branch:"BGC",         period:"March 2026",      status:"approved", submittedAt:"2026-04-26T10:22:00", comments:[], fileUrl:"#" },
+  { id:"RPT-0008", submittedBy:"Juan dela Cruz",   role:"Franchisee", brand:"Coffee Spot",branch:"Alabang",     period:"April 26, 2026",  status:"pending",  submittedAt:"2026-04-26T18:00:00", comments:[], fileUrl:"#" },
+  { id:"RPT-0007", submittedBy:"Maria Santos",     role:"Staff",      brand:"iPharma",    branch:"Alabang",     period:"April 2026",      status:"returned", submittedAt:"2026-04-25T09:15:00", comments:[], remark:"Missing page 3 totals.", fileUrl:"#" },
+  { id:"RPT-0006", submittedBy:"Dante Cruz",       role:"Manager",    brand:"Coffee Spot",branch:"BGC",         period:"March 2026",      status:"approved", submittedAt:"2026-04-24T11:40:00", comments:[], fileUrl:"#" },
+  { id:"RPT-0005", submittedBy:"Ana Reyes",        role:"Franchisee", brand:"iPharma",    branch:"Main Branch", period:"Apr 14–20, 2026", status:"reviewed", submittedAt:"2026-04-22T16:00:00", comments:[], fileUrl:"#" },
+];
+
+const REPORT_STATUS = {
+  pending:  { label:"Pending",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  reviewed: { label:"Reviewed", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
+  approved: { label:"Approved", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  returned: { label:"Returned", bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
+};
+
 function ReportsContent() {
-  return (
-    <div className="section">
-      <div className="section-header">
-        <h2 className="section-title">Sales & Reports</h2>
-        <button className="btn btn-primary">Generate AI Report</button>
+  const [reports,      setReports]      = useState(PLACEHOLDER_REPORTS);
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [search,       setSearch]       = useState("");
+
+  // per-brand branch filters: { [brand]: branch | "all" }
+  const [brandBranchFilter, setBrandBranchFilter] = useState({});
+
+  // modal states
+  const [viewReport,    setViewReport]    = useState(null);
+  const [approveReport, setApproveReport] = useState(null);
+  const [commentReport, setCommentReport] = useState(null);
+  const [returnReport,  setReturnReport]  = useState(null);
+  const [remarkText,    setRemarkText]    = useState("");
+  const [commentText,   setCommentText]   = useState("");
+
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setOpenDropdown(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", {
+    month:"short", day:"numeric", year:"numeric",
+    hour:"numeric", minute:"2-digit", hour12:true,
+  });
+
+  const updateReport = (id, patch) => {
+    setReports(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+    setViewReport(prev    => prev?.id === id ? { ...prev,    ...patch } : prev);
+    setApproveReport(prev => prev?.id === id ? { ...prev,    ...patch } : prev);
+    setCommentReport(prev => prev?.id === id ? { ...prev,    ...patch } : prev);
+  };
+
+  const handleApprove = (id) => { updateReport(id, { status:"approved" }); setApproveReport(null); };
+
+  const handleReturn = (id) => {
+    if (!remarkText.trim()) { alert("Please enter a return reason."); return; }
+    updateReport(id, { status:"returned", remark:remarkText });
+    setReturnReport(null); setRemarkText("");
+  };
+
+  const handleAddComment = (id) => {
+    if (!commentText.trim()) return;
+    const newComment = { text:commentText, author:"Admin", postedAt:new Date().toISOString() };
+    const report = reports.find(r => r.id === id);
+    updateReport(id, { comments:[...(report?.comments||[]), newComment] });
+    setCommentText("");
+  };
+
+  // group all brands
+  const allBrands = [...new Set(reports.map(r => r.brand))];
+
+  const getBrandBranches = (brand) => [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
+
+  const getBrandReports = (brand) => {
+    const branchFilter = brandBranchFilter[brand] || "all";
+    return reports.filter(r => {
+      if (r.brand !== brand) return false;
+      if (branchFilter !== "all" && r.branch !== branchFilter) return false;
+      if (filterStatus !== "all" && r.status !== filterStatus) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!r.id.toLowerCase().includes(q) && !r.submittedBy.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  };
+
+  const counts = {
+    total:    reports.length,
+    pending:  reports.filter(r => r.status === "pending").length,
+    reviewed: reports.filter(r => r.status === "reviewed").length,
+    approved: reports.filter(r => r.status === "approved").length,
+  };
+
+  const StatusBadge = ({ status }) => {
+    const s = REPORT_STATUS[status] || REPORT_STATUS.pending;
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+        {s.label}
+      </span>
+    );
+  };
+
+  const ActionDropdown = ({ report }) => {
+    const isOpen = openDropdown === report.id;
+    const items = [
+      {
+        label:"View", icon:<Search size={13}/>, color:"#00695c", bg:"#e0f2f1", border:"#b2dfdb",
+        onClick:() => { setViewReport(report); setOpenDropdown(null); },
+      },
+      {
+        label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor:"#fff",
+        disabled: report.status === "approved",
+        onClick:() => { setApproveReport(report); setOpenDropdown(null); },
+      },
+      {
+        label:"Comment", icon:<MessageCircle size={13}/>, color:"#1e40af", bg:"#dbeafe", border:"#93c5fd",
+        badge: report.comments?.length || 0,
+        onClick:() => { setCommentReport(report); setOpenDropdown(null); },
+      },
+      {
+        label:"Return", icon:<X size={13}/>, color:"#dc2626", bg:"#fff", border:"#fecaca",
+        disabled: report.status === "returned" || report.status === "approved",
+        onClick:() => { setReturnReport(report); setRemarkText(""); setOpenDropdown(null); },
+      },
+    ];
+    return (
+      <div style={{ position:"relative" }} ref={isOpen ? dropdownRef : null}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpenDropdown(isOpen ? null : report.id); }}
+          style={{ width:32, height:32, borderRadius:9, border:"1.5px solid #b2dfdb", background:isOpen?"linear-gradient(135deg,#2E7D32,#00897b)":"#e0f2f1", color:isOpen?"#fff":"#00695c", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all .15s" }}>
+          <Pencil size={14}/>
+        </button>
+        {isOpen && (
+          <div onClick={e => e.stopPropagation()}
+            style={{ position:"absolute", right:0, top:38, zIndex:999, background:"#fff", borderRadius:14, border:"1px solid rgba(0,168,76,0.18)", boxShadow:"0 8px 32px rgba(0,0,0,0.14)", minWidth:160, overflow:"hidden" }}>
+            <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+            <div style={{ position:"absolute", top:-6, right:10, width:12, height:12, background:"#fff", border:"1px solid rgba(0,168,76,0.18)", transform:"rotate(45deg)", borderBottom:"none", borderRight:"none" }}/>
+            <div style={{ padding:"6px" }}>
+              {items.map((item) => (
+                <button key={item.label} disabled={item.disabled} onClick={item.onClick}
+                  style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 12px", borderRadius:9, border:"none", background:"transparent", cursor:item.disabled?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, color:item.disabled?"#b0b0b0":(item.textColor||item.color), opacity:item.disabled?0.45:1, transition:"background .12s" }}
+                  onMouseEnter={e => { if(!item.disabled) e.currentTarget.style.background="#f0fdf5"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background="transparent"; }}>
+                  <span style={{ width:26, height:26, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:item.disabled?"#f0f0f0":item.bg, border:item.border!=="none"?`1px solid ${item.border}`:"none", color:item.disabled?"#b0b0b0":(item.textColor||item.color) }}>
+                    {item.icon}
+                  </span>
+                  <span style={{ flex:1, textAlign:"left" }}>{item.label}</span>
+                  {item.badge > 0 && (
+                    <span style={{ background:"#00897b", color:"#fff", borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{item.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="chart-placeholder">Sales Analytics Dashboard (Placeholder - Connect to Database)</div>
-      <div style={{ marginTop:'2rem' }}>
-        <h3 style={{ marginBottom:'1rem', color:'var(--green-primary)' }}>Report History</h3>
-        <table>
-          <thead><tr><th>Report Type</th><th>Generated Date</th><th>Period</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
-            <tr><td>Monthly Sales Summary</td><td>2026-01-27 14:30</td><td>January 2026</td><td><span className="status-badge status-approved">COMPLETED</span></td><td><button className="btn btn-primary btn-sm">Download PDF</button></td></tr>
-            <tr><td>Inventory Analysis</td><td>2026-01-25 09:15</td><td>Q1 2026</td><td><span className="status-badge status-approved">COMPLETED</span></td><td><button className="btn btn-primary btn-sm">Download PDF</button></td></tr>
-          </tbody>
-        </table>
+    );
+  };
+
+  const ModalShell = ({ title, subtitle, icon, onClose, children, maxWidth=500 }) => (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
+        <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+            {icon}
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>{title}</div>
+              {subtitle && <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:1 }}>{subtitle}</div>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <X size={14}/>
+          </button>
+        </div>
+        <div style={{ padding:"22px 24px" }}>{children}</div>
       </div>
     </div>
   );
-}
 
+  const ReportMetaGrid = ({ report }) => (
+    <>
+      <div style={{ marginBottom:16, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
+        <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:5 }}>Submitted By</div>
+        <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{report.submittedBy}</div>
+        <div style={{ fontSize:12, color:"#5a7a65", marginTop:1 }}>{report.role}</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+        {[{ label:"Brand", value:report.brand },{ label:"Branch", value:report.branch },
+          { label:"Period", value:report.period },{ label:"Submitted", value:fmtDate(report.submittedAt) }
+        ].map(({ label, value }) => (
+          <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
+            <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
+            <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  return (
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+
+      {/* ── VIEW modal ─────────────────────────────────────────────── */}
+      {viewReport && (
+        <ModalShell title={`Report #${viewReport.id}`} subtitle={viewReport.brand + " · " + viewReport.branch} icon={<FileText size={16} color="#fff"/>} onClose={() => setViewReport(null)}>
+          <ReportMetaGrid report={viewReport}/>
+          <div style={{ marginBottom:16, padding:"14px", background:"#f8fffe", borderRadius:12, border:"1.5px dashed #b2dfdb", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#6ee7b7)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <FileText size={17} color="#00897b"/>
+              </div>
+           
+            </div>
+            <button style={{ ...bmActionBtn, background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", border:"none" }}>
+              <BarChart2 size={11}/> Download
+            </button>
+          </div>
+          {viewReport.remark && (
+            <div style={{ marginBottom:16, padding:"12px 14px", background:"#fff3e0", borderRadius:12, border:"1px solid #ffcc80" }}>
+              <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#e65100", marginBottom:4 }}>Return Remark</div>
+              <div style={{ fontSize:13, color:"#bf360c" }}>{viewReport.remark}</div>
+            </div>
+          )}
+          {viewReport.comments?.length > 0 && (
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Comments ({viewReport.comments.length})</div>
+              {viewReport.comments.slice(-2).map((c, i) => (
+                <div key={i} style={{ padding:"9px 12px", background:"#f0fdf5", borderRadius:10, border:"1px solid #d1eedd", marginBottom:6, fontSize:12, color:"#0d2b1e" }}>
+                  <span style={{ fontWeight:700, color:"#00897b" }}>{c.author}</span>
+                  <span style={{ color:"#5a7a65", marginLeft:8, fontSize:11 }}>{fmtDate(c.postedAt)}</span>
+                  <div style={{ marginTop:4 }}>{c.text}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <StatusBadge status={viewReport.status}/>
+            <button onClick={() => setViewReport(null)} style={{ padding:"8px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Close</button>
+          </div>
+        </ModalShell>
+      )}
+
+      {/* ── APPROVE modal ──────────────────────────────────────────── */}
+      {approveReport && (
+        <ModalShell title={`Approve Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
+          <ReportMetaGrid report={approveReport}/>
+          <div style={{ padding:"14px 16px", borderRadius:12, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", border:"1px solid #a7f3d0", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+            <Check size={18} color="#00897b"/>
+            <div>
+              <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Confirm Approval</div>
+              <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>This will mark the report as approved. This action cannot be undone.</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={() => handleApprove(approveReport.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
+              <Check size={14}/> Approve Report
+            </button>
+          </div>
+        </ModalShell>
+      )}
+
+      {/* ── COMMENT modal ──────────────────────────────────────────── */}
+      {commentReport && (
+        <ModalShell title={`Comments — #${commentReport.id}`} subtitle={commentReport.brand + " · " + commentReport.branch} icon={<MessageCircle size={16} color="#fff"/>} onClose={() => setCommentReport(null)} maxWidth={480}>
+          <div style={{ minHeight:180, maxHeight:260, overflowY:"auto", marginBottom:16, display:"flex", flexDirection:"column", gap:8 }}>
+            {commentReport.comments?.length === 0 ? (
+              <div style={{ padding:"32px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No comments yet.</div>
+            ) : commentReport.comments.map((c, i) => (
+              <div key={i} style={{ padding:"10px 13px", background:c.author==="Admin"?"#f0fdf5":"#f8fffe", borderRadius:11, border:`1px solid ${c.author==="Admin"?"#d1eedd":"#e0f2f1"}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                  <span style={{ fontWeight:800, fontSize:12, color:"#00897b" }}>{c.author}</span>
+                  <span style={{ fontSize:10.5, color:"#5a7a65" }}>{fmtDate(c.postedAt)}</span>
+                </div>
+                <div style={{ fontSize:13, color:"#0d2b1e" }}>{c.text}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+            <textarea value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." rows={2}
+              onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleAddComment(commentReport.id);} }}
+              style={{ ...bmInput, flex:1, resize:"none", lineHeight:1.6 }}/>
+            <button onClick={() => handleAddComment(commentReport.id)} disabled={!commentText.trim()}
+              style={{ display:"flex", alignItems:"center", justifyContent:"center", width:40, height:40, borderRadius:10, border:"none", background:commentText.trim()?"linear-gradient(135deg,#2E7D32,#00897b)":"#e0e0e0", color:commentText.trim()?"#fff":"#9e9e9e", cursor:commentText.trim()?"pointer":"not-allowed", flexShrink:0 }}>
+              <Check size={16}/>
+            </button>
+          </div>
+          <div style={{ fontSize:11, color:"#5a7a65", marginTop:6 }}>Enter to send · Shift+Enter for new line</div>
+        </ModalShell>
+      )}
+
+      {/* ── RETURN modal ───────────────────────────────────────────── */}
+      {returnReport && (
+        <ModalShell title={`Return Report #${returnReport.id}`} subtitle={returnReport.brand + " · " + returnReport.branch} icon={<X size={16} color="#fff"/>} onClose={() => setReturnReport(null)} maxWidth={440}>
+          <ReportMetaGrid report={returnReport}/>
+          <div style={{ marginBottom:18 }}>
+            <label style={bmLabel}>Reason for Return</label>
+            <textarea value={remarkText} onChange={e => setRemarkText(e.target.value)} placeholder="Explain what needs to be corrected or resubmitted..." rows={4}
+              style={{ ...bmInput, marginTop:4, resize:"vertical", lineHeight:1.6 }}/>
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <button onClick={() => setReturnReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={() => handleReturn(returnReport.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 20px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <X size={13}/> Confirm Return
+            </button>
+          </div>
+        </ModalShell>
+      )}
+
+     
+
+
+      {/* ── Stat cards ─────────────────────────────────────────────── */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+        <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
+        <BmStatCard label="Pending"       value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e"/>} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting review"  />
+        <BmStatCard label="Reviewed"      value={counts.reviewed} icon={<Search size={20} color="#1e40af"/>}        bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="Under evaluation" />
+        <BmStatCard label="Approved"      value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
+      </div>
+
+      {/* ── Global filters (search + status) ──────────────────────── */}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", marginBottom:20 }}>
+        <div style={{ position:"relative" }}>
+          <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+          <input type="text" placeholder="Search ID or submitter..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ ...bmInput, paddingLeft:30, width:220, height:34 }}/>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65" }}>Status</span>
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+            style={{ ...bmInput, width:"auto", height:34, paddingRight:12, appearance:"none", cursor:"pointer" }}>
+            <option value="all">All</option>
+            {Object.entries(REPORT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* ── One BmSection per brand ────────────────────────────────── */}
+      {allBrands.map(brand => {
+        const branches      = getBrandBranches(brand);
+        const activeBranch  = brandBranchFilter[brand] || "all";
+        const brandReports  = getBrandReports(brand);
+
+        return (
+          <BmSection key={brand}>
+            <BmSectionHeader
+              title={brand}
+              icon={<Globe size={16} color="#fff"/>}
+              right={
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  {/* per-brand branch filter */}
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</span>
+                    <select
+                      value={activeBranch}
+                      onChange={e => setBrandBranchFilter(prev => ({ ...prev, [brand]: e.target.value }))}
+                      style={{ height:30, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
+                      <option value="all" style={{ color:"#0d2b1e", background:"#fff" }}>All branches</option>
+                      {branches.map(b => <option key={b} value={b} style={{ color:"#0d2b1e", background:"#fff" }}>{b}</option>)}
+                    </select>
+                  </div>
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
+                    {brandReports.length} report{brandReports.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              }
+            />
+
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:780 }}>
+                <thead>
+                  <tr>
+                    {["Report #","Submitted By","Role","Branch","Period","Date Submitted","Status",""].map(h => (
+                      <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #d1eedd", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {brandReports.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+                        No reports match the current filters.
+                      </td>
+                    </tr>
+                  ) : brandReports.map(report => (
+                    <tr key={report.id}
+                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                      onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                      style={{ borderBottom:"1px solid #f0f8f0" }}>
+                      <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>#{report.id}</td>
+                      <td style={{ padding:"11px 14px", fontWeight:700, color:"#0d2b1e" }}>{report.submittedBy}</td>
+                      <td style={{ padding:"11px 14px" }}>
+                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#00695c" }}>{report.role}</span>
+                      </td>
+                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{report.branch}</td>
+                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65", whiteSpace:"nowrap" }}>{report.period}</td>
+                      <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(report.submittedAt)}</td>
+                      <td style={{ padding:"11px 14px" }}><StatusBadge status={report.status}/></td>
+                      <td style={{ padding:"11px 14px" }}><ActionDropdown report={report}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </BmSection>
+        );
+      })}
+    </div>
+  );
+}
 // ─────────────────────────────────────────────────────────────────────────────
-// USERS
+// USERS — restyled
 // ─────────────────────────────────────────────────────────────────────────────
 function UsersContent() {
   const [users,        setUsers]        = useState([]);
@@ -1413,6 +1919,7 @@ function UsersContent() {
   const [formData,     setFormData]     = useState({ name:'', email:'', role:'', branch:'', password:'' });
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors,         setPasswordErrors]         = useState([]);
+  const [showPassword,           setShowPassword]           = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -1464,15 +1971,24 @@ function UsersContent() {
     }
   };
 
-  const openEditModal     = (user) => { setEditingUser(user); setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'' }); setShowEditModal(true); };
-  const resetForm         = () => { setFormData({ name:'', email:'', role:'', branch:'', password:'' }); setShowPasswordValidation(false); setPasswordErrors([]); };
+  const openEditModal     = (user) => { setEditingUser(user); setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'' }); setShowEditModal(true); setShowPassword(false); };
+  const resetForm         = () => { setFormData({ name:'', email:'', role:'', branch:'', password:'' }); setShowPasswordValidation(false); setPasswordErrors([]); setShowPassword(false); };
   const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]:value })); };
 
+  const handleGeneratePassword = () => {
+    const generated = generateTempPassword();
+    setFormData(prev => ({ ...prev, password: generated }));
+    setShowPasswordValidation(true);
+    setPasswordErrors([]);
+  };
+
   const PasswordValidation = ({ errors }) => (
-    <div style={{ marginTop:'8px', fontSize:'12px', padding:'10px', backgroundColor:'#f8f9fa', borderRadius:'4px', border:'1px solid #dee2e6' }}>
-      <div style={{ marginBottom:'6px', fontWeight:'600', color:'#495057' }}>Password must contain:</div>
-      {[['minLength','At least 8 characters'],['uppercase','At least one uppercase letter (A-Z)'],['lowercase','At least one lowercase letter (a-z)'],['number','At least one number (0-9)'],['specialChar','At least one special character (!@#$%^&*...)']].map(([key,text]) => (
-        <div key={key} style={{ color:errors.includes(key)?'#dc3545':'#28a745', marginBottom:'4px' }}>{errors.includes(key)?'✗':'✓'} {text}</div>
+    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
+      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
+      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
+        <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
+          <span>{errors.includes(key)?'✗':'✓'}</span> {text}
+        </div>
       ))}
     </div>
   );
@@ -1484,25 +2000,118 @@ function UsersContent() {
     else   { setShowPasswordValidation(false); setPasswordErrors([]); }
   };
 
-  return (
-    <>
-      <div className="section">
-        <div className="section-header">
-          <h2 className="section-title">User Management</h2>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add New User</button>
+  const UserModal = ({ title, onSubmit, onClose, isEdit }) => (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+          <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
         </div>
-        <div className="table-container">
-          <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Branch</th><th>Status</th><th>Actions</th></tr></thead>
+        <form onSubmit={onSubmit}>
+          {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
+            <div key={name} style={{ marginBottom:14 }}>
+              <label style={bmLabel}>{label}</label>
+              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required
+                style={{ ...bmInput, marginTop:4 }} />
+            </div>
+          ))}
+          <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Role</label>
+            <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+              <option value="">Select Role</option>
+              {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Branch</label>
+            <select name="branch" value={formData.branch} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+              <option value="">Select Branch</option>
+              {['Head Office','Branch A','Branch B','Branch C'].map(b => <option key={b}>{b}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</span>
+              <button type="button" onClick={handleGeneratePassword} style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Generate</button>
+            </label>
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
+              <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
+                placeholder={isEdit?"Leave blank to keep current":""} required={!isEdit}
+                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
+              <button type="button" onClick={() => setShowPassword(v=>!v)}
+                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
+                {showPassword?"Hide":"Show"}
+              </button>
+            </div>
+            {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
+          </div>
+          <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
+            <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
+            <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
+              <Check size={14}/> {isEdit ? 'Save Changes' : 'Add User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+ 
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+        {[
+          { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
+          { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+          { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
+          { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,       bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
+        ].map((s, i) => <BmStatCard key={i} {...s} />)}
+      </div>
+
+      <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+        <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
+          <button onClick={() => setShowAddModal(true)}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            <Plus size={14}/> Add New User
+          </button>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr>
+                {['Name','Email','Role','Branch','Status','Actions'].map(h => (
+                  <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {users.map(user => (
-                <tr key={user.id}>
-                  <td><strong>{user.name}</strong></td><td>{user.email}</td><td>{user.role}</td><td>{user.branch}</td>
-                  <td><span className="status-badge status-approved">{user.status?user.status.toUpperCase():'ACTIVE'}</span></td>
-                  <td><div className="action-buttons">
-                    <button className="btn btn-primary btn-sm" onClick={() => openEditModal(user)}>Edit</button>
-                    <button className="btn btn-danger btn-sm"  onClick={() => handleDeleteUser(user.id)}>Delete</button>
-                  </div></td>
+                <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                  onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                  onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                  <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
+                  <td style={{ padding:'12px 14px' }}>
+                    <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
+                  </td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
+                  <td style={{ padding:'12px 14px' }}>
+                    <span style={{ background:'rgba(16,185,129,0.1)', color:'#059669', padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
+                      {user.status ? user.status.toUpperCase() : 'ACTIVE'}
+                    </span>
+                  </td>
+                  <td style={{ padding:'12px 14px' }}>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
+                        <Pencil size={11}/> Edit
+                      </button>
+                      <button onClick={() => handleDeleteUser(user.id)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+                        <Trash2 size={11}/> Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1510,80 +2119,325 @@ function UsersContent() {
         </div>
       </div>
 
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2 className="modal-title">Add New User</h2></div>
-            <form onSubmit={handleAddUser}>
-              <div className="form-group"><label className="form-label">Full Name</label><input type="text" name="name" className="form-input" value={formData.name} onChange={handleInputChange} required/></div>
-              <div className="form-group"><label className="form-label">Email Address</label><input type="email" name="email" className="form-input" value={formData.email} onChange={handleInputChange} required/></div>
-              <div className="form-group"><label className="form-label">Role</label>
-                <select name="role" className="form-select" value={formData.role} onChange={handleInputChange} required>
-                  <option value="">Select Role</option><option>Administrator</option><option>Franchisor</option><option>Franchisee</option><option>Manager</option><option>Staff</option>
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Branch</label>
-                <select name="branch" className="form-select" value={formData.branch} onChange={handleInputChange} required>
-                  <option value="">Select Branch</option><option>Head Office</option><option>Branch A</option><option>Branch B</option><option>Branch C</option>
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Password</label><input type="password" name="password" className="form-input" value={formData.password} onChange={pwChange} required/>{showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}</div>
-              <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Add User</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2 className="modal-title">Edit User</h2></div>
-            <form onSubmit={handleEditUser}>
-              <div className="form-group"><label className="form-label">Full Name</label><input type="text" name="name" className="form-input" value={formData.name} onChange={handleInputChange} required/></div>
-              <div className="form-group"><label className="form-label">Email Address</label><input type="email" name="email" className="form-input" value={formData.email} onChange={handleInputChange} required/></div>
-              <div className="form-group"><label className="form-label">Role</label>
-                <select name="role" className="form-select" value={formData.role} onChange={handleInputChange} required>
-                  <option>Administrator</option><option>Franchisor</option><option>Franchisee</option><option>Manager</option><option>Staff</option>
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Branch</label>
-                <select name="branch" className="form-select" value={formData.branch} onChange={handleInputChange} required>
-                  <option>Head Office</option><option>Branch A</option><option>Branch B</option><option>Branch C</option>
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">New Password (leave blank to keep current)</label><input type="password" name="password" className="form-input" placeholder="Enter new password or leave blank" value={formData.password} onChange={pwChange}/>{showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}</div>
-              <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => { setShowEditModal(false); setEditingUser(null); }}>Cancel</button><button type="submit" className="btn btn-primary">Save Changes</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
+      {showAddModal  && <UserModal title="Add New User" onSubmit={handleAddUser}  onClose={() => setShowAddModal(false)}  isEdit={false} />}
+      {showEditModal && <UserModal title="Edit User"    onSubmit={handleEditUser} onClose={() => { setShowEditModal(false); setEditingUser(null); }} isEdit={true} />}
+    </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMMUNICATION
+// COMMUNICATION — restyled
 // ─────────────────────────────────────────────────────────────────────────────
 function CommunicationContent() {
   return (
-    <div className="section">
-      <div className="section-header"><h2 className="section-title">Communication Center</h2><button className="btn btn-primary">+ New Message</button></div>
-      <div style={{ display:'grid', gridTemplateColumns:'300px 1fr', gap:'1.5rem', minHeight:'500px' }}>
-        <div style={{ background:'var(--gray-100)', padding:'1.5rem', borderRadius:'12px' }}>
-          <h3 style={{ marginBottom:'1rem', color:'var(--green-primary)' }}>Conversations</h3>
-          <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
-            <div style={{ padding:'1rem', background:'var(--white)', borderRadius:'8px', cursor:'pointer' }}><strong>Branch A Manager</strong><div style={{ fontSize:'0.85rem', color:'var(--gray-500)' }}>Inventory request...</div></div>
-            <div style={{ padding:'1rem', background:'var(--white)', borderRadius:'8px', cursor:'pointer' }}><strong>Franchisee - Sarah</strong><div style={{ fontSize:'0.85rem', color:'var(--gray-500)' }}>Training schedule...</div></div>
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      
+      <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+        <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Messages</span>
+          <button style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            <Plus size={14}/> New Message
+          </button>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', minHeight:480 }}>
+          {/* Sidebar */}
+          <div style={{ borderRight:`1px solid ${C.border}`, background:'#f8fffe' }}>
+            <div style={{ padding:'14px 16px', borderBottom:`1px solid ${C.border}` }}>
+              <div style={{ position:'relative' }}>
+                <Search size={13} color={C.muted} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)' }}/>
+                <input type="text" placeholder="Search conversations…" style={{ ...invInputSt, paddingLeft:30, height:34, fontSize:12 }}/>
+              </div>
+            </div>
+            <div style={{ padding:'8px 0' }}>
+              {[
+                { name:'Branch A Manager', preview:'Inventory request pending...', time:'2m ago', unread:2 },
+                { name:'Franchisee - Sarah', preview:'Training schedule update', time:'1h ago', unread:0 },
+                { name:'HQ Support', preview:'New policy document attached', time:'3h ago', unread:1 },
+              ].map((conv, i) => (
+                <div key={i} style={{ padding:'12px 16px', cursor:'pointer', borderLeft:i===0?`3px solid ${C.green}`:'3px solid transparent', background:i===0?'#e8fdf0':'transparent', transition:'all .12s' }}
+                  onMouseEnter={e => { if(i!==0) e.currentTarget.style.background='#f0fdf5'; }}
+                  onMouseLeave={e => { if(i!==0) e.currentTarget.style.background='transparent'; }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:'#0d2b1e' }}>{conv.name}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      {conv.unread > 0 && <span style={{ background:`linear-gradient(135deg,${C.teal},${C.green})`, color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{conv.unread}</span>}
+                      <span style={{ fontSize:10, color:C.muted }}>{conv.time}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:12, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{conv.preview}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Main */}
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:40, background:'#f0fdf5' }}>
+            <MessageCircle size={48} color="#b2dfdb" style={{ marginBottom:16 }}/>
+            <div style={{ fontWeight:700, fontSize:15, color:'#0d2b1e', marginBottom:6 }}>Message Thread</div>
+            <div style={{ fontSize:13, color:C.muted }}>Select a conversation to view messages</div>
           </div>
         </div>
-        <div style={{ background:'var(--gray-100)', padding:'1.5rem', borderRadius:'12px' }}><div className="chart-placeholder" style={{ height:'100%' }}>Message Thread (Placeholder)</div></div>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFILE
+// MOBILE ORDERS — restyled
+// ─────────────────────────────────────────────────────────────────────────────
+// ── placeholder order data ────────────────────────────────────────────────────
+const PLACEHOLDER_ORDERS = [
+  { id:"ORD-0041", customer:"Maria Santos",    phone:"09171234567", brand:"iPharma",    branch:"Alabang",     items:[{name:"Vitamin C 500mg",qty:2,price:120},{name:"Biogesic",qty:1,price:80},{name:"Strepsils",qty:2,price:75}], total:1240, status:"pending",   createdAt:"2026-04-27T14:14:00" },
+  { id:"ORD-0040", customer:"Juan dela Cruz",  phone:"09281234567", brand:"Coffee Spot",branch:"BGC",         items:[{name:"Espresso (Large)",qty:1,price:350}],                                                                 total:350,  status:"pending",   createdAt:"2026-04-27T13:58:00" },
+  { id:"ORD-0039", customer:"Rosa Reyes",      phone:"09391234567", brand:"iPharma",    branch:"Main Branch", items:[{name:"Ibuprofen",qty:3,price:90},{name:"Cough Syrup",qty:1,price:200},{name:"Antacid",qty:2,price:60}],   total:3800, status:"accepted",  createdAt:"2026-04-27T11:30:00" },
+  { id:"ORD-0038", customer:"Carlo Mendoza",   phone:"09451234567", brand:"Coffee Spot",branch:"Alabang",     items:[{name:"Latte",qty:1,price:280},{name:"Croissant",qty:1,price:400}],                                        total:680,  status:"in_transit",createdAt:"2026-04-26T16:05:00" },
+  { id:"ORD-0037", customer:"Lena Villanueva", phone:"09561234567", brand:"iPharma",    branch:"BGC",         items:[{name:"Metformin",qty:2,price:150},{name:"Losartan",qty:2,price:120}],                                     total:2150, status:"received",  createdAt:"2026-04-26T10:22:00" },
+  { id:"ORD-0036", customer:"Dante Cruz",      phone:"09671234567", brand:"Coffee Spot",branch:"BGC",         items:[{name:"Cold Brew",qty:2,price:320}],                                                                       total:640,  status:"received",  createdAt:"2026-04-25T09:10:00" },
+];
+
+const STATUS_CONFIG = {
+  pending:    { label:"Pending",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  accepted:   { label:"Accepted",   bg:"#e1f5ee", color:"#085041", dot:"#0F6E56" },
+  in_transit: { label:"In Transit", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
+  received:   { label:"Received",   bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  rejected:   { label:"Rejected",   bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
+};
+
+const STATUS_FLOW = {
+  pending:    { nextAction:"Accept",   nextStatus:"accepted",   secondAction:"Reject", secondStatus:"rejected" },
+  accepted:   { nextAction:"Ship",     nextStatus:"in_transit" },
+  in_transit: { nextAction:"Mark Received", nextStatus:"received" },
+};
+
+function MobileOrdersContent() {
+  const [orders,       setOrders]       = useState(PLACEHOLDER_ORDERS);
+  const [filterBrand,  setFilterBrand]  = useState("all");
+  const [filterBranch, setFilterBranch] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [search,       setSearch]       = useState("");
+  const [viewOrder,    setViewOrder]    = useState(null);
+
+  const allBrands   = [...new Set(orders.map(o => o.brand))];
+  const allBranches = [...new Set(orders.map(o => o.branch))];
+
+  const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
+
+  const advanceStatus = (id, nextStatus) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextStatus } : o));
+  };
+
+  const filtered = orders.filter(o => {
+    if (filterBrand  !== "all" && o.brand  !== filterBrand)  return false;
+    if (filterBranch !== "all" && o.branch !== filterBranch) return false;
+    if (filterStatus !== "all" && o.status !== filterStatus) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!o.id.toLowerCase().includes(q) && !o.customer.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const counts = {
+    total:      orders.length,
+    pending:    orders.filter(o => o.status === "pending").length,
+    in_transit: orders.filter(o => o.status === "in_transit").length,
+    received:   orders.filter(o => o.status === "received").length,
+  };
+
+  const StatusBadge = ({ status }) => {
+    const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+        {s.label}
+      </span>
+    );
+  };
+
+  const ActionButtons = ({ order }) => {
+    const flow = STATUS_FLOW[order.status];
+    if (!flow) return <span style={{ fontSize:11, color:"#5a7a65", fontWeight:600 }}>Completed</span>;
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+        <button
+          onClick={() => advanceStatus(order.id, flow.nextStatus)}
+          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff" }}>
+          <Check size={11} /> {flow.nextAction}
+        </button>
+        {flow.secondAction && (
+          <button
+            onClick={() => advanceStatus(order.id, flow.secondStatus)}
+            style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", border:"1px solid #fecaca", background:"#fff", color:"#dc2626" }}>
+            <X size={11} /> {flow.secondAction}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+      {/* View modal */}
+      {viewOrder && (
+        <div onClick={() => setViewOrder(null)}
+          style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:480, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
+            <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <Package size={16} color="#fff" />
+                <div>
+                  <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>Order #{viewOrder.id}</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:1 }}>{fmtDate(viewOrder.createdAt)}</div>
+                </div>
+              </div>
+              <button onClick={() => setViewOrder(null)}
+                style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <X size={14} />
+              </button>
+            </div>
+            <div style={{ padding:"22px 24px" }}>
+              {/* Customer */}
+              <div style={{ marginBottom:18, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
+                <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:6 }}>Customer</div>
+                <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{viewOrder.customer}</div>
+                <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>{viewOrder.phone}</div>
+              </div>
+              {/* Brand / Branch */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+                {[{ label:"Brand", value:viewOrder.brand },{ label:"Branch", value:viewOrder.branch }].map(({ label, value }) => (
+                  <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
+                    <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
+                    <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Items */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Order Items</div>
+                {viewOrder.items.map((item, i) => (
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", borderRadius:8, background: i%2===0?"#f8fffe":"#fff", border:"1px solid #e0f2f1", marginBottom:4 }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{item.name}</div>
+                      <div style={{ fontSize:11, color:"#5a7a65" }}>Qty: {item.qty}</div>
+                    </div>
+                    <div style={{ fontWeight:700, fontSize:13, color:"#00897b" }}>{fmtPeso(item.price * item.qty)}</div>
+                  </div>
+                ))}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
+                  <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Total</div>
+                  <div style={{ fontWeight:800, fontSize:16, color:"#00897b" }}>{fmtPeso(viewOrder.total)}</div>
+                </div>
+              </div>
+              {/* Status & Action */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <StatusBadge status={viewOrder.status} />
+                <div style={{ display:"flex", gap:8 }}>
+                  <ActionButtons order={viewOrder} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stat cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46"/>}        bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
+        <BmStatCard label="Pending"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e"/>}   bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
+        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af"/>}      bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
+        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46"/>}           bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+      </div>
+
+      <BmSection>
+        <BmSectionHeader
+          title="Order List"
+          icon={<Package size={16} color="#fff" />}
+        />
+
+        {/* Filters */}
+        <div style={{ padding:"12px 16px", borderBottom:"1px solid #f0f8f0", display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", background:"#f8fffe" }}>
+          <div style={{ position:"relative" }}>
+            <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }} />
+            <input
+              type="text"
+              placeholder="Search order # or customer..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ ...bmInput, paddingLeft:30, width:220, height:34 }}
+            />
+          </div>
+          {[
+            { label:"Brand",  value:filterBrand,  set:setFilterBrand,  options:allBrands },
+            { label:"Branch", value:filterBranch, set:setFilterBranch, options:allBranches },
+            { label:"Status", value:filterStatus, set:setFilterStatus, options:["pending","accepted","in_transit","received","rejected"], labelMap: k => STATUS_CONFIG[k]?.label || k },
+          ].map(({ label, value, set, options, labelMap }) => (
+            <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65" }}>{label}</span>
+              <select value={value} onChange={e => set(e.target.value)}
+                style={{ ...bmInput, width:"auto", height:34, paddingRight:12, appearance:"none", cursor:"pointer" }}>
+                <option value="all">All</option>
+                {options.map(o => <option key={o} value={o}>{labelMap ? labelMap(o) : o}</option>)}
+              </select>
+            </div>
+          ))}
+          <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>{filtered.length} order{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+
+        {/* Table */}
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:900 }}>
+            <thead>
+              <tr>
+                {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status","Actions"].map(h => (
+                  <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #d1eedd", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={9} style={{ padding:"48px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+                    No orders match the current filters.
+                  </td>
+                </tr>
+              ) : filtered.map(order => (
+                <tr key={order.id}
+                  onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                  onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                  style={{ borderBottom:"1px solid #f0f8f0" }}>
+                  <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>#{order.id}</td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <div style={{ fontWeight:700, color:"#0d2b1e", fontSize:13 }}>{order.customer}</div>
+                    <div style={{ fontSize:11, color:"#5a7a65" }}>{order.phone}</div>
+                  </td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c" }}>{order.brand}</span>
+                  </td>
+                  <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{order.branch}</td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <button
+                      onClick={() => setViewOrder(order)}
+                      style={{ ...bmActionBtn, borderColor:"#b2dfdb", background:"#e0f2f1", color:"#00695c", fontSize:11 }}>
+                      {order.items.length} item{order.items.length !== 1 ? "s" : ""} →
+                    </button>
+                  </td>
+                  <td style={{ padding:"11px 14px", fontWeight:800, color:"#00897b" }}>{fmtPeso(order.total)}</td>
+                  <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(order.createdAt)}</td>
+                  <td style={{ padding:"11px 14px" }}><StatusBadge status={order.status} /></td>
+                  <td style={{ padding:"11px 14px" }}><ActionButtons order={order} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </BmSection>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE — restyled
 // ─────────────────────────────────────────────────────────────────────────────
 function ProfileContent({ user }) {
   const [formData, setFormData] = useState({ name:user.name, email:user.email, personalEmail:'', role:user.role, currentPassword:'', newPassword:'', confirmPassword:'' });
@@ -1672,111 +2526,358 @@ function ProfileContent({ user }) {
   };
 
   const PwValidation = () => (
-    <div style={{ marginTop:'8px', fontSize:'12px', padding:'10px', backgroundColor:'#f8f9fa', borderRadius:'4px', border:'1px solid #dee2e6' }}>
-      <div style={{ marginBottom:'6px', fontWeight:'600', color:'#495057' }}>Password must contain:</div>
-      {[['minLength','At least 8 characters'],['uppercase','At least one uppercase letter (A-Z)'],['lowercase','At least one lowercase letter (a-z)'],['number','At least one number (0-9)'],['specialChar','At least one special character (!@#$%^&*...)']].map(([key,text]) => (
-        <div key={key} style={{ color:passwordErrors.includes(key)?'#dc3545':'#28a745', marginBottom:'4px' }}>{passwordErrors.includes(key)?'✗':'✓'} {text}</div>
+    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
+      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
+      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
+        <div key={key} style={{ color:passwordErrors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
+          <span>{passwordErrors.includes(key)?'✗':'✓'}</span> {text}
+        </div>
       ))}
     </div>
   );
 
+  const FormField = ({ label, name, type='text', placeholder='', disabled=false, hint }) => (
+    <div style={{ marginBottom:16 }}>
+      <label style={bmLabel}>{label}</label>
+      <input type={type} name={name} value={formData[name]} onChange={handleInputChange}
+        placeholder={placeholder} disabled={disabled}
+        style={{ ...bmInput, marginTop:4, background:'#f0fdf5', color:disabled?C.muted:'#0d2b1e', cursor:disabled?'not-allowed':'text' }}/>
+      {hint && <p style={{ fontSize:11, color:C.muted, marginTop:4 }}>{hint}</p>}
+    </div>
+  );
+
+  // Derive initials (up to 2 chars) for avatar
+  const initials = user.name
+    ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
   return (
-    <>
-      <div className="section">
-        <div className="section-header"><h2 className="section-title">Edit Profile</h2></div>
-        <form onSubmit={handleSubmit} style={{ maxWidth:'600px' }}>
-          <div className="form-group"><label className="form-label">Full Name</label><input type="text" name="name" className="form-input" value={formData.name} onChange={handleInputChange} required/></div>
-          <div className="form-group"><label className="form-label">Work Email Address</label><input type="email" name="email" className="form-input" value={formData.email} onChange={handleInputChange} required/></div>
-          <div className="form-group"><label className="form-label">Personal Email Address (Optional)</label><input type="email" name="personalEmail" className="form-input" placeholder="your.personal@email.com" value={formData.personalEmail} onChange={handleInputChange}/><p style={{ fontSize:'0.85rem', color:'var(--gray-500)', marginTop:'0.5rem' }}>OTP for password changes will be sent here</p></div>
-          <div className="form-group"><label className="form-label">Role</label><input type="text" name="role" className="form-input" value={formData.role} disabled style={{ background:'var(--gray-200)', cursor:'not-allowed' }}/></div>
-          <div style={{ marginTop:'2rem', paddingTop:'2rem', borderTop:'2px solid var(--gray-200)' }}>
-            <h3 style={{ marginBottom:'0.5rem', color:'var(--green-primary)' }}>Change Password</h3>
-            <p style={{ fontSize:'0.9rem', color:'var(--gray-500)', marginBottom:'1.5rem' }}>🔐 An OTP will be sent to your email for verification</p>
-            <div className="form-group"><label className="form-label">Current Password</label><input type="password" name="currentPassword" className="form-input" placeholder="Enter current password" value={formData.currentPassword} onChange={handleInputChange}/></div>
-            <div className="form-group"><label className="form-label">New Password</label><input type="password" name="newPassword" className="form-input" placeholder="Enter new password (min. 8 characters)" value={formData.newPassword} onChange={handleInputChange}/>{showPasswordValidation && <PwValidation/>}</div>
-            <div className="form-group"><label className="form-label">Confirm New Password</label><input type="password" name="confirmPassword" className="form-input" placeholder="Confirm new password" value={formData.confirmPassword} onChange={handleInputChange}/></div>
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+
+      {/* ── Account Overview Card ── */}
+      <div style={{
+        background: C.white,
+        border: '1px solid rgba(0,168,76,0.12)',
+        borderRadius: 18,
+        boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+        overflow: 'hidden',
+        marginBottom: 24,
+      }}>
+        <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Account Overview</span>
+        </div>
+        <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 22 }}>
+
+          {/* Avatar */}
+          <div style={{
+            width: 68, height: 68, borderRadius: '50%',
+            background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, fontWeight: 800, color: '#00695c',
+            flexShrink: 0, letterSpacing: 1,
+            border: '2.5px solid #a7f3d0',
+          }}>
+            {initials}
           </div>
-          <div className="modal-actions" style={{ marginTop:'2rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={handleCancel}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save Changes</button>
+
+          {/* Name + email + role */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 20, color: '#0d2b1e', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user.name}
+            </div>
+            <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5a7a65" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/>
+              </svg>
+              {user.email}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{
+                background: 'rgba(0,137,123,0.1)', color: '#00695c',
+                padding: '3px 12px', borderRadius: 20,
+                fontSize: 11, fontWeight: 700,
+              }}>
+                {user.role}
+              </span>
+              {user.branch && (
+                <span style={{
+                  background: '#f0fdf5', color: '#0d2b1e',
+                  padding: '3px 12px', borderRadius: 20,
+                  fontSize: 11, fontWeight: 700,
+                  border: '1.5px solid #b2dfdb',
+                }}>
+                  {user.branch}
+                </span>
+              )}
+            </div>
           </div>
-        </form>
+
+          {/* Right: stat pills */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, textAlign: 'right' }}>
+            <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0fdf5', border: '1.5px solid #b2dfdb' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 2 }}>Account Status</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#059669', display: 'inline-block' }}/>
+                <span style={{ fontWeight: 800, fontSize: 13, color: '#059669' }}>Active</span>
+              </div>
+            </div>
+            {user.branch && (
+              <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0fdf5', border: '1.5px solid #b2dfdb' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 2 }}>Branch</div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{user.branch}</div>
+              </div>
+            )}
+          </div>
+
+        </div>
       </div>
 
+      {/* ── Two-column: Personal Info + Change Password ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, alignItems:'start' }}>
+
+        {/* Profile info card */}
+        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px' }}>
+            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Personal Information</span>
+          </div>
+          <form onSubmit={handleSubmit} style={{ padding:'22px 24px' }}>
+            <FormField label="Full Name" name="name" />
+            <FormField label="Work Email Address" name="email" type="email" />
+            <FormField label="Personal Email (Optional)" name="personalEmail" type="email" placeholder="your.personal@email.com"
+              hint="OTP for password changes will be sent here" />
+            <FormField label="Role" name="role" disabled />
+            <div style={{ display:'flex', gap:10, marginTop:8 }}>
+              <button type="button" onClick={handleCancel}
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancel
+              </button>
+              <button type="submit"
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Password card */}
+        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px' }}>
+            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Change Password</span>
+          </div>
+          <form onSubmit={handleSubmit} style={{ padding:'22px 24px' }}>
+            <div style={{ background:'#f0fdf5', borderRadius:12, padding:'12px 16px', marginBottom:20, border:`1.5px solid ${C.border}`, fontSize:12, color:C.muted, display:'flex', alignItems:'center', gap:8 }}>
+              🔐 An OTP will be sent to your email for verification
+            </div>
+            <FormField label="Current Password" name="currentPassword" type="password" placeholder="Enter current password" />
+            <div style={{ marginBottom:16 }}>
+              <label style={bmLabel}>New Password</label>
+              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange}
+                placeholder="Enter new password" style={{ ...bmInput, marginTop:4 }}/>
+              {showPasswordValidation && <PwValidation/>}
+            </div>
+            <FormField label="Confirm New Password" name="confirmPassword" type="password" placeholder="Confirm new password" />
+            <button type="submit"
+              style={{ width:'100%', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+              Update Password
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* ── OTP Modal ── */}
       {showOtpModal && (
-        <div className="modal-overlay">
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:'450px' }}>
-            <div className="modal-header">
-              <h2 className="modal-title">🔐 Verify OTP</h2>
-              <p style={{ color:'var(--gray-500)', fontSize:'0.9rem', marginTop:'0.5rem' }}>We've sent a verification code to:</p>
-              <p style={{ color:'var(--green-primary)', fontWeight:'600', fontSize:'0.95rem' }}>{formData.personalEmail||formData.email}</p>
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:440, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}>
+            <div style={{ textAlign:'center', marginBottom:22 }}>
+              <div style={{ width:56, height:56, borderRadius:'50%', background:'linear-gradient(135deg,#d1fae5,#6ee7b7)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:'1.6rem' }}>🔑</div>
+              <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', marginBottom:6 }}>Verify OTP</h2>
+              <p style={{ fontSize:13, color:C.muted }}>Code sent to <strong style={{ color:'#0d2b1e' }}>{formData.personalEmail||formData.email}</strong></p>
             </div>
-            <div style={{ padding:'1rem 0' }}>
-              <div className="form-group">
-                <label className="form-label">Enter 6-Digit OTP</label>
-                <input type="text" className="form-input" placeholder="000000" value={otp}
-                  onChange={e => { const v=e.target.value.replace(/\D/g,'').slice(0,6); setOtp(v); setOtpError(''); }}
-                  maxLength={6} style={{ fontSize:'1.5rem', textAlign:'center', letterSpacing:'0.5rem', fontFamily:'monospace' }} autoFocus/>
-                <p style={{ fontSize:'0.85rem', color:'var(--gray-500)', marginTop:'0.5rem', textAlign:'center' }}>Please check your email for the verification code</p>
-              </div>
-              {otpSent  && !otpError && <div style={{ textAlign:'center', marginTop:'1rem', padding:'0.75rem', background:'rgba(46,125,50,0.1)', borderRadius:'8px', color:'var(--green-primary)' }}>✅ OTP sent successfully</div>}
-              {otpError && <div style={{ textAlign:'center', marginTop:'1rem', padding:'0.75rem', background:'rgba(239,68,68,0.1)', borderRadius:'8px', color:'var(--red)' }}>❌ {otpError}</div>}
-              <div style={{ textAlign:'center', marginTop:'1.5rem' }}>
-                <button type="button" style={{ background:'none', border:'none', color:'var(--green-primary)', cursor:'pointer', textDecoration:'underline', fontSize:'0.9rem' }} onClick={sendOtp}>Resend OTP</button>
-              </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={bmLabel}>Enter 6-Digit OTP</label>
+              <input type="text" placeholder="000000" value={otp}
+                onChange={e => { const v=e.target.value.replace(/\D/g,'').slice(0,6); setOtp(v); setOtpError(''); }}
+                maxLength={6} autoFocus
+                style={{ ...bmInput, marginTop:6, fontSize:24, textAlign:'center', letterSpacing:'0.6rem', fontFamily:'monospace' }}/>
             </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={verifyOtpAndChangePassword} disabled={otp.length!==6} style={{ opacity:otp.length!==6?0.5:1 }}>Verify & Change Password</button>
+            {otpSent && !otpError && (
+              <div style={{ padding:'10px 14px', background:'rgba(16,185,129,0.08)', borderRadius:10, border:'1px solid #a7f3d0', color:'#059669', fontSize:12, fontWeight:700, textAlign:'center', marginBottom:12 }}>
+                ✅ OTP sent successfully
+              </div>
+            )}
+            {otpError && (
+              <div style={{ padding:'10px 14px', background:'#fee2e2', borderRadius:10, border:'1.5px solid #fecaca', color:'#dc2626', fontSize:12, fontWeight:700, textAlign:'center', marginBottom:12 }}>
+                ❌ {otpError}
+              </div>
+            )}
+            <div style={{ textAlign:'center', marginBottom:20 }}>
+              <button type="button" onClick={sendOtp} style={{ background:'none', border:'none', color:'#00897b', cursor:'pointer', fontSize:12, fontWeight:700, textDecoration:'underline' }}>Resend OTP</button>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button type="button" onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={verifyOtpAndChangePassword} disabled={otp.length!==6}
+                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:otp.length!==6?'not-allowed':'pointer', fontFamily:'inherit', opacity:otp.length!==6?0.5:1 }}>
+                Verify & Change
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Success Modal ── */}
       {showSuccessModal && (
-        <div className="modal-overlay">
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:'450px', textAlign:'center' }}>
-            <div style={{ padding:'2rem 0' }}>
-              <div style={{ width:'80px', height:'80px', background:'rgba(46,125,50,0.1)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 1.5rem', fontSize:'3rem' }}>✅</div>
-              <h2 style={{ color:'var(--green-primary)', fontSize:'1.8rem', marginBottom:'1rem', fontFamily:'Montserrat,sans-serif', fontWeight:'700' }}>Password Changed Successfully!</h2>
-              <p style={{ color:'var(--gray-600)', fontSize:'1rem', marginBottom:'1.5rem', lineHeight:'1.6' }}>Your password has been updated.<br/>You will be redirected to the login page shortly.</p>
-              <p style={{ color:'var(--gray-500)', fontSize:'0.9rem', fontStyle:'italic' }}>Redirecting in 3 seconds...</p>
-              <div style={{ marginTop:'2rem', padding:'1rem', background:'var(--gray-100)', borderRadius:'8px', fontSize:'0.85rem', color:'var(--gray-600)' }}>💡 Please use your new password on the next login</div>
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+          <div style={{ background:C.white, borderRadius:20, padding:'40px 36px', maxWidth:420, width:'100%', textAlign:'center', boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}>
+            <div style={{ width:72, height:72, borderRadius:'50%', background:'linear-gradient(135deg,#d1fae5,#6ee7b7)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2.2rem' }}>✅</div>
+            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:22, fontWeight:800, color:'#0d2b1e', marginBottom:10 }}>Password Changed!</h2>
+            <p style={{ color:C.muted, fontSize:13, lineHeight:1.7, marginBottom:20 }}>Your password has been updated successfully.<br/>You'll be redirected to login shortly.</p>
+            <div style={{ background:'#f0fdf5', borderRadius:12, padding:'10px 16px', fontSize:12, color:C.muted, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              💡 Use your new password on the next login
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CREATE ACCOUNT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
+function generateTempPassword(length = 10) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
 function CreateAccountModal({ applicant, onClose }) {
-  const handleSubmit = (e) => { e.preventDefault(); alert(`Account created for ${applicant.name}!`); onClose(); };
+  const [tempPassword, setTempPassword] = useState(generateTempPassword());
+  const [showPassword, setShowPassword] = useState(false);
+  const [sending,      setSending]      = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+
+  const validatePasswordStrength = (password) => {
+    const errors = [];
+    if (password.length < 8) errors.push("minLength");
+    if (!/[A-Z]/.test(password)) errors.push("uppercase");
+    if (!/[a-z]/.test(password)) errors.push("lowercase");
+    if (!/\d/.test(password))    errors.push("number");
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
+    return errors;
+  };
+
+  const PasswordValidation = ({ errors }) => (
+    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
+      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
+      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
+        <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
+          <span>{errors.includes(key)?'✗':'✓'}</span> {text}
+        </div>
+      ))}
+    </div>
+  );
+
+  const handlePasswordChange = (e) => {
+    const v = e.target.value;
+    setTempPassword(v);
+    setPasswordErrors(validatePasswordStrength(v));
+  };
+
+  const handleRegenerate = () => {
+    const generated = generateTempPassword();
+    setTempPassword(generated);
+    setPasswordErrors([]);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const name   = form.fullName.value;
+    const email  = form.email.value;
+    const phone  = form.phone.value;
+    const role   = form.role.value;
+    const branch = form.branch.value;
+
+    setSending(true);
+    try {
+      const userRes = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password: tempPassword, role, branch }),
+      });
+      if (!userRes.ok) {
+        const err = await userRes.json();
+        alert(err.error || "Failed to create account.");
+        setSending(false);
+        return;
+      }
+      await fetch(`${process.env.REACT_APP_API_URL}/api/send-credentials`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email, name, password: tempPassword }),
+      });
+      alert(`Account created and credentials sent to ${email}!`);
+      onClose();
+    } catch (err) {
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><h2 className="modal-title">Create Account</h2><p style={{ color:'var(--gray-500)', fontSize:'0.9rem' }}>Creating account for: <strong>{applicant?.name}</strong></p></div>
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>Create Account</h2>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
+        </div>
+        <p style={{ fontSize:13, color:C.muted, marginBottom:22 }}>Creating account for: <strong style={{ color:'#0d2b1e' }}>{applicant?.name}</strong></p>
         <form onSubmit={handleSubmit}>
-          <div className="form-group"><label className="form-label">Full Name</label><input type="text" className="form-input" defaultValue={applicant?.name} required/></div>
-          <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-input" defaultValue={applicant?.email} required/></div>
-          <div className="form-group"><label className="form-label">Phone Number</label><input type="tel" className="form-input" defaultValue={applicant?.phone} required/></div>
-          <div className="form-group"><label className="form-label">Role</label>
-            <select className="form-select" required>
-              <option value="">Select Role</option><option value="franchisor">Franchisor</option><option value="franchisee">Franchisee</option><option value="manager">Manager</option><option value="staff">Staff</option>
+          {[['Full Name','fullName','text',applicant?.name],['Email Address','email','email',applicant?.email],['Phone Number','phone','tel',applicant?.phone]].map(([label,name,type,def]) => (
+            <div key={name} style={{ marginBottom:14 }}>
+              <label style={bmLabel}>{label}</label>
+              <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop:4 }}/>
+            </div>
+          ))}
+          <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Role</label>
+            <select name="role" required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+              <option value="">Select Role</option>
+              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="form-label">Assigned Branch</label>
-            <select className="form-select" required>
-              <option value="">Select Branch</option><option value="branch-a">Branch A</option><option value="branch-b">Branch B</option><option value="branch-c">Branch C</option>
+          <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Assigned Branch</label>
+            <select name="branch" required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+              <option value="">Select Branch</option>
+              {['branch-a','branch-b','branch-c'].map(b => <option key={b} value={b}>{b.replace('-',' ').replace(/\b\w/g,l=>l.toUpperCase())}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="form-label">Temporary Password</label><input type="password" className="form-input" placeholder="Enter temporary password" required/></div>
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-success">Create Account</button>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>Temporary Password</span>
+              <button type="button" onClick={handleRegenerate}
+                style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Regenerate</button>
+            </label>
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
+              <input type={showPassword?"text":"password"} value={tempPassword} onChange={handlePasswordChange} required
+                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }}/>
+              <button type="button" onClick={() => setShowPassword(v=>!v)}
+                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
+                {showPassword?"Hide":"Show"}
+              </button>
+            </div>
+            <PasswordValidation errors={passwordErrors}/>
+            <p style={{ fontSize:11, color:C.muted, marginTop:6 }}>This password will be emailed to the applicant automatically.</p>
+          </div>
+          <div style={{ display:'flex', gap:10, marginTop:22 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
+            <button type="submit" disabled={sending}
+              style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:sending?'not-allowed':'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)', opacity:sending?0.7:1 }}>
+              {sending ? "Creating..." : "✉ Create & Send"}
+            </button>
           </div>
         </form>
       </div>
@@ -1785,21 +2886,7 @@ function CreateAccountModal({ applicant, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOBILE ORDERS
-// ─────────────────────────────────────────────────────────────────────────────
-function MobileOrdersContent() {
-  return (
-    <div className="section">
-      <div className="section-header">
-        <h2 className="section-title">View Mobile Orders</h2>
-      </div>
-      <div className="chart-placeholder">Mobile Orders — Coming Soon</div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POS
+// POS (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 function POSContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
@@ -1838,9 +2925,8 @@ function POSContent({ user, brands: propBrands = [] }) {
 
   const fetchProducts = useCallback(async () => {
     try {
-      // ✅ After
       const branchQ = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-      const [menuRes, shopRes] = await Promise.all([
+      const [menuRes] = await Promise.all([
         fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`)
       ]);
       const menuData = await menuRes.json();
@@ -1863,15 +2949,14 @@ function POSContent({ user, brands: propBrands = [] }) {
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { setTxPage(0); }, [txSearch, txDateFrom, txDateTo]);
 
-
-const allProducts = useMemo(() => {
-  if (!activeBranch) return []; // show nothing until branch is selected
-  const menu = menuItems
-    .filter(m => m.branch === activeBranch)
-    .map(m => ({ ...m, source: "menu", displayName: m.name }));
-  const q = searchProduct.toLowerCase();
-  return menu.filter(p => !q || p.displayName.toLowerCase().includes(q) || (p.category||"").toLowerCase().includes(q));
-}, [menuItems, activeBranch, searchProduct]);
+  const allProducts = useMemo(() => {
+    if (!activeBranch) return [];
+    const menu = menuItems
+      .filter(m => m.branch === activeBranch)
+      .map(m => ({ ...m, source: "menu", displayName: m.name }));
+    const q = searchProduct.toLowerCase();
+    return menu.filter(p => !q || p.displayName.toLowerCase().includes(q) || (p.category||"").toLowerCase().includes(q));
+  }, [menuItems, activeBranch, searchProduct]);
 
   const addToCart = (product) => {
     setCart(prev => {
@@ -1977,7 +3062,6 @@ const allProducts = useMemo(() => {
         @media print { body > * { display: none !important; } .pos-receipt-print { display: block !important; } }
       `}</style>
 
-      {/* KPI cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
         {[
           { label:"Today's Revenue",     value:fmtPHP(todayRevenue), sub:"All transactions today",   accent:C.green },
@@ -1993,7 +3077,6 @@ const allProducts = useMemo(() => {
         ))}
       </div>
 
-      {/* Tab switcher */}
       <div style={{ display:"flex", gap:4, background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:5, marginBottom:18, width:"fit-content", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
         {[{id:"cashier",label:"Cashier"},{id:"history",label:"Transaction History"}].map(tab=>(
           <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
@@ -2009,14 +3092,11 @@ const allProducts = useMemo(() => {
         ))}
       </div>
 
-      {/* ── CASHIER TAB ── */}
       {activeTab === "cashier" && (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 380px", gap:18, alignItems:"start" }}>
-          {/* LEFT — product browser */}
           <div>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          
                 {isAdmin && (
                   <select value={activeBranch} onChange={e=>setActiveBranch(e.target.value)} style={{ ...invInputSt, width:180 }}>
                     <option value="">Select Branch…</option>
@@ -2031,18 +3111,15 @@ const allProducts = useMemo(() => {
             </div>
 
             {allProducts.length === 0 ? (
-              // ✅ After
-<div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:"48px 0", textAlign:"center", color:C.muted }}>
-  <div style={{ fontSize:"2rem", marginBottom:10 }}>🏪</div>
-  <div style={{ fontWeight:700, fontSize:14 }}>
-    {!activeBranch ? "Select a branch to view products" : "No products found for this branch"}
-  </div>
-  <div style={{ fontSize:12, marginTop:4 }}>
-    {!activeBranch
-      ? "Choose a branch from the dropdown above to load its menu."
-      : "Add items via Menu Inventory and assign them to this branch."}
-  </div>
-</div>
+              <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:"48px 0", textAlign:"center", color:C.muted }}>
+                <div style={{ fontSize:"2rem", marginBottom:10 }}>🏪</div>
+                <div style={{ fontWeight:700, fontSize:14 }}>
+                  {!activeBranch ? "Select a branch to view products" : "No products found for this branch"}
+                </div>
+                <div style={{ fontSize:12, marginTop:4 }}>
+                  {!activeBranch ? "Choose a branch from the dropdown above to load its menu." : "Add items via Menu Inventory and assign them to this branch."}
+                </div>
+              </div>
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:12 }}>
                 {allProducts.map(product => {
@@ -2074,7 +3151,6 @@ const allProducts = useMemo(() => {
             )}
           </div>
 
-          {/* RIGHT — cart + checkout */}
           <div style={{ position:"sticky", top:80 }}>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:18, boxShadow:"0 2px 18px rgba(0,140,60,0.09)", overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
@@ -2121,7 +3197,6 @@ const allProducts = useMemo(() => {
                     ))}
                   </div>
                 </div>
-
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
                   <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em" }}>VAT (12%)</label>
                   <div onClick={()=>setVatEnabled(v=>!v)}
@@ -2129,7 +3204,6 @@ const allProducts = useMemo(() => {
                     <div style={{ position:"absolute", top:3, left:vatEnabled?23:3, width:18, height:18, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
                   </div>
                 </div>
-
                 <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:5 }}>
                     <span>Subtotal</span><span style={{ fontWeight:700 }}>{fmtPHP(subtotal)}</span>
@@ -2148,7 +3222,6 @@ const allProducts = useMemo(() => {
                     <span>Total</span><span style={{ color:C.green }}>{fmtPHP(totalAmt)}</span>
                   </div>
                 </div>
-
                 <div style={{ marginBottom:10 }}>
                   <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Payment Method</div>
                   <div style={{ display:"flex", gap:6 }}>
@@ -2162,7 +3235,6 @@ const allProducts = useMemo(() => {
                     ))}
                   </div>
                 </div>
-
                 {paymentMethod === "Cash" && (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Cash Received</div>
@@ -2175,12 +3247,10 @@ const allProducts = useMemo(() => {
                     )}
                   </div>
                 )}
-
                 <div style={{ marginBottom:12 }}>
                   <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder="Order note (optional)…" rows={2}
                     style={{ ...invInputSt, height:"auto", padding:"8px 11px", resize:"none", lineHeight:1.5 }}/>
                 </div>
-
                 <button onClick={processSale} disabled={processing||cart.length===0}
                   style={{ width:"100%", height:46, border:"none", borderRadius:12, fontSize:15, fontWeight:900, cursor:cart.length===0||processing?"not-allowed":"pointer", fontFamily:"inherit",
                     background:cart.length===0?"#e0e0e0":`linear-gradient(135deg,${C.teal},${C.green})`,
@@ -2194,7 +3264,6 @@ const allProducts = useMemo(() => {
         </div>
       )}
 
-      {/* ── HISTORY TAB ── */}
       {activeTab === "history" && (
         <>
           <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
@@ -2228,14 +3297,14 @@ const allProducts = useMemo(() => {
                     <thead>
                       <tr>
                         {["#","Date","Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].map(h=>(
-                          <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f0fdf5", whiteSpace:"nowrap" }}>{h}</th>
+                          <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {txPageItems.map(tx=>(
-                        <tr key={tx.id} style={{ borderBottom:`1px solid #f2faf5` }}
-                          onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                        <tr key={tx.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#f6fef8"}
                           onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                           <td style={{ padding:"10px 12px", fontWeight:700, color:C.muted, fontSize:12 }}>#{tx.id}</td>
                           <td style={{ padding:"10px 12px", color:C.muted, fontSize:12, whiteSpace:"nowrap" }}>
@@ -2277,7 +3346,6 @@ const allProducts = useMemo(() => {
         </>
       )}
 
-      {/* Receipt Modal */}
       {showReceiptModal && lastReceipt && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000 }}
           onClick={e=>{ if(e.target===e.currentTarget) setShowReceiptModal(false); }}>
@@ -2333,7 +3401,7 @@ const allProducts = useMemo(() => {
             </div>
             <div style={{ display:"flex", gap:8, marginTop:20 }}>
               <button onClick={printReceipt} style={{ ...btnSt, flex:1, justifyContent:"center" }}>🖨️ Print</button>
-              <button onClick={()=>setShowReceiptModal(false)} style={{ ...btnPrimarySt, flex:1, justifyContent:"center" }}>✅ Done</button>
+              <button onClick={()=>setShowReceiptModal(false)} style={{ ...btnPrimarySt, flex:1, justifyContent:"center" }}>Done</button>
             </div>
           </div>
         </div>
@@ -2342,92 +3410,429 @@ const allProducts = useMemo(() => {
   );
 }
 
+
+// ActionDropdown — pencil button + scrollable dropdown
 // ─────────────────────────────────────────────────────────────────────────────
-// VIEW APPLICATION MODAL
+function ActionDropdown({ application, onView, onApprove, onPending, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    const close = (e) => {
+      if (!ref.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const close = () => setOpen(false);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      {/* ── Primary edit button ── */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "5px 11px",
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: "inherit",
+          borderRadius: 8,
+          border: "1.5px solid #b2dfdb",
+          background: "#f0fdf5",
+          color: "#00695c",
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = "#e0f2f1")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "#f0fdf5")}
+      >
+        <Pencil size={13} />
+        Edit
+        <ChevronDown
+          size={11}
+          style={{
+            transition: "transform 0.2s",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        />
+      </button>
+
+      {/* ── Scrollable dropdown ── */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 5px)",
+            left: 0,
+            minWidth: 180,
+            maxHeight: 220,
+            overflowY: "auto",
+            background: C.white,
+            border: "0.5px solid #b2dfdb",
+            borderRadius: 12,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            zIndex: 1000,
+          }}
+        >
+          <DropItem
+            icon={<Eye size={14} />}
+            label="View application"
+            onClick={() => { onView(application); close(); }}
+          />
+          <DropItem
+            icon={<Check size={14} />}
+            label="Approve"
+            onClick={() => { onApprove(application); close(); }}
+          />
+          <DropItem
+            icon={<Clock size={14} />}
+            label="Mark as pending"
+            onClick={() => { onPending(application); close(); }}
+          />
+          <DropItem
+            icon={<Download size={14} />}
+            label="Download / Print"
+            onClick={() => { window.print(); close(); }}
+          />
+          <div style={{ height: "0.5px", background: "#b2dfdb", margin: "4px 0" }} />
+          <DropItem
+            icon={<Trash2 size={14} />}
+            label="Delete"
+            onClick={() => { onDelete(application); close(); }}
+            danger
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Single dropdown item ─────────────────────────────────────────────────────
+function DropItem({ icon, label, onClick, danger }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        padding: "9px 14px",
+        fontSize: 13,
+        fontFamily: "inherit",
+        fontWeight: 600,
+        color: danger ? "#a32d2d" : "#0d2b1e",
+        background: hover
+          ? danger
+            ? "rgba(163,45,45,0.07)"
+            : "rgba(0,137,123,0.07)"
+          : "transparent",
+        border: "none",
+        width: "100%",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "background 0.12s",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ViewApplicationModal
 // ─────────────────────────────────────────────────────────────────────────────
 function ViewApplicationModal({ application, onClose }) {
   if (!application) return null;
-  const isIPharma = application.franchise === 'iPharma Mart';
+  const isIPharma = application.franchise === "iPharma Mart";
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:'700px', maxHeight:'90vh', overflowY:'auto' }}>
-        <div className="modal-header">
-          <h2 className="modal-title">📋 Franchise Application Details</h2>
-          <p style={{ color:'var(--gray-500)', fontSize:'0.9rem', marginTop:'0.5rem' }}>
-            Application ID: #{application.id} | Status:{' '}
-            <span className={`status-badge status-${application.status}`} style={{ marginLeft:'0.5rem' }}>{application.status.toUpperCase()}</span>
-          </p>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(13,43,30,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white,
+          borderRadius: 20,
+          padding: "28px 32px",
+          width: "100%",
+          maxWidth: 700,
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: "Montserrat,sans-serif",
+              fontSize: 18,
+              fontWeight: 800,
+              color: "#0d2b1e",
+              margin: 0,
+            }}
+          >
+            📋 Franchise Application Details
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: "1px solid #b2dfdb",
+              background: "#e0f2f1",
+              cursor: "pointer",
+              color: "#00695c",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={15} />
+          </button>
         </div>
-        <div style={{ padding:'1rem 0' }}>
+
+        {/* Sub-header */}
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 22 }}>
+          Application ID: <strong>#{application.id}</strong> · Status:{" "}
+          <span
+            style={{
+              background:
+                application.status === "approved"
+                  ? "rgba(16,185,129,0.1)"
+                  : "rgba(245,158,11,0.1)",
+              color:
+                application.status === "approved" ? "#059669" : "#d97706",
+              padding: "2px 10px",
+              borderRadius: 20,
+              fontSize: 11,
+              fontWeight: 700,
+            }}
+          >
+            {application.status?.toUpperCase()}
+          </span>
+        </p>
+
+        {/* Sections */}
+        <div style={{ padding: "1rem 0" }}>
           <AppSection title="Basic Information">
             <AppGrid2>
-              <AppField label="Date Applied"   value={application.date}/>
-              <AppField label="Payment Mode"   value={application.paymentMode}/>
-              <div style={{ gridColumn:'1/-1' }}><AppField label="Chosen Concept" value={application.franchise} highlight/></div>
+              <AppField label="Date Applied"  value={application.date} />
+              <AppField label="Payment Mode"  value={application.paymentMode} />
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Chosen Concept" value={application.franchise} highlight />
+              </div>
             </AppGrid2>
           </AppSection>
+
           <AppSection title="Applicant Information">
             <AppGrid2>
-              <div style={{ gridColumn:'1/-1' }}><AppField label="Full Name" value={application.name} large/></div>
-              <AppField label="Date of Birth"   value={application.dob}/>
-              <AppField label="Civil Status"    value={application.civilStatus}/>
-              {!isIPharma && <><AppField label="Gender" value={application.gender}/><AppField label="Nationality" value={application.nationality}/></>}
-              <AppField label="No. of Dependents" value={application.dependents||'N/A'}/>
-              <AppField label="Mobile Number"     value={application.phone}/>
-              {isIPharma && application.telephone && <AppField label="Telephone" value={application.telephone}/>}
-              <div style={{ gridColumn:'1/-1' }}><AppField label="Email Address"    value={application.email}/></div>
-              <div style={{ gridColumn:'1/-1' }}><AppField label="Present Address"  value={application.address}/></div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Full Name" value={application.name} large />
+              </div>
+              <AppField label="Date of Birth"      value={application.dob} />
+              <AppField label="Civil Status"       value={application.civilStatus} />
+              {!isIPharma && (
+                <>
+                  <AppField label="Gender"      value={application.gender} />
+                  <AppField label="Nationality" value={application.nationality} />
+                </>
+              )}
+              <AppField label="No. of Dependents" value={application.dependents || "N/A"} />
+              <AppField label="Mobile Number"     value={application.phone} />
+              {isIPharma && application.telephone && (
+                <AppField label="Telephone" value={application.telephone} />
+              )}
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Email Address"   value={application.email} />
+              </div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Present Address" value={application.address} />
+              </div>
             </AppGrid2>
           </AppSection>
-          {isIPharma && application.education && <AppSection title="Education"><AppField label="Educational Background" value={application.education}/></AppSection>}
+
+          {isIPharma && application.education && (
+            <AppSection title="Education">
+              <AppField label="Educational Background" value={application.education} />
+            </AppSection>
+          )}
+
           {application.spouseName && (
             <AppSection title="Spouse Information">
               <AppGrid2>
-                <AppField label="Spouse Name"       value={application.spouseName}/>
-                <AppField label="Spouse Occupation" value={application.spouseOccupation}/>
-                {isIPharma && application.spouseDob && <AppField label="Spouse Date of Birth" value={application.spouseDob}/>}
+                <AppField label="Spouse Name"       value={application.spouseName} />
+                <AppField label="Spouse Occupation" value={application.spouseOccupation} />
+                {isIPharma && application.spouseDob && (
+                  <AppField label="Spouse Date of Birth" value={application.spouseDob} />
+                )}
               </AppGrid2>
             </AppSection>
           )}
+
           {!isIPharma && (
             <AppSection title="Employment Information">
               <AppGrid2>
-                <AppField label="Employment Type"        value={application.employmentType}/>
-                <AppField label="Years with Employer"    value={`${application.yearsEmployer} years`}/>
-                <AppField label="Monthly Income"         value={`₱${parseInt(application.income).toLocaleString()}`} highlight/>
-                <AppField label="Position"               value={application.position}/>
-                <div style={{ gridColumn:'1/-1' }}><AppField label="Employer / Business Name" value={application.employerName}/></div>
-                <div style={{ gridColumn:'1/-1' }}><AppField label="Business Address"         value={application.businessAddress}/></div>
-                <div style={{ gridColumn:'1/-1' }}><AppField label="Nature of Business"       value={application.businessNature}/></div>
+                <AppField label="Employment Type"     value={application.employmentType} />
+                <AppField label="Years with Employer" value={`${application.yearsEmployer} years`} />
+                <AppField
+                  label="Monthly Income"
+                  value={`₱${parseInt(application.income).toLocaleString()}`}
+                  highlight
+                />
+                <AppField label="Position" value={application.position} />
+                <div style={{ gridColumn: "1/-1" }}>
+                  <AppField label="Employer / Business Name" value={application.employerName} />
+                </div>
+                <div style={{ gridColumn: "1/-1" }}>
+                  <AppField label="Business Address" value={application.businessAddress} />
+                </div>
+                <div style={{ gridColumn: "1/-1" }}>
+                  <AppField label="Nature of Business" value={application.businessNature} />
+                </div>
               </AppGrid2>
             </AppSection>
           )}
         </div>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
-          <button type="button" className="btn btn-primary"   onClick={() => window.print()}>🖨️ Print Application</button>
+
+        {/* Footer */}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            justifyContent: "flex-end",
+            marginTop: 22,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: "9px 22px",
+              borderRadius: 10,
+              border: "1.5px solid #b2dfdb",
+              background: "#f0fdf5",
+              color: "#5a7a65",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Close
+          </button>
+          <button
+            onClick={() => window.print()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "9px 24px",
+              borderRadius: 10,
+              border: "none",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            🖨️ Print Application
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
 function AppSection({ title, children }) {
   return (
-    <div style={{ marginBottom:'2rem' }}>
-      <h3 style={{ color:'var(--green-primary)', fontSize:'1.2rem', marginBottom:'1rem', paddingBottom:'0.5rem', borderBottom:'2px solid var(--green-accent)' }}>{title}</h3>
+    <div style={{ marginBottom: "2rem" }}>
+      <h3
+        style={{
+          fontFamily: "Montserrat,sans-serif",
+          fontWeight: 800,
+          fontSize: 13,
+          color: "#00897b",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          marginBottom: 12,
+          paddingBottom: 8,
+          borderBottom: `2px solid ${C.border}`,
+        }}
+      >
+        {title}
+      </h3>
       {children}
     </div>
   );
 }
+
 function AppGrid2({ children }) {
-  return <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>{children}</div>;
-}
-function AppField({ label, value, highlight, large }) {
   return (
-    <div>
-      <p style={{ fontSize:'0.85rem', color:'var(--gray-500)', marginBottom:'0.3rem' }}>{label}</p>
-      <p style={{ fontWeight:'600', fontSize:large?'1.1rem':'1rem', color:highlight?'var(--green-primary)':'inherit' }}>{value}</p>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      {children}
     </div>
   );
 }
+
+function AppField({ label, value, highlight, large }) {
+  return (
+    <div>
+      <p
+        style={{
+          fontSize: 11,
+          fontWeight: 800,
+          color: "#5a7a65",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          fontWeight: highlight || large ? 800 : 600,
+          fontSize: large ? 15 : 13,
+          color: highlight ? "#00897b" : "#0d2b1e",
+        }}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+// ─── Exports ──────────────────────────────────────────────────────────────────
+export { ActionDropdown, ViewApplicationModal, AppSection, AppGrid2, AppField };

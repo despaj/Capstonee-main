@@ -258,13 +258,20 @@ const handleBlur = (e) => {
   };
  
   try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/application`, {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(applicationData),
     });
+
+    if (!response.ok) {
+  const text = await response.text(); // Read as text first
+  console.error('Server response:', text);
+  alert(`Server error: ${response.status}`);
+  return;
+}
 
     const data = await response.json();
 

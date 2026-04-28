@@ -207,7 +207,7 @@ require("dotenv").config();
         [userId, deviceId, expires]
       );
 
-      console.log(`🔒 Device ${deviceId} trusted for user ${userId} for 30 days`);
+      console.log(` Device ${deviceId} trusted for user ${userId} for 30 days`);
       res.json({ success: true, user: user.rows[0] });
     } catch (err) {
       console.error("OTP verification error:", err);
@@ -234,10 +234,40 @@ require("dotenv").config();
     }
   });
 
+   //email creating acc
+app.post("/api/send-credentials", async (req, res) => {
+  console.log("send-credentials body:", req.body);
+  const { to, name, password } = req.body;
+  console.log("to:", to, "name:", name, "password:", password);
+  try {
+    const result = await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: "despajanelle@gmail.com",
+      subject: "Your Account Credentials",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">Welcome, ${name}!</h2>
+          <p>Your account has been created. Here are your login credentials:</p>
+          <div style="background: #E8F5E9; padding: 15px; margin: 15px 0;">
+            <p><strong>Email:</strong> ${to}</p>
+            <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
+          </div>
+          <p style="color: #e74c3c;">Please log in and change your password immediately.</p>
+        </div>
+      `,
+    });
+    console.log("Resend result:", result); // ← shows success or error from Resend
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Resend error:", err); // ← shows exact Resend error
+    res.status(500).json({ error: "Failed to send credentials email" });
+  }
+});
+
   app.get("/users", async (req, res) => {
     try {
       const result = await pool.query(
-        "SELECT id, name, email, role, branch FROM users ORDER BY id"
+        "SELECT id, name, email, role, branch, age, address, contact_number FROM users ORDER BY id"
       );
       res.json(result.rows);
     } catch (err) {
@@ -246,31 +276,33 @@ require("dotenv").config();
   });
 
   app.post("/users", async (req, res) => {
-    try {
-      const { name, email, role, branch, password } = req.body;
-      const result = await pool.query(
-        "INSERT INTO users (name, email, password, role, branch) VALUES ($1,$2,$3,$4,$5) RETURNING *",
-        [name, email, password, role, branch]
-      );
-      res.json({ success: true, user: result.rows[0] });
-    } catch (err) {
-      if (err.code === "23505")
-        return res.status(400).json({ error: "Email already exists" });
-      res.status(500).json({ error: "Failed to add user" });
-    }
-  });
+  try {
+    const { name, email, role, branch, password } = req.body;
+
+    const result = await pool.query(
+      "INSERT INTO users (name, email, password, role, branch) VALUES ($1,$2,$3,$4,$5) RETURNING *",
+      [name, email, password, role, branch]
+    );
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("POST /users error:", err);
+    if (err.code === "23505")
+      return res.status(400).json({ error: "Email already exists" });
+    res.status(500).json({ error: "Failed to add user" });
+  }
+});
 
   app.put("/users/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, email, role, branch, password } = req.body;
+      const { name, email, role, branch, password, age, address, contact_number } = req.body;
       let query, params;
       if (password) {
-        query = `UPDATE users SET name=$1,email=$2,role=$3,branch=$4,password=$5 WHERE id=$6 RETURNING *`;
-        params = [name, email, role, branch, password, id];
+        query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, password=$5, age=$6, address=$7, contact_number=$8 WHERE id=$9 RETURNING *`;
+        params = [name, email, role, branch, password, age || null, address || null, contact_number || null, id];
       } else {
-        query = `UPDATE users SET name=$1,email=$2,role=$3,branch=$4 WHERE id=$5 RETURNING *`;
-        params = [name, email, role, branch, id];
+        query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, age=$5, address=$6, contact_number=$7 WHERE id=$8 RETURNING *`;
+        params = [name, email, role, branch, age || null, address || null, contact_number || null, id];
       }
       const result = await pool.query(query, params);
       res.json({ success: true, user: result.rows[0] });
@@ -803,7 +835,6 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
       }
     });
 
- // ✅ Replace GET /inventory
 app.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -1268,7 +1299,6 @@ app.post("/announcements", async (req, res) => {
   try {
     const { title, content, userId } = req.body;
 
-    // 🔥 GET REAL ROLE FROM DB (ONLY SOURCE OF TRUTH)
     const userResult = await pool.query(
       "SELECT role FROM users WHERE id=$1",
       [userId]
@@ -1300,28 +1330,35 @@ app.post("/announcements", async (req, res) => {
 });
 
 app.put("/announcements/:id", async (req, res) => {
-  const { title, content, userId } = req.body;
+  try {
+    const { title, content, userId } = req.body;
 
-  const userResult = await pool.query(
-    "SELECT role FROM users WHERE id=$1",
-    [userId]
-  );
+    const userResult = await pool.query(
+      "SELECT role FROM users WHERE id=$1",
+      [userId]
+    );
 
-  if (userResult.rows.length === 0)
-    return res.status(404).json({ error: "User not found" });
+    if (userResult.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
 
-  if (userResult.rows[0].role !== "Administrator")
-    return res.status(403).json({ error: "Unauthorized" });
+    if (userResult.rows[0].role.toLowerCase() !== "administrator")
+      return res.status(403).json({ error: "Unauthorized" });
 
-  const result = await pool.query(
-    "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
-    [title, content, req.params.id]
-  );
+    const result = await pool.query(
+      "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
+      [title, content, req.params.id]
+    );
 
-  res.json(result.rows[0]);
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ error: "Failed to update announcement" });
+  }
 });
 
 app.delete("/announcements/:id", async (req, res) => {
+  try {
   const { userId } = req.body;
 
   const userResult = await pool.query(
@@ -1338,9 +1375,13 @@ app.delete("/announcements/:id", async (req, res) => {
   await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
 
   res.json({ success: true });
+  } catch (err) {
+      console.error("Update error:", err);
+      res.status(500).json({ error: "Failed to delete announcement" });
+    }
 });
-//shop order
 
+//shop order
 app.post("/orders", async (req, res) => {
   try {
     const { user_id, address, total_amount } = req.body;
@@ -1405,15 +1446,13 @@ app.put("/orders/:id", async (req, res) => {
 app.get("/api/users/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, branch FROM users WHERE id=$1",
+      "SELECT id, name, email, role, branch, age, address, contact_number FROM users WHERE id=$1",
       [req.params.id]
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
 
     const row = result.rows[0];
-
-    // Profile.js expects firstName, lastName etc — map name to firstName
     const nameParts = (row.name || "").split(" ");
     res.json({
       id:            row.id,
@@ -1423,9 +1462,9 @@ app.get("/api/users/:id", async (req, res) => {
       email:         row.email,
       role:          row.role,
       branch:        row.branch,
-      contactNumber: "",
-      address:       "",
-      age:           "",
+      contactNumber: row.contact_number || "",
+      address:       row.address || "",
+      age:           row.age || "",
     });
   } catch (err) {
     console.error("GET /api/users/:id error:", err);
@@ -1465,11 +1504,11 @@ app.put("/api/users/:id", async (req, res) => {
 
     let query, params;
     if (newPassword) {
-      query = `UPDATE users SET name=$1, email=$2, password=$3 WHERE id=$4 RETURNING *`;
-      params = [fullName, email, newPassword, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, password=$3, age=$4, address=$5, contact_number=$6 WHERE id=$7 RETURNING *`;
+      params = [fullName, email, newPassword, age || null, address || null, contactNumber || null, req.params.id];
     } else {
-      query = `UPDATE users SET name=$1, email=$2 WHERE id=$3 RETURNING *`;
-      params = [fullName, email, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5 WHERE id=$6 RETURNING *`;
+      params = [fullName, email, age || null, address || null, contactNumber || null, req.params.id];
     }
 
     const result = await pool.query(query, params);
@@ -1487,9 +1526,9 @@ app.put("/api/users/:id", async (req, res) => {
         email:         row.email,
         role:          row.role,
         branch:        row.branch,
-        contactNumber: "",
-        address:       "",
-        age:           "",
+        contactNumber: row.contact_number || "",
+        address:       row.address || "",
+        age:           row.age || "",
       }
     });
   } catch (err) {
@@ -1535,7 +1574,6 @@ app.post("/announcements", async (req, res) => {
   try {
     const { title, content, userId } = req.body;
 
-    // 🔥 GET REAL ROLE FROM DB (ONLY SOURCE OF TRUTH)
     const userResult = await pool.query(
       "SELECT role FROM users WHERE id=$1",
       [userId]
@@ -1608,7 +1646,6 @@ app.delete("/announcements/:id", async (req, res) => {
 });
 
 // ─── TRANSACTIONS ───────────────────────────────────────────────────────────
-
 app.get("/transactions", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -1708,4 +1745,5 @@ app.post("/transactions", async (req, res) => {
   } finally {
     client.release();
   }
+
 });
