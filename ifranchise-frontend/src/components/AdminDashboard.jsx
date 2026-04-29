@@ -408,7 +408,7 @@ export default function AdminDashboard() {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BRAND MANAGEMENT  (unchanged logic, original styling retained)
+// BRAND MANAGEMENT 
 // ─────────────────────────────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brands, setBrands] = useState(propBrands || []);
@@ -2667,17 +2667,21 @@ function CommunicationContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOBILE ORDERS — restyled
-// ─────────────────────────────────────────────────────────────────────────────
-// ── placeholder order data ────────────────────────────────────────────────────
-const PLACEHOLDER_ORDERS = [
-  { id:"ORD-0041", customer:"Maria Santos",    phone:"09171234567", brand:"iPharma",    branch:"Alabang",     items:[{name:"Vitamin C 500mg",qty:2,price:120},{name:"Biogesic",qty:1,price:80},{name:"Strepsils",qty:2,price:75}], total:1240, status:"pending",   createdAt:"2026-04-27T14:14:00" },
-  { id:"ORD-0040", customer:"Juan dela Cruz",  phone:"09281234567", brand:"Coffee Spot",branch:"BGC",         items:[{name:"Espresso (Large)",qty:1,price:350}],                                                                 total:350,  status:"pending",   createdAt:"2026-04-27T13:58:00" },
-  { id:"ORD-0039", customer:"Rosa Reyes",      phone:"09391234567", brand:"iPharma",    branch:"Main Branch", items:[{name:"Ibuprofen",qty:3,price:90},{name:"Cough Syrup",qty:1,price:200},{name:"Antacid",qty:2,price:60}],   total:3800, status:"accepted",  createdAt:"2026-04-27T11:30:00" },
-  { id:"ORD-0038", customer:"Carlo Mendoza",   phone:"09451234567", brand:"Coffee Spot",branch:"Alabang",     items:[{name:"Latte",qty:1,price:280},{name:"Croissant",qty:1,price:400}],                                        total:680,  status:"in_transit",createdAt:"2026-04-26T16:05:00" },
-  { id:"ORD-0037", customer:"Lena Villanueva", phone:"09561234567", brand:"iPharma",    branch:"BGC",         items:[{name:"Metformin",qty:2,price:150},{name:"Losartan",qty:2,price:120}],                                     total:2150, status:"received",  createdAt:"2026-04-26T10:22:00" },
-  { id:"ORD-0036", customer:"Dante Cruz",      phone:"09671234567", brand:"Coffee Spot",branch:"BGC",         items:[{name:"Cold Brew",qty:2,price:320}],                                                                       total:640,  status:"received",  createdAt:"2026-04-25T09:10:00" },
-];
+// MOBILE ORDERS
+// ── Status maps ───────────────────────────────────────────────────────────────
+const DB_TO_UI_STATUS = {
+  pending:   "pending",
+  shipping:  "in_transit",
+  received:  "received",
+  cancelled: "rejected",
+};
+const UI_TO_DB_STATUS = {
+  pending:    "pending",
+  accepted:   "pending",
+  in_transit: "shipping",
+  received:   "received",
+  rejected:   "cancelled",
+};
 
 const STATUS_CONFIG = {
   pending:    { label:"Pending",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
@@ -2688,28 +2692,81 @@ const STATUS_CONFIG = {
 };
 
 const STATUS_FLOW = {
-  pending:    { nextAction:"Accept",   nextStatus:"accepted",   secondAction:"Reject", secondStatus:"rejected" },
-  accepted:   { nextAction:"Ship",     nextStatus:"in_transit" },
+  pending:    { nextAction:"Accept",        nextStatus:"accepted",   secondAction:"Reject", secondStatus:"rejected" },
+  accepted:   { nextAction:"Ship",          nextStatus:"in_transit" },
   in_transit: { nextAction:"Mark Received", nextStatus:"received" },
 };
 
+function normalizeOrder(o) {
+  return {
+    id:        `ORD-${String(o.id).padStart(4, "0")}`,
+    _dbId:     o.id,
+    customer:  o.user_name ?? `User #${o.user_id}`,
+    phone:     o.phone  ?? "—",
+    brand:     o.brand  ?? "—",
+    branch:    o.branch ?? "—",
+    items:     Array.isArray(o.items) ? o.items : [],
+    total:     o.total_amount,
+    status:    DB_TO_UI_STATUS[o.status] ?? "pending",
+    createdAt: o.created_at,
+  };
+}
+
 function MobileOrdersContent() {
-  const [orders,       setOrders]       = useState(PLACEHOLDER_ORDERS);
+  const [orders,       setOrders]       = useState([]);
+  const [loadingData,  setLoadingData]  = useState(true);
+  const [error,        setError]        = useState(null);
   const [filterBrand,  setFilterBrand]  = useState("all");
   const [filterBranch, setFilterBranch] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [search,       setSearch]       = useState("");
   const [viewOrder,    setViewOrder]    = useState(null);
 
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const fetchOrders = async () => {
+    setLoadingData(true);
+    setError(null);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load orders");
+      const data = await res.json();
+      setOrders(data.map(normalizeOrder));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  useEffect(() => {fetchOrders(); }, []);
+
+  const advanceStatus = async (id, nextUiStatus) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
+
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
+    if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
+
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: dbStatus }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+    } catch (err) {
+      fetchOrders();
+      alert(`Could not update order: ${err.message}`);
+    }
+  };
+
   const allBrands   = [...new Set(orders.map(o => o.brand))];
   const allBranches = [...new Set(orders.map(o => o.branch))];
 
   const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
   const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
-
-  const advanceStatus = (id, nextStatus) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextStatus } : o));
-  };
 
   const filtered = orders.filter(o => {
     if (filterBrand  !== "all" && o.brand  !== filterBrand)  return false;
@@ -2760,14 +2817,33 @@ function MobileOrdersContent() {
     );
   };
 
+  if (loadingData) return (
+    <div style={{ padding:60, textAlign:"center", color:"#5a7a65", fontFamily:"'Montserrat',sans-serif" }}>
+      Loading orders…
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ color:"#dc2626", marginBottom:12 }}>{error}</div>
+      <button onClick={fetchOrders}
+        style={{ padding:"8px 20px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, cursor:"pointer" }}>
+        Retry
+      </button>
+    </div>
+  );
+
   return (
     <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
-      {/* View modal */}
+
+      {/* ── View Order Modal ── */}
       {viewOrder && (
         <div onClick={() => setViewOrder(null)}
           style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:480, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
+
+            {/* Modal header */}
             <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div style={{ display:"flex", alignItems:"center", gap:9 }}>
                 <Package size={16} color="#fff" />
@@ -2781,6 +2857,7 @@ function MobileOrdersContent() {
                 <X size={14} />
               </button>
             </div>
+
             <div style={{ padding:"22px 24px" }}>
               {/* Customer */}
               <div style={{ marginBottom:18, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
@@ -2788,20 +2865,24 @@ function MobileOrdersContent() {
                 <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{viewOrder.customer}</div>
                 <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>{viewOrder.phone}</div>
               </div>
+
               {/* Brand / Branch */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
-                {[{ label:"Brand", value:viewOrder.brand },{ label:"Branch", value:viewOrder.branch }].map(({ label, value }) => (
+                {[{ label:"Brand", value:viewOrder.brand }, { label:"Branch", value:viewOrder.branch }].map(({ label, value }) => (
                   <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
                     <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
                     <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
                   </div>
                 ))}
               </div>
+
               {/* Items */}
               <div style={{ marginBottom:18 }}>
                 <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Order Items</div>
-                {viewOrder.items.map((item, i) => (
-                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", borderRadius:8, background: i%2===0?"#f8fffe":"#fff", border:"1px solid #e0f2f1", marginBottom:4 }}>
+                {viewOrder.items.length === 0 ? (
+                  <div style={{ fontSize:12, color:"#5a7a65", fontStyle:"italic", padding:"10px 12px" }}>No item details available.</div>
+                ) : viewOrder.items.map((item, i) => (
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:"1px solid #e0f2f1", marginBottom:4 }}>
                     <div>
                       <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{item.name}</div>
                       <div style={{ fontSize:11, color:"#5a7a65" }}>Qty: {item.qty}</div>
@@ -2814,31 +2895,40 @@ function MobileOrdersContent() {
                   <div style={{ fontWeight:800, fontSize:16, color:"#00897b" }}>{fmtPeso(viewOrder.total)}</div>
                 </div>
               </div>
-              {/* Status & Action */}
+
+              {/* Status & Actions */}
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <StatusBadge status={viewOrder.status} />
-                <div style={{ display:"flex", gap:8 }}>
-                  <ActionButtons order={viewOrder} />
-                </div>
+                <ActionButtons order={viewOrder} />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
-        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46"/>}        bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
-        <BmStatCard label="Pending"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e"/>}   bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
-        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af"/>}      bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
-        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46"/>}           bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+      {/* ── Page header ── */}
+      <div style={{ marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:500, letterSpacing:"0.16em", textTransform:"uppercase", color:"#00897b", marginBottom:4 }}>Orders</div>
+          <h1 style={{ fontSize:26, fontWeight:800, color:"#0d2b1e", margin:0 }}>Mobile Orders</h1>
+        </div>
+        <button onClick={fetchOrders}
+          style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+          <RefreshCw size={13} /> Refresh
+        </button>
       </div>
 
+      {/* ── Stat cards ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46"/>}       bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
+        <BmStatCard label="Pending"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e"/>}  bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
+        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af"/>}     bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
+        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46"/>}          bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+      </div>
+
+      {/* ── Order list ── */}
       <BmSection>
-        <BmSectionHeader
-          title="Order List"
-          icon={<Package size={16} color="#fff" />}
-        />
+        <BmSectionHeader title="Order List" icon={<Package size={16} color="#fff" />} />
 
         {/* Filters */}
         <div style={{ padding:"12px 16px", borderBottom:"1px solid #f0f8f0", display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", background:"#f8fffe" }}>
@@ -2922,7 +3012,7 @@ function MobileOrdersContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFILE — restyled
+// PROFILE
 // ─────────────────────────────────────────────────────────────────────────────
 function ProfileContent({ user }) {
   const [formData, setFormData] = useState({ name:user.name, email:user.email, personalEmail:'', role:user.role, currentPassword:'', newPassword:'', confirmPassword:'' });
@@ -3240,8 +3330,37 @@ function generateTempPassword(length = 10) {
 function CreateAccountModal({ applicant, onClose }) {
   const [tempPassword, setTempPassword] = useState(generateTempPassword());
   const [showPassword, setShowPassword] = useState(false);
-  const [sending,      setSending]      = useState(false);
+  const [sending, setSending] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);
+
+  const [brands, setBrands] = useState([]);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [branches, setBranches] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+        const data = await res.json();
+        setBrands(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch brands:", err);
+      } finally {
+        setBrandsLoading(false);
+      }
+    };
+    fetchBrands();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBrandId) {
+      setBranches([]);
+      return;
+    }
+    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
+    setBranches(brand?.branches || []);
+  }, [selectedBrandId, brands]);
 
   const validatePasswordStrength = (password) => {
     const errors = [];
@@ -3282,6 +3401,7 @@ function CreateAccountModal({ applicant, onClose }) {
     const name   = form.fullName.value;
     const email  = form.email.value;
     const phone  = form.phone.value;
+    const brand  = form.brand.value; 
     const role   = form.role.value;
     const branch = form.branch.value;
 
@@ -3289,7 +3409,7 @@ function CreateAccountModal({ applicant, onClose }) {
     try {
       const userRes = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password: tempPassword, role, branch }),
+        body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
       });
       if (!userRes.ok) {
         const err = await userRes.json();
@@ -3333,10 +3453,38 @@ function CreateAccountModal({ applicant, onClose }) {
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Brand</label>
+            <select
+              name="brand"
+              required
+              value={selectedBrandId}
+              onChange={e => setSelectedBrandId(e.target.value)}
+              style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}
+              disabled={brandsLoading}>
+              <option value="">{brandsLoading ? "Loading brands..." : "Select Brand"}</option>
+              {brands.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom:14 }}>
             <label style={bmLabel}>Assigned Branch</label>
-            <select name="branch" required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-              <option value="">Select Branch</option>
-              {['branch-a','branch-b','branch-c'].map(b => <option key={b} value={b}>{b.replace('-',' ').replace(/\b\w/g,l=>l.toUpperCase())}</option>)}
+            <select
+              name="branch"
+              required
+              style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}
+              disabled={!selectedBrandId}
+            >
+              <option value="">
+                {!selectedBrandId
+                  ? "Select a brand first"
+                  : branches.length === 0
+                    ? "No branches available"
+                    : "Select Branch"}
+              </option>
+              {branches.map(br => (
+                <option key={br.id} value={br.id}>{br.name}</option>
+              ))}
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
@@ -3371,7 +3519,7 @@ function CreateAccountModal({ applicant, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POS (unchanged)
+// POS
 // ─────────────────────────────────────────────────────────────────────────────
 function POSContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 
 const API = process.env.REACT_APP_API_URL;
@@ -23,11 +24,89 @@ function toDateStr(val) {
   if (!val) return "";
   const d = new Date(val);
   if (isNaN(d.getTime())) return "";
-  // Use UTC parts to avoid timezone shift issues
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// ─── Item Duplicate Helpers ───────────────────────────────────────────────────
+
+/**
+ * Normalize a description: lowercase, strip non-alphanumeric, collapse spaces.
+ */
+function normalizeDesc(desc) {
+  return (desc ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Resolve the display name from a line item regardless of which key the
+ * backend uses: description, name, item_name, item, or title.
+ */
+function resolveItemName(item) {
+  return (
+    item.description ??
+    item.name ??
+    item.item_name ??
+    item.item ??
+    item.title ??
+    ""
+  );
+}
+
+/**
+ * Resolve the line-items array from a receipt object regardless of whether
+ * the backend uses lineItems, line_items, items, or products.
+ */
+function resolveLineItems(receipt) {
+  return (
+    receipt?.lineItems ??
+    receipt?.line_items ??
+    receipt?.items ??
+    receipt?.products ??
+    []
+  );
+}
+
+/**
+ * Find items that appear more than once within a single receipt.
+ * Tolerates any backend field-name convention for both the array and
+ * the item description field.
+ *
+ * Returns groups: [{ description, normalizedDesc, indices: number[], items: [] }]
+ */
+function findDuplicateItemsInReceipt(lineItems) {
+  // Accept either the raw receipt object or an already-resolved array
+  const items = Array.isArray(lineItems)
+    ? lineItems
+    : resolveLineItems(lineItems);
+
+  if (!items?.length) return [];
+
+  const groups = {}; // normalizedDesc -> group
+
+  items.forEach((item, idx) => {
+    const rawName = resolveItemName(item);
+    const nd = normalizeDesc(rawName);
+    if (!nd) return; // skip blank descriptions
+    if (!groups[nd]) {
+      groups[nd] = {
+        description: rawName || "Item",
+        normalizedDesc: nd,
+        indices: [],
+        items: [],
+      };
+    }
+    groups[nd].indices.push(idx);
+    groups[nd].items.push(item);
+  });
+
+  // Only return groups that appear 2+ times
+  return Object.values(groups).filter(g => g.indices.length > 1);
 }
 
 export default function Receipts() {
@@ -42,6 +121,10 @@ export default function Receipts() {
 
   const [search, setSearch]       = useState("");
   const [leftPage, setLeftPage]   = useState(1); // 1 = Recent, 2 = All
+
+  // ── Item Duplicate State ────────────────────────────────────────────────────
+  const [itemDuplicates, setItemDuplicates]     = useState([]);
+  const [showItemDupModal, setShowItemDupModal] = useState(false);
 
   const fetchReceipts = async () => {
     setLoading(true);
@@ -58,7 +141,17 @@ export default function Receipts() {
   const fetchDetail = async (id) => {
     try {
       const res = await axios.get(`${API}/receipts/${id}`);
-      setSelected(res.data);
+      const receipt = res.data;
+      setSelected(receipt);
+
+      // ── Check for duplicate items whenever a receipt is opened ──
+      const dupItems = findDuplicateItemsInReceipt(resolveLineItems(receipt));
+      if (dupItems.length > 0) {
+        setItemDuplicates(dupItems);
+        setShowItemDupModal(true);
+      } else {
+        setItemDuplicates([]);
+      }
     } catch (err) {
       console.error("Failed to fetch receipt detail", err);
     }
@@ -66,11 +159,11 @@ export default function Receipts() {
 
   useEffect(() => { fetchReceipts(); }, []);
 
-  // ── Search + date filter (FIX: normalize r.date before comparing) ────────
+  // ── Search + date filter ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return receipts.filter(r => {
-      const rDate = toDateStr(r.date); // normalize to YYYY-MM-DD
+      const rDate = toDateStr(r.date);
       if (dateFrom && rDate < dateFrom) return false;
       if (dateTo   && rDate > dateTo)   return false;
       if (q) {
@@ -83,14 +176,13 @@ export default function Receipts() {
     });
   }, [receipts, dateFrom, dateTo, search]);
 
-  // ── Split into recent vs all ──────────────────────────────────────────────
+  // ── Split into recent vs all ────────────────────────────────────────────────
   const recentReceipts = useMemo(() => filtered.filter(isRecent), [filtered]);
   const allReceipts    = useMemo(() => filtered, [filtered]);
 
   const activeList = leftPage === 1 ? recentReceipts : allReceipts;
 
   const grouped = useMemo(() => activeList.reduce((acc, r) => {
-    // Group by the receipt date (normalized)
     const key = toDateStr(r.date) || "No Date";
     if (!acc[key]) acc[key] = [];
     acc[key].push(r);
@@ -100,7 +192,7 @@ export default function Receipts() {
   const grandTotal   = filtered.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
   const receiptCount = filtered.length;
 
-  // ── Edit helpers ──────────────────────────────────────────────────────────
+  // ── Edit helpers ────────────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
     setEditData({
@@ -153,11 +245,22 @@ export default function Receipts() {
         })),
       };
       const res = await axios.put(`${API}/receipts/${selected.id}`, payload);
-      setSelected(res.data);
+      const updated = res.data;
+      setSelected(updated);
       setReceipts(prev => prev.map(r => r.id === selected.id
-        ? { ...r, merchant: res.data.merchant, date: res.data.date, total_amount: res.data.total_amount, currency: res.data.currency }
+        ? { ...r, merchant: updated.merchant, date: updated.date, total_amount: updated.total_amount, currency: updated.currency }
         : r
       ));
+
+      // Re-check for item duplicates after edit
+      const dupItems = findDuplicateItemsInReceipt(resolveLineItems(updated));
+      if (dupItems.length > 0) {
+        setItemDuplicates(dupItems);
+        setShowItemDupModal(true);
+      } else {
+        setItemDuplicates([]);
+      }
+
       closeEdit();
     } catch (err) {
       console.error("Failed to save receipt", err);
@@ -172,13 +275,22 @@ export default function Receipts() {
     try {
       await axios.delete(`${API}/receipts/${id}`);
       setReceipts(prev => prev.filter(r => r.id !== id));
-      if (selected?.id === id) setSelected(null);
+      if (selected?.id === id) {
+        setSelected(null);
+        setItemDuplicates([]);
+      }
     } catch (err) {
       alert("Failed to delete receipt.");
     }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Item Dup Modal Actions ──────────────────────────────────────────────────
+  const handleDismissItemDups = () => {
+    setShowItemDupModal(false);
+    // Keep itemDuplicates in state so the warning banner stays visible
+  };
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   const fmtReceiptDate = (val) => {
     const d = toDateStr(val);
     if (!d) return "N/A";
@@ -190,7 +302,7 @@ export default function Receipts() {
     return new Date(val).toLocaleString("en-PH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={s.page}>
       <style>{`
@@ -200,7 +312,53 @@ export default function Receipts() {
         .page-tab { transition: background .15s, color .15s, box-shadow .15s; }
         .page-tab:hover { background: #e8f5e9 !important; }
         .search-input:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12) !important; outline: none; }
+        .item-dup-row { animation: fadein .2s ease; }
+        @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
       `}</style>
+
+      {/* ── Item Duplicate Modal (portalled to body so it always renders on top) ── */}
+      {showItemDupModal && itemDuplicates.length > 0 && createPortal(
+        <div style={s.modalOverlay} onClick={handleDismissItemDups}>
+          <div style={{ ...s.modalBox, maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+            <div style={{ ...s.modalHeader, background: "linear-gradient(135deg,#c62828,#e53935)" }}>
+              <span style={s.modalTitle}>⚠ Duplicate Items Detected</span>
+              <button style={s.modalClose} onClick={handleDismissItemDups}>
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={s.modalBody}>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: C.muted }}>
+                {itemDuplicates.length === 1
+                  ? "1 item appears more than once on this receipt."
+                  : `${itemDuplicates.length} items appear more than once on this receipt.`}{" "}
+                This may be a scanning error — review carefully.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {itemDuplicates.map((group, idx) => (
+                  <div key={idx} className="item-dup-row" style={s.itemDupRow}>
+                    <div style={s.itemDupIcon}>⚠</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={s.itemDupName}>{group.description}</div>
+                      <div style={s.itemDupMeta}>
+                        {group.items[0]?.quantity
+                          ? `${group.items[0].quantity} × ${group.items[0].unit_price ?? group.items[0].unitPrice ?? group.items[0].price ?? "—"}`
+                          : group.items[0]?.total_price ?? group.items[0]?.totalPrice ?? group.items[0]?.price ?? "—"}
+                      </div>
+                      <div style={s.itemDupBadge}>Listed {group.indices.length}× on this receipt</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={s.modalFooter}>
+              <button style={{ ...s.saveBtn, background: "linear-gradient(135deg,#c62828,#e53935)" }} onClick={handleDismissItemDups}>
+                Got it, I'll review
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Page header */}
       <div style={{ marginBottom: 22 }}>
@@ -227,7 +385,7 @@ export default function Receipts() {
         ))}
       </div>
 
-      {/* Date Filter — filters by receipt date */}
+      {/* Date Filter */}
       <div style={s.filterRow}>
         <span style={s.filterLabel}>Filter by receipt date:</span>
         <input type="date" style={s.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
@@ -243,7 +401,7 @@ export default function Receipts() {
       ) : (
         <div style={s.layout}>
 
-          {/* ── LEFT PANEL ─────────────────────────────────────────────────── */}
+          {/* ── LEFT PANEL ──────────────────────────────────────────────────── */}
           <div style={s.leftPanel}>
 
             {/* Search bar */}
@@ -327,7 +485,6 @@ export default function Receipts() {
                 const dayTotal = grouped[dateKey].reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
                 return (
                   <div key={dateKey}>
-                    {/* Group header — Receipt Date */}
                     <div style={s.groupHeader}>
                       <span style={s.groupDate}>
                         {dateKey === "No Date"
@@ -354,7 +511,6 @@ export default function Receipts() {
                           )}
                         </div>
                         <p style={s.cardTotal}>{r.currency || "PHP"} {Number(r.total_amount).toFixed(2)}</p>
-                        {/* Labeled dates in left panel */}
                         <div style={s.cardDates}>
                           <span style={s.cardDateLabel}>Receipt date:</span>
                           <span style={s.cardDateVal}>
@@ -380,7 +536,7 @@ export default function Receipts() {
 
           </div>
 
-          {/* ── RIGHT: Receipt Detail ───────────────────────────────────────── */}
+          {/* ── RIGHT: Receipt Detail ────────────────────────────────────────── */}
           <div style={s.detail}>
             {!selected ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300 }}>
@@ -394,7 +550,6 @@ export default function Receipts() {
                 <div style={s.detailHeader}>
                   <div>
                     <h3 style={s.detailMerchant}>{selected.merchant || "Unknown"}</h3>
-                    {/* Labeled dates in detail view */}
                     <div style={s.detailMetaRow}>
                       <span style={s.detailMetaChip}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
@@ -431,22 +586,50 @@ export default function Receipts() {
                   </div>
                 </div>
 
+                {/* Inline item-duplicate warning banner */}
+                {itemDuplicates.length > 0 && (
+                  <div style={s.itemDupBanner}>
+                    <span style={{ fontSize: 15, marginRight: 8 }}>⚠</span>
+                    <span style={{ flex: 1, fontSize: 12, color: "#7b3800" }}>
+                      <strong>{itemDuplicates.length} duplicate {itemDuplicates.length === 1 ? "item" : "items"}</strong> detected on this receipt.{" "}
+                      Affected rows are highlighted below.
+                    </span>
+                    <button style={s.itemDupBannerClose} onClick={() => setItemDuplicates([])}>✕</button>
+                  </div>
+                )}
+
                 <table style={s.table}>
                   <thead>
                     <tr>{["Item","Qty","Unit Price","Total"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {selected.lineItems?.length > 0
-                      ? selected.lineItems.map((item, i) => (
-                          <tr key={i} style={{ borderBottom: `1px solid #f2faf5`, background: i%2===0 ? C.white : C.bg }}
-                            onMouseEnter={e => e.currentTarget.style.background="#fafffe"}
-                            onMouseLeave={e => e.currentTarget.style.background = i%2===0 ? C.white : C.bg}>
-                            <td style={s.td}>{item.description}</td>
-                            <td style={s.tdCenter}>{Math.trunc(item.quantity)}</td>
-                            <td style={s.tdRight}>{Number(item.unit_price).toFixed(2)}</td>
-                            <td style={s.tdRight}>{Number(item.total_price).toFixed(2)}</td>
-                          </tr>
-                        ))
+                    {resolveLineItems(selected).length > 0
+                      ? (() => {
+                          // Build a set of duplicate indices for highlight
+                          const dupIndexSet = new Set(itemDuplicates.flatMap(g => g.indices));
+                          return resolveLineItems(selected).map((item, i) => {
+                            const isDup = dupIndexSet.has(i);
+                            return (
+                              <tr
+                                key={i}
+                                style={{
+                                  borderBottom: `1px solid #f2faf5`,
+                                  background: isDup ? "#fff8e1" : i % 2 === 0 ? C.white : C.bg,
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = isDup ? "#fff3cd" : "#fafffe"}
+                                onMouseLeave={e => e.currentTarget.style.background = isDup ? "#fff8e1" : i % 2 === 0 ? C.white : C.bg}
+                              >
+                                <td style={s.td}>
+                                  {isDup && <span style={{ color: "#e65100", marginRight: 5, fontWeight: 700 }}>⚠</span>}
+                                  {item.description}
+                                </td>
+                                <td style={s.tdCenter}>{Math.trunc(item.quantity)}</td>
+                                <td style={s.tdRight}>{Number(item.unit_price).toFixed(2)}</td>
+                                <td style={s.tdRight}>{Number(item.total_price).toFixed(2)}</td>
+                              </tr>
+                            );
+                          });
+                        })()
                       : <tr><td colSpan={4} style={{ textAlign: "center", padding: 16, color: C.muted, fontStyle: "italic", fontSize: 13 }}>No line items</td></tr>
                     }
                   </tbody>
@@ -464,7 +647,7 @@ export default function Receipts() {
       )}
 
       {/* ── EDIT MODAL ── */}
-      {editOpen && editData && (
+      {editOpen && editData && createPortal(
         <div style={s.modalOverlay} onClick={closeEdit}>
           <div style={s.modalBox} onClick={e => e.stopPropagation()}>
             <div style={s.modalHeader}>
@@ -524,7 +707,8 @@ export default function Receipts() {
               <button style={s.saveBtn} onClick={saveEdit} disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -533,10 +717,10 @@ export default function Receipts() {
 const s = {
   page:         { padding: "24px 30px 48px", fontFamily: "'Montserrat', sans-serif", background: "linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight: "100vh" },
   summaryRow:   { display: "flex", gap: 12, marginBottom: 18 },
-  summaryCard:  { flex: 1, background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" },
-  filterRow:    { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap", background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 12, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" },
-  filterLabel:  { fontSize: 12, color: C.muted, fontWeight: 600 },
-  dateInput:    { border: `1px solid ${C.border}`, borderRadius: 9, padding: "7px 11px", fontSize: 13, background: C.bg, color: C.ink, outline: "none", fontFamily: "inherit" },
+  summaryCard:  { flex: 1, background: "#ffffff", border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" },
+  filterRow:    { display: "flex", alignItems: "center", gap: 10, marginBottom: 18, flexWrap: "wrap", background: "#ffffff", border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 12, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" },
+  filterLabel:  { fontSize: 12, color: "#5a7a65", fontWeight: 600 },
+  dateInput:    { border: `1px solid #d1eedd`, borderRadius: 9, padding: "7px 11px", fontSize: 13, background: "#f0fdf5", color: "#0d2b1e", outline: "none", fontFamily: "inherit" },
   clearBtn:     { background: "#ffebee", color: "#c62828", border: "none", borderRadius: 7, padding: "6px 13px", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit" },
   layout:       { display: "flex", gap: 20 },
 
@@ -544,66 +728,73 @@ const s = {
 
   searchWrap:   { position: "relative", marginBottom: 12 },
   searchIcon:   { position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, pointerEvents: "none" },
-  searchInput:  { width: "100%", boxSizing: "border-box", paddingLeft: 34, paddingRight: 32, height: 38, border: `1.5px solid ${C.border}`, borderRadius: 11, background: C.white, fontSize: 12, color: C.ink, fontFamily: "inherit", transition: "border-color .15s, box-shadow .15s" },
-  searchClear:  { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", alignItems: "center", padding: 2 },
+  searchInput:  { width: "100%", boxSizing: "border-box", paddingLeft: 34, paddingRight: 32, height: 38, border: `1.5px solid #d1eedd`, borderRadius: 11, background: "#ffffff", fontSize: 12, color: "#0d2b1e", fontFamily: "inherit", transition: "border-color .15s, box-shadow .15s" },
+  searchClear:  { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#5a7a65", display: "flex", alignItems: "center", padding: 2 },
 
   tabBar:       { display: "flex", gap: 8, marginBottom: 10 },
   tab:          { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 36, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.02em" },
 
-  pageLabel:    { display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, paddingLeft: 2 },
-  pageLabelDot: { width: 6, height: 6, borderRadius: "50%", background: C.teal, flexShrink: 0 },
+  pageLabel:    { display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, paddingLeft: 2 },
+  pageLabelDot: { width: 6, height: 6, borderRadius: "50%", background: "#00c853", flexShrink: 0 },
 
   list:         { display: "flex", flexDirection: "column", gap: 0, overflowY: "auto", maxHeight: "calc(100vh - 340px)" },
   emptyState:   { display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0" },
   groupHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 4px 4px", marginTop: 8 },
-  groupDate:    { fontSize: 10, fontWeight: 800, color: C.greenDk, textTransform: "uppercase", letterSpacing: "0.07em" },
-  groupTotal:   { fontSize: 11, fontWeight: 700, color: C.muted },
-  card:         { background: C.white, padding: "10px 14px", borderRadius: 10, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,140,60,0.07)", marginBottom: 5 },
-  cardMerchant: { fontWeight: 700, margin: 0, color: C.ink, fontSize: 13 },
-  cardTotal:    { margin: "3px 0 0", fontWeight: 700, color: C.green, fontSize: 13 },
-  // New: labeled date rows in card
+  groupDate:    { fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.07em" },
+  groupTotal:   { fontSize: 11, fontWeight: 700, color: "#5a7a65" },
+  card:         { background: "#ffffff", padding: "10px 14px", borderRadius: 10, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,140,60,0.07)", marginBottom: 5 },
+  cardMerchant: { fontWeight: 700, margin: 0, color: "#0d2b1e", fontSize: 13 },
+  cardTotal:    { margin: "3px 0 0", fontWeight: 700, color: "#00897b", fontSize: 13 },
   cardDates:    { display: "flex", alignItems: "center", gap: 4, marginTop: 3 },
-  cardDateLabel:{ fontSize: 10, fontWeight: 700, color: C.muted, flexShrink: 0 },
-  cardDateVal:  { fontSize: 10, color: C.ink },
-  recentBadge:  { fontSize: 9, fontWeight: 800, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0, marginLeft: 6 },
+  cardDateLabel:{ fontSize: 10, fontWeight: 700, color: "#5a7a65", flexShrink: 0 },
+  cardDateVal:  { fontSize: 10, color: "#0d2b1e" },
+  recentBadge:  { fontSize: 9, fontWeight: 800, background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0, marginLeft: 6 },
 
-  detail:       { flex: 1, background: C.white, borderRadius: 16, padding: 24, boxShadow: "0 2px 18px rgba(0,140,60,0.07)", border: `1px solid rgba(0,168,76,0.12)` },
+  detail:       { flex: 1, background: "#ffffff", borderRadius: 16, padding: 24, boxShadow: "0 2px 18px rgba(0,140,60,0.07)", border: `1px solid rgba(0,168,76,0.12)` },
   detailHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  detailMerchant: { margin: 0, color: C.ink, fontSize: 18, fontWeight: 800 },
-  // New: meta row with chips
+  detailMerchant: { margin: 0, color: "#0d2b1e", fontSize: 18, fontWeight: 800 },
   detailMetaRow:{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 6 },
-  detailMetaChip:{ display: "inline-flex", alignItems: "center", fontSize: 12, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "3px 9px" },
-  detailMetaSep:{ fontSize: 12, color: C.border, fontWeight: 700 },
-  totalBadge:   { background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 16px", textAlign: "right" },
+  detailMetaChip:{ display: "inline-flex", alignItems: "center", fontSize: 12, color: "#5a7a65", background: "#f0fdf5", border: `1px solid #d1eedd`, borderRadius: 7, padding: "3px 9px" },
+  detailMetaSep:{ fontSize: 12, color: "#d1eedd", fontWeight: 700 },
+  totalBadge:   { background: "#e8f5e9", border: `1px solid #c8e6c9`, borderRadius: 10, padding: "10px 16px", textAlign: "right" },
+
+  // Item duplicate styles
+  itemDupBanner:{ display: "flex", alignItems: "center", gap: 8, background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 10, padding: "10px 14px", marginBottom: 14 },
+  itemDupBannerClose: { background: "none", border: "none", cursor: "pointer", color: "#9e5800", fontWeight: 700, fontSize: 13, padding: "0 2px", lineHeight: 1 },
+  itemDupRow:   { display: "flex", alignItems: "flex-start", gap: 12, background: "#ffebee", border: "1px solid #ffcdd2", borderRadius: 10, padding: "12px 14px" },
+  itemDupIcon:  { fontSize: 18, color: "#c62828", flexShrink: 0, marginTop: 1 },
+  itemDupName:  { fontSize: 13, fontWeight: 700, color: "#1a1a1a", lineHeight: 1.4 },
+  itemDupMeta:  { fontSize: 11, color: "#555", marginTop: 2 },
+  itemDupBadge: { fontSize: 11, color: "#c62828", fontWeight: 700, marginTop: 4 },
 
   table:        { width: "100%", borderCollapse: "collapse" },
-  th:           { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 11, color: C.white, letterSpacing: "0.07em", textTransform: "uppercase", background: `linear-gradient(135deg,${C.teal},${C.green})` },
-  td:           { padding: "10px 12px", fontSize: 13, color: C.ink },
-  tdCenter:     { padding: "10px 12px", fontSize: 13, textAlign: "center", color: C.ink },
-  tdRight:      { padding: "10px 12px", fontSize: 13, textAlign: "right", color: C.ink },
-  totalLabel:   { padding: 12, fontWeight: 800, textAlign: "right", color: C.greenDk, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em" },
-  totalValue:   { padding: 12, fontWeight: 800, textAlign: "right", fontSize: 15, color: C.green },
+  th:           { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 11, color: "#ffffff", letterSpacing: "0.07em", textTransform: "uppercase", background: "linear-gradient(135deg,#00c853,#00897b)" },
+  td:           { padding: "10px 12px", fontSize: 13, color: "#0d2b1e" },
+  tdCenter:     { padding: "10px 12px", fontSize: 13, textAlign: "center", color: "#0d2b1e" },
+  tdRight:      { padding: "10px 12px", fontSize: 13, textAlign: "right", color: "#0d2b1e" },
+  totalLabel:   { padding: 12, fontWeight: 800, textAlign: "right", color: "#00695c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em" },
+  totalValue:   { padding: 12, fontWeight: 800, textAlign: "right", fontSize: 15, color: "#00897b" },
 
-  editBtn:      { display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  deleteBtn:    { display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", borderRadius: 8, border: "1px solid #ffcdd2", background: C.white, color: "#e53935", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  editBtn:      { display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", borderRadius: 8, border: `1px solid #d1eedd`, background: "#ffffff", color: "#00897b", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  deleteBtn:    { display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", borderRadius: 8, border: "1px solid #ffcdd2", background: "#ffffff", color: "#e53935", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
 
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.32)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-  modalBox:     { background: C.white, borderRadius: 20, width: "90%", maxWidth: 700, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 10px 48px rgba(0,0,0,.18)" },
-  modalHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, borderRadius: "20px 20px 0 0" },
-  modalTitle:   { fontSize: 16, fontWeight: 800, color: C.white },
-  modalClose:   { background: "none", border: "none", cursor: "pointer", color: C.white, padding: 4, display: "flex", alignItems: "center" },
+  modalBox:     { background: "#ffffff", borderRadius: 20, width: "90%", maxWidth: 700, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 10px 48px rgba(0,0,0,.18)" },
+  modalHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", background: "linear-gradient(135deg,#00c853,#00897b)", borderRadius: "20px 20px 0 0" },
+  modalTitle:   { fontSize: 16, fontWeight: 800, color: "#ffffff" },
+  modalClose:   { background: "none", border: "none", cursor: "pointer", color: "#ffffff", padding: 4, display: "flex", alignItems: "center" },
   modalBody:    { padding: "20px 24px" },
-  modalFooter:  { display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: `1px solid ${C.border}` },
+  modalFooter:  { display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: `1px solid #d1eedd` },
 
   fieldGrid:    { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 },
   fieldGroup:   { display: "flex", flexDirection: "column", gap: 5 },
-  fieldLabel:   { fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" },
-  fieldInput:   { height: 36, padding: "0 11px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg, fontSize: 13, color: C.ink, outline: "none", fontFamily: "inherit", boxSizing: "border-box" },
-  inlineInput:  { width: "100%", border: `1px solid ${C.border}`, borderRadius: 7, padding: "5px 8px", fontSize: 12, outline: "none", boxSizing: "border-box", background: C.bg, color: C.ink, fontFamily: "inherit" },
+  fieldLabel:   { fontSize: 11, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em" },
+  fieldInput:   { height: 36, padding: "0 11px", borderRadius: 9, border: `1px solid #d1eedd`, background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: "inherit", boxSizing: "border-box" },
+  inlineInput:  { width: "100%", border: `1px solid #d1eedd`, borderRadius: 7, padding: "5px 8px", fontSize: 12, outline: "none", boxSizing: "border-box", background: "#f0fdf5", color: "#0d2b1e", fontFamily: "inherit" },
 
-  addItemBtn:   { fontSize: 12, fontWeight: 700, color: C.greenDk, background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 7, padding: "5px 13px", cursor: "pointer", fontFamily: "inherit" },
+  addItemBtn:   { fontSize: 12, fontWeight: 700, color: "#00695c", background: "#e8f5e9", border: `1px solid #c8e6c9`, borderRadius: 7, padding: "5px 13px", cursor: "pointer", fontFamily: "inherit" },
   removeItemBtn:{ background: "none", border: "none", color: "#e53935", cursor: "pointer", padding: 3, display: "flex", alignItems: "center", justifyContent: "center" },
 
-  cancelBtn:    { height: 36, padding: "0 20px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  saveBtn:      { height: 36, padding: "0 24px", borderRadius: 9, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.28)" },
+  cancelBtn:    { height: 36, padding: "0 20px", borderRadius: 9, border: `1px solid #d1eedd`, background: "#ffffff", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
+  saveBtn:      { height: 36, padding: "0 24px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#ffffff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.28)" },
 };

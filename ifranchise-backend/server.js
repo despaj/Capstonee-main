@@ -115,6 +115,7 @@ app.post("/login", async (req, res) => {
       email:  user.rows[0].email,
       role:   user.rows[0].role,
       branch: user.rows[0].branch,
+      brand:  user.rows[0].brand,
     };
 
     const device = await pool.query(
@@ -1352,7 +1353,6 @@ app.delete("/brands/:id", async (req, res) => {
 });
 
 // ─── SHOP ITEMS ───────────────────────────────────────────────
-
 app.get("/shop-items", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -1525,33 +1525,80 @@ app.delete("/announcements/:id", async (req, res) => {
 
 app.get("/orders", async (req, res) => {
   try {
-    const { user_id } = req.query;
-    const result = user_id
-      ? await pool.query("SELECT * FROM orders WHERE user_id=$1 ORDER BY created_at DESC", [user_id])
-      : await pool.query("SELECT * FROM orders ORDER BY created_at DESC");
+    const result = await pool.query(`
+      SELECT
+        o.id,
+        o.status,
+        o.total_amount,
+        o.created_at,
+        o.phone,
+        o.brand,
+        o.branch,
+
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'name',  si.name,
+              'qty',   oi.quantity,
+              'price', oi.price
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) AS items
+
+      FROM orders o
+      LEFT JOIN users u       ON u.id  = o.user_id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN shop_items si  ON si.id = oi.shop_item_id
+
+      GROUP BY o.id, u.name
+      ORDER BY o.created_at DESC
+    `);
+
     res.json(result.rows);
   } catch (err) {
+    console.error("Error fetching orders:", err);
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
 
 app.post("/orders", async (req, res) => {
+  const client = await pool.connect();
+  
+  const { user_id, phone, brand, branch, items, total_amount, address } = req.body;
+  console.log("Order body received:", req.body); // ← add this
+
+   if (!items || !Array.isArray(items) || items.length === 0) {
+    client.release();
+    return res.status(400).json({ error: "Order must contain at least one item" });
+  }
+  
   try {
-    const { user_id, address, total_amount } = req.body;
+    await client.query("BEGIN");
 
-    if (!address || !total_amount)
-      return res.status(400).json({ error: "Address and total amount are required" });
-
-    const result = await pool.query(
-      `INSERT INTO orders (user_id, address, total_amount, status)
-       VALUES ($1, $2, $3, 'pending') RETURNING *`,
-      [user_id || null, address, parseFloat(total_amount)]
+    const orderRes = await client.query(
+      `INSERT INTO orders (user_id, phone, brand, branch, total_amount, status, address)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING *`,
+      [user_id, phone, brand, branch, total_amount, address]
     );
+    const order = orderRes.rows[0];
 
-    res.json({ success: true, order: result.rows[0] });
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO order_items (order_id, shop_item_id, quantity, price)
+         VALUES ($1, $2, $3, $4)`,
+        [order.id, item.shop_item_id, item.quantity, item.price]
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ success: true, order });
   } catch (err) {
-    console.error("POST /orders error:", err);
-    res.status(500).json({ error: "Failed to place order" });
+    await client.query("ROLLBACK");
+    console.error("Error creating order:", err);
+    res.status(500).json({ error: "Failed to create order" });
+  } finally {
+    client.release();
   }
 });
 
