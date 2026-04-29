@@ -78,6 +78,7 @@ const VIBE_CSS = `
   .v-btn-ghost { background:transparent; color:#00897b; border:1.5px solid rgba(0,137,123,0.3); }
   .v-btn-ghost:hover { background:rgba(0,137,123,0.08); }
   .v-btn-blue { background:var(--grad-blue); color:#fff; box-shadow:0 4px 14px rgba(59,130,246,.3); }
+  .v-btn-blue:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(59,130,246,.4); }
   .v-btn-sm { padding:6px 14px; font-size:12px; border-radius:9px; }
   .v-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px; font-family:'Montserrat',sans-serif; }
   .v-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.7; }
@@ -121,6 +122,10 @@ const VIBE_CSS = `
   .v-dot-orange { background:#f59e0b; box-shadow:0 0 6px #f59e0b; }
   .v-dot-blue { background:#3b82f6; box-shadow:0 0 6px #3b82f6; }
   .placeholder-pill { display:inline-block; padding:5px 12px; border-radius:8px; background:linear-gradient(90deg,rgba(0,168,76,0.06) 25%,rgba(0,168,76,0.12) 50%,rgba(0,168,76,0.06) 75%); background-size:200% 100%; animation:shimmer 2s infinite; border:1.5px dashed rgba(0,168,76,0.25); color:#5a7a65; font-size:12px; font-weight:700; font-family:'Montserrat',sans-serif; margin-top:4px; }
+  .v-pw-box { margin-top:10px; padding:12px 14px; background:rgba(0,168,76,0.04); border:1.5px solid rgba(0,168,76,0.15); border-radius:12px; font-size:12px; }
+  .v-pw-rule { display:flex; align-items:center; gap:7px; padding:3px 0; font-weight:600; font-family:'Poppins',sans-serif; }
+  .v-pw-rule.pass { color:#00897b; }
+  .v-pw-rule.fail { color:#ef4444; }
   @keyframes vFadeIn { from{opacity:0} to{opacity:1} }
   @keyframes vSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
   @keyframes spin { to{transform:rotate(360deg)} }
@@ -133,6 +138,15 @@ const fmtPeso = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumF
 
 const UNITS = ['pcs','kg','g','liters','ml','tbsp','tsp','cups','bottles','packs','bags','boxes','cans'];
 
+const validatePw = pw => {
+  const errs = [];
+  if (pw.length < 8) errs.push('minLength');
+  if (!/[A-Z]/.test(pw)) errs.push('uppercase');
+  if (!/[a-z]/.test(pw)) errs.push('lowercase');
+  if (!/\d/.test(pw)) errs.push('number');
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) errs.push('special');
+  return { valid: errs.length === 0, errs };
+};
 
 const VKpi = ({ label, value, sub, icon, color = 'green', placeholder }) => (
   <div className="v-kpi">
@@ -164,6 +178,17 @@ const VEmptyState = ({ icon, title, sub }) => (
     <div className="v-empty-icon">{icon}</div>
     <div className="v-empty-title">{title}</div>
     <div className="v-empty-sub">{sub}</div>
+  </div>
+);
+
+const VPwBox = ({ errors }) => (
+  <div className="v-pw-box">
+    <div style={{ fontWeight: 800, fontSize: 11.5, color: '#5a7a65', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'Montserrat,sans-serif' }}>Password requirements</div>
+    {[['minLength','At least 8 characters'],['uppercase','One uppercase letter (A-Z)'],['lowercase','One lowercase letter (a-z)'],['number','One number (0-9)'],['special','One special character']].map(([k,t]) => (
+      <div key={k} className={`v-pw-rule ${errors.includes(k) ? 'fail' : 'pass'}`}>
+        <span style={{ fontSize: 14 }}>{errors.includes(k) ? '✗' : '✓'}</span> {t}
+      </div>
+    ))}
   </div>
 );
 
@@ -221,6 +246,8 @@ export default function FranchiseeDashboard() {
     { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
     { id: 'pos',            label: 'POS',             icon: <DollarSign size={20} /> },
     { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
+    { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
+    { id: 'staff',          label: 'Staff Management',icon: <Users size={20} /> },
     { id: 'communication',  label: 'Communication',   icon: <MessageCircle size={20} /> },
     { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
     { id: 'logout',         label: 'Logout',          icon: <LogOut size={20} />, action: handleLogout },
@@ -316,7 +343,7 @@ export default function FranchiseeDashboard() {
         )}
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
-          {navigation.slice(0, 6).map(item => (
+          {navigation.slice(0, 8).map(item => (
             <div
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? 'active' : ''}`}
@@ -329,7 +356,7 @@ export default function FranchiseeDashboard() {
             </div>
           ))}
           {!sidebarCollapsed && <div className="fr-nav-section" style={{ marginTop: 8 }}>Account</div>}
-          {navigation.slice(6).map(item => (
+          {navigation.slice(8).map(item => (
             <div
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
@@ -365,6 +392,8 @@ export default function FranchiseeDashboard() {
           {activeModule === 'stockInventory' && <FrStockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
           {activeModule === 'receipts'       && <FrReceiptsContent user={user} />}
+          {activeModule === 'reports'        && <FrReportsContent user={user} />}
+          {activeModule === 'staff'          && <FrStaffManagementContent user={user} />}
           {activeModule === 'communication'  && <FrCommunicationContent />}
           {activeModule === 'profile'        && <FrProfileContent user={user} />}
         </div>
@@ -586,7 +615,6 @@ function FrMenuInventoryContent({ user, brands }) {
         <VKpi label="Categories"   value={categories.length}      icon={<Package size={20} />}       color="orange" sub="Product types" />
       </div>
 
-      {/* Filter bar */}
       <div className="v-card" style={{ padding: '14px 18px', marginBottom: 18 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="v-search-wrap" style={{ flex: '1 1 220px' }}>
@@ -946,7 +974,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
     <div style={{ fontFamily: "'Montserrat', sans-serif", paddingBottom: 48 }}>
       <style>{`@media print{body>*{display:none!important;}.pos-receipt-print{display:block!important;}}`}</style>
 
-      {/* POS summary KPIs */}
       <div className="v-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
         <VKpi label="Today's Revenue"    value={fmtPeso(todayRevenue)}                                                       icon={<DollarSign size={20} />}  color="green"  sub="All transactions today" />
         <VKpi label="Transactions Today" value={todaySales.length}                                                            icon={<Receipt size={20} />}     color="blue"   sub="Completed sales" />
@@ -954,7 +981,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
         <VKpi label="Items in Cart"      value={cart.reduce((s, c) => s + c.qty, 0)}                                          icon={<ShoppingCart size={20} />} color="purple" sub="Current session" />
       </div>
 
-      {/* Tab switcher */}
       <div className="v-tabs">
         {[['cashier', 'Cashier'], ['history', 'Transaction History']].map(([id, label]) => (
           <button key={id} className={`v-tab ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>{label}</button>
@@ -963,7 +989,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
 
       {activeTab === 'cashier' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 18, alignItems: 'start' }}>
-          {/* Product grid */}
           <div>
             <div className="v-card" style={{ padding: '14px 18px', marginBottom: 14 }}>
               <div className="v-search-wrap">
@@ -1014,7 +1039,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
             )}
           </div>
 
-          {/* Cart panel */}
           <div style={{ position: 'sticky', top: 80 }}>
             <div className="v-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', background: 'var(--grad-dark)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
@@ -1024,7 +1048,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                 )}
               </div>
 
-              {/* Cart items */}
               <div style={{ maxHeight: 280, overflowY: 'auto', padding: cart.length === 0 ? 0 : '8px 0' }}>
                 {cart.length === 0 ? (
                   <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
@@ -1047,9 +1070,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                 ))}
               </div>
 
-              {/* Cart footer */}
               <div style={{ padding: '14px 18px', borderTop: '1px solid rgba(0,168,76,0.1)' }}>
-                {/* Discount */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', whiteSpace: 'nowrap', fontFamily: 'Montserrat,sans-serif' }}>Discount %</label>
                   <div style={{ display: 'flex', gap: 4 }}>
@@ -1058,14 +1079,12 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                     ))}
                   </div>
                 </div>
-                {/* VAT toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'Montserrat,sans-serif' }}>VAT (12%)</label>
                   <div onClick={() => setVatEnabled(v => !v)} style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', position: 'relative', background: vatEnabled ? 'var(--grad-main)' : '#e0e0e0', transition: 'background .2s' }}>
                     <div style={{ position: 'absolute', top: 3, left: vatEnabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
                   </div>
                 </div>
-                {/* Totals */}
                 <div style={{ background: 'rgba(0,168,76,0.05)', border: '1.5px solid rgba(0,168,76,0.12)', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>
                     <span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtPeso(subtotal)}</span>
@@ -1084,7 +1103,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                     <span>Total</span><span style={{ color: '#00897b' }}>{fmtPeso(totalAmt)}</span>
                   </div>
                 </div>
-                {/* Payment method */}
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Montserrat,sans-serif' }}>Payment Method</div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -1093,7 +1111,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                     ))}
                   </div>
                 </div>
-                {/* Cash input */}
                 {paymentMethod === 'Cash' && (
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Montserrat,sans-serif' }}>Cash Received</div>
@@ -1107,11 +1124,9 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                     )}
                   </div>
                 )}
-                {/* Note */}
                 <div style={{ marginBottom: 12 }}>
                   <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Order note (optional)…" rows={2} className="v-form-input" style={{ height: 'auto', padding: '8px 11px', resize: 'none', lineHeight: 1.5 }} />
                 </div>
-                {/* Charge button */}
                 <button onClick={processSale} disabled={processing || cart.length === 0} className="v-btn v-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px 0', fontSize: 15, fontWeight: 900, opacity: cart.length === 0 || processing ? 0.6 : 1, cursor: cart.length === 0 || processing ? 'not-allowed' : 'pointer', borderRadius: 13 }}>
                   {processing
                     ? <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Processing…</>
@@ -1182,7 +1197,6 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
         </>
       )}
 
-      {/* Receipt modal */}
       {showReceiptModal && lastReceipt && (
         <div className="v-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowReceiptModal(false); }}>
           <div className="v-modal" style={{ width: 380, maxWidth: '95vw' }}>
@@ -1255,6 +1269,399 @@ function FrReceiptsContent({ user }) {
   );
 }
 
+function FrReportsContent({ user }) {
+  const branch = (user?.branch || '').trim();
+  const today = new Date();
+  const fmt8 = d => d.toISOString().slice(0, 10);
+
+  const [dateFrom, setDateFrom] = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [dateTo, setDateTo] = useState(fmt8(today));
+  const [aiReport, setAiReport] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [viewReportId, setViewReportId] = useState(null);
+  const [submitting, setSubmitting] = useState(null);
+
+  const generateReport = async () => {
+    if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
+    setGenerating(true);
+    setAiReport('');
+    try {
+      const prompt = `Generate a concise franchise sales performance report for branch "${branch}" from ${dateFrom} to ${dateTo}. Include sections for: Executive Summary, Sales Performance, Revenue Analysis, Cost of Sales, Profit Summary, and Recommendations. Format it clearly with headers.`;
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
+      });
+      const data = await res.json();
+      const text = data.content?.map(c => c.text || '').join('') || 'Report generation failed.';
+      setAiReport(text);
+      const newReport = { id: Date.now(), generatedDate: new Date().toLocaleString('en-PH'), period: `${dateFrom} → ${dateTo}`, content: text };
+      setReports(prev => [newReport, ...prev]);
+    } catch { setAiReport('Failed to generate report. Please try again.'); }
+    setGenerating(false);
+  };
+
+  const downloadReport = report => {
+    const content = `FRANCHISE SALES & PERFORMANCE REPORT\n${'='.repeat(50)}\nBranch: ${branch}\nPeriod: ${report.period}\nGenerated: ${report.generatedDate}\n${'='.repeat(50)}\n\n${report.content}`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report_${branch.replace(/\s+/g,'_')}_${report.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const submitReport = async report => {
+    setSubmitting(report.id);
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch, period: report.period, generatedDate: report.generatedDate, content: report.content }),
+      });
+    } catch {}
+    setHistory(prev => [{ id: report.id, generatedDate: report.generatedDate, period: report.period, submittedAt: new Date().toLocaleString('en-PH') }, ...prev]);
+    setReports(prev => prev.filter(r => r.id !== report.id));
+    setSubmitting(null);
+  };
+
+  return (
+    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+      <div className="v-stat-grid">
+        <VKpi label="Cost of Sales" placeholder icon={<TrendingDown size={20} />} color="orange" sub="Connect POS & Inventory" />
+        <VKpi label="Sales Revenue" placeholder icon={<TrendingUp size={20} />} color="green" sub="Connect POS & Inventory" />
+        <VKpi label="Gross Profit" placeholder icon={<DollarSign size={20} />} color="blue" sub="Revenue − Cost of Sales" />
+        <VKpi label="Reports Generated" value={reports.length + history.length} sub="This session" icon={<FileText size={20} />} color="purple" />
+      </div>
+
+      {/* Generate Report Card */}
+      <div className="v-card" style={{ padding: '22px 24px', marginBottom: 20 }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Sparkles size={16} />}>Generate AI Sales Report</VSectionTitle>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 14, alignItems: 'end', marginBottom: 20 }}>
+          <div className="v-form-group" style={{ marginBottom: 0 }}>
+            <label className="v-form-label">From Date</label>
+            <input type="date" className="v-form-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} max={dateTo} />
+          </div>
+          <div className="v-form-group" style={{ marginBottom: 0 }}>
+            <label className="v-form-label">To Date</label>
+            <input type="date" className="v-form-input" value={dateTo} onChange={e => setDateTo(e.target.value)} min={dateFrom} max={fmt8(today)} />
+          </div>
+          <button
+            className="v-btn v-btn-primary"
+            onClick={generateReport}
+            disabled={generating || !dateFrom || !dateTo}
+            style={{ height: 46, paddingLeft: 24, paddingRight: 24, opacity: generating ? 0.7 : 1 }}
+          >
+            {generating
+              ? <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Generating…</>
+              : <><Sparkles size={14} /> Generate Report</>}
+          </button>
+        </div>
+
+        {/* Quick Presets */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Montserrat,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
+          {[
+            { label: 'This Week', from: fmt8(new Date(today.getTime() - 7*24*60*60*1000)), to: fmt8(today) },
+            { label: 'This Month', from: fmt8(new Date(today.getFullYear(), today.getMonth(), 1)), to: fmt8(today) },
+            { label: 'Last Month', from: fmt8(new Date(today.getFullYear(), today.getMonth()-1, 1)), to: fmt8(new Date(today.getFullYear(), today.getMonth(), 0)) },
+            { label: 'This Quarter', from: fmt8(new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3, 1)), to: fmt8(today) },
+            { label: 'This Year', from: fmt8(new Date(today.getFullYear(), 0, 1)), to: fmt8(today) },
+          ].map(p => (
+            <button key={p.label} className="v-btn v-btn-ghost v-btn-sm" onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}>{p.label}</button>
+          ))}
+        </div>
+
+        {aiReport && (
+          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 16, padding: '20px 22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Sparkles size={14} color="#00897b" /> AI Report Preview
+              </div>
+              <span style={{ fontSize: 11, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
+            </div>
+            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
+          </div>
+        )}
+      </div>
+
+      {/* Generated Reports Table */}
+      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<FileCheck size={16} />}>Generated Reports</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{reports.length} pending submission</span>
+        </div>
+        {reports.length === 0 ? (
+          <VEmptyState icon="📊" title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead>
+                <tr><th>Generated</th><th>Period</th><th>Preview</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {reports.map(r => (
+                  <tr key={r.id}>
+                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{r.generatedDate}</td>
+                    <td><span className="v-badge v-badge-blue">{r.period}</span></td>
+                    <td style={{ maxWidth: 260 }}>
+                      <div style={{ fontSize: 12, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Poppins,sans-serif' }}>
+                        {r.content.slice(0, 80)}…
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="v-btn v-btn-ghost v-btn-sm" onClick={() => setViewReportId(viewReportId === r.id ? null : r.id)}>
+                          <Eye size={12} /> {viewReportId === r.id ? 'Hide' : 'View'}
+                        </button>
+                        <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(r)}>
+                          <Download size={12} /> Download
+                        </button>
+                        <button
+                          className="v-btn v-btn-primary v-btn-sm"
+                          onClick={() => submitReport(r)}
+                          disabled={submitting === r.id}
+                          style={{ opacity: submitting === r.id ? 0.7 : 1 }}
+                        >
+                          {submitting === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
+                            : <><Send size={12} /> Submit to Admin</>}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {viewReportId && reports.find(r => r.id === viewReportId) && (
+              <div style={{ margin: '16px 0', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>Report Details — {reports.find(r => r.id === viewReportId)?.period}</div>
+                  <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setViewReportId(null)}><X size={12} /> Close</button>
+                </div>
+                <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{reports.find(r => r.id === viewReportId)?.content}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Report History */}
+      <div className="v-card" style={{ padding: '20px 22px' }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{history.length} submitted</span>
+        </div>
+        {history.length === 0 ? (
+          <VEmptyState icon="📁" title="No submitted reports yet" sub="Reports submitted to admin will appear here for reference." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead>
+                <tr><th>Submitted At</th><th>Period</th><th>Generated</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {history.map(h => (
+                  <tr key={h.id}>
+                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{h.submittedAt}</td>
+                    <td><span className="v-badge v-badge-green">{h.period}</span></td>
+                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{h.generatedDate}</td>
+                    <td><span className="v-badge v-badge-blue"><Send size={10} /> Submitted</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FrStaffManagementContent({ user }) {
+  const franchiseeBranch = (user?.branch || '').trim();
+  const [staff, setStaff] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [pwErrors, setPwErrors] = useState([]);
+  const [showPwRules, setShowPwRules] = useState(false);
+
+  const emptyForm = { name: '', email: '', role: 'Staff', branch: franchiseeBranch, password: '' };
+  const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => { fetchStaff(); }, []);
+
+  const fetchStaff = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`);
+      const d = await res.json();
+      setStaff((Array.isArray(d) ? d : []).filter(u => ['Staff', 'Manager'].includes(u.role)));
+    } catch { setStaff([]); }
+  };
+
+  const handleInputChange = e => {
+    const { name, value } = e.target;
+    setForm(p => ({ ...p, [name]: value }));
+    if (name === 'password') {
+      if (value) { setShowPwRules(true); setPwErrors(validatePw(value).errs); }
+      else { setShowPwRules(false); setPwErrors([]); }
+    }
+  };
+
+  const handleAdd = async e => {
+    e.preventDefault();
+    if (!validatePw(form.password).valid) { alert('Password does not meet requirements.'); return; }
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, branch: franchiseeBranch }) });
+      const d = await res.json();
+      if (d.success) { await fetchStaff(); setShowAddModal(false); setForm(emptyForm); setShowPwRules(false); }
+      else alert(d.error || 'Failed to add staff');
+    } catch { alert('Failed to add staff'); }
+  };
+
+  const handleEdit = async e => {
+    e.preventDefault();
+    if (form.password && !validatePw(form.password).valid) { alert('Password does not meet requirements.'); return; }
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, email: form.email, role: form.role, branch: franchiseeBranch, ...(form.password && { password: form.password }) }) });
+      const d = await res.json();
+      if (d.success) { await fetchStaff(); setShowEditModal(false); setEditingStaff(null); setForm(emptyForm); setShowPwRules(false); }
+      else alert(d.error || 'Failed to update');
+    } catch { alert('Failed to update'); }
+  };
+
+  const handleDelete = async id => {
+    if (confirmDel !== id) { setConfirmDel(id); return; }
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (d.success) { await fetchStaff(); setConfirmDel(null); }
+      else alert(d.error || 'Failed to delete');
+    } catch { alert('Failed to delete'); }
+  };
+
+  const closeModal = () => { setShowAddModal(false); setShowEditModal(false); setForm(emptyForm); setShowPwRules(false); setPwErrors([]); };
+
+  const StaffForm = ({ onSubmit, isEdit }) => (
+    <form onSubmit={onSubmit}>
+      <div className="v-form-group">
+        <label className="v-form-label">Full Name</label>
+        <input type="text" name="name" className="v-form-input" value={form.name} onChange={handleInputChange} required />
+      </div>
+      <div className="v-form-group">
+        <label className="v-form-label">Email Address</label>
+        <input type="email" name="email" className="v-form-input" value={form.email} onChange={handleInputChange} required />
+      </div>
+      <div className="v-form-group">
+        <label className="v-form-label">Role</label>
+        <select name="role" className="v-form-select" value={form.role} onChange={handleInputChange}>
+          <option value="Staff">Staff</option>
+          <option value="Manager">Manager</option>
+        </select>
+      </div>
+      <div className="v-form-group">
+        <label className="v-form-label">Branch</label>
+        <input type="text" className="v-form-input" value={franchiseeBranch} disabled />
+      </div>
+      <div className="v-form-group">
+        <label className="v-form-label">{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</label>
+        <input type="password" name="password" className="v-form-input" value={form.password} onChange={handleInputChange} required={!isEdit} placeholder={isEdit ? 'Leave blank to keep current' : 'Enter secure password'} />
+        {showPwRules && <VPwBox errors={pwErrors} />}
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+        <button type="button" className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={closeModal}>Cancel</button>
+        <button type="submit" className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{isEdit ? 'Save Changes' : 'Create Account'}</button>
+      </div>
+    </form>
+  );
+
+  return (
+    <>
+      <div className="v-stat-grid">
+        <VKpi label="Total Staff" value={staff.length} sub={`Branch: ${franchiseeBranch}`} icon={<Users size={20} />} color="green" />
+        <VKpi label="Active Staff" value={staff.filter(s => (s.status || 'active') === 'active').length} sub="Active accounts" icon={<Check size={20} />} color="blue" />
+        <VKpi label="Managers" value={staff.filter(s => s.role === 'Manager').length} sub="Manager accounts" icon={<Shield size={20} />} color="orange" />
+      </div>
+
+      <div className="v-card" style={{ padding: '20px 22px' }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Users size={16} />}>Staff Accounts — {franchiseeBranch}</VSectionTitle>
+          <button className="v-btn v-btn-primary" onClick={() => { setForm(emptyForm); setShowPwRules(false); setPwErrors([]); setShowAddModal(true); }}>
+            <Plus size={14} /> Create Staff Account
+          </button>
+        </div>
+
+        {staff.length === 0 ? (
+          <VEmptyState icon="👥" title="No staff accounts yet" sub="Create the first staff account for your branch." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {staff.map(s => (
+                  <tr key={s.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--grad-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 13, fontFamily: 'Montserrat,sans-serif', flexShrink: 0 }}>
+                          {(s.name || 'S')[0]}
+                        </div>
+                        <strong style={{ color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{s.name}</strong>
+                      </div>
+                    </td>
+                    <td style={{ color: '#5a7a65', fontSize: 13 }}>{s.email}</td>
+                    <td>{s.role === 'Manager' ? <span className="v-badge v-badge-orange"><Shield size={10} /> Manager</span> : <span className="v-badge v-badge-blue">Staff</span>}</td>
+                    <td><span className="v-badge v-badge-green"><div className="v-dot v-dot-green" style={{ width: 6, height: 6 }} /> {(s.status || 'active').toUpperCase()}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="v-btn v-btn-ghost v-btn-sm" onClick={() => { setEditingStaff(s); setForm({ name: s.name, email: s.email, role: s.role, branch: franchiseeBranch, password: '' }); setShowPwRules(false); setPwErrors([]); setShowEditModal(true); }}>
+                          <Edit2 size={12} /> Edit
+                        </button>
+                        <button onClick={() => handleDelete(s.id)} className="v-btn v-btn-sm" style={{ color: confirmDel === s.id ? '#fff' : '#ef4444', background: confirmDel === s.id ? 'var(--grad-red)' : 'rgba(239,68,68,0.06)', border: '1.5px solid rgba(239,68,68,0.25)', borderRadius: 9, boxShadow: confirmDel === s.id ? '0 3px 10px rgba(239,68,68,.3)' : 'none' }}>
+                          <Trash2 size={12} /> {confirmDel === s.id ? 'Confirm?' : 'Delete'}
+                        </button>
+                        {confirmDel === s.id && (
+                          <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setConfirmDel(null)}>Cancel</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <div className="v-modal-overlay" onClick={closeModal}>
+          <div className="v-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Create Staff Account</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Add a new staff or manager to your branch.</p>
+            <StaffForm onSubmit={handleAdd} isEdit={false} />
+          </div>
+        </div>
+      )}
+      {showEditModal && (
+        <div className="v-modal-overlay" onClick={closeModal}>
+          <div className="v-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Edit Staff Account</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Update details for {editingStaff?.name}.</p>
+            <StaffForm onSubmit={handleEdit} isEdit={true} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function FrCommunicationContent() {
   return (
     <div>
@@ -1321,7 +1728,6 @@ function FrProfileContent({ user }) {
 
   return (
     <div>
-      {/* Profile header banner */}
       <div style={{ background: 'var(--grad-dark)', borderRadius: 20, padding: '28px 28px 20px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 20 }}>
         <div style={{ width: 64, height: 64, borderRadius: 18, background: 'var(--grad-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color: '#fff', fontFamily: 'Montserrat,sans-serif', boxShadow: '0 6px 20px rgba(0,0,0,0.2)', flexShrink: 0 }}>
           {initials}
@@ -1337,7 +1743,6 @@ function FrProfileContent({ user }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        {/* Personal info */}
         <div className="v-card" style={{ padding: '22px 24px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<User size={16} />}>Personal Information</VSectionTitle>
@@ -1359,7 +1764,6 @@ function FrProfileContent({ user }) {
           </form>
         </div>
 
-        {/* Change password */}
         <div className="v-card" style={{ padding: '22px 24px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<Lock size={16} />}>Change Password</VSectionTitle>
@@ -1382,7 +1786,6 @@ function FrProfileContent({ user }) {
         </div>
       </div>
 
-      {/* OTP modal */}
       {showOtpModal && (
         <div className="v-modal-overlay">
           <div className="v-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
