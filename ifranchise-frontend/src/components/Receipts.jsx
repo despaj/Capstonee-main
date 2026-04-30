@@ -11,7 +11,6 @@ const C = {
   ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
-// ─── Recent threshold: receipts scanned within the last 7 days ───────────────
 const RECENT_DAYS = 7;
 function isRecent(receipt) {
   if (!receipt.created_at) return false;
@@ -19,7 +18,6 @@ function isRecent(receipt) {
   return diff < RECENT_DAYS * 24 * 60 * 60 * 1000;
 }
 
-// ─── Normalize a date value to "YYYY-MM-DD" string for comparison ────────────
 function toDateStr(val) {
   if (!val) return "";
   const d = new Date(val);
@@ -30,11 +28,6 @@ function toDateStr(val) {
   return `${y}-${m}-${day}`;
 }
 
-// ─── Item Duplicate Helpers ───────────────────────────────────────────────────
-
-/**
- * Normalize a description: lowercase, strip non-alphanumeric, collapse spaces.
- */
 function normalizeDesc(desc) {
   return (desc ?? "")
     .toLowerCase()
@@ -42,11 +35,6 @@ function normalizeDesc(desc) {
     .replace(/\s+/g, " ")
     .trim();
 }
-
-/**
- * Resolve the display name from a line item regardless of which key the
- * backend uses: description, name, item_name, item, or title.
- */
 function resolveItemName(item) {
   return (
     item.description ??
@@ -57,11 +45,6 @@ function resolveItemName(item) {
     ""
   );
 }
-
-/**
- * Resolve the line-items array from a receipt object regardless of whether
- * the backend uses lineItems, line_items, items, or products.
- */
 function resolveLineItems(receipt) {
   return (
     receipt?.lineItems ??
@@ -72,27 +55,19 @@ function resolveLineItems(receipt) {
   );
 }
 
-/**
- * Find items that appear more than once within a single receipt.
- * Tolerates any backend field-name convention for both the array and
- * the item description field.
- *
- * Returns groups: [{ description, normalizedDesc, indices: number[], items: [] }]
- */
 function findDuplicateItemsInReceipt(lineItems) {
-  // Accept either the raw receipt object or an already-resolved array
   const items = Array.isArray(lineItems)
     ? lineItems
     : resolveLineItems(lineItems);
 
   if (!items?.length) return [];
 
-  const groups = {}; // normalizedDesc -> group
+  const groups = {}; 
 
   items.forEach((item, idx) => {
     const rawName = resolveItemName(item);
     const nd = normalizeDesc(rawName);
-    if (!nd) return; // skip blank descriptions
+    if (!nd) return; 
     if (!groups[nd]) {
       groups[nd] = {
         description: rawName || "Item",
@@ -105,7 +80,6 @@ function findDuplicateItemsInReceipt(lineItems) {
     groups[nd].items.push(item);
   });
 
-  // Only return groups that appear 2+ times
   return Object.values(groups).filter(g => g.indices.length > 1);
 }
 
@@ -120,9 +94,8 @@ export default function Receipts() {
   const [saving, setSaving]       = useState(false);
 
   const [search, setSearch]       = useState("");
-  const [leftPage, setLeftPage]   = useState(1); // 1 = Recent, 2 = All
+  const [leftPage, setLeftPage]   = useState(1); 
 
-  // ── Item Duplicate State ────────────────────────────────────────────────────
   const [itemDuplicates, setItemDuplicates]     = useState([]);
   const [showItemDupModal, setShowItemDupModal] = useState(false);
 
@@ -144,7 +117,6 @@ export default function Receipts() {
       const receipt = res.data;
       setSelected(receipt);
 
-      // ── Check for duplicate items whenever a receipt is opened ──
       const dupItems = findDuplicateItemsInReceipt(resolveLineItems(receipt));
       if (dupItems.length > 0) {
         setItemDuplicates(dupItems);
@@ -159,7 +131,6 @@ export default function Receipts() {
 
   useEffect(() => { fetchReceipts(); }, []);
 
-  // ── Search + date filter ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return receipts.filter(r => {
@@ -176,7 +147,6 @@ export default function Receipts() {
     });
   }, [receipts, dateFrom, dateTo, search]);
 
-  // ── Split into recent vs all ────────────────────────────────────────────────
   const recentReceipts = useMemo(() => filtered.filter(isRecent), [filtered]);
   const allReceipts    = useMemo(() => filtered, [filtered]);
 
@@ -192,7 +162,6 @@ export default function Receipts() {
   const grandTotal   = filtered.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
   const receiptCount = filtered.length;
 
-  // ── Edit helpers ────────────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
     setEditData({
@@ -252,7 +221,6 @@ export default function Receipts() {
         : r
       ));
 
-      // Re-check for item duplicates after edit
       const dupItems = findDuplicateItemsInReceipt(resolveLineItems(updated));
       if (dupItems.length > 0) {
         setItemDuplicates(dupItems);
@@ -284,13 +252,10 @@ export default function Receipts() {
     }
   };
 
-  // ── Item Dup Modal Actions ──────────────────────────────────────────────────
   const handleDismissItemDups = () => {
     setShowItemDupModal(false);
-    // Keep itemDuplicates in state so the warning banner stays visible
   };
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
   const fmtReceiptDate = (val) => {
     const d = toDateStr(val);
     if (!d) return "N/A";
@@ -302,7 +267,27 @@ export default function Receipts() {
     return new Date(val).toLocaleString("en-PH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const saveLineItemsToDb = async (updatedItems) => {
+  if (!selected) return;
+  try {
+    await axios.put(`${API}/receipts/${selected.id}`, {
+      merchant:     selected.merchant,
+      date:         selected.date,
+      currency:     selected.currency,
+      total_amount: selected.total_amount,
+      lineItems:    updatedItems.map(i => ({
+        description: i.description,
+        quantity:    parseInt(i.quantity)    || 0,
+        unit_price:  parseFloat(i.unit_price)  || 0,
+        total_price: parseFloat(i.total_price) || 0,
+      })),
+    });
+  } catch (err) {
+    console.error("Failed to save after duplicate resolution:", err);
+    alert("Changes could not be saved to the database.");
+  }
+};
+
   return (
     <div style={s.page}>
       <style>{`
@@ -316,49 +301,104 @@ export default function Receipts() {
         @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
       `}</style>
 
-      {/* ── Item Duplicate Modal (portalled to body so it always renders on top) ── */}
       {showItemDupModal && itemDuplicates.length > 0 && createPortal(
-        <div style={s.modalOverlay} onClick={handleDismissItemDups}>
-          <div style={{ ...s.modalBox, maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-            <div style={{ ...s.modalHeader, background: "linear-gradient(135deg,#c62828,#e53935)" }}>
-              <span style={s.modalTitle}>⚠ Duplicate Items Detected</span>
-              <button style={s.modalClose} onClick={handleDismissItemDups}>
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div style={s.modalBody}>
-              <p style={{ margin: "0 0 14px", fontSize: 13, color: C.muted }}>
-                {itemDuplicates.length === 1
-                  ? "1 item appears more than once on this receipt."
-                  : `${itemDuplicates.length} items appear more than once on this receipt.`}{" "}
-                This may be a scanning error — review carefully.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {itemDuplicates.map((group, idx) => (
-                  <div key={idx} className="item-dup-row" style={s.itemDupRow}>
-                    <div style={s.itemDupIcon}>⚠</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={s.itemDupName}>{group.description}</div>
-                      <div style={s.itemDupMeta}>
-                        {group.items[0]?.quantity
-                          ? `${group.items[0].quantity} × ${group.items[0].unit_price ?? group.items[0].unitPrice ?? group.items[0].price ?? "—"}`
-                          : group.items[0]?.total_price ?? group.items[0]?.totalPrice ?? group.items[0]?.price ?? "—"}
-                      </div>
-                      <div style={s.itemDupBadge}>Listed {group.indices.length}× on this receipt</div>
+      <div style={s.modalOverlay} onClick={handleDismissItemDups}>
+        <div style={{ ...s.modalBox, maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+          <div style={{ ...s.modalHeader, background: "linear-gradient(135deg,#c62828,#e53935)" }}>
+            <span style={s.modalTitle}>⚠ Duplicate Items Detected</span>
+            <button style={s.modalClose} onClick={handleDismissItemDups}>
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div style={s.modalBody}>
+            <p style={{ margin: "0 0 14px", fontSize: 13, color: C.muted }}>
+              {itemDuplicates.length === 1
+                ? "1 item appears more than once on this receipt."
+                : `${itemDuplicates.length} items appear more than once on this receipt.`}{" "}
+              This may be a scanning error — review carefully.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {itemDuplicates.map((group, idx) => (
+                <div key={idx} className="item-dup-row" style={s.itemDupRow}>
+                  <div style={s.itemDupIcon}>⚠</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={s.itemDupName}>{group.description}</div>
+                    <div style={s.itemDupMeta}>
+                      {group.items[0]?.quantity
+                        ? `${group.items[0].quantity} × ${group.items[0].unit_price ?? group.items[0].unitPrice ?? group.items[0].price ?? "—"}`
+                        : group.items[0]?.total_price ?? group.items[0]?.totalPrice ?? group.items[0]?.price ?? "—"}
                     </div>
+                    <div style={s.itemDupBadge}>Listed {group.indices.length}× on this receipt</div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div style={s.modalFooter}>
-              <button style={{ ...s.saveBtn, background: "linear-gradient(135deg,#c62828,#e53935)" }} onClick={handleDismissItemDups}>
-                Got it, I'll review
-              </button>
+                </div>
+              ))}
             </div>
           </div>
-        </div>,
-        document.body
-      )}
+              <div style={{ ...s.modalFooter, justifyContent: "stretch", gap: 8 }}>
+                {/* Merge */}
+                <button
+                  style={{ ...s.saveBtn, background: "linear-gradient(135deg,#1565c0,#1976d2)", flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", fontSize: 13  }}
+                  onClick={() => {
+                    const items = [...resolveLineItems(selected)];
+                    const indicesToRemove = new Set();
+                    itemDuplicates.forEach(group => {
+                      const totalQty   = group.items.reduce((sum, it) => sum + (parseFloat(it.quantity) || 1), 0);
+                      const totalPrice = group.items.reduce((sum, it) => sum + (parseFloat(it.total_price ?? it.totalPrice ?? it.price) || 0), 0);
+                      items[group.indices[0]] = { ...items[group.indices[0]], quantity: totalQty, total_price: totalPrice };
+                      group.indices.slice(1).forEach(i => indicesToRemove.add(i));
+                    });
+                    const merged = items.filter((_, i) => !indicesToRemove.has(i));
+                    setSelected(prev => ({ ...prev, lineItems: merged, line_items: merged, items: merged }));
+                    setItemDuplicates([]);
+                    handleDismissItemDups();
+                    saveLineItemsToDb(merged);
+                  }}
+                >
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                      <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                    </svg>
+                    Merge
+                  </button>
+
+                {/* Discard */}
+                <button
+                  style={{ ...s.saveBtn, background: "linear-gradient(135deg,#c62828,#e53935)", flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", fontSize: 13  }}
+                  onClick={() => {
+                    const items = [...resolveLineItems(selected)];
+                    const indicesToRemove = new Set();
+                    itemDuplicates.forEach(group => {
+                      group.indices.slice(1).forEach(i => indicesToRemove.add(i));
+                    });
+                    const kept = items.filter((_, i) => !indicesToRemove.has(i));
+                    setSelected(prev => ({ ...prev, lineItems: kept, line_items: kept, items: kept }));
+                    setItemDuplicates([]);
+                    handleDismissItemDups();
+                    saveLineItemsToDb(kept);
+                  }}
+                >
+                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                      Delete Duplicates
+                    </button>
+
+                {/* Ignore */}
+                <button
+                  style={{ ...s.saveBtn, background: "linear-gradient(135deg,#5a7a65,#3d5a47)", flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", fontSize: 13 }}
+                  onClick={handleDismissItemDups}
+                >
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Keep All
+                </button>
+              </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
       {/* Page header */}
       <div style={{ marginBottom: 22 }}>

@@ -423,9 +423,10 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [selectedBrand,   setSelectedBrand]   = useState(null);
   const [selectedBranch,  setSelectedBranch]  = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [filterBrand, setFilterBrand] = useState('all');
 
-  const emptyBrand  = { name:'', region:'', categories:[], contact_email:'', contact_phone:'', description:'' };
-  const emptyBranch = { name:'', brand_id:'', region:'', manager:'', contact:'', address:'', status:'Active' };
+  const emptyBrand  = { name:'', categories:[], contact_email:'', contact_phone:'', description:'' };
+  const emptyBranch = { name:'', brand_id:'', region:'', manager:'', contact:'', address:'', concept:'' };
 
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
@@ -523,34 +524,37 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
   const totalActive   = brands.reduce((s, b) => s + (b.branches?.filter(br => br.status === 'Active').length || 0), 0);
   const totalReview   = brands.reduce((s, b) => s + (b.branches?.filter(br => br.status === 'Review').length || 0), 0);
-  const allRegions    = [...new Set(brands.flatMap(b => [b.region, ...(b.branches?.map(br => br.region) || [])]).filter(Boolean))];
+  const allRegions = [...new Set(brands.flatMap(b => b.branches?.map(br => br.region) || []).filter(Boolean))];
 
   const filteredBrands = brands
-    .map(brand => ({
-      ...brand,
-      branches: (brand.branches || []).filter(br =>
-        (!searchQuery || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || '').toLowerCase().includes(searchQuery.toLowerCase())) &&
-        (filterRegion === 'all' || br.region === filterRegion || brand.region === filterRegion)
-      ),
-    }))
-    .filter(brand =>
-      (!searchQuery || brand.name.toLowerCase().includes(searchQuery.toLowerCase()) || brand.branches.length > 0) &&
-      (filterRegion === 'all' || brand.region === filterRegion || brand.branches.length > 0)
-    );
+  .map(brand => ({
+    ...brand,
+    branches: (brand.branches || []).filter(br =>
+      (!searchQuery ||
+        br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (br.manager || '').toLowerCase().includes(searchQuery.toLowerCase())) &&
+      (filterRegion === 'all' || br.region === filterRegion)
+    ),
+  }))
+  .filter(brand => {
+    if (filterBrand !== 'all' && String(brand.id) !== String(filterBrand)) return false;
+    if (filterRegion !== 'all' && brand.branches.length === 0) return false;
+    if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+    return true;
+  });
 
-  const StatusBadge = ({ status }) => {
-    const styles = {
-      Active:   { bg:'rgba(16,185,129,0.1)',  color:'#059669' },
-      Review:   { bg:'rgba(245,158,11,0.1)',  color:'#d97706' },
-      Inactive: { bg:'rgba(239,68,68,0.1)',   color:'#dc2626' },
-    };
-    const s = styles[status] || styles['Active'];
-    return (
-      <span style={{ background:s.bg, color:s.color, padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
-        {status}
-      </span>
-    );
+  const ConceptBadge = ({ concept }) => {
+  const styles = {
+    'Full Store': { bg:'rgba(16,185,129,0.1)', color:'#059669' },
+    'Kiosk':      { bg:'rgba(59,130,246,0.1)', color:'#2563eb' },
   };
+  const s = styles[concept] || { bg:'rgba(156,163,175,0.1)', color:'#6b7280' };
+  return (
+    <span style={{ background:s.bg, color:s.color, padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
+      {concept || '—'}
+    </span>
+  );
+};
 
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
@@ -578,8 +582,6 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
           {[
             { label:'Total Brands',    value:brands.length,  icon:<Globe size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'Registered brands'    },
             { label:'Total Branches',  value:totalBranches,  icon:<Store size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Across all brands'    },
-            { label:'Active Branches', value:totalActive,    icon:<Check size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'Operational'          },
-            { label:'Needs Review',    value:totalReview,    icon:<AlertTriangle size={20} color="#92400e"/>, bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Pending attention'    },
           ].map((s, i) => (
             <div key={i} className="bm-stat">
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
@@ -602,7 +604,11 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
             <input type="text" placeholder="Search brands or branches..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               className="bm-input" style={{ paddingLeft:32, width:260 }} />
           </div>
-          <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
+          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
+            <option value="all">All Brands</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+           <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
             <option value="all">All Regions</option>
             {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
@@ -632,7 +638,6 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
                 <div>
                   <div style={{ fontWeight:800, fontSize:16 }}>{brand.name}</div>
                   <div style={{ fontSize:12, opacity:0.8, display:'flex', alignItems:'center', gap:10, marginTop:2 }}>
-                    <span style={{ display:'flex', alignItems:'center', gap:4 }}><MapPin size={11} /> {brand.region}</span>
                     {brand.contact_email && <span style={{ display:'flex', alignItems:'center', gap:4 }}><Mail size={11} /> {brand.contact_email}</span>}
                     {brand.contact_phone && <span style={{ display:'flex', alignItems:'center', gap:4 }}><Phone size={11} /> {brand.contact_phone}</span>}
                   </div>
@@ -640,7 +645,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 <span style={{ fontSize:12, opacity:0.85, fontWeight:600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? 'branch' : 'branches'}</span>
-                <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name:brand.name, region:brand.region, categories:brand.categories||[], contact_email:brand.contact_email, contact_phone:brand.contact_phone, description:brand.description }); setShowEditBrandModal(true); }}
+                <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name:brand.name, categories:brand.categories||[], contact_email:brand.contact_email, contact_phone:brand.contact_phone, description:brand.description }); setShowEditBrandModal(true); }}
                   style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 14px', borderRadius:8, border:'1.5px solid rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                   <Edit2 size={12} /> Edit Brand
                 </button>
@@ -653,7 +658,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
 
             <div>
               <div className="bm-branch-row" style={{ background:'#f8fffe', borderBottom:'2px solid #d1eedd' }}>
-                {['Branch Name','Region','Manager','Contact','Address','Status','Actions'].map(h => (
+                {['Branch Name','Region','Manager','Contact','Address','Concept','Actions'].map(h => (
                   <div key={h} className="bm-col-head">{h}</div>
                 ))}
               </div>
@@ -672,10 +677,14 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
                   <div style={{ fontSize:12, color:'#0d2b1e', fontWeight:600 }}>{branch.manager || '—'}</div>
                   <div style={{ fontSize:12, color:'#5a7a65' }}>{branch.contact || '—'}</div>
                   <div style={{ fontSize:12, color:'#5a7a65' }}>{branch.address || '—'}</div>
-                  <div><StatusBadge status={branch.status || 'Active'} /></div>
+                  <div>
+                    {brand.name === 'Coffee Spot'
+                      ? <ConceptBadge concept={branch.concept} />
+                      : '—'}
+                  </div>
                   <div style={{ display:'flex', gap:6 }}>
                     <button className="bm-action-btn" style={{ borderColor:'#b2dfdb', background:'#e0f2f1', color:'#00695c' }}
-                      onClick={() => { setSelectedBranch(branch); setBranchForm({ name:branch.name, brand_id:brand.id, region:branch.region, manager:branch.manager, contact:branch.contact, address:branch.address, status:branch.status }); setShowEditBranchModal(true); }}>
+                      onClick={() => { setSelectedBranch(branch); setBranchForm({ name:branch.name, brand_id:brand.id, region:branch.region, manager:branch.manager, contact:branch.contact, address:branch.address, concept: branch.concept || '' }); setShowEditBranchModal(true); }}>
                       <Pencil size={11} /> Edit
                     </button>
                     <button className="bm-action-btn"
@@ -746,12 +755,6 @@ function BrandFormFields({ form, setForm }) {
   return (
     <div style={{ display:'grid', gap:14 }}>
       <div><label style={lbl}>Brand Name *</label><input style={inputSt} {...f('name')} placeholder="Enter brand name" required /></div>
-      <div><label style={lbl}>Region *</label>
-        <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('region')} required>
-          <option value="">Select region</option>
-          {['NCR','Region 3','Region 4A','Region 4B','Region 5','Region 7','Region 11'].map(r => <option key={r}>{r}</option>)}
-        </select>
-      </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
         <div><label style={lbl}>Contact Email</label><input type="email" style={inputSt} {...f('contact_email')} placeholder="brand@example.com" /></div>
         <div><label style={lbl}>Contact Phone</label>
@@ -808,11 +811,15 @@ function BranchFormFields({ form, setForm, brands }) {
             {['NCR','Region 3','Region 4A','Region 4B','Region 5','Region 7','Region 11'].map(r => <option key={r}>{r}</option>)}
           </select>
         </div>
-        <div><label style={lbl}>Status</label>
-          <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('status')}>
-            <option>Active</option><option>Review</option><option>Inactive</option>
-          </select>
-        </div>
+        {String(form.brand_id) === brands.find(b => b.name === 'Coffee Spot')?.id?.toString()  && (
+          <div><label style={lbl}>Concept *</label>
+            <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('concept')}>
+              <option value="">Select concept</option>
+              <option>Full Store</option>
+              <option>Kiosk</option>
+            </select>
+          </div>
+        )}
       </div>
       <div><label style={lbl}>Branch Manager</label><input style={inputSt} {...f('manager')} /></div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -848,7 +855,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [tooltip,           setTooltip]           = useState(null);
   const svgRef = useRef(null);
 
-    const [filterBrand,    setFilterBrand]    = useState(null);
+  const [filterBrand,    setFilterBrand]    = useState(null);
   const [filterBranch,   setFilterBranch]   = useState(null);
   const [brandDropOpen,  setBrandDropOpen]  = useState(false);
   const [branchDropOpen, setBranchDropOpen] = useState(false);
@@ -2702,9 +2709,10 @@ function normalizeOrder(o) {
     id:        `ORD-${String(o.id).padStart(4, "0")}`,
     _dbId:     o.id,
     customer:  o.user_name ?? `User #${o.user_id}`,
-    phone:     o.phone  ?? "—",
-    brand:     o.brand  ?? "—",
-    branch:    o.branch ?? "—",
+    phone:     o.phone  ?? "",
+    brand:     o.brand  ?? "",
+    branch:    o.branch ?? "",
+    address:   o.address ?? "",  
     items:     Array.isArray(o.items) ? o.items : [],
     total:     o.total_amount,
     status:    DB_TO_UI_STATUS[o.status] ?? "pending",
@@ -2865,15 +2873,23 @@ function MobileOrdersContent() {
                 <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{viewOrder.customer}</div>
                 <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>{viewOrder.phone}</div>
               </div>
+              {/* Delivery Address */}
+              <div style={{ marginBottom:18, padding:"12px 14px", background:"#fffdf0", borderRadius:12, border:"1px solid #e8d5a3", display:"flex", gap:8, alignItems:"flex-start" }}>
+                <MapPin size={14} color="#8a6a00" style={{ marginTop:2, flexShrink:0 }} />
+                <div>
+                  <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#8a6a00", marginBottom:4 }}>Delivery Address</div>
+                  <div style={{ fontWeight:600, fontSize:13, color:"#0d2b1e" }}>{viewOrder.address || "—"}</div>
+                </div>
+              </div>
 
               {/* Brand / Branch */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
-                {[{ label:"Brand", value:viewOrder.brand }, { label:"Branch", value:viewOrder.branch }].map(({ label, value }) => (
-                  <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
-                    <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
-                    <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
-                  </div>
-                ))}
+                {[{ label:"Brand", value:viewOrder.brand }, { label:"Branch", value:viewOrder.branch }].map(({ label, value }, i) => (
+                    <div key={label} style={{ padding:"10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius:10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
+                      <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
+                      <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
+                    </div>
+                  ))}
               </div>
 
               {/* Items */}
@@ -2987,9 +3003,11 @@ function MobileOrdersContent() {
                     <div style={{ fontSize:11, color:"#5a7a65" }}>{order.phone}</div>
                   </td>
                   <td style={{ padding:"11px 14px" }}>
-                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c" }}>{order.brand}</span>
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:400, background:"#f8fffe", color:"#5a7a65" }}>{order.brand}</span>
                   </td>
-                  <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{order.branch}</td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c" }}>{order.branch}</span>
+                  </td>
                   <td style={{ padding:"11px 14px" }}>
                     <button
                       onClick={() => setViewOrder(order)}

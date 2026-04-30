@@ -1534,6 +1534,8 @@ app.get("/orders", async (req, res) => {
         o.phone,
         o.brand,
         o.branch,
+        o.address, 
+        u.name AS user_name, 
 
         COALESCE(
           json_agg(
@@ -1551,7 +1553,7 @@ app.get("/orders", async (req, res) => {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN shop_items si  ON si.id = oi.shop_item_id
 
-      GROUP BY o.id, u.name
+      GROUP BY o.id, u.name, o.address
       ORDER BY o.created_at DESC
     `);
 
@@ -1566,7 +1568,7 @@ app.post("/orders", async (req, res) => {
   const client = await pool.connect();
   
   const { user_id, phone, brand, branch, items, total_amount, address } = req.body;
-  console.log("Order body received:", req.body); // ← add this
+  console.log("address value being inserted:", address);
 
    if (!items || !Array.isArray(items) || items.length === 0) {
     client.release();

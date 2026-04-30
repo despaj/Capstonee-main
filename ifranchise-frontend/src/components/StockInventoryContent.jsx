@@ -433,7 +433,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
         <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
           <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}>
-            🧪 Stock Ingredients
+            Stock Ingredients
           </span>
           <span style={{ fontSize:12, opacity:0.9 }}>{filtered.length} items · {lowCount} low stock</span>
         </div>
@@ -442,7 +442,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading…</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
-            <div style={{ fontSize:"2.5rem", marginBottom:10 }}>🧪</div>
+            <div style={{ fontSize:"2.5rem", marginBottom:10 }}></div>
             No ingredients found. Add your first ingredient above.
           </div>
         ) : (
@@ -470,7 +470,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                         onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                         <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:7 }}>🧪 {item.name}</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:7 }}>{item.name}</div>
                         </td>
                         <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
                           <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>

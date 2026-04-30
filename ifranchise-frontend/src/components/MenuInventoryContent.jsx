@@ -311,7 +311,7 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
                       ) : (
                         <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
                           style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
-                          🧪 {ingredients.length} ingredient{ingredients.length!==1?"s":""}
+                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
                           <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
                         </button>
                       )}
@@ -645,7 +645,7 @@ const matchesBranch =
   
   const IngredientPicker = () => (
     <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
-      <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>🧪 Ingredients Required</div>
+      <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
         <div ref={ingRef} style={{ position:"relative" }}>
           <input style={invInputSt} value={ingSearch}
