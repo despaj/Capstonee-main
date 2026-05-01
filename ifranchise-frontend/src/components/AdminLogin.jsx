@@ -175,15 +175,19 @@ export default function AdminLogin() {
     }
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          email: email.trim(), 
-          password: password.trim()
-        }),
-        credentials: "include",
-      });
+      // AFTER
+const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+  method: "POST",
+  headers: { 
+    "Content-Type": "application/json",
+    "X-Client": "web",       // <-- add this
+  },
+  body: JSON.stringify({ 
+    email: email.trim(), 
+    password: password.trim()
+  }),
+  credentials: "include",
+});
 
       const data = await res.json();
 
