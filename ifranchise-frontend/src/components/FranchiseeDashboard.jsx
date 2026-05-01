@@ -9,7 +9,7 @@ import {
   RefreshCw, Calendar, BarChart, Archive, TrendingUp, TrendingDown,
   Eye, ShoppingCart, Lock, ChevronRight, Plus, Pencil, Trash2,
   Send, Download, Receipt, Zap, Activity, Sparkles, Shield,
-  Edit2, Bell, Users, FileCheck, Star
+  Edit2, Bell, Users, FileCheck, Star,
 } from 'lucide-react';
 
 
@@ -248,7 +248,7 @@ export default function FranchiseeDashboard() {
     { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
     { id: 'staff',          label: 'Staff Management',icon: <Users size={20} /> },
-    { id: 'communication',  label: 'Communication',   icon: <MessageCircle size={20} /> },
+    { id: 'communication',  label: 'Announcement',   icon: <MessageCircle size={20} /> },
     { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
     { id: 'logout',         label: 'Logout',          icon: <LogOut size={20} />, action: handleLogout },
   ];
@@ -392,7 +392,7 @@ export default function FranchiseeDashboard() {
           {activeModule === 'stockInventory' && <FrStockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
           {activeModule === 'receipts'       && <FrReceiptsContent user={user} />}
-          {activeModule === 'reports'        && <FrReportsContent user={user} />}
+          {activeModule === 'reports'        && <FrReportsContent user={user} transactions={transactions} />}
           {activeModule === 'staff'          && <FrStaffManagementContent user={user} />}
           {activeModule === 'communication'  && <FrCommunicationContent />}
           {activeModule === 'profile'        && <FrProfileContent user={user} />}
@@ -419,122 +419,512 @@ export default function FranchiseeDashboard() {
   );
 }
 
+const fmtShort = (n) => { if (n >= 1_000_000) return '₱' + (n / 1_000_000).toFixed(1) + 'M'; if (n >= 1_000) return '₱' + (n / 1_000).toFixed(0) + 'k'; return '₱' + n; };
+ 
 function FrDashboardContent({ transactions, brands, user }) {
   const userBranch = (user?.branch || '').trim();
-  const fmtAmt = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const todayStr = new Date().toISOString().slice(0, 10);
-
+  const today      = new Date();
+  const fmt8       = (d) => d.toISOString().slice(0, 10);
+ 
+  // ── date-range state ──────────────────────────────────────────────────────
+  const [rangeMode,    setRangeMode]    = useState('preset');
+  const [preset,       setPreset]       = useState('month');
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+ 
+  // ── archive state ─────────────────────────────────────────────────────────
+  const [archives,          setArchives]          = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`frArchives_${userBranch}`) || '[]'); } catch { return []; }
+  });
+  const [showArchivePanel,  setShowArchivePanel]  = useState(false);
+  const [viewingArchive,    setViewingArchive]    = useState(null);
+  const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
+  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
+ 
+  // ── chart tooltip ─────────────────────────────────────────────────────────
+  const [tooltip, setTooltip] = useState(null);
+  const svgRef = useRef(null);
+ 
+  // ── KPI (server-side) ─────────────────────────────────────────────────────
+  const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+ 
+  const fetchKpis = useCallback(async () => {
+    if (!userBranch) return;
+    setKpiLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      params.set('branch', userBranch);
+ 
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const data = await res.json();
+      if (!data.error) setKpiData(data);
+    } catch (e) {
+      console.error('KPI fetch error:', e);
+    } finally {
+      setKpiLoading(false);
+    }
+  }, [rangeMode, preset, appliedRange, userBranch]);
+ 
+  useEffect(() => { if (!viewingArchive) fetchKpis(); }, [fetchKpis, viewingArchive]);
+ 
+  // ── filter transactions to this branch ───────────────────────────────────
   const myTransactions = useMemo(() =>
     transactions.filter(tx =>
-      !userBranch ||
-      (tx.branch || '').trim().toLowerCase() === userBranch.trim().toLowerCase()
+      (tx.branch || '').trim().toLowerCase() === userBranch.toLowerCase()
     ),
     [transactions, userBranch]
   );
-
+ 
+  // ── chart data ────────────────────────────────────────────────────────────
+  const chartData = useMemo(() => {
+    if (viewingArchive) return viewingArchive.chartData;
+ 
+    const txList = myTransactions;
+    if (!txList.length) return { labels: [], values: [] };
+ 
+    const now = new Date();
+ 
+    const filtered = txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === 'day')   return d.toDateString() === now.toDateString();
+      if (preset === 'week') {
+        const start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+        const end   = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
+        return d >= start && d <= end;
+      }
+      if (preset === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === 'year')  return d.getFullYear() === now.getFullYear();
+      if (rangeMode === 'custom' && appliedRange) {
+        return d >= new Date(appliedRange.from) && d <= new Date(appliedRange.to);
+      }
+      return true;
+    });
+ 
+    if (rangeMode === 'custom' && appliedRange) {
+      const from     = new Date(appliedRange.from);
+      const to       = new Date(appliedRange.to);
+      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
+      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
+      const labels   = Array.from({ length: numWeeks }, (_, i) => `Week ${i + 1}`);
+      const values   = Array(numWeeks).fill(0);
+      filtered.forEach(tx => {
+        const d       = new Date(tx.created_at);
+        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks - 1);
+        values[weekIdx] += tx.total || 0;
+      });
+      return { labels, values };
+    }
+ 
+    let grouped = {};
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      let label;
+      if (preset === 'day')   label = `${d.getHours()}:00`;
+      if (preset === 'week')  label = d.toLocaleDateString('en-US', { weekday: 'short' });
+      if (preset === 'month') label = `Day ${d.getDate()}`;
+      if (preset === 'year')  label = d.toLocaleDateString('en-US', { month: 'short' });
+      grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+    });
+ 
+    const labels = Object.keys(grouped);
+    const values = labels.map(l => grouped[l]);
+    return { labels, values };
+  }, [myTransactions, preset, rangeMode, appliedRange, viewingArchive]);
+ 
+  // ── chart derived values ──────────────────────────────────────────────────
+  const values    = chartData.values;
+  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
+  const pctChange = values.length > 1 && values[0] > 0
+    ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
+  const trending  = Number(pctChange) >= 0;
+ 
+  // ── SVG chart geometry ────────────────────────────────────────────────────
+  const SVG_W = 820, SVG_H = 260, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
+  const plotW = SVG_W - PAD_L - PAD_R;
+  const plotH = SVG_H - PAD_T - PAD_B;
+  const maxV  = peak > 0 ? peak * 1.18 : 1;
+ 
+  const pts = useMemo(() => values.map((v, i) => ({
+    x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
+    y: PAD_T + plotH - (v / maxV) * plotH,
+    v, label: chartData.labels[i],
+  })), [values, chartData.labels, maxV, plotH, plotW]);
+ 
+  const { linePath, areaPath } = useMemo(() => {
+    if (!pts.length) return { linePath: '', areaPath: '' };
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cx = (pts[i].x + pts[i + 1].x) / 2;
+      d += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+    }
+    return { linePath: d, areaPath: d + ` L ${pts[pts.length-1].x} ${PAD_T+plotH} L ${pts[0].x} ${PAD_T+plotH} Z` };
+  }, [pts, PAD_T, plotH]);
+ 
+  const yTicks = useMemo(() =>
+    [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PAD_T + plotH - t * plotH, label: fmtShort(t * maxV) })),
+    [maxV, PAD_T, plotH]
+  );
+ 
+  const handleMouseMove = useCallback((e) => {
+    if (!svgRef.current || !pts.length) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mx   = ((e.clientX - rect.left) / rect.width) * SVG_W;
+    let best = pts[0], bestDist = Infinity;
+    for (const p of pts) { const dist = Math.abs(p.x - mx); if (dist < bestDist) { bestDist = dist; best = p; } }
+    setTooltip({ x: best.x, y: best.y, label: best.label, value: best.v });
+  }, [pts]);
+ 
+  // ── archive helpers ───────────────────────────────────────────────────────
+  const getRangeLabel = () => {
+    if (viewingArchive) return `Archive: ${viewingArchive.year}`;
+    if (rangeMode === 'custom' && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
+    return { day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' }[preset] || 'This Month';
+  };
+ 
+  const saveArchive = () => {
+    const year = parseInt(archiveYearInput);
+    if (isNaN(year) || year < 2000 || year > 2100) { alert('Enter a valid year (2000–2100)'); return; }
+    if (archives.find(a => a.year === year))        { alert(`Year ${year} already archived.`); return; }
+    const snapshot = {
+      year, label: `Full Year ${year}`,
+      savedAt:   new Date().toLocaleString(),
+      chartData,
+      kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak },
+    };
+    const updated = [...archives, snapshot].sort((a, b) => b.year - a.year);
+    setArchives(updated);
+    localStorage.setItem(`frArchives_${userBranch}`, JSON.stringify(updated));
+    setArchiveConfirm(false);
+    alert(`Year ${year} archived!`);
+  };
+ 
+  const deleteArchive = (year) => {
+    if (!window.confirm(`Delete archive for ${year}?`)) return;
+    const updated = archives.filter(a => a.year !== year);
+    setArchives(updated);
+    localStorage.setItem(`frArchives_${userBranch}`, JSON.stringify(updated));
+    if (viewingArchive?.year === year) setViewingArchive(null);
+  };
+ 
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo)   { alert('Select both dates.'); return; }
+    if (customFrom > customTo)      { alert('"From" cannot be after "To".'); return; }
+    setAppliedRange({ from: customFrom, to: customTo });
+    setViewingArchive(null);
+  };
+ 
+  // ── today's quick stats ───────────────────────────────────────────────────
+  const todayStr     = today.toISOString().slice(0, 10);
   const todaySales   = myTransactions.filter(tx => (tx.created_at || '').startsWith(todayStr));
   const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
-
-  const monthSales = useMemo(() => {
-    const now = new Date();
-    return myTransactions.filter(tx => {
-      const d = new Date(tx.created_at);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-  }, [myTransactions]);
-
-  const monthRevenue = monthSales.reduce((s, tx) => s + Number(tx.total || 0), 0);
-  const avgOrder     = monthSales.length ? monthRevenue / monthSales.length : 0;
-
-  const [kpiData,    setKpiData]    = useState(null);
-  const [kpiLoading, setKpiLoading] = useState(false);
-
-  useEffect(() => {
-    if (!userBranch) return;
-    setKpiLoading(true);
-    fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?preset=month&branch=${encodeURIComponent(userBranch)}`)
-      .then(r => r.json())
-      .then(d => { if (!d.error) setKpiData(d); })
-      .catch(() => {})
-      .finally(() => setKpiLoading(false));
-  }, [userBranch]);
-
+  const avgOrder     = todaySales.length ? todayRevenue / todaySales.length : 0;
+ 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ marginBottom: 24 }}>
+      <style>{`
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .fr-db-kpi-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        .fr-db-ins-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+        .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+        @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
+        @media(max-width:720px){ .fr-db-ins-grid,.fr-db-bot-grid{ grid-template-columns:1fr; } }
+        .fr-db-kpi  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
+        .fr-db-kpi:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
+        .fr-db-chart { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:18px; }
+        .fr-db-ins  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
+        .fr-db-tab-group { display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px; }
+        .fr-db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5a7a65; cursor:pointer; transition:all .15s; font-family:inherit; }
+        .fr-db-tab.active { background:linear-gradient(135deg,#00c853,#00897b); color:#fff; box-shadow:0 2px 8px rgba(0,180,90,.35); }
+        .fr-db-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
+        .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
+        .fr-db-date:focus { border-color:#00897b; }
+        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
+        .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
+        .fr-db-arc-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
+        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #e0f2f1; margin-bottom:8px; background:#f8fffe; }
+        .fr-db-arc-row:hover { background:#e8fdf0; }
+        .fr-db-arc-btn   { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
+        .fr-db-view-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+      `}</style>
+ 
+      {/* ── Welcome header ── */}
+      <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00897b', marginBottom: 4, fontFamily: 'Montserrat,sans-serif' }}>Welcome back</div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0d2b1e', margin: 0, fontFamily: 'Montserrat,sans-serif' }}>{user?.name}</h1>
-        <div style={{ fontSize: 13, color: '#5a7a65', marginTop: 4, fontFamily: 'Poppins,sans-serif' }}>Branch: <strong style={{ color: '#0d2b1e' }}>{userBranch || '—'}</strong></div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0d2b1e', margin: 0, fontFamily: 'Montserrat,sans-serif' }}>{user?.name}</h1>
+        <div style={{ fontSize: 13, color: '#5a7a65', marginTop: 4 }}>Branch: <strong style={{ color: '#0d2b1e' }}>{userBranch || '—'}</strong></div>
       </div>
-
-      {/* KPI row */}
-      <div className="v-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-        <VKpi
-          label="Today's Revenue"
-          value={fmtAmt(todayRevenue)}
-          icon={<DollarSign size={20} />}
-          color="green"
-          sub={`${todaySales.length} transactions today`}
-        />
-        <VKpi
-          label="Monthly Revenue"
-          value={fmtAmt(kpiData?.salesRevenue ?? monthRevenue)}
-          icon={<BarChart size={20} />}
-          color="green"
-          sub="This month"
-        />
-        <VKpi
-          label="Monthly Profit"
-          value={kpiLoading ? '…' : fmtAmt(kpiData?.salesProfit ?? 0)}
-          icon={<TrendingUp size={20} />}
-          color="blue"
-          sub="After cost of sales"
-        />
-        <VKpi
-          label="Avg Order Value"
-          value={fmtAmt(isNaN(avgOrder) ? 0 : avgOrder)}
-          icon={<ShoppingCart size={20} />}
-          color="orange"
-          sub="Per transaction"
-        />
-      </div>
-
-      {/* Sales breakdown cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 24 }}>
+ 
+      {/* ── Archive viewing banner ── */}
+      {viewingArchive && (
+        <div className="fr-db-view-banner">
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 }}>
+            <Archive size={16} /> Viewing Archive: {viewingArchive.year}
+            <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewingArchive.savedAt}</span>
+          </span>
+          <button onClick={() => setViewingArchive(null)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 8, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <X size={12} /> Exit Archive View
+          </button>
+        </div>
+      )}
+ 
+      {/* ── KPI cards (today quick stats + server KPIs) ── */}
+      <div className="fr-db-kpi-grid">
         {[
-          { label: 'Sales Revenue', key: 'salesRevenue', desc: 'Total income from POS sales.',  icon: '💰' },
-          { label: 'Sales Profit',  key: 'salesProfit',  desc: 'Revenue minus cost of goods.',  icon: '📈' },
-          { label: 'Cost of Sales', key: 'cogs',         desc: 'Total cost of goods sold.',     icon: '🧾' },
+          { label: "Today's Revenue",  value: fmtPeso(todayRevenue),  sub: `${todaySales.length} transactions today`,      icon: <DollarSign size={18} />, color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
+          { label: 'Monthly Revenue',  value: kpiLoading ? '…' : fmtPeso(kpiData?.salesRevenue ?? 0), sub: getRangeLabel(), icon: <BarChart size={18} />,    color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
+          { label: 'Monthly Profit',   value: kpiLoading ? '…' : fmtPeso(kpiData?.salesProfit ?? 0),  sub: 'After cost of sales',                             icon: <TrendingUp size={18} />, color: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
+          { label: 'Avg Order Value',  value: fmtPeso(isNaN(avgOrder) ? 0 : avgOrder),                sub: 'Today per transaction',                           icon: <ShoppingCart size={18} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
         ].map((k, i) => (
-          <div key={i} className="v-card" style={{ padding: '18px 20px' }}>
+          <div key={i} className="fr-db-kpi">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#5a7a65', marginBottom: 5, fontFamily: 'Montserrat,sans-serif' }}>{k.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{k.value}</div>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: k.color, flexShrink: 0 }}>{k.icon}</div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+ 
+      {/* ── Date range toolbar ── */}
+      <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 16, padding: '12px 18px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,140,60,0.05)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="fr-db-tab-group">
+          <button className={`fr-db-tab${rangeMode === 'preset' ? ' active' : ''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
+          <button className={`fr-db-tab${rangeMode === 'custom' ? ' active' : ''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom Range</button>
+        </div>
+ 
+        {rangeMode === 'preset' ? (
+          <div className="fr-db-tab-group">
+            {['day', 'week', 'month', 'year'].map(p => (
+              <button key={p} className={`fr-db-tab${preset === p ? ' active' : ''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={13} color="#5a7a65" />
+            <input type="date" className="fr-db-date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} />
+            <span style={{ color: '#5a7a65', fontSize: 12, fontWeight: 600 }}>to</span>
+            <input type="date" className="fr-db-date" value={customTo}   onChange={e => setCustomTo(e.target.value)}   min={customFrom} max={fmt8(today)} />
+            <button className="fr-db-apply" onClick={applyCustomRange}>Apply</button>
+          </div>
+        )}
+ 
+        {kpiLoading && (
+          <span style={{ fontSize: 11, color: '#5a7a65', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> Loading…
+          </span>
+        )}
+ 
+        <button onClick={() => setShowArchivePanel(v => !v)}
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 10, border: '1.5px solid #b2dfdb', background: showArchivePanel ? '#e0f2f1' : '#fff', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <Archive size={13} /> Archives
+          {archives.length > 0 && (
+            <span style={{ background: '#00897b', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800 }}>{archives.length}</span>
+          )}
+        </button>
+      </div>
+ 
+      {/* ── Archive panel ── */}
+      {showArchivePanel && (
+        <div className="fr-db-arc-panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Archive size={16} color="#00897b" /> Yearly Archives — {userBranch}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {!archiveConfirm ? (
+                <>
+                  <input type="number" className="fr-db-date" style={{ width: 90 }} value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" />
+                  <button onClick={() => setArchiveConfirm(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Plus size={13} /> Archive Year
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef9c3', border: '1.5px solid #fde68a', borderRadius: 10, padding: '7px 14px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Archive {archiveYearInput}?</span>
+                  <button className="fr-db-arc-btn" style={{ borderColor: '#00897b', background: '#e0f2f1', color: '#00695c' }} onClick={saveArchive}>Confirm</button>
+                  <button className="fr-db-arc-btn" style={{ borderColor: '#d1d5db', background: '#f9fafb', color: '#6b7280' }} onClick={() => setArchiveConfirm(false)}>Cancel</button>
+                </div>
+              )}
+            </div>
+          </div>
+ 
+          {archives.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No archives yet. Snapshot a full year of data above.</div>
+          ) : archives.map(a => (
+            <div key={a.year} className="fr-db-arc-row">
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>{a.label}</div>
+                <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="fr-db-arc-btn"
+                  style={{ borderColor: viewingArchive?.year === a.year ? '#00897b' : '#b2dfdb', background: viewingArchive?.year === a.year ? '#e0f2f1' : '#f8fffe', color: '#00695c' }}
+                  onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }}>
+                  {viewingArchive?.year === a.year ? 'Viewing' : 'View'}
+                </button>
+                <button className="fr-db-arc-btn" style={{ borderColor: '#fecaca', background: '#fff', color: '#ef4444' }} onClick={() => deleteArchive(a.year)}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+ 
+      {/* ── Revenue chart ── */}
+      <div className="fr-db-chart">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 700, fontSize: 15, color: '#0d2b1e', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BarChart size={16} color="#00897b" /> Revenue Overview
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#5a7a65', background: '#f0fdf5', padding: '3px 10px', borderRadius: 8, border: '1px solid #d1eedd' }}>{getRangeLabel()}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#00695c', background: '#e0f2f1', padding: '3px 10px', borderRadius: 8, border: '1px solid #b2dfdb', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Store size={10} /> {userBranch}
+            </span>
+          </div>
+          {kpiData && (
+            <div style={{ fontSize: 12, color: '#00897b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Check size={11} color="#10B981" /> Live: {fmtPeso(kpiData.totalSales)} · {kpiData.txCount} txns
+            </div>
+          )}
+        </div>
+ 
+        {values.length === 0 || (total === 0 && !kpiLoading) ? (
+          <div style={{ height: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fffe', borderRadius: 12, border: '1px dashed #b2dfdb', color: '#5a7a65' }}>
+            <BarChart2 size={32} color="#b2dfdb" />
+            <div style={{ fontWeight: 700, fontSize: 14, marginTop: 10 }}>No sales data for this period</div>
+            <div style={{ fontSize: 12, marginTop: 4, color: '#94a3b8' }}>Try a different date range</div>
+          </div>
+        ) : (
+          <div style={{ position: 'relative', cursor: 'crosshair', userSelect: 'none' }} onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
+            <svg ref={svgRef} style={{ width: '100%', display: 'block', overflow: 'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="frLine" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#e9cd30" /><stop offset="100%" stopColor="#ffa875" />
+                </linearGradient>
+                <linearGradient id="frArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00c853" stopOpacity="0.20" /><stop offset="100%" stopColor="#00c853" stopOpacity="0.01" />
+                </linearGradient>
+                <filter id="frGlow"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+              </defs>
+              {yTicks.map((t, i) => (
+                <g key={i}>
+                  <line x1={PAD_L} y1={t.y} x2={SVG_W - PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4" />
+                  <text x={PAD_L - 8} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
+                </g>
+              ))}
+              <path d={areaPath} fill="url(#frArea)" />
+              <path d={linePath} fill="none" stroke="url(#frLine)" strokeWidth="3" strokeLinecap="round" filter="url(#frGlow)" />
+              {pts.map((p, i) => (
+                <text key={i} x={p.x} y={SVG_H - 6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
+              ))}
+              {tooltip && (
+                <>
+                  <line x1={tooltip.x} y1={tooltip.y + 7} x2={tooltip.x} y2={PAD_T + plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55" />
+                  <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#frGlow)" />
+                </>
+              )}
+            </svg>
+            {tooltip && (
+              <div className="fr-db-tooltip" style={{ left: `${(tooltip.x / SVG_W) * 100}%`, top: `${(tooltip.y / SVG_H) * 100}%` }}>
+                <div style={{ fontSize: 10.5, opacity: 0.6, marginBottom: 2 }}>{tooltip.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#a7f3d0' }}>{fmtPeso(tooltip.value)}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+ 
+      {/* ── Insight cards ── */}
+      <div className="fr-db-ins-grid">
+        <div className="fr-db-ins">
+          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Peak Performance</div>
+          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
+            {total > 0
+              ? <>{kpiData ? <>Transactions: <strong>{kpiData.txCount}</strong> · </> : ''}Highest revenue on <strong>{peakLabel}</strong>. Outperformed avg by <strong>{fmtPeso(peak - avg)}</strong>.</>
+              : 'No data available for this range.'}
+          </p>
+          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{total > 0 ? fmtPeso(peak) : '—'}</div>
+        </div>
+        <div className="fr-db-ins">
+          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Trend Direction</div>
+          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
+            {total > 0
+              ? <>Sales are <strong>{trending ? 'trending upward ↑' : 'trending downward ↓'}</strong> with a <strong>{Math.abs(pctChange)}% change</strong> from start to end.</>
+              : 'No transactions to analyze.'}
+          </p>
+          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: trending ? '#00897b' : '#d97706', fontFamily: 'Montserrat,sans-serif' }}>
+            {total > 0 ? `${trending ? '+' : '-'}${Math.abs(pctChange)}%` : '—'}
+          </div>
+        </div>
+        <div className="fr-db-ins">
+          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Revenue Summary</div>
+          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
+            {kpiData
+              ? <>Transactions: <strong>{kpiData.txCount}</strong> · Avg order: <strong>{fmtPeso(kpiData.avgOrder)}</strong><br />Total: <strong>{fmtPeso(kpiData.totalSales)}</strong> · Branch: <strong>{userBranch}</strong></>
+              : total > 0
+                ? <>Average: <strong>{fmtPeso(avg)}</strong> · Total: <strong>{fmtPeso(total)}</strong> · Branch: <strong>{userBranch}</strong></>
+                : <>No sales for <strong>{userBranch}</strong> in this period.</>}
+          </p>
+          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{total > 0 ? fmtPeso(kpiData?.totalSales ?? avg) : '—'}</div>
+        </div>
+      </div>
+ 
+      {/* ── Bottom KPI breakdown ── */}
+      <div className="fr-db-bot-grid" style={{ marginBottom: 22 }}>
+        {[
+          { label: 'Sales Revenue', key: 'salesRevenue', desc: 'Total income from POS sales.',          icon: '💰' },
+          { label: 'Sales Profit',  key: 'salesProfit',  desc: 'Revenue minus cost of goods.',          icon: '📈' },
+          { label: 'Cost of Sales', key: 'cogs',         desc: 'Total cost of goods sold.',             icon: '🧾' },
+        ].map((k, i) => (
+          <div key={i} style={{ background: '#fff', border: kpiData?.[k.key] != null ? '1.5px solid #b2dfdb' : '1.5px dashed #a7f3d0', borderRadius: 16, padding: '18px 20px', boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 22 }}>{k.icon}</span>
               <span style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{k.label}</span>
             </div>
-            <p style={{ fontSize: 11.5, color: '#5a7a65', lineHeight: 1.6, marginBottom: 12, fontFamily: 'Poppins,sans-serif' }}>{k.desc}</p>
+            <p style={{ fontSize: 11.5, color: '#5a7a65', lineHeight: 1.6, marginBottom: 12 }}>{k.desc}</p>
             {kpiLoading
               ? <div style={{ background: '#f0fdf5', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>Loading…</div>
-              : kpiData?.[k.key] !== undefined
-                ? <div style={{ background: '#e0f2f1', borderRadius: 10, padding: '8px 12px', fontSize: 16, fontWeight: 800, color: '#00695c', fontFamily: 'Montserrat,sans-serif' }}>{fmtAmt(kpiData[k.key])}</div>
-                : <div style={{ background: '#f0fdf5', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>No data</div>
-            }
+              : kpiData?.[k.key] != null
+                ? <div style={{ background: '#e0f2f1', borderRadius: 10, padding: '8px 12px', fontSize: 16, fontWeight: 800, color: '#00695c', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(kpiData[k.key])}</div>
+                : <div style={{ background: '#f0fdf5', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <RefreshCw size={11} color="#b2dfdb" /> Awaiting POS / Inventory data
+                  </div>}
           </div>
         ))}
       </div>
-
-      {/* Recent transactions */}
+ 
+      {/* ── Recent transactions table ── */}
       <div className="v-card">
-        <div style={{ background: 'var(--grad-dark)', padding: '16px 22px' }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: '#fff', fontFamily: 'Montserrat,sans-serif' }}>Recent Transactions — {userBranch}</span>
+        <div style={{ background: 'var(--grad-dark)', padding: '14px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 800, fontSize: 14, color: '#fff', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Receipt size={14} color="#fff" /> Recent Transactions — {userBranch}
+          </span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{myTransactions.length} total</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="v-table">
             <thead>
-              <tr>
-                {['#', 'Date', 'Cashier', 'Items', 'Total', 'Payment'].map(h => (
-                  <th key={h}>{h}</th>
-                ))}
-              </tr>
+              <tr>{['#', 'Date', 'Cashier', 'Items', 'Total', 'Payment'].map(h => <th key={h}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {myTransactions.slice(0, 10).map(tx => (
@@ -543,7 +933,7 @@ function FrDashboardContent({ transactions, brands, user }) {
                   <td style={{ color: '#5a7a65', fontSize: 12 }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                   <td style={{ fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
                   <td style={{ color: '#5a7a65' }}>{(tx.items || []).length} item(s)</td>
-                  <td style={{ fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtAmt(tx.total)}</td>
+                  <td style={{ fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(tx.total)}</td>
                   <td>
                     <span className={`v-badge ${tx.payment_method === 'Cash' ? 'v-badge-green' : tx.payment_method === 'GCash' ? 'v-badge-blue' : 'v-badge-purple'}`}>
                       {tx.payment_method}
@@ -1269,7 +1659,7 @@ function FrReceiptsContent({ user }) {
   );
 }
 
-function FrReportsContent({ user }) {
+function FrReportsContent({ user, transactions = [] }){
   const branch = (user?.branch || '').trim();
   const today = new Date();
   const fmt8 = d => d.toISOString().slice(0, 10);
@@ -1284,24 +1674,110 @@ function FrReportsContent({ user }) {
   const [submitting, setSubmitting] = useState(null);
 
   const generateReport = async () => {
-    if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
-    setGenerating(true);
-    setAiReport('');
-    try {
-      const prompt = `Generate a concise franchise sales performance report for branch "${branch}" from ${dateFrom} to ${dateTo}. Include sections for: Executive Summary, Sales Performance, Revenue Analysis, Cost of Sales, Profit Summary, and Recommendations. Format it clearly with headers.`;
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
+  if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
+  setGenerating(true);
+  setAiReport('');
+  try {
+
+    const from = new Date(dateFrom);
+    const to   = new Date(dateTo + 'T23:59:59');
+
+    const filtered = (transactions || []).filter(tx => {
+      const d = new Date(tx.created_at);
+      return (tx.branch || '').trim().toLowerCase() === branch.toLowerCase()
+        && d >= from && d <= to;
       });
-      const data = await res.json();
-      const text = data.content?.map(c => c.text || '').join('') || 'Report generation failed.';
-      setAiReport(text);
-      const newReport = { id: Date.now(), generatedDate: new Date().toLocaleString('en-PH'), period: `${dateFrom} → ${dateTo}`, content: text };
-      setReports(prev => [newReport, ...prev]);
-    } catch { setAiReport('Failed to generate report. Please try again.'); }
-    setGenerating(false);
-  };
+
+      const totalRevenue   = filtered.reduce((s, tx) => s + Number(tx.total || 0), 0);
+      const totalTx        = filtered.length;
+      const avgOrder       = totalTx ? (totalRevenue / totalTx) : 0;
+      const totalCost      = filtered.reduce((s, tx) => s + Number(tx.cost || 0), 0);
+      const totalProfit    = totalRevenue - totalCost;
+
+      // payment breakdown
+      const paymentBreakdown = filtered.reduce((acc, tx) => {
+        const m = tx.payment_method || 'Unknown';
+        acc[m] = (acc[m] || 0) + Number(tx.total || 0);
+        return acc;
+      }, {});
+
+      const itemMap = {};
+      filtered.forEach(tx => {
+        (tx.items || []).forEach(item => {
+          if (!itemMap[item.name]) itemMap[item.name] = { qty: 0, revenue: 0 };
+          itemMap[item.name].qty     += item.qty || 1;
+          itemMap[item.name].revenue += item.subtotal || 0;
+        });
+      });
+      const topItems = Object.entries(itemMap)
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, 5)
+        .map(([name, d]) => `${name} (qty: ${d.qty}, revenue: ₱${d.revenue.toFixed(2)})`)
+        .join(', ');
+
+         const dailyMap = {};
+      filtered.forEach(tx => {
+        const day = tx.created_at?.slice(0, 10);
+        if (day) dailyMap[day] = (dailyMap[day] || 0) + Number(tx.total || 0);
+      });
+      const peakDay   = Object.entries(dailyMap).sort((a, b) => b[1] - a[1])[0];
+      const lowestDay = Object.entries(dailyMap).sort((a, b) => a[1] - b[1])[0];
+
+      const fmtP = n => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+      const prompt = `
+      You are a franchise business analyst. Generate a professional sales performance report based on the REAL data below. Do not make up numbers — use only what is provided.
+
+      BRANCH: ${branch}
+      PERIOD: ${dateFrom} to ${dateTo}
+
+      REAL SALES DATA:
+      - Total Transactions: ${totalTx}
+      - Total Revenue: ${fmtP(totalRevenue)}
+      - Average Order Value: ${fmtP(avgOrder)}
+      - Total Cost of Sales: ${totalCost > 0 ? fmtP(totalCost) : 'Not available'}
+      - Gross Profit: ${totalCost > 0 ? fmtP(totalProfit) : 'Not available'}
+      - Peak Day: ${peakDay ? `${peakDay[0]} (${fmtP(peakDay[1])})` : 'N/A'}
+      - Lowest Day: ${lowestDay ? `${lowestDay[0]} (${fmtP(lowestDay[1])})` : 'N/A'}
+      - Top Selling Items: ${topItems || 'No item data available'}
+      - Payment Methods: ${Object.entries(paymentBreakdown).map(([k, v]) => `${k}: ${fmtP(v)}`).join(', ') || 'N/A'}
+
+      Write the report with these sections:
+      1. Executive Summary
+      2. Sales Performance
+      3. Revenue Analysis
+      4. Top Selling Items
+      5. Payment Method Breakdown
+      6. Recommendations
+
+      Be specific, use the actual numbers above, and give actionable recommendations based on the data.
+            `.trim();
+
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }]
+      }),
+    });
+
+    const data = await res.json();
+    const text = data.content?.[0]?.text || 'Failed to generate report.';
+    setAiReport(text);
+
+    const newReport = {
+      id: Date.now(),
+      generatedDate: new Date().toLocaleString('en-PH'),
+      period: `${dateFrom} → ${dateTo}`,
+      content: text,
+    };
+    setReports(prev => [newReport, ...prev]);
+
+  } catch {
+    setAiReport('Failed to generate report. Please try again.');
+  }
+  setGenerating(false);
+};
 
   const downloadReport = report => {
     const content = `FRANCHISE SALES & PERFORMANCE REPORT\n${'='.repeat(50)}\nBranch: ${branch}\nPeriod: ${report.period}\nGenerated: ${report.generatedDate}\n${'='.repeat(50)}\n\n${report.content}`;
@@ -1663,29 +2139,584 @@ function FrStaffManagementContent({ user }) {
 }
 
 function FrCommunicationContent() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [pinnedIds, setPinnedIds]         = useState(new Set());
+  const [fetching, setFetching]           = useState(true);
+  const [modalVisible, setModalVisible]   = useState(false);
+  const [editing, setEditing]             = useState(null);
+  const [selectedTab, setSelectedTab]     = useState("all");
+  const [title, setTitle]                 = useState("");
+  const [content, setContent]             = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [viewingItem, setViewingItem]     = useState(null);
+
+  // Load user from localStorage (mirrors AsyncStorage.getItem("user"))
+  const [commUser, setCommUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  });
+
+   const C = {
+    border:   'rgba(0,168,76,0.12)',
+    greenMid: 'rgba(0,168,76,0.1)',
+  };
+
+  const bmLabel = {
+    display: 'block',
+    fontSize: 11.5,
+    fontWeight: 700,
+    color: '#5a7a65',
+    textTransform: 'uppercase',
+    letterSpacing: '0.07em',
+    fontFamily: 'Montserrat,sans-serif',
+    marginBottom: 4,
+  };
+
+  const bmInput = {
+    width: '100%',
+    padding: '10px 13px',
+    border: '1.5px solid rgba(0,168,76,0.18)',
+    borderRadius: 11,
+    fontSize: 13.5,
+    fontFamily: 'Poppins,sans-serif',
+    color: '#0d2b1e',
+    background: '#fafffc',
+    outline: 'none',
+    display: 'block',
+  };
+
+  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
+
+  const PIN_KEY = "announcement_pins";
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      if (raw) setPinnedIds(new Set(JSON.parse(raw)));
+    } catch {}
+  }, []);
+
+  const persistPins = (newSet) => {
+    try { localStorage.setItem(PIN_KEY, JSON.stringify([...newSet])); } catch {}
+  };
+
+  // ── Fetch announcements ──
+  const fetchAnnouncements = async () => {
+    setFetching(true);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+      const data = await res.json();
+      setAnnouncements(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Fetch error:", err); setAnnouncements([]); }
+    finally { setFetching(false); }
+  };
+  useEffect(() => { fetchAnnouncements(); }, []);
+
+  // Merge server list with local pin state
+  const mergedAnnouncements = announcements.map(a => ({
+    ...a,
+    pinned: pinnedIds.has(String(a.id)),
+  }));
+
+  // ── Toggle pin — ADMIN ONLY ──
+  const handlePin = (item) => {
+    if (!isAdminUser(commUser)) return;
+    const id = String(item.id);
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      persistPins(next);
+      return next;
+    });
+    setViewingItem(prev =>
+      prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev
+    );
+  };
+
+  // ── Save (create / update) — ADMIN ONLY ──
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!isAdminUser(commUser)) { alert("Only administrators can post announcements."); return; }
+    if (!title.trim() || !content.trim()) { alert("Please fill in all fields."); return; }
+    try {
+      const url    = editing ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
+      const method = editing ? "PUT" : "POST";
+      const res    = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Failed to save."); return; }
+      setModalVisible(false); setEditing(null); setTitle(""); setContent("");
+      fetchAnnouncements();
+    } catch (err) { console.error("Save error:", err); }
+  };
+
+  // ── Delete — ADMIN ONLY ──
+  const handleDelete = async (id) => {
+    if (!isAdminUser(commUser)) return;
+    if (!window.confirm("Delete this announcement?")) return;
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Delete failed."); return; }
+      const strId = String(id);
+      if (pinnedIds.has(strId)) {
+        setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
+      }
+      if (viewingItem?.id === id) setViewingItem(null);
+      fetchAnnouncements();
+    } catch (err) { console.error(err); }
+  };
+
+  // ── Edit — ADMIN ONLY ──
+  const handleEdit = (item) => {
+    if (!isAdminUser(commUser)) return;
+    setEditing(item); setTitle(item.title); setContent(item.content); setModalVisible(true);
+  };
+
+  // ── Tab filtering ──
+  const now         = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const tabFiltered = (() => {
+    switch (selectedTab) {
+      case "recent": return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
+      case "pinned": return mergedAnnouncements.filter(a => a.pinned);
+      default:       return mergedAnnouncements;
+    }
+  })();
+
+  const filtered = searchQuery.trim()
+    ? tabFiltered.filter(a =>
+        a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : tabFiltered;
+
+  const tabBadge = {
+    all:    mergedAnnouncements.length,
+    recent: mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo).length,
+    pinned: pinnedIds.size,
+  };
+
+  // ── Helpers ──
+  const getInitials = (t = "") =>
+    t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("");
+
+  const isRecent = (item) => new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
+
+  // ── Styles (inline, consistent with dashboard tokens) ──
+  const commStyles = {
+    root: {
+      fontFamily: "'Montserrat', sans-serif",
+      display: "flex", flexDirection: "column", height: "100%",
+    },
+    header: {
+      background: "linear-gradient(135deg,#2E7D32,#00897b)",
+      padding: "20px 24px 28px",
+      borderRadius: "18px 18px 0 0",
+      position: "relative",
+      overflow: "hidden",
+    },
+    headerTop: {
+      display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4,
+    },
+    eyebrow: {
+      fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)",
+      letterSpacing: "0.25em", marginBottom: 4,
+    },
+    headerTitle: {
+      fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px",
+    },
+    liveChip: {
+      display: "inline-flex", alignItems: "center", gap: 7,
+      background: "rgba(255,255,255,0.18)", borderRadius: 20,
+      padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)",
+    },
+    liveDot: {
+      width: 7, height: 7, borderRadius: "50%",
+      background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
+    },
+    liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
+    searchBarWrap: {
+      display: "flex", alignItems: "center", gap: 8,
+      background: "rgba(255,255,255,0.18)", borderRadius: 12,
+      padding: "9px 13px", marginTop: 12,
+      border: "1px solid rgba(255,255,255,0.25)",
+    },
+    searchInput: {
+      flex: 1, background: "none", border: "none", outline: "none",
+      color: "#fff", fontSize: 13, fontFamily: "inherit",
+    },
+    tabsRow: {
+      display: "flex", gap: 7, padding: "14px 20px",
+      background: "#fff", borderBottom: `1px solid ${C.border}`,
+      flexWrap: "wrap",
+    },
+    tabBase: {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "6px 13px", borderRadius: 20, fontSize: 11.5,
+      fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+      border: "none", transition: "all .15s",
+    },
+    badge: {
+      padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800,
+    },
+    listArea: {
+      flex: 1, overflowY: "auto", padding: "20px 20px 24px",
+      background: "#f8fffe",
+    },
+    sectionLabel: {
+      display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
+    },
+    labelAccent: {
+      width: 4, height: 16, borderRadius: 2,
+      background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0,
+    },
+    labelTxt: {
+      fontSize: 11, fontWeight: 800, color: "#0d2b1e",
+      letterSpacing: "0.08em", textTransform: "uppercase",
+    },
+    card: (pinned) => ({
+      display: "flex", background: "#fff",
+      borderRadius: 18, marginBottom: 10,
+      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
+      boxShadow: pinned
+        ? "0 3px 14px rgba(249,168,37,0.18)"
+        : "0 2px 10px rgba(0,140,60,0.07)",
+      overflow: "hidden", cursor: "pointer",
+      transition: "transform .15s, box-shadow .15s",
+    }),
+    cardAccentBar: (pinned) => ({
+      width: 4, flexShrink: 0,
+      background: pinned
+        ? "linear-gradient(180deg,#F9A825,#FFC107)"
+        : "linear-gradient(180deg,#00897b,#4CAF50)",
+    }),
+    cardBody: { flex: 1, padding: "13px 15px 11px" },
+    cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
+    initialsChip: (pinned) => ({
+      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: pinned
+        ? "linear-gradient(135deg,#F9A825,#E65100)"
+        : "linear-gradient(135deg,#2E7D32,#00897b)",
+      fontSize: 13, fontWeight: 900, color: "#fff",
+    }),
+    cardMeta: { flex: 1, minWidth: 0 },
+    cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
+    cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
+    cardDate:  { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
+    cardContent: {
+      fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9,
+      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+    },
+    tapHint: {
+      display: "flex", alignItems: "center", gap: 3,
+      marginTop: 7, fontSize: 10, color: "#8AAD96",
+    },
+    pinnedBadge: {
+      display: "inline-flex", alignItems: "center", gap: 3,
+      background: "#FFF8E1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825",
+    },
+    recentBadge: {
+      background: "#E0F2F1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c",
+    },
+    cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
+    actionBtn: (variant) => ({
+      width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
+      background: "#f0fdf5", cursor: "pointer", display: "flex",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c",
+    }),
+    emptyState: {
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "60px 0 40px", gap: 10, textAlign: "center",
+    },
+    emptyIcon: { fontSize: 40, marginBottom: 4 },
+    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
+    emptySub:   { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
+  };
+
+  const emptyIcon = selectedTab === "pinned" ? "🔖" : selectedTab === "recent" ? "🕐" : "📢";
+  const emptyTitle =
+    searchQuery ? "No results found"
+    : selectedTab === "pinned" ? "Nothing pinned yet"
+    : selectedTab === "recent" ? "No recent announcements"
+    : "No announcements yet";
+  const emptySub =
+    searchQuery ? "Try a different search term."
+    : selectedTab === "pinned" ? "Administrators can pin important announcements."
+    : selectedTab === "recent" ? "Announcements from the last 7 days appear here."
+    : "Check back later.";
+
   return (
-    <div>
-      <div className="v-card" style={{ overflow: 'hidden' }}>
-        <div style={{ background: 'var(--grad-dark)', padding: '16px 22px' }}>
-          <span style={{ fontWeight: 800, fontSize: 15, color: '#fff', fontFamily: 'Montserrat,sans-serif' }}>Messages</span>
+    <div style={commStyles.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
+        .comm-action-btn:hover { opacity: 0.78; }
+        .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={commStyles.header}>
+        {/* subtle wave decoration */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.15, background: "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)", pointerEvents: "none" }} />
+
+        <div style={commStyles.headerTop}>
+          <div>
+            <div style={commStyles.eyebrow}>IFRANCHISE</div>
+            <div style={commStyles.headerTitle}>Announcements</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={commStyles.liveChip}>
+              <div style={commStyles.liveDot} />
+              <span style={commStyles.liveTxt}>LIVE</span>
+            </div>
+            <button
+              onClick={() => { setSearchVisible(v => !v); setSearchQuery(""); }}
+              style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: searchVisible ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16 }}>
+              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
+            </button>
+            {isAdminUser(commUser) && (
+              <button
+                onClick={() => { setEditing(null); setTitle(""); setContent(""); setModalVisible(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={14} /> New
+              </button>
+            )}
+          </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', minHeight: 480 }}>
-          <div style={{ borderRight: '1.5px solid rgba(0,168,76,0.1)', background: 'rgba(0,168,76,0.02)' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,168,76,0.1)' }}>
-              <div className="v-search-wrap">
-                <Search size={13} />
-                <input type="text" className="v-search" placeholder="Search…" style={{ height: 34, fontSize: 12 }} />
+
+        {searchVisible && (
+          <div style={commStyles.searchBarWrap}>
+            <Search size={14} color="rgba(255,255,255,0.7)" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search announcements…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={commStyles.searchInput}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={commStyles.tabsRow}>
+        {["all", "recent", "pinned"].map(tab => {
+          const active = selectedTab === tab;
+          return (
+            <button
+              key={tab}
+              className={active ? "" : "comm-tab"}
+              onClick={() => setSelectedTab(tab)}
+              style={{
+                ...commStyles.tabBase,
+                background: active ? "linear-gradient(135deg,#2E7D32,#00897b)" : "#e8f5e9",
+                color: active ? "#fff" : "#5a7a65",
+                border: active ? "none" : `1px solid ${C.border}`,
+                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+              }}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tabBadge[tab] > 0 && (
+                <span style={{
+                  ...commStyles.badge,
+                  background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
+                  color: active ? "#fff" : "#2E7D32",
+                }}>
+                  {tabBadge[tab]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── LIST ── */}
+      <div style={commStyles.listArea}>
+        <div style={commStyles.sectionLabel}>
+          <div style={commStyles.labelAccent} />
+          <span style={commStyles.labelTxt}>
+            {searchQuery
+              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
+              : selectedTab === "recent" ? "Last 7 Days"
+              : selectedTab === "pinned" ? "Pinned Announcements"
+              : "All Announcements"}
+          </span>
+        </div>
+
+        {fetching ? (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+        ) : filtered.length === 0 ? (
+          <div style={commStyles.emptyState}>
+            <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+            <div style={commStyles.emptyTitle}>{emptyTitle}</div>
+            <div style={commStyles.emptySub}>{emptySub}</div>
+          </div>
+        ) : filtered.map(item => {
+          const pinned = !!item.pinned;
+          const recent = isRecent(item);
+          return (
+            <div
+              key={item.id}
+              className="comm-card"
+              style={commStyles.card(pinned)}
+              onClick={() => setViewingItem(prev => prev?.id === item.id ? null : item)}
+            >
+              <div style={commStyles.cardAccentBar(pinned)} />
+              <div style={commStyles.cardBody}>
+                <div style={commStyles.cardHeaderRow}>
+                  <div style={commStyles.initialsChip(pinned)}>{getInitials(item.title)}</div>
+                  <div style={commStyles.cardMeta}>
+                    <div style={commStyles.cardTitleRow}>
+                      <span style={commStyles.cardTitle}>{item.title}</span>
+                      {pinned  && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
+                      {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                    </div>
+                    <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
+                  </div>
+                  {isAdminUser(commUser) && (
+                    <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
+                        {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => { handleEdit(item); }} title="Edit">
+                        <Pencil size={12} />
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("delete")} onClick={() => handleDelete(item.id)} title="Delete">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={commStyles.cardContent}>{item.content}</div>
+                <div style={commStyles.tapHint}>
+                  <span>Tap to read full announcement</span>
+                  <span style={{ fontSize: 10 }}>›</span>
+                </div>
               </div>
             </div>
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>No conversations yet.</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, background: 'rgba(0,168,76,0.02)' }}>
-            <MessageCircle size={48} color="rgba(0,168,76,0.15)" style={{ marginBottom: 16 }} />
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#0d2b1e', marginBottom: 6, fontFamily: 'Montserrat,sans-serif' }}>Message Thread</div>
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>Select a conversation to view messages</div>
+          );
+        })}
+      </div>
+
+      {/* ── FULL VIEW PANEL ── */}
+      {viewingItem && (
+        <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+            {/* gradient header */}
+            <div style={{
+              background: viewingItem.pinned
+                ? "linear-gradient(135deg,#F9A825,#E65100)"
+                : "linear-gradient(135deg,#2E7D32,#00897b)",
+              borderRadius: "20px 20px 0 0", padding: "20px 22px 28px",
+              position: "relative", overflow: "hidden",
+            }}>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.12, background: "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)" }} />
+              <button onClick={() => setViewingItem(null)} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={15} />
+              </button>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14, paddingRight: 40 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#fff", flexShrink: 0, border: "1.5px solid rgba(255,255,255,0.35)" }}>
+                  {getInitials(viewingItem.title)}
+                </div>
+                <div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+                    {viewingItem.pinned && <span style={{ background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff", letterSpacing: "0.08em" }}>🔖 PINNED</span>}
+                    {isRecent(viewingItem) && <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff" }}>NEW</span>}
+                  </div>
+                  <div style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.3, letterSpacing: "-0.3px" }}>{viewingItem.title}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 4, fontFamily: "monospace" }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: "22px 24px 28px" }}>
+              <p style={{ fontSize: 14.5, color: "#1A3A2A", lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
+
+              {/* Admin actions */}
+              {isAdminUser(commUser) && (
+                <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => handlePin(viewingItem)}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
+                    {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
+                  </button>
+                  <button
+                    onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => { handleDelete(viewingItem.id); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── CREATE / EDIT MODAL — Admin only ── */}
+      {isAdminUser(commUser) && modalVisible && (
+        <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
+              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={bmLabel}>Title</label>
+                <input
+                  type="text"
+                  placeholder="Announcement title…"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  style={{ ...bmInput, marginTop: 4 }}
+                />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={bmLabel}>Content</label>
+                <textarea
+                  placeholder="Write your announcement…"
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  required
+                  rows={5}
+                  style={{ ...bmInput, marginTop: 4, resize: "vertical", lineHeight: 1.65 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  <Check size={14} /> Save Announcement
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

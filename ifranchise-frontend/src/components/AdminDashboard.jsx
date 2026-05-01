@@ -239,7 +239,7 @@ export default function AdminDashboard() {
     { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} /> },
     { id: 'users',          label: 'User Management',       icon: <Users size={20} /> },
     { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} /> },
-    { id: 'communication',  label: 'Communication',         icon: <MessageCircle size={20} /> },
+    { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} /> },
     { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} /> },
     { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} /> },
     { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />, action: handleLogout },
@@ -500,16 +500,29 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   };
 
   const handleEditBranch = async (e) => {
-    e.preventDefault();
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-        method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(branchForm),
-      });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
-      else alert(data.error || 'Failed to update branch');
-    } catch { alert('Failed to update branch'); }
-  };
+  e.preventDefault();
+  console.log('Editing branch ID:', selectedBranch.id);
+  console.log('Payload:', JSON.stringify(branchForm));
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(branchForm),
+    });
+    
+    // Log the raw response text before parsing
+    const text = await res.text();
+    console.log('Response status:', res.status);
+    console.log('Response body:', text);
+    
+    const data = JSON.parse(text);
+    if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
+    else alert(data.error || 'Failed to update branch');
+  } catch (err) {
+     console.error('Update branch error:', err);
+    alert('Failed to update branch');
+  }
+};
 
   const handleDeleteBranch = async (id) => {
     if (confirmDeleteId !== `branch-${id}`) { setConfirmDeleteId(`branch-${id}`); return; }
@@ -835,7 +848,7 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-
+// ---------DASHBOARD------------------
 function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today   = new Date();
   const fmt8    = (d) => d.toISOString().slice(0, 10);
@@ -1775,7 +1788,7 @@ function MobileShopContent() {
         </div>
       </div>
 
-      {/* ── Shop Items Table ────────────────────────────────────────────── */}
+      {/* ── Shop Items Table ---*/}
       <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
@@ -1823,7 +1836,7 @@ function MobileShopContent() {
                           {/* Edit */}
                           <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
                             style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
-                            ✏️ Edit
+                            Edit
                           </button>
                           {/* Hide/Show */}
                           <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
@@ -1982,17 +1995,6 @@ function ApplicationsContent({ applications: initialApps }) {
 
 // REPORTS
 
-// ── placeholder report submissions ───────────────────────────────────────────
-const PLACEHOLDER_REPORTS = [
-  { id:"RPT-0011", submittedBy:"Carlo Mendoza",   role:"Manager",    brand:"Coffee Spot", branch:"BGC",         period:"April 27, 2026",  status:"pending",  submittedAt:"2026-04-27T17:05:00", comments:[], fileUrl:"#" },
-  { id:"RPT-0010", submittedBy:"Rosa Reyes",       role:"Franchisee", brand:"iPharma",    branch:"Main Branch", period:"Apr 21–27, 2026", status:"reviewed", submittedAt:"2026-04-27T14:30:00", comments:[], fileUrl:"#" },
-  { id:"RPT-0009", submittedBy:"Lena Villanueva",  role:"Manager",    brand:"iPharma",    branch:"BGC",         period:"March 2026",      status:"approved", submittedAt:"2026-04-26T10:22:00", comments:[], fileUrl:"#" },
-  { id:"RPT-0008", submittedBy:"Juan dela Cruz",   role:"Franchisee", brand:"Coffee Spot",branch:"Alabang",     period:"April 26, 2026",  status:"pending",  submittedAt:"2026-04-26T18:00:00", comments:[], fileUrl:"#" },
-  { id:"RPT-0007", submittedBy:"Maria Santos",     role:"Staff",      brand:"iPharma",    branch:"Alabang",     period:"April 2026",      status:"returned", submittedAt:"2026-04-25T09:15:00", comments:[], remark:"Missing page 3 totals.", fileUrl:"#" },
-  { id:"RPT-0006", submittedBy:"Dante Cruz",       role:"Manager",    brand:"Coffee Spot",branch:"BGC",         period:"March 2026",      status:"approved", submittedAt:"2026-04-24T11:40:00", comments:[], fileUrl:"#" },
-  { id:"RPT-0005", submittedBy:"Ana Reyes",        role:"Franchisee", brand:"iPharma",    branch:"Main Branch", period:"Apr 14–20, 2026", status:"reviewed", submittedAt:"2026-04-22T16:00:00", comments:[], fileUrl:"#" },
-];
-
 const REPORT_STATUS = {
   pending:  { label:"Pending",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
   reviewed: { label:"Reviewed", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
@@ -2000,12 +2002,14 @@ const REPORT_STATUS = {
   returned: { label:"Returned", bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
 };
 
+const API = process.env.REACT_APP_API_URL || "";
+
 function ReportsContent() {
-  const [reports,      setReports]      = useState(PLACEHOLDER_REPORTS);
+  const [reports,      setReports]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [search,       setSearch]       = useState("");
-
-  // per-brand branch filters: { [brand]: branch | "all" }
   const [brandBranchFilter, setBrandBranchFilter] = useState({});
 
   // modal states
@@ -2015,9 +2019,33 @@ function ReportsContent() {
   const [returnReport,  setReturnReport]  = useState(null);
   const [remarkText,    setRemarkText]    = useState("");
   const [commentText,   setCommentText]   = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
+
+  // ── Fetch reports from API ──────────────────────────────────────
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus !== "all") params.set("status", filterStatus);
+      if (search.trim())          params.set("search", search.trim());
+
+      const res  = await fetch(`${API}/reports?${params}`);
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      setReports(data);
+    } catch (err) {
+      console.error("fetchReports:", err);
+      setError("Failed to load reports. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStatus, search]);
+
+  useEffect(() => { fetchReports(); }, [fetchReports]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -2033,43 +2061,133 @@ function ReportsContent() {
     hour:"numeric", minute:"2-digit", hour12:true,
   });
 
-  const updateReport = (id, patch) => {
-    setReports(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
-    setViewReport(prev    => prev?.id === id ? { ...prev,    ...patch } : prev);
-    setApproveReport(prev => prev?.id === id ? { ...prev,    ...patch } : prev);
-    setCommentReport(prev => prev?.id === id ? { ...prev,    ...patch } : prev);
+  // ── Sync open modals when reports state changes ─────────────────
+  const syncModals = (updated) => {
+    setViewReport    (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
+    setApproveReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
+    setCommentReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
   };
 
-  const handleApprove = (id) => { updateReport(id, { status:"approved" }); setApproveReport(null); };
+  const patchReport = (updated) => {
+    setReports(prev => {
+      const next = prev.map(r => r.id === updated.id ? updated : r);
+      syncModals(next);
+      return next;
+    });
+  };
 
-  const handleReturn = (id) => {
+  // ── Approve ───────────────────────
+  const handleApprove = async (id) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API}/reports/${id}/approve`, { method:"PATCH" });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      patchReport(updated);
+      setApproveReport(null);
+    } catch {
+      alert("Failed to approve report. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ── Return ──────────────────────────────────────────────────────
+  const handleReturn = async (id) => {
     if (!remarkText.trim()) { alert("Please enter a return reason."); return; }
-    updateReport(id, { status:"returned", remark:remarkText });
-    setReturnReport(null); setRemarkText("");
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API}/reports/${id}/return`, {
+        method: "PATCH",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ remark: remarkText.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      patchReport(updated);
+      setReturnReport(null);
+      setRemarkText("");
+    } catch {
+      alert("Failed to return report. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleAddComment = (id) => {
+  // ── Add comment ─────────────────────────────────────────────────
+  const handleAddComment = async (id) => {
     if (!commentText.trim()) return;
-    const newComment = { text:commentText, author:"Admin", postedAt:new Date().toISOString() };
-    const report = reports.find(r => r.id === id);
-    updateReport(id, { comments:[...(report?.comments||[]), newComment] });
-    setCommentText("");
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API}/reports/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ text: commentText.trim(), author:"Admin" }),
+      });
+      if (!res.ok) throw new Error();
+      const newComment = await res.json();
+      // Append comment locally without re-fetching entire list
+      setReports(prev => {
+        const next = prev.map(r =>
+          r.id === id ? { ...r, comments:[...(r.comments||[]), newComment] } : r
+        );
+        syncModals(next);
+        return next;
+      });
+      setCommentText("");
+    } catch {
+      alert("Failed to add comment. Please try again.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  // group all brands
+  // ── Delete comment ──────────────────────────────────────────────
+  const handleDeleteComment = async (reportId, commentId) => {
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comments/${commentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      setReports(prev => {
+        const next = prev.map(r =>
+          r.id === reportId
+            ? { ...r, comments: (r.comments||[]).filter(c => c.id !== commentId) }
+            : r
+        );
+        syncModals(next);
+        return next;
+      });
+    } catch {
+      alert("Failed to delete comment.");
+    }
+  };
+
+  // ── Export CSV ──────────────────────────────────────────────────
+  const handleExport = (brand) => {
+    const params = new URLSearchParams();
+    if (brand)                    params.set("brand",  brand);
+    if (filterStatus !== "all")   params.set("status", filterStatus);
+    window.open(`${API}/reports/export?${params}`, "_blank");
+  };
+
+  // ── Derived data ────────────────────────────────────────────────
   const allBrands = [...new Set(reports.map(r => r.brand))];
 
-  const getBrandBranches = (brand) => [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
+  const getBrandBranches = (brand) =>
+    [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
 
   const getBrandReports = (brand) => {
     const branchFilter = brandBranchFilter[brand] || "all";
     return reports.filter(r => {
       if (r.brand !== brand) return false;
       if (branchFilter !== "all" && r.branch !== branchFilter) return false;
+      // status + search are already filtered server-side, but keep client guard:
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (search) {
         const q = search.toLowerCase();
-        if (!r.id.toLowerCase().includes(q) && !r.submittedBy.toLowerCase().includes(q)) return false;
+        if (!String(r.id).toLowerCase().includes(q) &&
+            !r.submittedBy.toLowerCase().includes(q)) return false;
       }
       return true;
     });
@@ -2082,11 +2200,12 @@ function ReportsContent() {
     approved: reports.filter(r => r.status === "approved").length,
   };
 
+  // ── Sub-components (unchanged styling) ─────────────────────────
   const StatusBadge = ({ status }) => {
     const s = REPORT_STATUS[status] || REPORT_STATUS.pending;
     return (
       <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
-        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }}/>
         {s.label}
       </span>
     );
@@ -2125,7 +2244,6 @@ function ReportsContent() {
         {isOpen && (
           <div onClick={e => e.stopPropagation()}
             style={{ position:"absolute", right:0, top:38, zIndex:999, background:"#fff", borderRadius:14, border:"1px solid rgba(0,168,76,0.18)", boxShadow:"0 8px 32px rgba(0,0,0,0.14)", minWidth:160, overflow:"hidden" }}>
-            <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
             <div style={{ position:"absolute", top:-6, right:10, width:12, height:12, background:"#fff", border:"1px solid rgba(0,168,76,0.18)", transform:"rotate(45deg)", borderBottom:"none", borderRight:"none" }}/>
             <div style={{ padding:"6px" }}>
               {items.map((item) => (
@@ -2189,10 +2307,29 @@ function ReportsContent() {
     </>
   );
 
+  // ── Loading / error states ──────────────────────────────────────
+  if (loading) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
+      <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+      <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
+      <div style={{ fontSize:13, fontWeight:700, color:"#dc2626" }}>{error}</div>
+      <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+        Retry
+      </button>
+    </div>
+  );
+
+  // ── Render ──────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
 
-      {/* ── VIEW modal ─────────────────────────────────────────────── */}
+      {/* VIEW modal */}
       {viewReport && (
         <ModalShell title={`Report #${viewReport.id}`} subtitle={viewReport.brand + " · " + viewReport.branch} icon={<FileText size={16} color="#fff"/>} onClose={() => setViewReport(null)}>
           <ReportMetaGrid report={viewReport}/>
@@ -2201,10 +2338,15 @@ function ReportsContent() {
               <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#6ee7b7)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <FileText size={17} color="#00897b"/>
               </div>
-           
+              <div>
+                <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Report #{viewReport.id}</div>
+                <div style={{ fontSize:11, color:"#5a7a65" }}>{viewReport.period}</div>
+              </div>
             </div>
-            <button style={{ ...bmActionBtn, background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", border:"none" }}>
-              <BarChart2 size={11}/> Download
+            <button
+              onClick={() => handleExport()}
+              style={{ ...bmActionBtn, background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", border:"none" }}>
+              <Download size={11}/> Export CSV
             </button>
           </div>
           {viewReport.remark && (
@@ -2217,7 +2359,7 @@ function ReportsContent() {
             <div style={{ marginBottom:16 }}>
               <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Comments ({viewReport.comments.length})</div>
               {viewReport.comments.slice(-2).map((c, i) => (
-                <div key={i} style={{ padding:"9px 12px", background:"#f0fdf5", borderRadius:10, border:"1px solid #d1eedd", marginBottom:6, fontSize:12, color:"#0d2b1e" }}>
+                <div key={c.id || i} style={{ padding:"9px 12px", background:"#f0fdf5", borderRadius:10, border:"1px solid #d1eedd", marginBottom:6, fontSize:12, color:"#0d2b1e" }}>
                   <span style={{ fontWeight:700, color:"#00897b" }}>{c.author}</span>
                   <span style={{ color:"#5a7a65", marginLeft:8, fontSize:11 }}>{fmtDate(c.postedAt)}</span>
                   <div style={{ marginTop:4 }}>{c.text}</div>
@@ -2232,7 +2374,7 @@ function ReportsContent() {
         </ModalShell>
       )}
 
-      {/* ── APPROVE modal ──────────────────────────────────────────── */}
+      {/* APPROVE modal */}
       {approveReport && (
         <ModalShell title={`Approve Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
           <ReportMetaGrid report={approveReport}/>
@@ -2245,24 +2387,35 @@ function ReportsContent() {
           </div>
           <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
             <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={() => handleApprove(approveReport.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
-              <Check size={14}/> Approve Report
+            <button onClick={() => handleApprove(approveReport.id)} disabled={actionLoading}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"inherit", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
+              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve Report
             </button>
           </div>
         </ModalShell>
       )}
 
-      {/* ── COMMENT modal ──────────────────────────────────────────── */}
+      {/* COMMENT modal */}
       {commentReport && (
         <ModalShell title={`Comments — #${commentReport.id}`} subtitle={commentReport.brand + " · " + commentReport.branch} icon={<MessageCircle size={16} color="#fff"/>} onClose={() => setCommentReport(null)} maxWidth={480}>
           <div style={{ minHeight:180, maxHeight:260, overflowY:"auto", marginBottom:16, display:"flex", flexDirection:"column", gap:8 }}>
-            {commentReport.comments?.length === 0 ? (
+            {!commentReport.comments?.length ? (
               <div style={{ padding:"32px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No comments yet.</div>
             ) : commentReport.comments.map((c, i) => (
-              <div key={i} style={{ padding:"10px 13px", background:c.author==="Admin"?"#f0fdf5":"#f8fffe", borderRadius:11, border:`1px solid ${c.author==="Admin"?"#d1eedd":"#e0f2f1"}` }}>
+              <div key={c.id || i} style={{ padding:"10px 13px", background:c.author==="Admin"?"#f0fdf5":"#f8fffe", borderRadius:11, border:`1px solid ${c.author==="Admin"?"#d1eedd":"#e0f2f1"}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                  <span style={{ fontWeight:800, fontSize:12, color:"#00897b" }}>{c.author}</span>
-                  <span style={{ fontSize:10.5, color:"#5a7a65" }}>{fmtDate(c.postedAt)}</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontWeight:800, fontSize:12, color:"#00897b" }}>{c.author}</span>
+                    <span style={{ fontSize:10.5, color:"#5a7a65" }}>{fmtDate(c.postedAt)}</span>
+                  </div>
+                  {c.id && (
+                    <button onClick={() => handleDeleteComment(commentReport.id, c.id)}
+                      style={{ background:"none", border:"none", cursor:"pointer", color:"#d1d5db", padding:2, display:"flex", alignItems:"center" }}
+                      onMouseEnter={e => e.currentTarget.style.color="#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color="#d1d5db"}>
+                      <Trash2 size={11}/>
+                    </button>
+                  )}
                 </div>
                 <div style={{ fontSize:13, color:"#0d2b1e" }}>{c.text}</div>
               </div>
@@ -2272,16 +2425,16 @@ function ReportsContent() {
             <textarea value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." rows={2}
               onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleAddComment(commentReport.id);} }}
               style={{ ...bmInput, flex:1, resize:"none", lineHeight:1.6 }}/>
-            <button onClick={() => handleAddComment(commentReport.id)} disabled={!commentText.trim()}
+            <button onClick={() => handleAddComment(commentReport.id)} disabled={!commentText.trim() || actionLoading}
               style={{ display:"flex", alignItems:"center", justifyContent:"center", width:40, height:40, borderRadius:10, border:"none", background:commentText.trim()?"linear-gradient(135deg,#2E7D32,#00897b)":"#e0e0e0", color:commentText.trim()?"#fff":"#9e9e9e", cursor:commentText.trim()?"pointer":"not-allowed", flexShrink:0 }}>
-              <Check size={16}/>
+              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={16}/>}
             </button>
           </div>
           <div style={{ fontSize:11, color:"#5a7a65", marginTop:6 }}>Enter to send · Shift+Enter for new line</div>
         </ModalShell>
       )}
 
-      {/* ── RETURN modal ───────────────────────────────────────────── */}
+      {/* RETURN modal */}
       {returnReport && (
         <ModalShell title={`Return Report #${returnReport.id}`} subtitle={returnReport.brand + " · " + returnReport.branch} icon={<X size={16} color="#fff"/>} onClose={() => setReturnReport(null)} maxWidth={440}>
           <ReportMetaGrid report={returnReport}/>
@@ -2292,17 +2445,15 @@ function ReportsContent() {
           </div>
           <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
             <button onClick={() => setReturnReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={() => handleReturn(returnReport.id)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 20px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              <X size={13}/> Confirm Return
+            <button onClick={() => handleReturn(returnReport.id)} disabled={actionLoading}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 20px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", opacity:actionLoading?0.7:1, fontFamily:"inherit" }}>
+              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <X size={13}/>} Confirm Return
             </button>
           </div>
         </ModalShell>
       )}
 
-     
-
-
-      {/* ── Stat cards ─────────────────────────────────────────────── */}
+      {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
         <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
         <BmStatCard label="Pending"       value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e"/>} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting review"  />
@@ -2310,7 +2461,7 @@ function ReportsContent() {
         <BmStatCard label="Approved"      value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
       </div>
 
-      {/* ── Global filters (search + status) ──────────────────────── */}
+      {/* Global filters */}
       <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", marginBottom:20 }}>
         <div style={{ position:"relative" }}>
           <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
@@ -2325,13 +2476,26 @@ function ReportsContent() {
             {Object.entries(REPORT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
+        {/* Global export button */}
+        <button onClick={() => handleExport(null)}
+          style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+          <Download size={13}/> Export CSV
+        </button>
+        <button onClick={fetchReports}
+          style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+          <RefreshCw size={13}/> Refresh
+        </button>
       </div>
 
-      {/* ── One BmSection per brand ────────────────────────────────── */}
-      {allBrands.map(brand => {
-        const branches      = getBrandBranches(brand);
-        const activeBranch  = brandBranchFilter[brand] || "all";
-        const brandReports  = getBrandReports(brand);
+      {/* One BmSection per brand */}
+      {allBrands.length === 0 ? (
+        <div style={{ padding:"60px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+          No reports found.
+        </div>
+      ) : allBrands.map(brand => {
+        const branches     = getBrandBranches(brand);
+        const activeBranch = brandBranchFilter[brand] || "all";
+        const brandReports = getBrandReports(brand);
 
         return (
           <BmSection key={brand}>
@@ -2340,12 +2504,9 @@ function ReportsContent() {
               icon={<Globe size={16} color="#fff"/>}
               right={
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  {/* per-brand branch filter */}
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</span>
-                    <select
-                      value={activeBranch}
-                      onChange={e => setBrandBranchFilter(prev => ({ ...prev, [brand]: e.target.value }))}
+                    <select value={activeBranch} onChange={e => setBrandBranchFilter(prev => ({ ...prev, [brand]: e.target.value }))}
                       style={{ height:30, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
                       <option value="all" style={{ color:"#0d2b1e", background:"#fff" }}>All branches</option>
                       {branches.map(b => <option key={b} value={b} style={{ color:"#0d2b1e", background:"#fff" }}>{b}</option>)}
@@ -2354,10 +2515,14 @@ function ReportsContent() {
                   <span style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
                     {brandReports.length} report{brandReports.length !== 1 ? "s" : ""}
                   </span>
+                  {/* Per-brand export */}
+                  <button onClick={() => handleExport(brand)}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    <Download size={11}/> Export
+                  </button>
                 </div>
               }
             />
-
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:780 }}>
                 <thead>
@@ -2369,11 +2534,7 @@ function ReportsContent() {
                 </thead>
                 <tbody>
                   {brandReports.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
-                        No reports match the current filters.
-                      </td>
-                    </tr>
+                    <tr><td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No reports match the current filters.</td></tr>
                   ) : brandReports.map(report => (
                     <tr key={report.id}
                       onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
@@ -2401,7 +2562,7 @@ function ReportsContent() {
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-// USERS — restyled
+// USERS 
 // ─────────────────────────────────────────────────────────────────────────────
 function UsersContent() {
   const [users,        setUsers]        = useState([]);
@@ -2621,54 +2782,556 @@ function UsersContent() {
 // COMMUNICATION — restyled
 // ─────────────────────────────────────────────────────────────────────────────
 function CommunicationContent() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [pinnedIds, setPinnedIds]         = useState(new Set());
+  const [fetching, setFetching]           = useState(true);
+  const [modalVisible, setModalVisible]   = useState(false);
+  const [editing, setEditing]             = useState(null);
+  const [selectedTab, setSelectedTab]     = useState("all");
+  const [title, setTitle]                 = useState("");
+  const [content, setContent]             = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [viewingItem, setViewingItem]     = useState(null);
+
+  // Load user from localStorage (mirrors AsyncStorage.getItem("user"))
+  const [commUser, setCommUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  });
+
+  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
+
+  // ── Persist pins in localStorage (mirrors AsyncStorage PIN_STORAGE_KEY) ──
+  const PIN_KEY = "announcement_pins";
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      if (raw) setPinnedIds(new Set(JSON.parse(raw)));
+    } catch {}
+  }, []);
+
+  const persistPins = (newSet) => {
+    try { localStorage.setItem(PIN_KEY, JSON.stringify([...newSet])); } catch {}
+  };
+
+  // ── Fetch announcements ──
+  const fetchAnnouncements = async () => {
+    setFetching(true);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+      const data = await res.json();
+      setAnnouncements(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Fetch error:", err); setAnnouncements([]); }
+    finally { setFetching(false); }
+  };
+  useEffect(() => { fetchAnnouncements(); }, []);
+
+  // Merge server list with local pin state
+  const mergedAnnouncements = announcements.map(a => ({
+    ...a,
+    pinned: pinnedIds.has(String(a.id)),
+  }));
+
+  // ── Toggle pin — ADMIN ONLY ──
+  const handlePin = (item) => {
+    if (!isAdminUser(commUser)) return;
+    const id = String(item.id);
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      persistPins(next);
+      return next;
+    });
+    setViewingItem(prev =>
+      prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev
+    );
+  };
+
+  // ── Save (create / update) — ADMIN ONLY ──
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!isAdminUser(commUser)) { alert("Only administrators can post announcements."); return; }
+    if (!title.trim() || !content.trim()) { alert("Please fill in all fields."); return; }
+    try {
+      const url    = editing ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
+      const method = editing ? "PUT" : "POST";
+      const res    = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Failed to save."); return; }
+      setModalVisible(false); setEditing(null); setTitle(""); setContent("");
+      fetchAnnouncements();
+    } catch (err) { console.error("Save error:", err); }
+  };
+
+  // ── Delete — ADMIN ONLY ──
+  const handleDelete = async (id) => {
+    if (!isAdminUser(commUser)) return;
+    if (!window.confirm("Delete this announcement?")) return;
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Delete failed."); return; }
+      const strId = String(id);
+      if (pinnedIds.has(strId)) {
+        setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
+      }
+      if (viewingItem?.id === id) setViewingItem(null);
+      fetchAnnouncements();
+    } catch (err) { console.error(err); }
+  };
+
+  // ── Edit — ADMIN ONLY ──
+  const handleEdit = (item) => {
+    if (!isAdminUser(commUser)) return;
+    setEditing(item); setTitle(item.title); setContent(item.content); setModalVisible(true);
+  };
+
+  // ── Tab filtering ──
+  const now         = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const tabFiltered = (() => {
+    switch (selectedTab) {
+      case "recent": return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
+      case "pinned": return mergedAnnouncements.filter(a => a.pinned);
+      default:       return mergedAnnouncements;
+    }
+  })();
+
+  const filtered = searchQuery.trim()
+    ? tabFiltered.filter(a =>
+        a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : tabFiltered;
+
+  const tabBadge = {
+    all:    mergedAnnouncements.length,
+    recent: mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo).length,
+    pinned: pinnedIds.size,
+  };
+
+  // ── Helpers ──
+  const getInitials = (t = "") =>
+    t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("");
+
+  const isRecent = (item) => new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
+
+  // ── Styles (inline, consistent with dashboard tokens) ──
+  const commStyles = {
+    root: {
+      fontFamily: "'Montserrat', sans-serif",
+      display: "flex", flexDirection: "column", height: "100%",
+    },
+    header: {
+      background: "linear-gradient(135deg,#2E7D32,#00897b)",
+      padding: "20px 24px 28px",
+      borderRadius: "18px 18px 0 0",
+      position: "relative",
+      overflow: "hidden",
+    },
+    headerTop: {
+      display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4,
+    },
+    eyebrow: {
+      fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)",
+      letterSpacing: "0.25em", marginBottom: 4,
+    },
+    headerTitle: {
+      fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px",
+    },
+    liveChip: {
+      display: "inline-flex", alignItems: "center", gap: 7,
+      background: "rgba(255,255,255,0.18)", borderRadius: 20,
+      padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)",
+    },
+    liveDot: {
+      width: 7, height: 7, borderRadius: "50%",
+      background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
+    },
+    liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
+    searchBarWrap: {
+      display: "flex", alignItems: "center", gap: 8,
+      background: "rgba(255,255,255,0.18)", borderRadius: 12,
+      padding: "9px 13px", marginTop: 12,
+      border: "1px solid rgba(255,255,255,0.25)",
+    },
+    searchInput: {
+      flex: 1, background: "none", border: "none", outline: "none",
+      color: "#fff", fontSize: 13, fontFamily: "inherit",
+    },
+    tabsRow: {
+      display: "flex", gap: 7, padding: "14px 20px",
+      background: "#fff", borderBottom: `1px solid ${C.border}`,
+      flexWrap: "wrap",
+    },
+    tabBase: {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "6px 13px", borderRadius: 20, fontSize: 11.5,
+      fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+      border: "none", transition: "all .15s",
+    },
+    badge: {
+      padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800,
+    },
+    listArea: {
+      flex: 1, overflowY: "auto", padding: "20px 20px 24px",
+      background: "#f8fffe",
+    },
+    sectionLabel: {
+      display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
+    },
+    labelAccent: {
+      width: 4, height: 16, borderRadius: 2,
+      background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0,
+    },
+    labelTxt: {
+      fontSize: 11, fontWeight: 800, color: "#0d2b1e",
+      letterSpacing: "0.08em", textTransform: "uppercase",
+    },
+    card: (pinned) => ({
+      display: "flex", background: "#fff",
+      borderRadius: 18, marginBottom: 10,
+      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
+      boxShadow: pinned
+        ? "0 3px 14px rgba(249,168,37,0.18)"
+        : "0 2px 10px rgba(0,140,60,0.07)",
+      overflow: "hidden", cursor: "pointer",
+      transition: "transform .15s, box-shadow .15s",
+    }),
+    cardAccentBar: (pinned) => ({
+      width: 4, flexShrink: 0,
+      background: pinned
+        ? "linear-gradient(180deg,#F9A825,#FFC107)"
+        : "linear-gradient(180deg,#00897b,#4CAF50)",
+    }),
+    cardBody: { flex: 1, padding: "13px 15px 11px" },
+    cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
+    initialsChip: (pinned) => ({
+      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: pinned
+        ? "linear-gradient(135deg,#F9A825,#E65100)"
+        : "linear-gradient(135deg,#2E7D32,#00897b)",
+      fontSize: 13, fontWeight: 900, color: "#fff",
+    }),
+    cardMeta: { flex: 1, minWidth: 0 },
+    cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
+    cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
+    cardDate:  { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
+    cardContent: {
+      fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9,
+      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+    },
+    tapHint: {
+      display: "flex", alignItems: "center", gap: 3,
+      marginTop: 7, fontSize: 10, color: "#8AAD96",
+    },
+    pinnedBadge: {
+      display: "inline-flex", alignItems: "center", gap: 3,
+      background: "#FFF8E1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825",
+    },
+    recentBadge: {
+      background: "#E0F2F1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c",
+    },
+    cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
+    actionBtn: (variant) => ({
+      width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
+      background: "#f0fdf5", cursor: "pointer", display: "flex",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c",
+    }),
+    emptyState: {
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "60px 0 40px", gap: 10, textAlign: "center",
+    },
+    emptyIcon: { fontSize: 40, marginBottom: 4 },
+    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
+    emptySub:   { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
+  };
+
+  const emptyIcon = selectedTab === "pinned" ? "🔖" : selectedTab === "recent" ? "🕐" : "📢";
+  const emptyTitle =
+    searchQuery ? "No results found"
+    : selectedTab === "pinned" ? "Nothing pinned yet"
+    : selectedTab === "recent" ? "No recent announcements"
+    : "No announcements yet";
+  const emptySub =
+    searchQuery ? "Try a different search term."
+    : selectedTab === "pinned" ? "Administrators can pin important announcements."
+    : selectedTab === "recent" ? "Announcements from the last 7 days appear here."
+    : "Check back later.";
+
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      
-      <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-        <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Messages</span>
-          <button style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            <Plus size={14}/> New Message
-          </button>
+    <div style={commStyles.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
+        .comm-action-btn:hover { opacity: 0.78; }
+        .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={commStyles.header}>
+        {/* subtle wave decoration */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.15, background: "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)", pointerEvents: "none" }} />
+
+        <div style={commStyles.headerTop}>
+          <div>
+            <div style={commStyles.eyebrow}>IFRANCHISE</div>
+            <div style={commStyles.headerTitle}>Announcements</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={commStyles.liveChip}>
+              <div style={commStyles.liveDot} />
+              <span style={commStyles.liveTxt}>LIVE</span>
+            </div>
+            <button
+              onClick={() => { setSearchVisible(v => !v); setSearchQuery(""); }}
+              style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: searchVisible ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16 }}>
+              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
+            </button>
+            {isAdminUser(commUser) && (
+              <button
+                onClick={() => { setEditing(null); setTitle(""); setContent(""); setModalVisible(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={14} /> New
+              </button>
+            )}
+          </div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', minHeight:480 }}>
-          {/* Sidebar */}
-          <div style={{ borderRight:`1px solid ${C.border}`, background:'#f8fffe' }}>
-            <div style={{ padding:'14px 16px', borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ position:'relative' }}>
-                <Search size={13} color={C.muted} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)' }}/>
-                <input type="text" placeholder="Search conversations…" style={{ ...invInputSt, paddingLeft:30, height:34, fontSize:12 }}/>
+
+        {searchVisible && (
+          <div style={commStyles.searchBarWrap}>
+            <Search size={14} color="rgba(255,255,255,0.7)" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search announcements…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={commStyles.searchInput}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={commStyles.tabsRow}>
+        {["all", "recent", "pinned"].map(tab => {
+          const active = selectedTab === tab;
+          return (
+            <button
+              key={tab}
+              className={active ? "" : "comm-tab"}
+              onClick={() => setSelectedTab(tab)}
+              style={{
+                ...commStyles.tabBase,
+                background: active ? "linear-gradient(135deg,#2E7D32,#00897b)" : "#e8f5e9",
+                color: active ? "#fff" : "#5a7a65",
+                border: active ? "none" : `1px solid ${C.border}`,
+                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+              }}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tabBadge[tab] > 0 && (
+                <span style={{
+                  ...commStyles.badge,
+                  background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
+                  color: active ? "#fff" : "#2E7D32",
+                }}>
+                  {tabBadge[tab]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── LIST ── */}
+      <div style={commStyles.listArea}>
+        <div style={commStyles.sectionLabel}>
+          <div style={commStyles.labelAccent} />
+          <span style={commStyles.labelTxt}>
+            {searchQuery
+              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
+              : selectedTab === "recent" ? "Last 7 Days"
+              : selectedTab === "pinned" ? "Pinned Announcements"
+              : "All Announcements"}
+          </span>
+        </div>
+
+        {fetching ? (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+        ) : filtered.length === 0 ? (
+          <div style={commStyles.emptyState}>
+            <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+            <div style={commStyles.emptyTitle}>{emptyTitle}</div>
+            <div style={commStyles.emptySub}>{emptySub}</div>
+          </div>
+        ) : filtered.map(item => {
+          const pinned = !!item.pinned;
+          const recent = isRecent(item);
+          return (
+            <div
+              key={item.id}
+              className="comm-card"
+              style={commStyles.card(pinned)}
+              onClick={() => setViewingItem(prev => prev?.id === item.id ? null : item)}
+            >
+              <div style={commStyles.cardAccentBar(pinned)} />
+              <div style={commStyles.cardBody}>
+                <div style={commStyles.cardHeaderRow}>
+                  <div style={commStyles.initialsChip(pinned)}>{getInitials(item.title)}</div>
+                  <div style={commStyles.cardMeta}>
+                    <div style={commStyles.cardTitleRow}>
+                      <span style={commStyles.cardTitle}>{item.title}</span>
+                      {pinned  && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
+                      {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                    </div>
+                    <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
+                  </div>
+                  {isAdminUser(commUser) && (
+                    <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
+                        {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => { handleEdit(item); }} title="Edit">
+                        <Pencil size={12} />
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("delete")} onClick={() => handleDelete(item.id)} title="Delete">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={commStyles.cardContent}>{item.content}</div>
+                <div style={commStyles.tapHint}>
+                  <span>Tap to read full announcement</span>
+                  <span style={{ fontSize: 10 }}>›</span>
+                </div>
               </div>
             </div>
-            <div style={{ padding:'8px 0' }}>
-              {[
-                { name:'Branch A Manager', preview:'Inventory request pending...', time:'2m ago', unread:2 },
-                { name:'Franchisee - Sarah', preview:'Training schedule update', time:'1h ago', unread:0 },
-                { name:'HQ Support', preview:'New policy document attached', time:'3h ago', unread:1 },
-              ].map((conv, i) => (
-                <div key={i} style={{ padding:'12px 16px', cursor:'pointer', borderLeft:i===0?`3px solid ${C.green}`:'3px solid transparent', background:i===0?'#e8fdf0':'transparent', transition:'all .12s' }}
-                  onMouseEnter={e => { if(i!==0) e.currentTarget.style.background='#f0fdf5'; }}
-                  onMouseLeave={e => { if(i!==0) e.currentTarget.style.background='transparent'; }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
-                    <div style={{ fontWeight:700, fontSize:13, color:'#0d2b1e' }}>{conv.name}</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                      {conv.unread > 0 && <span style={{ background:`linear-gradient(135deg,${C.teal},${C.green})`, color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{conv.unread}</span>}
-                      <span style={{ fontSize:10, color:C.muted }}>{conv.time}</span>
-                    </div>
-                  </div>
-                  <div style={{ fontSize:12, color:C.muted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{conv.preview}</div>
+          );
+        })}
+      </div>
+
+      {/* ── FULL VIEW PANEL ── */}
+      {viewingItem && (
+        <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+            {/* gradient header */}
+            <div style={{
+              background: viewingItem.pinned
+                ? "linear-gradient(135deg,#F9A825,#E65100)"
+                : "linear-gradient(135deg,#2E7D32,#00897b)",
+              borderRadius: "20px 20px 0 0", padding: "20px 22px 28px",
+              position: "relative", overflow: "hidden",
+            }}>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.12, background: "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)" }} />
+              <button onClick={() => setViewingItem(null)} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={15} />
+              </button>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14, paddingRight: 40 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#fff", flexShrink: 0, border: "1.5px solid rgba(255,255,255,0.35)" }}>
+                  {getInitials(viewingItem.title)}
                 </div>
-              ))}
+                <div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+                    {viewingItem.pinned && <span style={{ background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff", letterSpacing: "0.08em" }}>🔖 PINNED</span>}
+                    {isRecent(viewingItem) && <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff" }}>NEW</span>}
+                  </div>
+                  <div style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.3, letterSpacing: "-0.3px" }}>{viewingItem.title}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 4, fontFamily: "monospace" }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: "22px 24px 28px" }}>
+              <p style={{ fontSize: 14.5, color: "#1A3A2A", lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
+
+              {/* Admin actions */}
+              {isAdminUser(commUser) && (
+                <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => handlePin(viewingItem)}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
+                    {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
+                  </button>
+                  <button
+                    onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => { handleDelete(viewingItem.id); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          {/* Main */}
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:40, background:'#f0fdf5' }}>
-            <MessageCircle size={48} color="#b2dfdb" style={{ marginBottom:16 }}/>
-            <div style={{ fontWeight:700, fontSize:15, color:'#0d2b1e', marginBottom:6 }}>Message Thread</div>
-            <div style={{ fontSize:13, color:C.muted }}>Select a conversation to view messages</div>
+        </div>
+      )}
+
+      {/* ── CREATE / EDIT MODAL — Admin only ── */}
+      {isAdminUser(commUser) && modalVisible && (
+        <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
+              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={bmLabel}>Title</label>
+                <input
+                  type="text"
+                  placeholder="Announcement title…"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  style={{ ...bmInput, marginTop: 4 }}
+                />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={bmLabel}>Content</label>
+                <textarea
+                  placeholder="Write your announcement…"
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  required
+                  rows={5}
+                  style={{ ...bmInput, marginTop: 4, resize: "vertical", lineHeight: 1.65 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  <Check size={14} /> Save Announcement
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

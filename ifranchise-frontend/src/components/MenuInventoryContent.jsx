@@ -605,42 +605,78 @@ const matchesBranch =
 
 
   const excelRef = useRef(null);
+  
   const importExcel = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      const wb    = XLSX.read(ev.target.result, { type:"array" });
-      const items = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
-        rows.forEach(row => {
-          const name = String(row.name||row.Name||row["ITEM NAME"]||"").trim();
-          if (!name) return;
-          const category = String(row.category||row.Category||"Other").trim();
-          const cost     = parseFloat(row.cost||row.Cost||0)||0;
-          const rawPrice = parseFloat(row.price||row.Price||0)||0;
-          const price    = rawPrice>0?rawPrice:(cost>0?parseFloat((cost*1.4).toFixed(2)):0);
-          const stock    = parseInt(row.stock||row.Stock||0)||0;
-          const minStock = parseInt(row.min_stock||row["Min Stock"]||0)||0;
-          const branch   = String(row.branch||row.Branch||"").trim();
-          items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price });
-        });
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const wb    = XLSX.read(ev.target.result, { type: "array" });
+    const items = [];
+    wb.SheetNames.forEach(sheetName => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+      rows.forEach(row => {
+        const name = String(row.name || row.Name || row["ITEM NAME"] || "").trim();
+        if (!name) return;
+        const category  = String(row.category || row.Category || "Other").trim();
+        const cost      = parseFloat(row.cost || row.Cost || 0) || 0;
+        const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
+        const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
+        const stock     = parseInt(row.stock || row.Stock || 0) || 0;
+        const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
+        const branch    = String(row.branch || row.Branch || "").trim();
+
+        // Parse pipe-separated ingredients: "name:qty:unit|name:qty:unit"
+        const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
+        const ingredients = rawIng
+          ? rawIng.split("|").map(seg => {
+              const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
+              return ingName ? { name: ingName, qty_required: parseFloat(qty) || 1, unit: unit || "" } : null;
+            }).filter(Boolean)
+          : [];
+
+        items.push({ name, category, branch: branch || "Unknown", cost, stock, min_stock: minStock, price, ingredients });
       });
-      let saved=0;
-      for (const item of items) {
-        try {
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item) });
-          const d   = await res.json();
-          if (d.success) saved++;
-        } catch {}
-      }
-      e.target.value = "";
-      alert(`Parsed ${items.length} row(s). Saved ${saved}.`);
-      refetch();
-    };
-    reader.readAsArrayBuffer(file);
+    });
+
+    let saved = 0;
+    for (const item of items) {
+      try {
+        const { ingredients, ...itemData } = item;
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(itemData)
+        });
+        const d = await res.json();
+        if (d.success) {
+          saved++;
+          // Post ingredients if any
+          if (ingredients.length > 0) {
+            // Look up stock_item_id by name for each ingredient
+            const ingPayload = ingredients.map(ing => {
+              const match = stockItems.find(s =>
+                s.name.toLowerCase() === ing.name.toLowerCase() && s.branch === itemData.branch
+              );
+              return match
+                ? { ingredient_id: match.id, quantity: ing.qty_required, unit: ing.unit || match.unit }
+                : null;
+            }).filter(Boolean);
+
+            if (ingPayload.length > 0) {
+              await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ingredients: ingPayload })
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+    e.target.value = "";
+    alert(`Parsed ${items.length} row(s). Saved ${saved}.`);
+    refetch();
   };
+  reader.readAsArrayBuffer(file);
+};
 
   
   const IngredientPicker = () => (
