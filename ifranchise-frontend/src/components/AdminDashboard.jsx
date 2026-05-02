@@ -10,7 +10,7 @@ import {
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
-  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw, Eye,  Clock, Download
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw, Eye,  Clock, Download, UserPlus
 } from 'lucide-react';
 
 const C = {
@@ -1870,6 +1870,7 @@ function ApplicationsContent({ applications: initialApps }) {
   const [applications, setApplications] = useState(initialApps);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
+  const [menuApp, setMenuApp] = useState(null);
 
   const handleApprove = async (id) => {
     try {
@@ -1927,6 +1928,45 @@ function ApplicationsContent({ applications: initialApps }) {
 
       {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)} />}
 
+        {menuApp && (
+  <div onClick={() => setMenuApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', fontFamily:'Montserrat,sans-serif' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <h2 style={{ fontSize:17, fontWeight:800, color:'#0d2b1e', margin:0 }}>Actions</h2>
+        <button onClick={() => setMenuApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <X size={15}/>
+        </button>
+      </div>
+      <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>
+        Applicant: <strong style={{ color:'#0d2b1e' }}>{menuApp.name}</strong>
+      </p>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        <button
+          onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
+          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          <Eye size={15}/> View Application Details
+        </button>
+        <button
+          onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
+          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+          <UserPlus size={15}/> Create Account
+        </button>
+        <button
+          onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
+          disabled={menuApp.status === 'approved'}
+          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:menuApp.status==='approved'?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:menuApp.status==='approved'?'#9e9e9e':'#fff', fontSize:13, fontWeight:700, cursor:menuApp.status==='approved'?'not-allowed':'pointer', fontFamily:'inherit', opacity:menuApp.status==='approved'?0.6:1 }}>
+          <Check size={15}/> {menuApp.status === 'approved' ? 'Already Approved' : 'Approve Application'}
+        </button>
+        <button
+          onClick={() => { handleDelete(menuApp.id); setMenuApp(null); }}
+          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          <Trash2 size={15}/> Delete Application
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
 
 
@@ -1967,20 +2007,13 @@ function ApplicationsContent({ applications: initialApps }) {
                     <td style={{ padding:'12px 14px', color:'#0d2b1e', fontWeight:600 }}>{app.franchise}</td>
                     <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.date}</td>
                     <td style={{ padding:'12px 14px' }}><StatusBadge status={app.status} /></td>
-                    <td style={{ padding:'12px 14px' }}>
-                      <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                        <div style={{ display:'flex', gap:5 }}>
-                          <button onClick={() => setViewApp(app)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 10px' }}>View</button>
-                          <button onClick={() => setAccountApp(app)} style={{ ...smallBtnSt, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', height:28, padding:'0 10px' }}>+ Account</button>
-                        </div>
-                        <div style={{ display:'flex', gap:5 }}>
-                          <button onClick={() => handleApprove(app.id)} disabled={app.status==="approved"}
-                            style={{ ...smallBtnSt, border:'none', background:app.status==="approved"?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:app.status==="approved"?'#9e9e9e':'#fff', height:28, padding:'0 10px', opacity:app.status==="approved"?0.6:1 }}>
-                            Approve
-                          </button>
-                          <button onClick={() => handleDelete(app.id)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 10px' }}>Delete</button>
-                        </div>
-                      </div>
+                    <td style={{ padding:'12px 14px', whiteSpace:'nowrap' }}>
+                      <button
+                        onClick={() => setMenuApp(app)}
+                        style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:8, border:'1px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', cursor:'pointer' }}
+                        title="Actions">
+                        <Pencil size={13}/>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -2573,8 +2606,34 @@ function UsersContent() {
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
   const [passwordErrors,         setPasswordErrors]         = useState([]);
   const [showPassword,           setShowPassword]           = useState(false);
+  const [brands,         setBrands]         = useState([]);
+  const [selectedBrandId,setSelectedBrandId] = useState("");
+  const [branches,       setBranches]       = useState([]);
+  const [brandsLoading,  setBrandsLoading]  = useState(true);
+  const [filterRole,   setFilterRole]   = useState('all');
+  const [filterBrandF, setFilterBrandF] = useState('all');
+  const [filterBranchF,setFilterBranchF]= useState('all');
+  const [searchQuery,  setSearchQuery]  = useState('');
 
   useEffect(() => { fetchUsers(); }, []);
+
+  useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const data = await res.json();
+      setBrands(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch brands:", err); }
+    finally { setBrandsLoading(false); }
+  };
+  fetchBrands();
+}, []);
+
+useEffect(() => {
+  if (!selectedBrandId) { setBranches([]); return; }
+  const brand = brands.find(b => String(b.id) === String(selectedBrandId));
+  setBranches(brand?.branches || []);
+}, [selectedBrandId, brands]);
 
   const fetchUsers = async () => {
     try { const response = await fetch(`${process.env.REACT_APP_API_URL}/users`); const data = await response.json(); setUsers(data); }
@@ -2624,8 +2683,17 @@ function UsersContent() {
     }
   };
 
-  const openEditModal     = (user) => { setEditingUser(user); setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'' }); setShowEditModal(true); setShowPassword(false); };
-  const resetForm         = () => { setFormData({ name:'', email:'', role:'', branch:'', password:'' }); setShowPasswordValidation(false); setPasswordErrors([]); setShowPassword(false); };
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'' });
+    const ownerBrand = brands.find(b =>       // ← add from here
+      (b.branches || []).some(br => (br.name ?? br) === user.branch)
+    );
+    setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : "");  // ← to here
+    setShowEditModal(true);
+    setShowPassword(false);
+  };
+  const resetForm = () => { setFormData({ name:'', email:'', role:'', branch:'', password:'' }); setShowPasswordValidation(false); setPasswordErrors([]); setShowPassword(false); setSelectedBrandId(""); setBranches([]); };
   const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]:value })); };
 
   const handleGeneratePassword = () => {
@@ -2634,6 +2702,18 @@ function UsersContent() {
     setShowPasswordValidation(true);
     setPasswordErrors([]);
   };
+
+  const filterBrandBranches = filterBrandF === 'all' ? [] :
+  (brands.find(b => String(b.id) === String(filterBrandF))?.branches || []);
+
+const filteredUsers = users.filter(u => {
+  const q = searchQuery.toLowerCase();
+  if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
+  if (filterRole   !== 'all' && u.role   !== filterRole)   return false;
+  if (filterBrandF !== 'all' && u.brand  !== brands.find(b => String(b.id) === String(filterBrandF))?.name) return false;
+  if (filterBranchF !== 'all' && u.branch !== filterBranchF) return false;
+  return true;
+});
 
   const PasswordValidation = ({ errors }) => (
     <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
@@ -2672,16 +2752,36 @@ function UsersContent() {
             <label style={bmLabel}>Role</label>
             <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
               <option value="">Select Role</option>
-              {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
+              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Branch</label>
-            <select name="branch" value={formData.branch} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-              <option value="">Select Branch</option>
-              {['Head Office','Branch A','Branch B','Branch C'].map(b => <option key={b}>{b}</option>)}
-            </select>
-          </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={bmLabel}>Brand</label>
+              <select
+                value={selectedBrandId}
+                onChange={e => { setSelectedBrandId(e.target.value); setFormData(p => ({ ...p, branch:'' })); }}
+                required={!isEdit}
+                disabled={brandsLoading}
+                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+                <option value="">{brandsLoading ? "Loading brands…" : "Select Brand"}</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={bmLabel}>Branch</label>
+              <select
+                name="branch"
+                value={formData.branch}
+                onChange={handleInputChange}
+                required
+                disabled={!selectedBrandId}
+                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+                <option value="">
+                  {!selectedBrandId ? "Select a brand first" : branches.length === 0 ? "No branches available" : "Select Branch"}
+                </option>
+                {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+              </select>
+            </div>
           <div style={{ marginBottom:14 }}>
             <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span>{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</span>
@@ -2712,7 +2812,6 @@ function UsersContent() {
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
  
-
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
         {[
           { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
@@ -2720,6 +2819,35 @@ function UsersContent() {
           { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
           { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,       bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
         ].map((s, i) => <BmStatCard key={i} {...s} />)}
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
+        <div style={{ position:'relative' }}>
+          <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
+          <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
+        </div>
+        <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+          <option value="all">All Roles</option>
+          {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
+          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+          <option value="all">All Brands</option>
+          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
+          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+          <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
+          {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+        </select>
+        {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
+          <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
+            style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
@@ -2734,13 +2862,13 @@ function UsersContent() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr>
-                {['Name','Email','Role','Branch','Status','Actions'].map(h => (
+                {['Name','Email','Role','Brand', 'Branch','Status','Actions'].map(h => (
                   <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
+              {filteredUsers.map(user => (
                 <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
                   onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                   onMouseLeave={e => e.currentTarget.style.background="transparent"}>
@@ -2749,6 +2877,7 @@ function UsersContent() {
                   <td style={{ padding:'12px 14px' }}>
                     <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
                   </td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
                   <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
                   <td style={{ padding:'12px 14px' }}>
                     <span style={{ background:'rgba(16,185,129,0.1)', color:'#059669', padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
