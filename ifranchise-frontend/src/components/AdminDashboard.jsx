@@ -5149,4 +5149,4 @@ function AppField({ label, value, highlight, large }) {
 }
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
-export { ActionDropdown, ViewApplicationModal, AppSection, AppGrid2, AppField };
+export { ActionDropdown, ViewApplicationModal, AppSection, AppGrid2, AppField, POSContent };
