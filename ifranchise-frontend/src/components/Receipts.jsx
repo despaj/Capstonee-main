@@ -400,12 +400,7 @@ export default function Receipts() {
             document.body
           )}
 
-      {/* Page header */}
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 600, color: C.greenDk, letterSpacing: "-0.6px", margin: 0 }}>
-          Liquidation Report
-        </h1>
-      </div>
+
 
       {/* Summary Cards */}
       <div style={s.summaryRow}>

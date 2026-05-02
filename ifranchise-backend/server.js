@@ -111,7 +111,8 @@ if (!validPass)
 
 // Block Administrator accounts from mobile (no X-Client: web header)
 const isWeb = req.headers["x-client"] === "web";
-if (!isWeb && user.rows[0].role === "Administrator")
+const mobileBlockedRoles = ["Administrator", "Staff"];
+if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
   return res.status(403).json({ message: "Invalid credentials" });
     const safeUser = {
       id:     user.rows[0].id,
