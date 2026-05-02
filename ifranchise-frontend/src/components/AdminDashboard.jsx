@@ -2779,7 +2779,7 @@ function UsersContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMMUNICATION — restyled
+// ANNOUNCEMENT — 
 // ─────────────────────────────────────────────────────────────────────────────
 function CommunicationContent() {
   const [announcements, setAnnouncements] = useState([]);

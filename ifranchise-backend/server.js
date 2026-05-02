@@ -742,6 +742,18 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
     const total    = fields?.total_amount?.value             ?? null;
     const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
 
+    const vat = fields?.total_tax?.value
+          ?? fields?.taxes?.value
+          ?? fields?.tax?.value
+          ?? fields?.vat?.value
+          ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
+          ?? null;
+
+    const referenceNo = fields?.document_number?.value
+                 ?? fields?.invoice_number?.value
+                 ?? fields?.receipt_number?.value
+                 ?? null;     
+
     const lineItems = (fields?.line_items?.items ?? []).map(item => ({
       description: item.fields?.description?.value || "Item",
       quantity:    item.fields?.quantity?.value    || 0,
@@ -749,16 +761,18 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
       totalPrice:  item.fields?.total_price?.value || 0,
     }));
 
-    console.log("Extracted fields:", { merchant, date, total, currency, lineItems });
+    console.log("Extracted fields:", { merchant, date, total, currency, vat, referenceNo, dateReceived, lineItems });
+
+    res.json({ merchant, date, total, currency, vat, referenceNo, lineItems });
 
     const client = await pool.connect();
     let savedReceipt;
     try {
       await client.query("BEGIN");
       const receiptResult = await client.query(
-        `INSERT INTO receipts (merchant, date, total_amount, currency)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [merchant, date, total, currency]
+        `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [merchant, date, total, currency, vat, referenceNo]
       );
       savedReceipt = receiptResult.rows[0];
       for (const item of lineItems) {
@@ -806,6 +820,18 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
     const total    = fields?.total_amount?.value             ?? null;
     const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
 
+    const vat = fields?.total_tax?.value
+         ?? fields?.taxes?.value
+         ?? fields?.tax?.value
+         ?? fields?.vat?.value
+         ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
+         ?? null;
+
+    const referenceNo = fields?.document_number?.value
+                 ?? fields?.invoice_number?.value
+                 ?? fields?.receipt_number?.value
+                 ?? null;     
+
     const lineItems = (fields?.line_items?.items ?? []).map(item => ({
       description: item.fields?.description?.value || "Item",
       quantity:    item.fields?.quantity?.value    || 0,
@@ -813,7 +839,8 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
       totalPrice:  item.fields?.total_price?.value || 0,
     }));
 
-    res.json({ merchant, date, total, currency, lineItems });
+    res.json({ merchant, date, total, currency, vat, referenceNo, lineItems });
+    
   } catch (err) {
     console.error("OCR extract error:", err.message);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -848,15 +875,15 @@ app.get("/receipts/:id", async (req, res) => {
 });
 
 app.post("/receipts/save", async (req, res) => {
-  const { merchant, date, total, currency, lineItems } = req.body;
+  const { merchant, date, total, currency, vat, referenceNo, lineItems } = req.body;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     const receiptResult = await client.query(
-      `INSERT INTO receipts (merchant, date, total_amount, currency)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [merchant, date, total, currency || "PHP"]
+      `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no)
+      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [merchant, date, total, currency, vat, referenceNo]
     );
     const savedReceipt = receiptResult.rows[0];
 
@@ -880,14 +907,17 @@ app.post("/receipts/save", async (req, res) => {
 });
 
 app.put("/receipts/:id", async (req, res) => {
-  const { merchant, date, total_amount, currency, lineItems } = req.body;
+  const { merchant, date, total_amount, currency, lineItems, vat, reference_no } = req.body;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     await client.query(
-      `UPDATE receipts SET merchant=$1, date=$2, total_amount=$3, currency=$4 WHERE id=$5`,
-      [merchant, date, total_amount, currency, req.params.id]
+      `UPDATE receipts
+      SET merchant=$1, date=$2, total_amount=$3, currency=$4,
+          vat=$5, reference_no=$6
+      WHERE id=$7`,
+      [merchant, date, total_amount, currency, vat, reference_no, req.params.id]
     );
 
     await client.query("DELETE FROM receipt_items WHERE receipt_id=$1", [req.params.id]);
