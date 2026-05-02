@@ -1,3 +1,6 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN DASHBOARD — Logic unchanged, UI updated to match FranchiseeDashboard
+// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -10,9 +13,11 @@ import {
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
-  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, BarChart, RefreshCw, Eye,  Clock, Download, UserPlus
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar,Pin,  Megaphone, BarChart, RefreshCw, Eye, Clock, Info, Download,History, RotateCcw, UserPlus, CheckCircle,
+  ChevronRight, Lock, Unlock 
 } from 'lucide-react';
 
+// ─── Design tokens (kept from original + Franchisee palette) ─────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -20,6 +25,27 @@ const C = {
   ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
+// ─── Shared CSS (Franchisee-style) ───────────────────────────────────────────
+const ADMIN_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --g1:#00c853; --g2:#00897b; --g3:#1a4a2e; --g4:#0d2b1e;
+    --green-primary:#2E7D32; --green-dark:#1B5E20; --green-light:#4CAF50;
+    --green-accent:#d4df33; --green-bg:#ccfcc7; --white:#ffffff;
+    --gray-100:#F3F4F6; --gray-200:#E5E7EB; --gray-300:#D1D5DB;
+    --gray-400:#9CA3AF; --gray-500:#6B7280; --gray-600:#4B5563;
+    --gray-700:#374151; --gray-800:#1F2937;
+    --shadow:rgba(46,125,50,0.1); --shadow-strong:rgba(46,125,50,0.2);
+    --card-border:rgba(0,168,76,0.12);
+    --grad-main:linear-gradient(135deg,#00c853,#00897b);
+    --grad-dark:linear-gradient(135deg,#0d2b1e,#1a4a2e);
+    --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
+    --grad-bg:linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%);
+  }
+`;
+
+// ─── Original style helpers (unchanged) ──────────────────────────────────────
 const invInputSt = {
   height:36, padding:"0 11px", borderRadius:9,
   border:`1px solid ${C.border}`, background:C.bg,
@@ -50,16 +76,11 @@ const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFra
 
 const TrashIcon = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
 
-// Shared section wrapper used across all modules
 const BmSection = ({ children, style = {} }) => (
   <div style={{
-    background: C.white,
-    border: `1px solid rgba(0,168,76,0.12)`,
-    borderRadius: 18,
-    boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
-    overflow: "hidden",
-    marginBottom: 24,
-    ...style,
+    background: C.white, border: `1px solid rgba(0,168,76,0.12)`,
+    borderRadius: 18, boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+    overflow: "hidden", marginBottom: 24, ...style,
   }}>
     {children}
   </div>
@@ -68,11 +89,8 @@ const BmSection = ({ children, style = {} }) => (
 const BmSectionHeader = ({ title, subtitle, action }) => (
   <div style={{
     background: `linear-gradient(135deg,#2E7D32,#00897b)`,
-    color: C.white,
-    padding: "16px 22px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+    color: C.white, padding: "16px 22px",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
   }}>
     <div>
       <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px" }}>{title}</div>
@@ -84,10 +102,8 @@ const BmSectionHeader = ({ title, subtitle, action }) => (
 
 const BmStatCard = ({ label, value, sub, icon, bg }) => (
   <div style={{
-    background: C.white,
-    border: `1px solid rgba(0,168,76,0.12)`,
-    borderRadius: 18,
-    padding: "20px 22px",
+    background: C.white, border: `1px solid rgba(0,168,76,0.12)`,
+    borderRadius: 18, padding: "20px 22px",
     boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
     transition: "transform .2s, box-shadow .2s",
   }}
@@ -113,7 +129,7 @@ const bmInput = {
   boxSizing: "border-box",
 };
 const bmLabel = {
-  display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+  display: "block", fontSize: 11, fontWeight: 800, color: "#2e6725",
   marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
 };
 const bmActionBtn = (variant = "default") => ({
@@ -128,7 +144,7 @@ const bmActionBtn = (variant = "default") => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD
+// ADMIN DASHBOARD — Shell with Franchisee UI
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -143,6 +159,7 @@ export default function AdminDashboard() {
   const handleLogout = () => setShowLogoutModal(true);
   const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
   const [transactions, setTransactions] = useState([]);
+
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
     if (userString) return JSON.parse(userString);
@@ -152,15 +169,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetch(`http://localhost:5001/dashboard/stats?preset=${preset}`)
-      .then(res => res.json())
-      .then(data => setStats(data))
-      .catch(err => console.error(err));
+      .then(res => res.json()).then(data => setStats(data)).catch(err => console.error(err));
   }, [preset]);
 
   useEffect(() => {
     fetch("http://localhost:5001/transactions")
-      .then(res => res.json())
-      .then(data => setTransactions(data))
+      .then(res => res.json()).then(data => setTransactions(data))
       .catch(err => console.error("Failed to fetch transactions", err));
   }, []);
 
@@ -229,120 +243,253 @@ export default function AdminDashboard() {
   };
 
   const navigation = [
-    { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} /> },
-    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} /> },
-    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} /> },
-    { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} /> },
-    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} /> },
-    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} /> },
-    { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} /> },
-    { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} /> },
-    { id: 'users',          label: 'User Management',       icon: <Users size={20} /> },
-    { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} /> },
-    { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} /> },
-    { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} /> },
-    { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} /> },
-    { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />, action: handleLogout },
+    { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
+    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
+    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
+    { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} />,  section: 'main' },
+    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />,section: 'main' },
+    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
+    { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} />,    section: 'main' },
+    { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} />,   section: 'main' },
+    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,       section: 'main' },
+    { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,   section: 'main' },
+    { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} />,section:'main' },
+    { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} />,   section: 'main' },
+    { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} />,        section: 'account' },
+    { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />,      section: 'account', action: handleLogout },
   ];
+
+  const mainNav    = navigation.filter(n => n.section === 'main');
+  const accountNav = navigation.filter(n => n.section === 'account');
 
   const handleCreateAccount   = (applicant) => { setSelectedApplicant(applicant); setShowCreateAccountModal(true); };
   const handleViewApplication = (applicant) => { setSelectedApplicant(applicant); setShowViewApplicationModal(true); };
 
+  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
+
   return (
-    <div className="admin-dashboard">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
-        * { margin:0; padding:0; box-sizing:border-box; }
-        :root {
-          --green-primary:#2E7D32; --green-dark:#1B5E20; --green-light:#4CAF50;
-          --green-accent:#d4df33; --green-bg:#ccfcc7; --white:#ffffff;
-          --off-white:#F0EFE7; --gray-100:#F3F4F6; --gray-200:#E5E7EB;
-          --gray-300:#D1D5DB; --gray-400:#9CA3AF; --gray-500:#6B7280;
-          --gray-600:#4B5563; --gray-700:#374151; --gray-800:#1F2937;
-          --text-dark:#1A1A1A; --text-gray:#004d00;
-          --shadow:rgba(46,125,50,0.1); --shadow-strong:rgba(46,125,50,0.2);
-          --blue:#3B82F6; --red:#EF4444; --orange:#F59E0B; --success:#10B981;
+    <div className="admin-dashboard-root">
+      <style>{ADMIN_CSS}{`
+        .admin-dashboard-root {
+          font-family:'Poppins',sans-serif;
+          display:flex; min-height:100vh;
+          background:var(--grad-bg);
         }
-        .admin-dashboard { font-family:'Poppins',sans-serif; display:flex; min-height:100vh; background:linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%); }
-        .sidebar {
-          width:${sidebarCollapsed ? '80px' : '280px'};
-          background:var(--white); box-shadow:2px 0 10px var(--shadow);
+
+        /* ── Sidebar (Franchisee style) ── */
+        .ad-sidebar {
+          width:${sidebarCollapsed ? '76px' : '272px'};
+          background:#fff;
+          box-shadow:2px 0 20px rgba(0,140,60,0.08);
           position:fixed; left:0; top:0; height:100vh;
-          transition:width 0.3s ease; z-index:1000; overflow-y:auto;
+          transition:width 0.3s ease; z-index:1000;
+          overflow-y:auto; overflow-x:hidden;
         }
-        .sidebar-header { padding:1.5rem; border-bottom:1px solid var(--gray-200); display:flex; align-items:center; justify-content:space-between; }
-        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; }
-        .sidebar-logo-icon { width:0%; height:70%; margin-left:10%; overflow:hidden; flex-shrink:0; }
-        .sidebar-logo-icon img { width:100%; height:100%; object-fit:cover; }
-        .sidebar-toggle { background:none; border:none; font-size:1rem; cursor:pointer; padding:0.5rem; color:var(--gray-500); transition:color 0.3s ease; }
-        .sidebar-toggle:hover { color:var(--green-primary); }
-        .sidebar-nav { padding:1rem 0; }
-        .nav-item { display:flex; align-items:center; gap:1rem; padding:0.75rem 1rem; color:var(--gray-600); cursor:pointer; transition:all 0.3s ease; border-left:3px solid transparent; font-weight:500; border-radius:80px; position:relative; }
-        .nav-item:hover { background:var(--gray-100); color:var(--green-primary); }
-        .nav-item.active { background:rgba(46,125,50,0.15); color:var(--green-primary); border-left-color:var(--green-primary); border-radius:20px; }
-        .nav-icon { font-size:1.3rem; flex-shrink:0; display:flex; justify-content:center; width:24px; }
-        .nav-label { display:${sidebarCollapsed ? 'none' : 'block'}; font-size:0.9rem; }
-        .main-content { flex:1; margin-left:${sidebarCollapsed ? '80px' : '280px'}; transition:margin-left 0.3s ease; }
-        .top-bar { background:var(--white); padding:1.2rem 2rem; box-shadow:0 2px 8px var(--shadow); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:100; }
-        .top-bar-title { font-family:'Montserrat',sans-serif; font-size:1.6rem; font-weight:700; color:#00897b; }
-        .user-menu { display:flex; align-items:center; gap:1rem; }
-        .user-info { text-align:right; }
-        .user-name { font-weight:600; color:var(--text-dark); font-size:0.95rem; }
-        .user-role { font-size:0.8rem; color:var(--gray-500); }
-        .user-avatar { width:45px; height:45px; border-radius:50%; background:linear-gradient(135deg,var(--green-primary),var(--green-light)); display:flex; align-items:center; justify-content:center; font-size:1.3rem; cursor:pointer; transition:transform 0.3s ease; }
-        .user-avatar:hover { transform:scale(1.1); }
-        .content-area { padding:2rem; }
+        .ad-sidebar-header {
+          padding:1.4rem 1rem;
+          border-bottom:1px solid rgba(0,168,76,0.1);
+          display:flex; align-items:center; justify-content:space-between;
+          min-height:72px;
+        }
+        .ad-logo-mark {
+          width:34px; height:34px; border-radius:10px;
+          background:var(--grad-main);
+          display:flex; align-items:center; justify-content:center;
+          font-weight:900; font-size:16px; color:#fff;
+          font-family:'Montserrat',sans-serif; flex-shrink:0;
+          box-shadow:0 4px 12px rgba(0,180,90,.3);
+        }
+        .ad-brand {
+          font-family:'Montserrat',sans-serif;
+          font-weight:800; font-size:1.15rem; color:#0d2b1e;
+          white-space:nowrap;
+        }
+        .ad-toggle {
+          background:none; border:none; cursor:pointer;
+          padding:6px; color:#94a3b8; border-radius:8px;
+          transition:all .2s; flex-shrink:0;
+        }
+        .ad-toggle:hover { color:#00897b; background:rgba(0,168,76,0.08); }
+
+        .ad-nav { padding:1rem 0.5rem; }
+        .ad-nav-section {
+          font-size:10px; font-weight:800; text-transform:uppercase;
+          letter-spacing:.1em; color:#94a3b8;
+          padding:12px 14px 6px;
+          display:${sidebarCollapsed ? 'none' : 'block'};
+          font-family:'Montserrat',sans-serif;
+        }
+        .ad-nav-item {
+          display:flex; align-items:center; gap:12px;
+          padding:10px 12px; color:#5a7a65; cursor:pointer;
+          transition:all .2s; border-radius:12px;
+          position:relative; margin:2px 0;
+          font-weight:600; font-size:14px;
+          font-family:'Montserrat',sans-serif;
+        }
+        .ad-nav-item:hover { background:rgba(0,168,76,0.08); color:#0d2b1e; }
+        .ad-nav-item.active {
+          background:linear-gradient(135deg,rgba(0,200,83,0.15),rgba(0,137,123,0.1));
+          color:#00695c;
+          box-shadow:inset 0 0 0 1.5px rgba(0,137,123,0.2);
+        }
+        .ad-nav-item.active .ad-nav-icon { color:#00897b; }
+        .ad-nav-item.logout { color:#ef4444; margin-top:8px; }
+        .ad-nav-item.logout:hover { background:rgba(239,68,68,0.08); }
+        .ad-nav-icon {
+          flex-shrink:0; display:flex;
+          justify-content:center; width:22px;
+        }
+        .ad-nav-label {
+          display:${sidebarCollapsed ? 'none' : 'block'};
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .ad-nav-bar {
+          position:absolute; right:0; top:20%; height:60%;
+          width:3px; border-radius:2px; background:var(--grad-main);
+        }
+
+        /* ── Main content ── */
+        .ad-main {
+          flex:1;
+          margin-left:${sidebarCollapsed ? '76px' : '272px'};
+          transition:margin-left 0.3s ease;
+        }
+
+        /* ── Topbar (Franchisee style) ── */
+        .ad-topbar {
+          background:rgba(255,255,255,0.9);
+          backdrop-filter:blur(12px);
+          padding:1rem 2rem;
+          box-shadow:0 2px 16px rgba(0,140,60,0.08);
+          display:flex; justify-content:space-between; align-items:center;
+          position:sticky; top:0; z-index:100;
+          border-bottom:1px solid rgba(0,168,76,0.08);
+        }
+        .ad-topbar-breadcrumb {
+          font-size:12px; color:#94a3b8;
+          font-weight:600; font-family:'Poppins',sans-serif;
+        }
+        .ad-topbar-title {
+          font-family:'Montserrat',sans-serif;
+          font-size:1.5rem; font-weight:800; color:#0d2b1e;
+        }
+        .ad-user-name {
+          font-weight:700; color:#0d2b1e;
+          font-size:14px; font-family:'Montserrat',sans-serif;
+        }
+        .ad-user-role {
+          font-size:11px; color:#94a3b8;
+          font-weight:600; font-family:'Poppins',sans-serif;
+        }
+        .ad-avatar {
+          width:42px; height:42px; border-radius:14px;
+          background:var(--grad-main);
+          display:flex; align-items:center; justify-content:center;
+          font-size:1rem; font-weight:800; color:#fff; cursor:pointer;
+          transition:all .2s;
+          box-shadow:0 4px 12px rgba(0,180,90,.3);
+          font-family:'Montserrat',sans-serif;
+        }
+        .ad-avatar:hover { transform:scale(1.08); box-shadow:0 6px 18px rgba(0,180,90,.4); }
+
+        .ad-content { padding:1.8rem 2rem; }
+
         @media(max-width:768px){
-          .sidebar{width:${sidebarCollapsed?'0':'280px'};transform:translateX(${sidebarCollapsed?'-100%':'0'});}
-          .main-content{margin-left:0;}
-          .top-bar{padding:1rem;}
-          .content-area{padding:1rem;}
-          .user-info{display:none;}
+          .ad-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
+          .ad-main{margin-left:0;}
+          .ad-topbar,.ad-content{padding:1rem;}
         }
       `}</style>
 
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">
-              <img src={logo} alt="iFranchise" />
+      {/* ── SIDEBAR ─────────────────────────────────────────────── */}
+      <aside className="ad-sidebar">
+        <div className="ad-sidebar-header">
+          {!sidebarCollapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="ad-logo-mark">iF</div>
+              <span className="ad-brand">iFranchise</span>
             </div>
-          </div>
-          <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-            {sidebarCollapsed ? '☰' : '✕'}
-          </button>
+          )}
+          {sidebarCollapsed && (
+            <div className="ad-logo-mark" style={{ margin: '0 auto' }}>iF</div>
+          )}
+          {!sidebarCollapsed && (
+            <button className="ad-toggle" onClick={() => setSidebarCollapsed(true)}>
+              <X size={16} />
+            </button>
+          )}
         </div>
-        <nav className="sidebar-nav">
-          {navigation.map(item => (
+
+        {sidebarCollapsed && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+            <button className="ad-toggle" onClick={() => setSidebarCollapsed(false)}>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        <nav className="ad-nav">
+          {!sidebarCollapsed && <div className="ad-nav-section">Main Menu</div>}
+          {mainNav.map(item => (
             <div
               key={item.id}
-              className={`nav-item ${activeModule === item.id ? 'active' : ''}`}
+              className={`ad-nav-item ${activeModule === item.id ? 'active' : ''}`}
               onClick={() => {
                 if (item.action) { item.action(); }
                 else { setActiveModule(item.id); if (item.id === 'applications') fetchApplications(); }
               }}
+              title={sidebarCollapsed ? item.label : undefined}
             >
-              <span className="nav-icon">{item.icon}</span>
-              {!sidebarCollapsed && <span className="nav-label">{item.label}</span>}
+              <span className="ad-nav-icon">{item.icon}</span>
+              <span className="ad-nav-label">{item.label}</span>
+              {activeModule === item.id && <span className="ad-nav-bar" />}
+            </div>
+          ))}
+
+          {!sidebarCollapsed && (
+            <div className="ad-nav-section" style={{ marginTop: 8 }}>Account</div>
+          )}
+          {accountNav.map(item => (
+            <div
+              key={item.id}
+              className={`ad-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
+              onClick={() => {
+                if (item.action) { item.action(); }
+                else { setActiveModule(item.id); }
+              }}
+              title={sidebarCollapsed ? item.label : undefined}
+            >
+              <span className="ad-nav-icon">{item.icon}</span>
+              <span className="ad-nav-label">{item.label}</span>
             </div>
           ))}
         </nav>
       </aside>
 
-      <main className="main-content">
-        <div className="top-bar">
-          <h1 className="top-bar-title"></h1>
-          <div className="user-menu">
-            <div className="user-info">
-              <div className="user-name">{user?.name}</div>
-              <div className="user-role">Admin — {user?.branch}</div>
+      {/* ── MAIN ────────────────────────────────────────────────── */}
+      <main className="ad-main">
+
+        {/* Topbar */}
+        <div className="ad-topbar">
+          <div>
+            <div className="ad-topbar-breadcrumb">iFranchise Admin → {moduleLabel}</div>
+            <h1 className="ad-topbar-title">{moduleLabel}</h1>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div className="ad-user-name">{user?.name}</div>
+              <div className="ad-user-role">Admin — {user?.branch}</div>
             </div>
-            <div className="user-avatar">{user?.avatar}</div>
+            <div className="ad-avatar">
+              {user?.name ? user.name.trim()[0].toUpperCase() : 'A'}
+            </div>
           </div>
         </div>
 
-        <div className="content-area">
-          {activeModule === 'dashboard' && <DashboardContent transactions={transactions} brands={brands} />}
+        {/* Content */}
+        <div className="ad-content">
+          {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <POSContent user={user} brands={brands} />}
@@ -367,6 +514,7 @@ export default function AdminDashboard() {
         </div>
       </main>
 
+      {/* ── CREATE ACCOUNT MODAL ── */}
       {showCreateAccountModal && (
         <CreateAccountModal
           applicant={selectedApplicant}
@@ -374,59 +522,617 @@ export default function AdminDashboard() {
         />
       )}
 
+      {/* ── LOGOUT MODAL (Franchisee style) ── */}
       {showLogoutModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000 }}
-          onClick={() => setShowLogoutModal(false)}>
-          <div style={{ background:C.white, borderRadius:20, padding:'32px 36px', maxWidth:400, width:'90%', textAlign:'center', boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ width:64, height:64, borderRadius:'50%', background:'#fee2e2', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2rem' }}>🚪</div>
-            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
-            <p style={{ color:'#5a7a65', fontSize:13, marginBottom:28 }}>You'll need to sign in again to access your account.</p>
+        <div
+          style={{
+            position:'fixed', inset:0,
+            background:'rgba(0,0,0,0.55)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            zIndex:3000,
+            backdropFilter:'blur(4px)',
+          }}
+          onClick={() => setShowLogoutModal(false)}
+        >
+          <div
+            style={{
+              background:C.white, borderRadius:22, padding:'32px 36px',
+              maxWidth:400, width:'90%', textAlign:'center',
+              boxShadow:'0 24px 80px rgba(0,0,0,0.25)',
+              border:'1px solid rgba(0,168,76,0.15)',
+              animation:'slideUp .25s ease',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{
+              width:68, height:68, borderRadius:20,
+              background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              margin:'0 auto 20px', fontSize:'2rem',
+              border:'1.5px solid rgba(239,68,68,0.15)',
+            }}>🚪</div>
+            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>
+              Log out?
+            </h2>
+            <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:'Poppins,sans-serif' }}>
+              You'll need to sign in again to access your account.
+            </p>
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setShowLogoutModal(false)}
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                style={{
+                  flex:1, padding:'11px 0', borderRadius:12,
+                  border:'1.5px solid #b2dfdb', background:'#f0fdf5',
+                  color:'#5a7a65', fontSize:13, fontWeight:700,
+                  cursor:'pointer', fontFamily:'Montserrat,sans-serif',
+                }}
+              >
                 Cancel
               </button>
-              <button onClick={confirmLogout}
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'#dc2626', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
-                Log out
+              <button
+                onClick={confirmLogout}
+                style={{
+                  flex:1, padding:'11px 0', borderRadius:12, border:'none',
+                  background:'linear-gradient(135deg,#ef4444,#dc2626)',
+                  color:'#fff', fontSize:13, fontWeight:800,
+                  cursor:'pointer', fontFamily:'Montserrat,sans-serif',
+                  boxShadow:'0 4px 14px rgba(239,68,68,.25)',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+                }}
+              >
+                <LogOut size={14} /> Log out
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── VIEW APPLICATION MODAL ── */}
       {showViewApplicationModal && (
         <ViewApplicationModal
           application={selectedApplicant}
           onClose={() => { setShowViewApplicationModal(false); setSelectedApplicant(null); }}
         />
       )}
+
+      <style>{`
+        @keyframes slideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+      `}</style>
     </div>
   );
 }
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BRAND MANAGEMENT 
+// ALL CONTENT COMPONENTS BELOW ARE UNCHANGED FROM ORIGINAL
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE CONFIRM MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function DeleteConfirmModal({ target, onConfirm, onClose }) {
+  const isBrand = target.type === "brand";
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        {/* Icon */}
+        <div
+          style={{
+            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete {isBrand ? "brand" : "branch"}?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete <strong>"{target.name}"</strong>
+          {isBrand ? " and all its associated data." : "."}
+        </p>
+
+        {isBrand && target.branchCount > 0 && (
+          <div
+            style={{
+              background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10,
+              padding: "10px 14px", fontSize: 12, color: "#c2410c",
+              textAlign: "center", marginBottom: 16,
+            }}
+          >
+            ⚠ This brand has {target.branchCount}{" "}
+            {target.branchCount === 1 ? "branch" : "branches"}. All branches will also be deleted.
+          </div>
+        )}
+
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+            }}
+          >
+            <Trash2 size={14} /> Delete {isBrand ? "brand" : "branch"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE HISTORY PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function DeleteHistoryPanel({ history, onRestore, onClose }) {
+  const fmt = (d) =>
+    new Date(d).toLocaleString("en-PH", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 580, maxHeight: "80vh",
+          display: "flex", flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              Delete History
+            </h2>
+            {history.length > 0 && (
+              <span
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                  background: "#fee2e2", color: "#dc2626",
+                }}
+              >
+                {history.length} deleted
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid #b2dfdb", background: "#e0f2f1",
+              cursor: "pointer", color: "#00695c",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* List */}
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {history.length === 0 ? (
+            <div
+              style={{
+                padding: "40px 0", textAlign: "center",
+                color: "#9ca3af", fontSize: 13, fontStyle: "italic",
+              }}
+            >
+              No deleted items yet.
+            </div>
+          ) : (
+            history.map((entry, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 0",
+                  borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none",
+                }}
+              >
+                {/* Type badge */}
+                <span
+                  style={{
+                    fontSize: 10, fontWeight: 800, padding: "3px 10px",
+                    borderRadius: 20, whiteSpace: "nowrap",
+                    background: entry.type === "brand" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)",
+                    color: entry.type === "brand" ? "#2563eb" : "#059669",
+                  }}
+                >
+                  {entry.type === "brand" ? "Brand" : "Branch"}
+                </span>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontWeight: 700, fontSize: 13, color: "#0d2b1e",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}
+                  >
+                    {entry.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>
+                    {fmt(entry.deletedAt)}
+                    {entry.type === "brand" && entry.data?.branches?.length > 0
+                      ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included`
+                      : ""}
+                    {entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}
+                    {entry.type === "branch" && entry.data?.region ? ` · ${entry.data.region}` : ""}
+                    {entry.type === "branch" && entry.data?.concept ? ` · ${entry.data.concept}` : ""}
+                  </div>
+                </div>
+
+                {/* Restore button */}
+                <button
+                  onClick={() => onRestore(entry)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "7px 14px", borderRadius: 9,
+                    border: "1.5px solid #00897b", background: "#e0f2f1",
+                    color: "#00695c", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                    whiteSpace: "nowrap", flexShrink: 0,
+                  }}
+                >
+                  <RotateCcw size={12} /> Restore
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BM MODAL (shared add/edit wrapper)
+// ─────────────────────────────────────────────────────────────────────────────
+function BmModal({ title, onClose, onSubmit, children }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 520,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          maxHeight: "92vh", overflowY: "auto",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>
+            {title}
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid #b2dfdb", background: "#e0f2f1",
+              cursor: "pointer", color: "#00695c",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          {children}
+          <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 24px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                color: "#fff", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+              }}
+            >
+              <Check size={14} /> Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BRAND FORM FIELDS
+// ─────────────────────────────────────────────────────────────────────────────
+function BrandFormFields({ form, setForm }) {
+  const [catInput, setCatInput] = useState("");
+  const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
+  const inputSt = {
+    width: "100%", padding: "9px 12px", borderRadius: 10,
+    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
+    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+    marginTop: 4, boxSizing: "border-box",
+  };
+  const lbl = {
+    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
+  };
+
+  const addCategory = () => {
+    const val = catInput.trim();
+    if (!val) return;
+    if ((form.categories || []).map((c) => c.toLowerCase()).includes(val.toLowerCase())) {
+      alert(`"${val}" is already in the list.`);
+      return;
+    }
+    setForm((f) => ({ ...f, categories: [...(f.categories || []), val] }));
+    setCatInput("");
+  };
+  const removeCategory = (cat) =>
+    setForm((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }));
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <label style={lbl}>Brand Name *</label>
+        <input style={inputSt} {...f("name")} placeholder="Enter brand name" required />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Contact Email</label>
+          <input type="email" style={inputSt} {...f("contact_email")} placeholder="brand@example.com" />
+        </div>
+        <div>
+          <label style={lbl}>Contact Phone</label>
+          <input
+            type="tel"
+            style={inputSt}
+            maxLength={11}
+            value={form.contact_phone}
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"];
+              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
+              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
+            }}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              setForm((prev) => ({ ...prev, contact_phone: digits }));
+            }}
+            placeholder="09XXXXXXXXX"
+          />
+        </div>
+      </div>
+      <div>
+        <label style={lbl}>Description</label>
+        <textarea style={{ ...inputSt, resize: "vertical", lineHeight: 1.5 }} {...f("description")} rows={3} placeholder="Brief description..." />
+      </div>
+      <div>
+        <label style={lbl}>Categories</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <input
+            style={{ ...inputSt, marginTop: 0, flex: 1 }}
+            placeholder="e.g. Medicine, Supplement..."
+            value={catInput}
+            onChange={(e) => setCatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+          />
+          <button
+            type="button"
+            onClick={addCategory}
+            style={{
+              padding: "9px 16px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+            }}
+          >
+            <Plus size={13} /> Add
+          </button>
+        </div>
+        {(form.categories || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>No categories yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+            {form.categories.map((cat) => (
+              <span
+                key={cat}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 12px", borderRadius: 20,
+                  background: "#e0f2f1", border: "1.5px solid #00897b",
+                  color: "#00695c", fontSize: 12, fontWeight: 700,
+                }}
+              >
+                {cat}
+                <button
+                  type="button"
+                  onClick={() => removeCategory(cat)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#00897b" }}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BRANCH FORM FIELDS
+// ─────────────────────────────────────────────────────────────────────────────
+function BranchFormFields({ form, setForm, brands }) {
+  const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
+  const inputSt = {
+    width: "100%", padding: "9px 12px", borderRadius: 10,
+    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
+    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+    marginTop: 4, boxSizing: "border-box",
+  };
+  const lbl = {
+    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
+  };
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <label style={lbl}>Parent Brand *</label>
+        <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("brand_id")} required>
+          <option value="">Select brand</option>
+          {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={lbl}>Branch Name *</label>
+        <input style={inputSt} {...f("name")} required />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Region *</label>
+          <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("region")} required>
+            <option value="">Select region</option>
+            {["NCR", "Region 3", "Region 4A", "Region 4B", "Region 5", "Region 7", "Region 11"].map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        {String(form.brand_id) === brands.find((b) => b.name === "Coffee Spot")?.id?.toString() && (
+          <div>
+            <label style={lbl}>Concept *</label>
+            <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("concept")}>
+              <option value="">Select concept</option>
+              <option>Full Store</option>
+              <option>Kiosk</option>
+            </select>
+          </div>
+        )}
+      </div>
+      <div>
+        <label style={lbl}>Branch Manager</label>
+        <input style={inputSt} {...f("manager")} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Contact Number</label>
+          <input
+            type="tel"
+            style={inputSt}
+            maxLength={11}
+            value={form.contact}
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End", "Control"];
+              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
+              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
+            }}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              setForm((prev) => ({ ...prev, contact: digits }));
+            }}
+          />
+        </div>
+        <div>
+          <label style={lbl}>Address</label>
+          <input style={inputSt} {...f("address")} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
-  const [brands, setBrands] = useState(propBrands || []);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterRegion, setFilterRegion] = useState('all');
-
+  const [brands,              setBrands]              = useState(propBrands || []);
+  const [loading,             setLoading]             = useState(true);
+  const [searchQuery,         setSearchQuery]         = useState("");
+  const [filterRegion,        setFilterRegion]        = useState("all");
+  const [filterBrand,         setFilterBrand]         = useState("all");
   const [showAddBrandModal,   setShowAddBrandModal]   = useState(false);
   const [showEditBrandModal,  setShowEditBrandModal]  = useState(false);
   const [showAddBranchModal,  setShowAddBranchModal]  = useState(false);
   const [showEditBranchModal, setShowEditBranchModal] = useState(false);
-  const [selectedBrand,   setSelectedBrand]   = useState(null);
-  const [selectedBranch,  setSelectedBranch]  = useState(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [filterBrand, setFilterBrand] = useState('all');
+  const [selectedBrand,       setSelectedBrand]       = useState(null);
+  const [selectedBranch,      setSelectedBranch]      = useState(null);
 
-  const emptyBrand  = { name:'', categories:[], contact_email:'', contact_phone:'', description:'' };
-  const emptyBranch = { name:'', brand_id:'', region:'', manager:'', contact:'', address:'', concept:'' };
+  // ── Delete modal & history ──────────────────────────────────────────────
+  const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
+  const [deletedHistory, setDeletedHistory] = useState([]);    // [{ type, id, name, brandName?, deletedAt, data }]
+  const [showHistory,    setShowHistory]    = useState(false);
+
+  const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
+  const emptyBranch = { name: "", brand_id: "", region: "", manager: "", contact: "", address: "", concept: "" };
 
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
@@ -448,402 +1154,438 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     }
   };
 
+  // ── Add / Edit Brand ───────────────────────────────────────────────────
   const handleAddBrand = async (e) => {
     e.preventDefault();
-    const duplicate = brands.some(b => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase());
+    const duplicate = brands.some(
+      (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
+    );
     if (duplicate) { alert(`A brand named "${brandForm.name}" already exists.`); return; }
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(brandForm),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandForm),
       });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowAddBrandModal(false); setBrandForm(emptyBrand); }
-      else alert(data.error || 'Failed to add brand');
-    } catch { alert('Failed to add brand'); }
+      else alert(data.error || "Failed to add brand");
+    } catch { alert("Failed to add brand"); }
   };
 
   const handleEditBrand = async (e) => {
     e.preventDefault();
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
-        method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(brandForm),
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandForm),
       });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowEditBrandModal(false); setSelectedBrand(null); }
-      else alert(data.error || 'Failed to update brand');
-    } catch { alert('Failed to update brand'); }
+      else alert(data.error || "Failed to update brand");
+    } catch { alert("Failed to update brand"); }
   };
 
-  const handleDeleteBrand = async (id) => {
-    if (confirmDeleteId !== `brand-${id}`) { setConfirmDeleteId(`brand-${id}`); return; }
+  // ── Delete Brand (modal-driven) ────────────────────────────────────────
+  const handleDeleteBrand = async () => {
+    const { id, name } = deleteTarget;
+    const brand = brands.find((b) => b.id === id);
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method:'DELETE' });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
       const data = await res.json();
-      if (data.success) { await fetchBrands(); setConfirmDeleteId(null); }
-      else alert(data.error || 'Failed to delete brand');
-    } catch { alert('Failed to delete brand'); }
+      if (data.success) {
+        setDeletedHistory((prev) => [
+          { type: "brand", id, name, deletedAt: new Date(), data: brand },
+          ...prev,
+        ]);
+        await fetchBrands();
+        setDeleteTarget(null);
+      } else alert(data.error || "Failed to delete brand");
+    } catch { alert("Failed to delete brand"); }
   };
 
+  // ── Add / Edit Branch ──────────────────────────────────────────────────
   const handleAddBranch = async (e) => {
     e.preventDefault();
-    const parentBrand = brands.find(b => String(b.id) === String(branchForm.brand_id));
-    const duplicate   = parentBrand?.branches?.some(br => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
+    const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
+    const duplicate   = parentBrand?.branches?.some(
+      (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
+    );
     if (duplicate) { alert(`A branch named "${branchForm.name}" already exists under this brand.`); return; }
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(branchForm),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(branchForm),
       });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowAddBranchModal(false); setBranchForm(emptyBranch); }
-      else alert(data.error || 'Failed to add branch');
-    } catch { alert('Failed to add branch'); }
+      else alert(data.error || "Failed to add branch");
+    } catch { alert("Failed to add branch"); }
   };
 
   const handleEditBranch = async (e) => {
-  e.preventDefault();
-  console.log('Editing branch ID:', selectedBranch.id);
-  console.log('Payload:', JSON.stringify(branchForm));
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(branchForm),
-    });
-    
-    // Log the raw response text before parsing
-    const text = await res.text();
-    console.log('Response status:', res.status);
-    console.log('Response body:', text);
-    
-    const data = JSON.parse(text);
-    if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
-    else alert(data.error || 'Failed to update branch');
-  } catch (err) {
-     console.error('Update branch error:', err);
-    alert('Failed to update branch');
-  }
-};
-
-  const handleDeleteBranch = async (id) => {
-    if (confirmDeleteId !== `branch-${id}`) { setConfirmDeleteId(`branch-${id}`); return; }
+    e.preventDefault();
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method:'DELETE' });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setConfirmDeleteId(null); }
-      else alert(data.error || 'Failed to delete branch');
-    } catch { alert('Failed to delete branch'); }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(branchForm),
+      });
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
+      else alert(data.error || "Failed to update branch");
+    } catch { alert("Failed to update branch"); }
   };
 
+  // ── Delete Branch (modal-driven) ───────────────────────────────────────
+  const handleDeleteBranch = async () => {
+    const { id, name, brandName } = deleteTarget;
+    const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setDeletedHistory((prev) => [
+          { type: "branch", id, name, brandName, deletedAt: new Date(), data: branch },
+          ...prev,
+        ]);
+        await fetchBrands();
+        setDeleteTarget(null);
+      } else alert(data.error || "Failed to delete branch");
+    } catch { alert("Failed to delete branch"); }
+  };
+
+  // ── Restore ────────────────────────────────────────────────────────────
+  const handleRestore = async (entry) => {
+    try {
+      if (entry.type === "brand") {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry.data),
+        });
+        const data = await res.json();
+        if (data.success) {
+          for (const br of entry.data.branches || []) {
+            await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...br, brand_id: data.id }),
+            });
+          }
+          await fetchBrands();
+          setDeletedHistory((prev) => prev.filter((e) => e !== entry));
+        } else alert(data.error || "Failed to restore brand");
+      } else {
+        const parentBrand = brands.find((b) => b.name === entry.brandName);
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...entry.data, brand_id: parentBrand?.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          await fetchBrands();
+          setDeletedHistory((prev) => prev.filter((e) => e !== entry));
+        } else alert(data.error || "Failed to restore branch");
+      }
+    } catch { alert("Failed to restore"); }
+  };
+
+  // ── Derived data ───────────────────────────────────────────────────────
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
-  const totalActive   = brands.reduce((s, b) => s + (b.branches?.filter(br => br.status === 'Active').length || 0), 0);
-  const totalReview   = brands.reduce((s, b) => s + (b.branches?.filter(br => br.status === 'Review').length || 0), 0);
-  const allRegions = [...new Set(brands.flatMap(b => b.branches?.map(br => br.region) || []).filter(Boolean))];
+  const allRegions    = [
+    ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
+  ];
 
   const filteredBrands = brands
-  .map(brand => ({
-    ...brand,
-    branches: (brand.branches || []).filter(br =>
-      (!searchQuery ||
-        br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (br.manager || '').toLowerCase().includes(searchQuery.toLowerCase())) &&
-      (filterRegion === 'all' || br.region === filterRegion)
-    ),
-  }))
-  .filter(brand => {
-    if (filterBrand !== 'all' && String(brand.id) !== String(filterBrand)) return false;
-    if (filterRegion !== 'all' && brand.branches.length === 0) return false;
-    if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
-    return true;
-  });
+    .map((brand) => ({
+      ...brand,
+      branches: (brand.branches || []).filter(
+        (br) =>
+          (!searchQuery ||
+            br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
+          (filterRegion === "all" || br.region === filterRegion)
+      ),
+    }))
+    .filter((brand) => {
+      if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
+      if (filterRegion !== "all" && brand.branches.length === 0) return false;
+      if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+      return true;
+    });
 
+  // ── Sub-components ─────────────────────────────────────────────────────
   const ConceptBadge = ({ concept }) => {
-  const styles = {
-    'Full Store': { bg:'rgba(16,185,129,0.1)', color:'#059669' },
-    'Kiosk':      { bg:'rgba(59,130,246,0.1)', color:'#2563eb' },
+    const styles = {
+      "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" },
+      "Kiosk":      { bg: "rgba(59,130,246,0.1)", color: "#2563eb" },
+    };
+    const s = styles[concept] || { bg: "rgba(156,163,175,0.1)", color: "#6b7280" };
+    return (
+      <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+        {concept || "—"}
+      </span>
+    );
   };
-  const s = styles[concept] || { bg:'rgba(156,163,175,0.1)', color:'#6b7280' };
-  return (
-    <span style={{ background:s.bg, color:s.color, padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
-      {concept || '—'}
-    </span>
-  );
-};
 
+  // ── Shared table styles ────────────────────────────────────────────────
+  const thSt = {
+    padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
+    color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
+    borderBottom: "2px solid #d1eedd", background: "#f8fffe",
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  };
+  const tdSt = {
+    padding: "11px 12px", borderBottom: "1px solid #f0f8f0",
+    verticalAlign: "middle", overflow: "hidden",
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
         .bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; }
         .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
         .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
         .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; }
         .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; }
-        .bm-branch-row { display:grid; grid-template-columns:1.4fr 1fr 1.2fr 1fr 1.2fr 0.8fr auto; align-items:center; gap:10px; padding:14px 20px; border-bottom:1px solid #f0f8f0; transition:background .12s; }
-        .bm-branch-row:last-child { border-bottom:none; }
-        .bm-branch-row:hover { background:#f6fef8; }
-        .bm-col-head { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:#00897b; }
         .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; }
         .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); }
         .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; }
-        .bm-action-btn { display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; transition:background .15s; }
+        .bm-branch-tr:hover td { background:#f6fef8 !important; }
+        .bm-branch-tr:last-child td { border-bottom:none !important; }
       `}</style>
 
       <div className="bm-root">
-       
-
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:28 }}>
+        {/* ── Stat cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
           {[
-            { label:'Total Brands',    value:brands.length,  icon:<Globe size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'Registered brands'    },
-            { label:'Total Branches',  value:totalBranches,  icon:<Store size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Across all brands'    },
+            { label: "Total Brands",   value: brands.length, icon: <Globe size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#6ee7b7)", sub: "Registered brands" },
+            { label: "Total Branches", value: totalBranches, icon: <Store size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#a7f3d0)", sub: "Across all brands" },
           ].map((s, i) => (
             <div key={i} className="bm-stat">
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize:10.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', marginBottom:6 }}>{s.label}</div>
-                  <div style={{ fontSize:24, fontWeight:800, color:'#0d2b1e' }}>{s.value}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#0d2b1e" }}>{s.value}</div>
                 </div>
-                <div style={{ width:44, height:44, borderRadius:13, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  {s.icon}
-                </div>
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.icon}</div>
               </div>
-              <span style={{ fontSize:11, fontWeight:700, color:'#5a7a65' }}>{s.sub}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65" }}>{s.sub}</span>
             </div>
           ))}
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-          <div style={{ position:'relative' }}>
-            <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }} />
-            <input type="text" placeholder="Search brands or branches..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="bm-input" style={{ paddingLeft:32, width:260 }} />
+        {/* ── Toolbar ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+          <div style={{ position: "relative" }}>
+            <Search size={14} color="#5a7a65" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              type="text"
+              placeholder="Search brands or branches..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bm-input"
+              style={{ paddingLeft: 32, width: 260 }}
+            />
           </div>
-          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
+          <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className="bm-select" style={{ width: 180 }}>
             <option value="all">All Brands</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-           <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
+          <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} className="bm-select" style={{ width: 180 }}>
             <option value="all">All Regions</option>
-            {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
+            {allRegions.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
-          <div style={{ marginLeft:'auto', display:'flex', gap:10 }}>
-            <button onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
-              style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 18px', borderRadius:11, border:'1.5px solid #00897b', background:'#fff', color:'#00897b', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            {/* Delete History button */}
+            <button
+              onClick={() => setShowHistory(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", borderRadius: 11,
+                border: "1.5px solid #dc2626", background: "#fff",
+                color: "#dc2626", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <History size={14} />
+              Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
+            </button>
+
+            <button
+              onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", borderRadius: 11,
+                border: "1.5px solid #00897b", background: "#fff",
+                color: "#00897b", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
               <Plus size={14} /> Add Branch
             </button>
-            <button onClick={() => { setBrandForm(emptyBrand); setShowAddBrandModal(true); }}
-              style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 22px', borderRadius:11, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
+            <button
+              onClick={() => { setBrandForm(emptyBrand); setShowAddBrandModal(true); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 22px", borderRadius: 11, border: "none",
+                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                color: "#fff", fontSize: 13, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+              }}
+            >
               <Plus size={15} /> Add Brand
             </button>
           </div>
         </div>
 
+        {/* ── Brand list ── */}
         {loading ? (
-          <div style={{ padding:'48px 0', textAlign:'center', color:'#5a7a65', fontSize:14, fontWeight:600 }}>Loading brands & branches...</div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
+            Loading brands & branches...
+          </div>
         ) : filteredBrands.length === 0 ? (
-          <div style={{ padding:'48px 0', textAlign:'center', color:'#5a7a65', fontSize:14, fontWeight:600 }}>No brands found. Add your first brand above.</div>
-        ) : filteredBrands.map(brand => (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
+            No brands found. Add your first brand above.
+          </div>
+        ) : filteredBrands.map((brand) => (
           <div key={brand.id} className="bm-brand-card">
+            {/* Brand header */}
             <div className="bm-brand-header">
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                <div style={{ width:40, height:40, borderRadius:10, background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Globe size={20} color="#fff" />
                 </div>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:16 }}>{brand.name}</div>
-                  <div style={{ fontSize:12, opacity:0.8, display:'flex', alignItems:'center', gap:10, marginTop:2 }}>
-                    {brand.contact_email && <span style={{ display:'flex', alignItems:'center', gap:4 }}><Mail size={11} /> {brand.contact_email}</span>}
-                    {brand.contact_phone && <span style={{ display:'flex', alignItems:'center', gap:4 }}><Phone size={11} /> {brand.contact_phone}</span>}
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>{brand.name}</div>
+                  <div style={{ fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+                    {brand.contact_email && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Mail size={11} /> {brand.contact_email}</span>}
+                    {brand.contact_phone && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Phone size={11} /> {brand.contact_phone}</span>}
                   </div>
                 </div>
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:12, opacity:0.85, fontWeight:600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? 'branch' : 'branches'}</span>
-                <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name:brand.name, categories:brand.categories||[], contact_email:brand.contact_email, contact_phone:brand.contact_phone, description:brand.description }); setShowEditBrandModal(true); }}
-                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 14px', borderRadius:8, border:'1.5px solid rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.15)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>
+                  {brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedBrand(brand);
+                    setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
+                    setShowEditBrandModal(true);
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
                   <Edit2 size={12} /> Edit Brand
                 </button>
-                <button onClick={() => handleDeleteBrand(brand.id)}
-                  style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 14px', borderRadius:8, border:'1.5px solid rgba(255,150,150,0.5)', background:'rgba(255,80,80,0.15)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                  {confirmDeleteId === `brand-${brand.id}` ? <><Check size={12} /> Confirm</> : <><Trash2 size={12} /> Delete</>}
+                <button
+                  onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <Trash2 size={12} /> Delete
                 </button>
               </div>
             </div>
 
-            <div>
-              <div className="bm-branch-row" style={{ background:'#f8fffe', borderBottom:'2px solid #d1eedd' }}>
-                {['Branch Name','Region','Manager','Contact','Address','Concept','Actions'].map(h => (
-                  <div key={h} className="bm-col-head">{h}</div>
-                ))}
-              </div>
-              {brand.branches?.length === 0 ? (
-                <div style={{ padding:'24px 20px', color:'#5a7a65', fontSize:13, fontStyle:'italic', textAlign:'center' }}>
-                  No branches yet.{' '}
-                  <span style={{ color:'#00897b', cursor:'pointer', textDecoration:'underline', fontWeight:700 }}
-                    onClick={() => { setBranchForm({ ...emptyBranch, brand_id:brand.id }); setShowAddBranchModal(true); }}>
-                    Add the first branch
-                  </span>
-                </div>
-              ) : brand.branches.map(branch => (
-                <div key={branch.id} className="bm-branch-row">
-                  <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13 }}>{branch.name}</div>
-                  <div style={{ fontSize:12, color:'#5a7a65' }}>{branch.region}</div>
-                  <div style={{ fontSize:12, color:'#0d2b1e', fontWeight:600 }}>{branch.manager || '—'}</div>
-                  <div style={{ fontSize:12, color:'#5a7a65' }}>{branch.contact || '—'}</div>
-                  <div style={{ fontSize:12, color:'#5a7a65' }}>{branch.address || '—'}</div>
-                  <div>
-                    {brand.name === 'Coffee Spot'
-                      ? <ConceptBadge concept={branch.concept} />
-                      : '—'}
-                  </div>
-                  <div style={{ display:'flex', gap:6 }}>
-                    <button className="bm-action-btn" style={{ borderColor:'#b2dfdb', background:'#e0f2f1', color:'#00695c' }}
-                      onClick={() => { setSelectedBranch(branch); setBranchForm({ name:branch.name, brand_id:brand.id, region:branch.region, manager:branch.manager, contact:branch.contact, address:branch.address, concept: branch.concept || '' }); setShowEditBranchModal(true); }}>
-                      <Pencil size={11} /> Edit
-                    </button>
-                    <button className="bm-action-btn"
-                      style={{ borderColor:confirmDeleteId===`branch-${branch.id}`?'#f87171':'#fecaca', background:confirmDeleteId===`branch-${branch.id}`?'#fee2e2':'#fff', color:confirmDeleteId===`branch-${branch.id}`?'#dc2626':'#ef4444' }}
-                      onClick={() => handleDeleteBranch(branch.id)}>
-                      {confirmDeleteId === `branch-${branch.id}` ? <><Check size={11} /> Confirm</> : <><Trash2 size={11} /> Delete</>}
-                    </button>
-                    {confirmDeleteId === `branch-${branch.id}` && (
-                      <button className="bm-action-btn" style={{ borderColor:'#d1d5db', background:'#f9fafb', color:'#6b7280' }} onClick={() => setConfirmDeleteId(null)}>
-                        <X size={11} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
+            {/* Branches table */}
+            <div style={{ width: "100%" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "8%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {["Branch Name", "Region", "Manager", "Contact", "Address", "Concept", "Actions"].map((h) => (
+                      <th key={h} style={thSt}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!brand.branches || brand.branches.length === 0) ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>
+                        No branches yet.{" "}
+                        <span
+                          style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+                          onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}
+                        >
+                          Add the first branch
+                        </span>
+                      </td>
+                    </tr>
+                  ) : brand.branches.map((branch) => (
+                    <tr key={branch.id} className="bm-branch-tr">
+                      <td style={{ ...tdSt, fontWeight: 700, color: "#0d2b1e", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.region}</td>
+                      <td style={{ ...tdSt, color: "#0d2b1e", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
+                      <td style={tdSt}>
+                        {brand.name === "Coffee Spot"
+                          ? <ConceptBadge concept={branch.concept} />
+                          : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}
+                      </td>
+                      <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                          {/* Edit */}
+                          <button
+                            title="Edit branch"
+                            onClick={() => {
+                              setSelectedBranch(branch);
+                              setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" });
+                              setShowEditBranchModal(true);
+                            }}
+                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          {/* Delete */}
+                          <button
+                            title="Delete branch"
+                            onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })}
+                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         ))}
       </div>
 
-      {showAddBrandModal  && <BmModal title="Add New Brand"   onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showEditBrandModal && <BmModal title="Edit Brand"      onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showAddBranchModal && <BmModal title="Add New Branch"  onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-      {showEditBranchModal&& <BmModal title="Edit Branch"     onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-    </div>
-  );
-}
+      {/* ── Modals ── */}
+      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
 
-function BmModal({ title, onClose, onSubmit, children }) {
-  return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:520, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-          <h2 style={{ fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <X size={15} />
-          </button>
-        </div>
-        <form onSubmit={onSubmit}>
-          {children}
-          <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
-            <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-            <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
-              <Check size={14} /> Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          target={deleteTarget}
+          onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
 
-function BrandFormFields({ form, setForm }) {
-  const [catInput, setCatInput] = useState('');
-  const f       = (field) => ({ value:form[field], onChange:e => setForm(p => ({ ...p, [field]:e.target.value })) });
-  const inputSt = { width:'100%', padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', marginTop:4, boxSizing:'border-box' };
-  const lbl     = { display:'block', fontSize:11, fontWeight:800, color:'#5a7a65', marginBottom:2, textTransform:'uppercase', letterSpacing:'0.07em' };
-
-  const addCategory = () => {
-    const val = catInput.trim();
-    if (!val) return;
-    if ((form.categories || []).map(c => c.toLowerCase()).includes(val.toLowerCase())) { alert(`"${val}" is already in the list.`); return; }
-    setForm(f => ({ ...f, categories:[...(f.categories||[]), val] }));
-    setCatInput('');
-  };
-  const removeCategory = (cat) => setForm(f => ({ ...f, categories:f.categories.filter(c => c !== cat) }));
-
-  return (
-    <div style={{ display:'grid', gap:14 }}>
-      <div><label style={lbl}>Brand Name *</label><input style={inputSt} {...f('name')} placeholder="Enter brand name" required /></div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div><label style={lbl}>Contact Email</label><input type="email" style={inputSt} {...f('contact_email')} placeholder="brand@example.com" /></div>
-        <div><label style={lbl}>Contact Phone</label>
-          <input type="tel" style={inputSt} maxLength={11} value={form.contact_phone}
-            onKeyDown={e => { const allowed=['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End']; const isShortcut=(e.ctrlKey||e.metaKey)&&['a','c','v','x','z','y'].includes(e.key.toLowerCase()); if(!/^\d$/.test(e.key)&&!allowed.includes(e.key)&&!isShortcut) e.preventDefault(); }}
-            onChange={e => { const digits=e.target.value.replace(/\D/g,'').slice(0,11); setForm(prev=>({...prev,contact_phone:digits})); }}
-            placeholder="09XXXXXXXXX" />
-        </div>
-      </div>
-      <div><label style={lbl}>Description</label><textarea style={{ ...inputSt, resize:'vertical', lineHeight:1.5 }} {...f('description')} rows={3} placeholder="Brief description..." /></div>
-      <div>
-        <label style={lbl}>Categories</label>
-        <div style={{ display:'flex', gap:8, marginTop:4 }}>
-          <input style={{ ...inputSt, marginTop:0, flex:1 }} placeholder="e.g. Medicine, Supplement..." value={catInput}
-            onChange={e => setCatInput(e.target.value)} onKeyDown={e => { if(e.key==='Enter'){e.preventDefault();addCategory();} }} />
-          <button type="button" onClick={addCategory} style={{ padding:'9px 16px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
-            <Plus size={13} /> Add
-          </button>
-        </div>
-        {(form.categories||[]).length === 0 ? (
-          <div style={{ fontSize:12, color:'#9ca3af', fontStyle:'italic', marginTop:6 }}>No categories yet.</div>
-        ) : (
-          <div style={{ display:'flex', flexWrap:'wrap', gap:7, marginTop:8 }}>
-            {form.categories.map(cat => (
-              <span key={cat} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:20, background:'#e0f2f1', border:'1.5px solid #00897b', color:'#00695c', fontSize:12, fontWeight:700 }}>
-                {cat}
-                <button type="button" onClick={() => removeCategory(cat)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'flex', alignItems:'center', color:'#00897b' }}><X size={12} /></button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BranchFormFields({ form, setForm, brands }) {
-  const f       = (field) => ({ value:form[field], onChange:e => setForm(p => ({ ...p, [field]:e.target.value })) });
-  const inputSt = { width:'100%', padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', marginTop:4, boxSizing:'border-box' };
-  const lbl     = { display:'block', fontSize:11, fontWeight:800, color:'#5a7a65', marginBottom:2, textTransform:'uppercase', letterSpacing:'0.07em' };
-  return (
-    <div style={{ display:'grid', gap:14 }}>
-      <div><label style={lbl}>Parent Brand *</label>
-        <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('brand_id')} required>
-          <option value="">Select brand</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-      </div>
-      <div><label style={lbl}>Branch Name *</label><input style={inputSt} {...f('name')} required /></div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div><label style={lbl}>Region *</label>
-          <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('region')} required>
-            <option value="">Select region</option>
-            {['NCR','Region 3','Region 4A','Region 4B','Region 5','Region 7','Region 11'].map(r => <option key={r}>{r}</option>)}
-          </select>
-        </div>
-        {String(form.brand_id) === brands.find(b => b.name === 'Coffee Spot')?.id?.toString()  && (
-          <div><label style={lbl}>Concept *</label>
-            <select style={{ ...inputSt, appearance:'none', cursor:'pointer' }} {...f('concept')}>
-              <option value="">Select concept</option>
-              <option>Full Store</option>
-              <option>Kiosk</option>
-            </select>
-          </div>
-        )}
-      </div>
-      <div><label style={lbl}>Branch Manager</label><input style={inputSt} {...f('manager')} /></div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div><label style={lbl}>Contact Number</label>
-          <input type="tel" style={inputSt} maxLength={11}
-            value={form.contact}
-            onKeyDown={e => { const allowed=['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End','Control']; const isShortcut=(e.ctrlKey||e.metaKey)&&['a','c','v','x','z','y'].includes(e.key.toLowerCase()); if(!/^\d$/.test(e.key)&&!allowed.includes(e.key)&&!isShortcut) e.preventDefault(); }}
-            onChange={e => { const digits=e.target.value.replace(/\D/g,'').slice(0,11); setForm(prev=>({...prev,contact:digits})); }} />
-        </div>
-        <div><label style={lbl}>Address</label><input style={inputSt} {...f('address')} /></div>
-      </div>
+      {showHistory && (
+        <DeleteHistoryPanel
+          history={deletedHistory}
+          onRestore={handleRestore}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1225,7 +1967,7 @@ const fetchKpis = useCallback(async () => {
                   {filteredBrands.map(b => (
                     <div key={b.id} style={optSt(filterBrand === b.id)}
                       onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
-                      <span style={{ fontSize:16 }}>{b.emoji||'🏪'}</span> {b.name}
+                      <span style={{ fontSize:16 }}>{b.emoji||''}</span> {b.name}
                       <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
                     </div>
                   ))}
@@ -1481,9 +2223,9 @@ const fetchKpis = useCallback(async () => {
         {/* Bottom KPI cards */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
           {[
-            { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, desc:'Total income from sales pulled from POS transactions.', icon:'💰' },
-            { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, desc:'Net profit after deducting cost of sales from revenue.', icon:'📈' },
-            { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, desc:'Total cost of goods sold from Inventory movements.', icon:'🧾' },
+            { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, desc:'Total income from sales pulled from POS transactions.', icon:'' },
+            { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, desc:'Net profit after deducting cost of sales from revenue.', icon:'' },
+            { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, desc:'Total cost of goods sold from Inventory movements.', icon:'' },
           ].map((k, i) => (
             <div key={i} style={{ background:'#fff', border: k.value !== null ? '1.5px solid #b2dfdb' : '1.5px dashed #a7f3d0', borderRadius:16, padding:'18px 20px', boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
@@ -2597,6 +3339,274 @@ function ReportsContent() {
 // ─────────────────────────────────────────────────────────────────────────────
 // USERS 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERT MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function AlertModal({ message, onClose, type = "info" }) {
+  const isError = type === "error";
+  const isSuccess = type === "success";
+
+  const iconBg = isError ? "#fee2e2" : isSuccess ? "#d1fae5" : "#dbeafe";
+  const iconColor = isError ? "#dc2626" : isSuccess ? "#059669" : "#2563eb";
+  const Icon = isError ? Trash2 : isSuccess ? Check : Info;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 3000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 380,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+          textAlign: "center",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: iconBg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Icon size={22} color={iconColor} />
+        </div>
+        <p style={{ fontSize: 14, color: "#0d2b1e", lineHeight: 1.6, marginBottom: 20, fontWeight: 600 }}>
+          {message}
+        </p>
+        <button
+          onClick={onClose}
+          style={{
+            padding: "9px 28px", borderRadius: 10,
+            border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)",
+            color: "#fff", fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+          }}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE CONFIRM MODAL (user-flavored)
+// ─────────────────────────────────────────────────────────────────────────────
+function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete user?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete <strong>"{user.name}"</strong> ({user.email}).
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+            }}
+          >
+            <Trash2 size={14} /> Delete User
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER DELETE HISTORY PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
+  const fmt = (d) =>
+    new Date(d).toLocaleString("en-PH", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 620, maxHeight: "80vh",
+          display: "flex", flexDirection: "column",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              Delete History
+            </h2>
+            {history.length > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                background: "#fee2e2", color: "#dc2626",
+              }}>
+                {history.length} deleted
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid #b2dfdb", background: "#e0f2f1",
+              cursor: "pointer", color: "#00695c",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Column headers */}
+        {history.length > 0 && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 80px 90px 90px",
+            gap: 8, padding: "6px 0 10px",
+            borderBottom: "2px solid #e0f2f1",
+            fontSize: 10, fontWeight: 800, color: "#00897b",
+            textTransform: "uppercase", letterSpacing: "0.07em",
+          }}>
+            <span>Name</span>
+            <span>Email</span>
+            <span>Role</span>
+            <span>Deleted At</span>
+            <span></span>
+          </div>
+        )}
+
+        {/* List */}
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {history.length === 0 ? (
+            <div style={{
+              padding: "40px 0", textAlign: "center",
+              color: "#9ca3af", fontSize: 13, fontStyle: "italic",
+            }}>
+              No deleted users yet.
+            </div>
+          ) : (
+            history.map((entry, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "grid", gridTemplateColumns: "1fr 1fr 80px 90px 90px",
+                  gap: 8, alignItems: "center",
+                  padding: "12px 0",
+                  borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none",
+                }}
+              >
+                {/* Name */}
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {entry.data.name}
+                </div>
+                {/* Email */}
+                <div style={{ fontSize: 12, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {entry.data.email}
+                </div>
+                {/* Role badge */}
+                <span style={{
+                  fontSize: 10, fontWeight: 800, padding: "3px 8px",
+                  borderRadius: 20, background: "#e0f2f1", color: "#00695c",
+                  whiteSpace: "nowrap", textAlign: "center",
+                }}>
+                  {entry.data.role}
+                </span>
+                {/* Date */}
+                <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                  {fmt(entry.deletedAt)}
+                </div>
+                {/* Restore */}
+                <button
+                  onClick={() => onRestore(entry)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "7px 12px", borderRadius: 9,
+                    border: "1.5px solid #00897b", background: "#e0f2f1",
+                    color: "#00695c", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <RotateCcw size={12} /> Restore
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 function UsersContent() {
   const [users,        setUsers]        = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -2614,6 +3624,14 @@ function UsersContent() {
   const [filterBrandF, setFilterBrandF] = useState('all');
   const [filterBranchF,setFilterBranchF]= useState('all');
   const [searchQuery,  setSearchQuery]  = useState('');
+
+  // ── new state ──
+  const [deleteTarget,      setDeleteTarget]      = useState(null);   // user pending deletion
+  const [deleteHistory,     setDeleteHistory]     = useState([]);     // soft-deleted users
+  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [alertModal,        setAlertModal]        = useState(null);   // { message, type }
+
+  const showAlert = (message, type = "info") => setAlertModal({ message, type });
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -2636,8 +3654,14 @@ useEffect(() => {
 }, [selectedBrandId, brands]);
 
   const fetchUsers = async () => {
-    try { const response = await fetch(`${process.env.REACT_APP_API_URL}/users`); const data = await response.json(); setUsers(data); }
-    catch (error) { console.error("Error fetching users:", error); alert("Failed to load users"); }
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      showAlert("Failed to load users.", "error");
+    }
   };
 
   const validatePasswordStrength = (password) => {
@@ -2647,39 +3671,104 @@ useEffect(() => {
     if (!/[a-z]/.test(password)) errors.push("lowercase");
     if (!/\d/.test(password))    errors.push("number");
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
-    return { isValid:errors.length===0, errors };
+    return { isValid: errors.length === 0, errors };
   };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
     const passwordCheck = validatePasswordStrength(formData.password);
-    if (!passwordCheck.isValid) { alert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character"); return; }
+    if (!passwordCheck.isValid) {
+      showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+      return;
+    }
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
       const data = await response.json();
-      if (data.success) { await fetchUsers(); setShowAddModal(false); resetForm(); alert('User added successfully!'); }
-      else alert(data.error||'Failed to add user');
-    } catch (error) { console.error("Error adding user:", error); alert("Failed to add user"); }
+      if (data.success) {
+        await fetchUsers();
+        setShowAddModal(false);
+        resetForm();
+        showAlert("User added successfully!", "success");
+      } else {
+        showAlert(data.error || "Failed to add user.", "error");
+      }
+    } catch (error) {
+      console.error("Error adding user:", error);
+      showAlert("Failed to add user.", "error");
+    }
   };
 
   const handleEditUser = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(formData) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
       const data = await response.json();
-      if (data.success) { await fetchUsers(); setShowEditModal(false); setEditingUser(null); resetForm(); alert('User updated successfully!'); }
-      else alert(data.error||'Failed to update user');
-    } catch (error) { console.error("Error updating user:", error); alert("Failed to update user"); }
+      if (data.success) {
+        await fetchUsers();
+        setShowEditModal(false);
+        setEditingUser(null);
+        resetForm();
+        showAlert("User updated successfully!", "success");
+      } else {
+        showAlert(data.error || "Failed to update user.", "error");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+      showAlert("Failed to update user.", "error");
+    }
   };
 
-  const handleDeleteUser = async (id) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${id}`, { method:"DELETE" });
-        const data = await response.json();
-        if (data.success) { await fetchUsers(); alert('User deleted successfully!'); }
-        else alert(data.error||'Failed to delete user');
-      } catch (error) { console.error("Error deleting user:", error); alert("Failed to delete user"); }
+  // Step 1: open confirm modal
+  const handleDeleteUser = (user) => setDeleteTarget(user);
+
+  // Step 2: confirmed — call API, push to history
+  const confirmDelete = async () => {
+    const user = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (data.success) {
+        setDeleteHistory((prev) => [
+          { data: user, deletedAt: new Date().toISOString() },
+          ...prev,
+        ]);
+        await fetchUsers();
+        showAlert(`"${user.name}" has been deleted.`, "success");
+      } else {
+        showAlert(data.error || "Failed to delete user.", "error");
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      showAlert("Failed to delete user.", "error");
+    }
+  };
+
+  // Restore: re-POST the deleted user data
+  const handleRestore = async (entry) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...entry.data, password: entry.data.password || "" }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setDeleteHistory((prev) => prev.filter((e) => e !== entry));
+        await fetchUsers();
+        setShowDeleteHistory(false);
+        showAlert(`"${entry.data.name}" has been restored.`, "success");
+      } else {
+        showAlert(data.error || "Failed to restore user.", "error");
+      }
+    } catch (error) {
+      console.error("Error restoring user:", error);
+      showAlert("Failed to restore user.", "error");
     }
   };
 
@@ -2744,8 +3833,7 @@ const filteredUsers = users.filter(u => {
           {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
             <div key={name} style={{ marginBottom:14 }}>
               <label style={bmLabel}>{label}</label>
-              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required
-                style={{ ...bmInput, marginTop:4 }} />
+              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4 }} />
             </div>
           ))}
           <div style={{ marginBottom:14 }}>
@@ -2812,51 +3900,39 @@ const filteredUsers = users.filter(u => {
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
  
+
+      {/* Stat Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
         {[
-          { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
-          { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,        bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
-          { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,       bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
-          { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,       bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
+          { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
+          { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+          { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
+          { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
         ].map((s, i) => <BmStatCard key={i} {...s} />)}
       </div>
 
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-        <div style={{ position:'relative' }}>
-          <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
-          <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
-        </div>
-        <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-          <option value="all">All Roles</option>
-          {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
-          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-          <option value="all">All Brands</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-        <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
-          style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
-          <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
-          {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-        </select>
-        {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
-          <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
-            style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            Clear filters
-          </button>
-        )}
-      </div>
-
+      {/* Table card */}
       <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
         <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
-          <button onClick={() => setShowAddModal(true)}
-            style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            <Plus size={14}/> Add New User
-          </button>
+          <div style={{ display:'flex', gap:8 }}>
+            {/* Delete History button */}
+            <button
+              onClick={() => setShowDeleteHistory(true)}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+            >
+              <History size={13}/> Delete History
+              {deleteHistory.length > 0 && (
+                <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
+                  {deleteHistory.length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setShowAddModal(true)}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <Plus size={14}/> Add New User
+            </button>
+          </div>
         </div>
         <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
@@ -2887,10 +3963,10 @@ const filteredUsers = users.filter(u => {
                   <td style={{ padding:'12px 14px' }}>
                     <div style={{ display:'flex', gap:6 }}>
                       <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
-                        <Pencil size={11}/> Edit
+                        <Pencil size={11}/>
                       </button>
-                      <button onClick={() => handleDeleteUser(user.id)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
-                        <Trash2 size={11}/> Delete
+                      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+                        <Trash2 size={11}/>
                       </button>
                     </div>
                   </td>
@@ -2901,8 +3977,33 @@ const filteredUsers = users.filter(u => {
         </div>
       </div>
 
+      {/* Modals */}
       {showAddModal  && <UserModal title="Add New User" onSubmit={handleAddUser}  onClose={() => setShowAddModal(false)}  isEdit={false} />}
       {showEditModal && <UserModal title="Edit User"    onSubmit={handleEditUser} onClose={() => { setShowEditModal(false); setEditingUser(null); }} isEdit={true} />}
+
+      {deleteTarget && (
+        <UserDeleteConfirmModal
+          user={deleteTarget}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {showDeleteHistory && (
+        <UserDeleteHistoryPanel
+          history={deleteHistory}
+          onRestore={handleRestore}
+          onClose={() => setShowDeleteHistory(false)}
+        />
+      )}
+
+      {alertModal && (
+        <AlertModal
+          message={alertModal.message}
+          type={alertModal.type}
+          onClose={() => setAlertModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2919,18 +4020,26 @@ function CommunicationContent() {
   const [selectedTab, setSelectedTab]     = useState("all");
   const [title, setTitle]                 = useState("");
   const [content, setContent]             = useState("");
+  const [imageUrl, setImageUrl]           = useState("");
+  const [imageError, setImageError]       = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery]     = useState("");
   const [viewingItem, setViewingItem]     = useState(null);
+  const [deleteHistory, setDeleteHistory] = useState([]);
 
-  // Load user from localStorage (mirrors AsyncStorage.getItem("user"))
-  const [commUser, setCommUser] = useState(() => {
+  // ── UI modal state ──
+  const [alertModal,   setAlertModal]   = useState(null); // { message, type }
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm, itemName }
+
+  const showAlert   = (message, type = "info") => setAlertModal({ message, type });
+  const showConfirm = (message, onConfirm, itemName = "") => setConfirmModal({ message, onConfirm, itemName });
+
+  const [commUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   });
 
   const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
 
-  // ── Persist pins in localStorage (mirrors AsyncStorage PIN_STORAGE_KEY) ──
   const PIN_KEY = "announcement_pins";
   useEffect(() => {
     try {
@@ -2943,7 +4052,6 @@ function CommunicationContent() {
     try { localStorage.setItem(PIN_KEY, JSON.stringify([...newSet])); } catch {}
   };
 
-  // ── Fetch announcements ──
   const fetchAnnouncements = async () => {
     setFetching(true);
     try {
@@ -2955,13 +4063,11 @@ function CommunicationContent() {
   };
   useEffect(() => { fetchAnnouncements(); }, []);
 
-  // Merge server list with local pin state
   const mergedAnnouncements = announcements.map(a => ({
     ...a,
     pinned: pinnedIds.has(String(a.id)),
   }));
 
-  // ── Toggle pin — ADMIN ONLY ──
   const handlePin = (item) => {
     if (!isAdminUser(commUser)) return;
     const id = String(item.id);
@@ -2976,62 +4082,103 @@ function CommunicationContent() {
     );
   };
 
-  // ── Save (create / update) — ADMIN ONLY ──
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!isAdminUser(commUser)) { alert("Only administrators can post announcements."); return; }
-    if (!title.trim() || !content.trim()) { alert("Please fill in all fields."); return; }
+    if (!isAdminUser(commUser)) { showAlert("Only administrators can post announcements.", "error"); return; }
+    if (!title.trim() || !content.trim()) { showAlert("Please fill in the title and content fields.", "error"); return; }
     try {
-      const url    = editing ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
+      const url    = editing
+        ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}`
+        : `${process.env.REACT_APP_API_URL}/announcements`;
       const method = editing ? "PUT" : "POST";
       const res    = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, userId: commUser.id, role: commUser.role }),
+        body: JSON.stringify({
+          title, content,
+          image_url: imageUrl.trim() || null,
+          userId: commUser.id, role: commUser.role,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || "Failed to save."); return; }
-      setModalVisible(false); setEditing(null); setTitle(""); setContent("");
+      if (!res.ok) { showAlert(data.error || "Failed to save.", "error"); return; }
+      setModalVisible(false); setEditing(null); setTitle(""); setContent(""); setImageUrl(""); setImageError(false);
       fetchAnnouncements();
-    } catch (err) { console.error("Save error:", err); }
+      showAlert(editing ? "Announcement updated successfully!" : "Announcement posted successfully!", "success");
+    } catch (err) {
+      console.error("Save error:", err);
+      showAlert("Failed to save announcement.", "error");
+    }
   };
 
-  // ── Delete — ADMIN ONLY ──
-  const handleDelete = async (id) => {
+  const handleDelete = (item) => {
     if (!isAdminUser(commUser)) return;
-    if (!window.confirm("Delete this announcement?")) return;
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(data.error || "Delete failed."); return; }
-      const strId = String(id);
-      if (pinnedIds.has(strId)) {
-        setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
+    showConfirm(`You are about to delete this announcement. You can recover it from Delete History.`, async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showAlert(data.error || "Delete failed.", "error"); return; }
+        const strId = String(item.id);
+        if (pinnedIds.has(strId)) {
+          setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
+        }
+        setDeleteHistory(prev => [{ data: item, deletedAt: new Date().toISOString() }, ...prev]);
+        if (viewingItem?.id === item.id) setViewingItem(null);
+        fetchAnnouncements();
+        showAlert(`"${item.title}" has been deleted.`, "success");
+      } catch (err) {
+        console.error(err);
+        showAlert("Failed to delete announcement.", "error");
       }
-      if (viewingItem?.id === id) setViewingItem(null);
-      fetchAnnouncements();
-    } catch (err) { console.error(err); }
+    }, item.title);
   };
 
-  // ── Edit — ADMIN ONLY ──
+  const handleRestore = async (entry) => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: entry.data.title,
+          content: entry.data.content,
+          image_url: entry.data.image_url || null,
+          userId: commUser.id, role: commUser.role,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showAlert(data.error || "Failed to restore.", "error"); return; }
+      setDeleteHistory(prev => prev.filter(e => e !== entry));
+      fetchAnnouncements();
+      showAlert(`"${entry.data.title}" has been restored!`, "success");
+    } catch (err) {
+      console.error(err);
+      showAlert("Failed to restore announcement.", "error");
+    }
+  };
+
   const handleEdit = (item) => {
     if (!isAdminUser(commUser)) return;
-    setEditing(item); setTitle(item.title); setContent(item.content); setModalVisible(true);
+    setEditing(item);
+    setTitle(item.title);
+    setContent(item.content);
+    setImageUrl(item.image_url || "");
+    setImageError(false);
+    setModalVisible(true);
   };
 
-  // ── Tab filtering ──
-  const now         = new Date();
+  const now          = new Date();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
   const tabFiltered = (() => {
     switch (selectedTab) {
-      case "recent": return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
-      case "pinned": return mergedAnnouncements.filter(a => a.pinned);
-      default:       return mergedAnnouncements;
+      case "recent":        return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
+      case "pinned":        return mergedAnnouncements.filter(a => a.pinned);
+      case "deleteHistory": return [];
+      default:              return mergedAnnouncements;
     }
   })();
 
@@ -3043,164 +4190,67 @@ function CommunicationContent() {
     : tabFiltered;
 
   const tabBadge = {
-    all:    mergedAnnouncements.length,
-    recent: mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo).length,
-    pinned: pinnedIds.size,
+    all:           mergedAnnouncements.length,
+    recent:        mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo).length,
+    pinned:        pinnedIds.size,
+    deleteHistory: deleteHistory.length,
   };
 
-  // ── Helpers ──
   const getInitials = (t = "") =>
     t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("");
 
   const isRecent = (item) => new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
 
-  // ── Styles (inline, consistent with dashboard tokens) ──
+  const fmt = (d) => new Date(d).toLocaleString("en-PH", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+
+  // ── Styles ──
   const commStyles = {
-    root: {
-      fontFamily: "'Montserrat', sans-serif",
-      display: "flex", flexDirection: "column", height: "100%",
-    },
-    header: {
-      background: "linear-gradient(135deg,#2E7D32,#00897b)",
-      padding: "20px 24px 28px",
-      borderRadius: "18px 18px 0 0",
-      position: "relative",
-      overflow: "hidden",
-    },
-    headerTop: {
-      display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4,
-    },
-    eyebrow: {
-      fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)",
-      letterSpacing: "0.25em", marginBottom: 4,
-    },
-    headerTitle: {
-      fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px",
-    },
-    liveChip: {
-      display: "inline-flex", alignItems: "center", gap: 7,
-      background: "rgba(255,255,255,0.18)", borderRadius: 20,
-      padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)",
-    },
-    liveDot: {
-      width: 7, height: 7, borderRadius: "50%",
-      background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
-    },
+    root: { fontFamily: "'Montserrat', sans-serif", display: "flex", flexDirection: "column", height: "100%" },
+    header: { background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "20px 24px 28px", borderRadius: "18px 18px 0 0", position: "relative", overflow: "hidden" },
+    headerTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 },
+    eyebrow: { fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)", letterSpacing: "0.25em", marginBottom: 4 },
+    headerTitle: { fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px" },
+    liveChip: { display: "inline-flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.18)", borderRadius: 20, padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)" },
+    liveDot: { width: 7, height: 7, borderRadius: "50%", background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)" },
     liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
-    searchBarWrap: {
-      display: "flex", alignItems: "center", gap: 8,
-      background: "rgba(255,255,255,0.18)", borderRadius: 12,
-      padding: "9px 13px", marginTop: 12,
-      border: "1px solid rgba(255,255,255,0.25)",
-    },
-    searchInput: {
-      flex: 1, background: "none", border: "none", outline: "none",
-      color: "#fff", fontSize: 13, fontFamily: "inherit",
-    },
-    tabsRow: {
-      display: "flex", gap: 7, padding: "14px 20px",
-      background: "#fff", borderBottom: `1px solid ${C.border}`,
-      flexWrap: "wrap",
-    },
-    tabBase: {
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "6px 13px", borderRadius: 20, fontSize: 11.5,
-      fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-      border: "none", transition: "all .15s",
-    },
-    badge: {
-      padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800,
-    },
-    listArea: {
-      flex: 1, overflowY: "auto", padding: "20px 20px 24px",
-      background: "#f8fffe",
-    },
-    sectionLabel: {
-      display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
-    },
-    labelAccent: {
-      width: 4, height: 16, borderRadius: 2,
-      background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0,
-    },
-    labelTxt: {
-      fontSize: 11, fontWeight: 800, color: "#0d2b1e",
-      letterSpacing: "0.08em", textTransform: "uppercase",
-    },
-    card: (pinned) => ({
-      display: "flex", background: "#fff",
-      borderRadius: 18, marginBottom: 10,
-      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
-      boxShadow: pinned
-        ? "0 3px 14px rgba(249,168,37,0.18)"
-        : "0 2px 10px rgba(0,140,60,0.07)",
-      overflow: "hidden", cursor: "pointer",
-      transition: "transform .15s, box-shadow .15s",
-    }),
-    cardAccentBar: (pinned) => ({
-      width: 4, flexShrink: 0,
-      background: pinned
-        ? "linear-gradient(180deg,#F9A825,#FFC107)"
-        : "linear-gradient(180deg,#00897b,#4CAF50)",
-    }),
+    searchBarWrap: { display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.18)", borderRadius: 12, padding: "9px 13px", marginTop: 12, border: "1px solid rgba(255,255,255,0.25)" },
+    searchInput: { flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, fontFamily: "inherit" },
+    tabsRow: { display: "flex", gap: 7, padding: "14px 20px", background: "#fff", borderBottom: `1px solid ${C.border}`, flexWrap: "wrap" },
+    tabBase: { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: "none", transition: "all .15s" },
+    badge: { padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800 },
+    listArea: { flex: 1, overflowY: "auto", padding: "20px 20px 24px", background: "#f8fffe" },
+    sectionLabel: { display: "flex", alignItems: "center", gap: 8, marginBottom: 14 },
+    labelAccent: { width: 4, height: 16, borderRadius: 2, background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0 },
+    labelTxt: { fontSize: 11, fontWeight: 800, color: "#0d2b1e", letterSpacing: "0.08em", textTransform: "uppercase" },
+    card: (pinned) => ({ display: "flex", background: "#fff", borderRadius: 18, marginBottom: 10, border: `1px solid ${pinned ? "#FFE082" : C.border}`, boxShadow: pinned ? "0 3px 14px rgba(249,168,37,0.18)" : "0 2px 10px rgba(0,140,60,0.07)", overflow: "hidden", cursor: "pointer", transition: "transform .15s, box-shadow .15s" }),
+    cardAccentBar: (pinned) => ({ width: 4, flexShrink: 0, background: pinned ? "linear-gradient(180deg,#F9A825,#FFC107)" : "linear-gradient(180deg,#00897b,#4CAF50)" }),
     cardBody: { flex: 1, padding: "13px 15px 11px" },
     cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
-    initialsChip: (pinned) => ({
-      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: pinned
-        ? "linear-gradient(135deg,#F9A825,#E65100)"
-        : "linear-gradient(135deg,#2E7D32,#00897b)",
-      fontSize: 13, fontWeight: 900, color: "#fff",
-    }),
+    initialsChip: (pinned) => ({ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#2E7D32,#00897b)", fontSize: 13, fontWeight: 900, color: "#fff" }),
     cardMeta: { flex: 1, minWidth: 0 },
     cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
     cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
-    cardDate:  { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
-    cardContent: {
-      fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9,
-      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-      overflow: "hidden",
-    },
-    tapHint: {
-      display: "flex", alignItems: "center", gap: 3,
-      marginTop: 7, fontSize: 10, color: "#8AAD96",
-    },
-    pinnedBadge: {
-      display: "inline-flex", alignItems: "center", gap: 3,
-      background: "#FFF8E1", borderRadius: 6, padding: "2px 6px",
-      border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825",
-    },
-    recentBadge: {
-      background: "#E0F2F1", borderRadius: 6, padding: "2px 6px",
-      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c",
-    },
+    cardDate: { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
+    cardContent: { fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
+    tapHint: { display: "flex", alignItems: "center", gap: 3, marginTop: 7, fontSize: 10, color: "#8AAD96" },
+    pinnedBadge: { display: "inline-flex", alignItems: "center", gap: 3, background: "#FFF8E1", borderRadius: 6, padding: "2px 6px", border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825" },
+    recentBadge: { background: "#E0F2F1", borderRadius: 6, padding: "2px 6px", border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c" },
     cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
-    actionBtn: (variant) => ({
-      width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
-      background: "#f0fdf5", cursor: "pointer", display: "flex",
-      alignItems: "center", justifyContent: "center", flexShrink: 0,
-      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c",
-    }),
-    emptyState: {
-      display: "flex", flexDirection: "column", alignItems: "center",
-      padding: "60px 0 40px", gap: 10, textAlign: "center",
-    },
+    actionBtn: (variant) => ({ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: "#f0fdf5", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c" }),
+    emptyState: { display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0 40px", gap: 10, textAlign: "center" },
     emptyIcon: { fontSize: 40, marginBottom: 4 },
     emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
-    emptySub:   { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
+    emptySub: { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
   };
-
-  const emptyIcon = selectedTab === "pinned" ? "🔖" : selectedTab === "recent" ? "🕐" : "📢";
-  const emptyTitle =
-    searchQuery ? "No results found"
-    : selectedTab === "pinned" ? "Nothing pinned yet"
-    : selectedTab === "recent" ? "No recent announcements"
-    : "No announcements yet";
-  const emptySub =
-    searchQuery ? "Try a different search term."
-    : selectedTab === "pinned" ? "Administrators can pin important announcements."
-    : selectedTab === "recent" ? "Announcements from the last 7 days appear here."
-    : "Check back later.";
+const emptyIcon =
+  selectedTab === "pinned" ? <Pin size={18} /> :
+  selectedTab === "recent" ? <Clock size={18} /> :
+  <Megaphone size={18} />;
+  const emptyTitle = searchQuery ? "No results found" : selectedTab === "pinned" ? "Nothing pinned yet" : selectedTab === "recent" ? "No recent announcements" : "No announcements yet";
+  const emptySub   = searchQuery ? "Try a different search term." : selectedTab === "pinned" ? "Administrators can pin important announcements." : selectedTab === "recent" ? "Announcements from the last 7 days appear here." : "Check back later.";
 
   return (
     <div style={commStyles.root}>
@@ -3209,13 +4259,12 @@ function CommunicationContent() {
         .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
         .comm-action-btn:hover { opacity: 0.78; }
         .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+        .comm-del-row:hover { background: #f6fef8 !important; }
       `}</style>
 
       {/* ── HEADER ── */}
       <div style={commStyles.header}>
-        {/* subtle wave decoration */}
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.15, background: "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)", pointerEvents: "none" }} />
-
         <div style={commStyles.headerTop}>
           <div>
             <div style={commStyles.eyebrow}>IFRANCHISE</div>
@@ -3233,56 +4282,54 @@ function CommunicationContent() {
             </button>
             {isAdminUser(commUser) && (
               <button
-                onClick={() => { setEditing(null); setTitle(""); setContent(""); setModalVisible(true); }}
+                onClick={() => { setEditing(null); setTitle(""); setContent(""); setImageUrl(""); setImageError(false); setModalVisible(true); }}
                 style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 <Plus size={14} /> New
               </button>
             )}
           </div>
         </div>
-
         {searchVisible && (
           <div style={commStyles.searchBarWrap}>
             <Search size={14} color="rgba(255,255,255,0.7)" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search announcements…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={commStyles.searchInput}
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>
-            )}
+            <input autoFocus type="text" placeholder="Search announcements…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={commStyles.searchInput} />
+            {searchQuery && <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>}
           </div>
         )}
       </div>
 
       {/* ── TABS ── */}
       <div style={commStyles.tabsRow}>
-        {["all", "recent", "pinned"].map(tab => {
-          const active = selectedTab === tab;
+        {[
+          { key: "all",           label: "All" },
+          { key: "recent",        label: "Recent" },
+          { key: "pinned",        label: "Pinned" },
+          ...(isAdminUser(commUser) ? [{ key: "deleteHistory", label: "🗑 Delete History" }] : []),
+        ].map(({ key, label }) => {
+          const active = selectedTab === key;
+          const isDelTab = key === "deleteHistory";
           return (
             <button
-              key={tab}
+              key={key}
               className={active ? "" : "comm-tab"}
-              onClick={() => setSelectedTab(tab)}
+              onClick={() => setSelectedTab(key)}
               style={{
                 ...commStyles.tabBase,
-                background: active ? "linear-gradient(135deg,#2E7D32,#00897b)" : "#e8f5e9",
-                color: active ? "#fff" : "#5a7a65",
-                border: active ? "none" : `1px solid ${C.border}`,
-                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+                background: active
+                  ? isDelTab ? "linear-gradient(135deg,#dc2626,#ef4444)" : "linear-gradient(135deg,#2E7D32,#00897b)"
+                  : isDelTab ? "#fee2e2" : "#e8f5e9",
+                color: active ? "#fff" : isDelTab ? "#dc2626" : "#5a7a65",
+                border: active ? "none" : `1px solid ${isDelTab ? "#fecaca" : C.border}`,
+                boxShadow: active ? (isDelTab ? "0 2px 8px rgba(220,38,38,0.28)" : "0 2px 8px rgba(0,180,90,0.28)") : "none",
               }}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              {tabBadge[tab] > 0 && (
+              {label}
+              {tabBadge[key] > 0 && (
                 <span style={{
                   ...commStyles.badge,
-                  background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
-                  color: active ? "#fff" : "#2E7D32",
+                  background: active ? "rgba(255,255,255,0.28)" : isDelTab ? "#fecaca" : C.greenMid,
+                  color: active ? "#fff" : isDelTab ? "#dc2626" : "#2E7D32",
                 }}>
-                  {tabBadge[tab]}
+                  {tabBadge[key]}
                 </span>
               )}
             </button>
@@ -3290,86 +4337,137 @@ function CommunicationContent() {
         })}
       </div>
 
-      {/* ── LIST ── */}
+      {/* ── LIST / DELETE HISTORY ── */}
       <div style={commStyles.listArea}>
-        <div style={commStyles.sectionLabel}>
-          <div style={commStyles.labelAccent} />
-          <span style={commStyles.labelTxt}>
-            {searchQuery
-              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
-              : selectedTab === "recent" ? "Last 7 Days"
-              : selectedTab === "pinned" ? "Pinned Announcements"
-              : "All Announcements"}
-          </span>
-        </div>
 
-        {fetching ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
-        ) : filtered.length === 0 ? (
-          <div style={commStyles.emptyState}>
-            <div style={commStyles.emptyIcon}>{emptyIcon}</div>
-            <div style={commStyles.emptyTitle}>{emptyTitle}</div>
-            <div style={commStyles.emptySub}>{emptySub}</div>
-          </div>
-        ) : filtered.map(item => {
-          const pinned = !!item.pinned;
-          const recent = isRecent(item);
-          return (
-            <div
-              key={item.id}
-              className="comm-card"
-              style={commStyles.card(pinned)}
-              onClick={() => setViewingItem(prev => prev?.id === item.id ? null : item)}
-            >
-              <div style={commStyles.cardAccentBar(pinned)} />
-              <div style={commStyles.cardBody}>
-                <div style={commStyles.cardHeaderRow}>
-                  <div style={commStyles.initialsChip(pinned)}>{getInitials(item.title)}</div>
-                  <div style={commStyles.cardMeta}>
-                    <div style={commStyles.cardTitleRow}>
-                      <span style={commStyles.cardTitle}>{item.title}</span>
-                      {pinned  && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
-                      {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
-                    </div>
-                    <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
-                  </div>
-                  {isAdminUser(commUser) && (
-                    <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
-                      <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
-                        {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
-                      </button>
-                      <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => { handleEdit(item); }} title="Edit">
-                        <Pencil size={12} />
-                      </button>
-                      <button className="comm-action-btn" style={commStyles.actionBtn("delete")} onClick={() => handleDelete(item.id)} title="Delete">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div style={commStyles.cardContent}>{item.content}</div>
-                <div style={commStyles.tapHint}>
-                  <span>Tap to read full announcement</span>
-                  <span style={{ fontSize: 10 }}>›</span>
-                </div>
-              </div>
+        {/* ── DELETE HISTORY TAB ── */}
+        {selectedTab === "deleteHistory" ? (
+          <>
+            <div style={commStyles.sectionLabel}>
+              <div style={commStyles.labelAccent} />
+              <span style={commStyles.labelTxt}>Delete History</span>
+              {deleteHistory.length > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626" }}>{deleteHistory.length} deleted</span>
+              )}
             </div>
-          );
-        })}
+
+            {deleteHistory.length === 0 ? (
+              <div style={commStyles.emptyState}>
+                <div style={commStyles.emptyIcon}>🗑</div>
+                <div style={commStyles.emptyTitle}>No deleted announcements</div>
+                <div style={commStyles.emptySub}>Deleted announcements will appear here and can be restored.</div>
+              </div>
+            ) : (
+              <div style={{ background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,140,60,0.07)" }}>
+                {/* column headers */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 90px", gap: 8, padding: "10px 16px", borderBottom: `2px solid #e0f2f1`, fontSize: 10, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", background: "#f8fffe" }}>
+                  <span>Title</span>
+                  <span>Content Preview</span>
+                  <span>Deleted At</span>
+                  <span></span>
+                </div>
+                {deleteHistory.map((entry, i) => (
+                  <div
+                    key={i}
+                    className="comm-del-row"
+                    style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 90px", gap: 8, alignItems: "center", padding: "12px 16px", borderBottom: i < deleteHistory.length - 1 ? `1px solid #f0f8f0` : "none", transition: "background .15s" }}
+                  >
+                    {/* Title + image indicator */}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.title}</div>
+                      {entry.data.image_url && (
+                        <span style={{ fontSize: 9, background: "#e0f2f1", color: "#00695c", padding: "1px 6px", borderRadius: 6, fontWeight: 700, marginTop: 3, display: "inline-block" }}>🖼 Has Image</span>
+                      )}
+                    </div>
+                    {/* Content preview */}
+                    <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.data.content}</div>
+                    {/* Date */}
+                    <div style={{ fontSize: 10, color: "#9ca3af" }}>{fmt(entry.deletedAt)}</div>
+                    {/* Restore */}
+                    <button
+                      onClick={() => handleRestore(entry)}
+                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                    >
+                      <RotateCcw size={11} /> Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── NORMAL LIST ── */}
+            <div style={commStyles.sectionLabel}>
+              <div style={commStyles.labelAccent} />
+              <span style={commStyles.labelTxt}>
+                {searchQuery ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"` : selectedTab === "recent" ? "Last 7 Days" : selectedTab === "pinned" ? "Pinned Announcements" : "All Announcements"}
+              </span>
+            </div>
+
+            {fetching ? (
+              <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+            ) : filtered.length === 0 ? (
+              <div style={commStyles.emptyState}>
+                <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+                <div style={commStyles.emptyTitle}>{emptyTitle}</div>
+                <div style={commStyles.emptySub}>{emptySub}</div>
+              </div>
+            ) : filtered.map(item => {
+              const pinned = !!item.pinned;
+              const recent = isRecent(item);
+              return (
+                <div
+                  key={item.id}
+                  className="comm-card"
+                  style={commStyles.card(pinned)}
+                  onClick={() => setViewingItem(prev => prev?.id === item.id ? null : item)}
+                >
+                  <div style={commStyles.cardAccentBar(pinned)} />
+                  <div style={commStyles.cardBody}>
+                    <div style={commStyles.cardHeaderRow}>
+                      <div style={commStyles.initialsChip(pinned)}>{getInitials(item.title)}</div>
+                      <div style={commStyles.cardMeta}>
+                        <div style={commStyles.cardTitleRow}>
+                          <span style={commStyles.cardTitle}>{item.title}</span>
+                          {pinned && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
+                          {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                          {item.image_url && <span style={{ background: "#e0f2f1", color: "#00695c", borderRadius: 6, padding: "2px 6px", fontSize: 8, fontWeight: 800, border: "1px solid #b2dfdb" }}>🖼 IMG</span>}
+                        </div>
+                        <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
+                      </div>
+                      {isAdminUser(commUser) && (
+                        <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
+                          <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
+                            {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
+                          </button>
+                          <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => handleEdit(item)} title="Edit">
+                            <Pencil size={12} />
+                          </button>
+                          <button className="comm-action-btn" style={commStyles.actionBtn("delete")} onClick={() => handleDelete(item)} title="Delete">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div style={commStyles.cardContent}>{item.content}</div>
+                    <div style={commStyles.tapHint}>
+                      <span>Tap to read full announcement</span>
+                      <span style={{ fontSize: 10 }}>›</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* ── FULL VIEW PANEL ── */}
       {viewingItem && (
         <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
-            {/* gradient header */}
-            <div style={{
-              background: viewingItem.pinned
-                ? "linear-gradient(135deg,#F9A825,#E65100)"
-                : "linear-gradient(135deg,#2E7D32,#00897b)",
-              borderRadius: "20px 20px 0 0", padding: "20px 22px 28px",
-              position: "relative", overflow: "hidden",
-            }}>
+            <div style={{ background: viewingItem.pinned ? "linear-gradient(135deg,#F9A825,#E65100)" : "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "20px 22px 28px", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.12, background: "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)" }} />
               <button onClick={() => setViewingItem(null)} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={15} />
@@ -3389,26 +4487,29 @@ function CommunicationContent() {
               </div>
             </div>
 
-            {/* body */}
             <div style={{ padding: "22px 24px 28px" }}>
+              {/* Image display */}
+              {viewingItem.image_url && (
+                <div style={{ marginBottom: 18, borderRadius: 14, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                  <img
+                    src={viewingItem.image_url}
+                    alt="Announcement"
+                    style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block" }}
+                    onError={e => { e.target.style.display = "none"; }}
+                  />
+                </div>
+              )}
               <p style={{ fontSize: 14.5, color: "#1A3A2A", lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
 
-              {/* Admin actions */}
               {isAdminUser(commUser) && (
                 <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => handlePin(viewingItem)}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
+                  <button onClick={() => handlePin(viewingItem)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
                     {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
                   </button>
-                  <button
-                    onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                  <button onClick={() => { handleEdit(viewingItem); setViewingItem(null); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
                     <Pencil size={13} /> Edit
                   </button>
-                  <button
-                    onClick={() => { handleDelete(viewingItem.id); setViewingItem(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
+                  <button onClick={() => { handleDelete(viewingItem); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
                     <Trash2 size={13} /> Delete
                   </button>
                 </div>
@@ -3418,10 +4519,10 @@ function CommunicationContent() {
         </div>
       )}
 
-      {/* ── CREATE / EDIT MODAL — Admin only ── */}
+      {/* ── CREATE / EDIT MODAL ── */}
       {isAdminUser(commUser) && modalVisible && (
         <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden", maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
               <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -3429,28 +4530,59 @@ function CommunicationContent() {
               </button>
             </div>
             <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+
+              {/* Title */}
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Title</label>
+                <input type="text" placeholder="Announcement title…" value={title} onChange={e => setTitle(e.target.value)} required style={{ ...bmInput, marginTop: 4 }} />
+              </div>
+
+              {/* Content */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={bmLabel}>Content</label>
+                <textarea placeholder="Write your announcement…" value={content} onChange={e => setContent(e.target.value)} required rows={4} style={{ ...bmInput, marginTop: 4, resize: "vertical", lineHeight: 1.65 }} />
+              </div>
+
+              {/* Image URL */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ ...bmLabel, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Image URL <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Optional)</span></span>
+                  {imageUrl && (
+                    <button type="button" onClick={() => { setImageUrl(""); setImageError(false); }}
+                      style={{ fontSize: 11, background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontWeight: 700 }}>
+                      ✕ Remove
+                    </button>
+                  )}
+                </label>
                 <input
-                  type="text"
-                  placeholder="Announcement title…"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  required
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={imageUrl}
+                  onChange={e => { setImageUrl(e.target.value); setImageError(false); }}
                   style={{ ...bmInput, marginTop: 4 }}
                 />
+                {/* Live preview */}
+                {imageUrl && !imageError && (
+                  <div style={{ marginTop: 10, borderRadius: 12, overflow: "hidden", border: `1px solid ${C.border}`, position: "relative" }}>
+                    <img
+                      src={imageUrl}
+                      alt="Preview"
+                      style={{ width: "100%", maxHeight: 180, objectFit: "cover", display: "block" }}
+                      onError={() => setImageError(true)}
+                    />
+                    <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.45)", borderRadius: 6, padding: "2px 8px", fontSize: 9, fontWeight: 800, color: "#fff", letterSpacing: "0.05em" }}>PREVIEW</div>
+                  </div>
+                )}
+                {imageUrl && imageError && (
+                  <div style={{ marginTop: 8, padding: "9px 12px", background: "#fee2e2", borderRadius: 10, border: "1px solid #fecaca", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                    ⚠ Could not load image. Check the URL and try again.
+                  </div>
+                )}
+                {!imageUrl && (
+                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Paste a direct link to an image (jpg, png, gif, webp…)</p>
+                )}
               </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={bmLabel}>Content</label>
-                <textarea
-                  placeholder="Write your announcement…"
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  required
-                  rows={5}
-                  style={{ ...bmInput, marginTop: 4, resize: "vertical", lineHeight: 1.65 }}
-                />
-              </div>
+
               <div style={{ display: "flex", gap: 10 }}>
                 <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
                 <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
@@ -3458,6 +4590,39 @@ function CommunicationContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ALERT MODAL ── */}
+      {alertModal && (
+        <AlertModal message={alertModal.message} type={alertModal.type} onClose={() => setAlertModal(null)} />
+      )}
+
+      {/* ── CONFIRM / DELETE MODAL ── */}
+      {confirmModal && (
+        <div onClick={() => setConfirmModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, backdropFilter: "blur(4px)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Trash2 size={22} color="#dc2626" />
+            </div>
+            <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>Delete Announcement?</h2>
+            {confirmModal.itemName && (
+              <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 8 }}>
+                You are about to delete <strong>"{confirmModal.itemName}"</strong>.
+              </p>
+            )}
+            <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 24 }}>You can recover this from Delete History.</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button type="button" onClick={() => setConfirmModal(null)}
+                style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)" }}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3483,7 +4648,7 @@ const UI_TO_DB_STATUS = {
 };
 
 const STATUS_CONFIG = {
-  pending:    { label:"Pending",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  pending:    { label:"Processing",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
   accepted:   { label:"Accepted",   bg:"#e1f5ee", color:"#085041", dot:"#0F6E56" },
   in_transit: { label:"In Transit", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
   received:   { label:"Received",   bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
@@ -3511,7 +4676,6 @@ function normalizeOrder(o) {
     createdAt: o.created_at,
   };
 }
-
 function MobileOrdersContent() {
   const [orders,       setOrders]       = useState([]);
   const [loadingData,  setLoadingData]  = useState(true);
@@ -3521,6 +4685,17 @@ function MobileOrdersContent() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [search,       setSearch]       = useState("");
   const [viewOrder,    setViewOrder]    = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null); // { id, nextUiStatus, label }
+  const [openDropdown, setOpenDropdown] = useState(null); // order.id with open dropdown
+  const [activeTab,    setActiveTab]    = useState("active"); // "active" | "completed"
+
+  // ── Close dropdown on outside click ───────────────────────────────────────
+  useEffect(() => {
+    if (!openDropdown) return;
+    const close = () => { setOpenDropdown(null); setDropdownRect(null); };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openDropdown]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchOrders = async () => {
@@ -3538,8 +4713,14 @@ function MobileOrdersContent() {
     }
   };
 
-  useEffect(() => {fetchOrders(); }, []);
+  useEffect(() => { fetchOrders(); }, []);
 
+  // ── Persist active tab so browser refresh stays on this view ──────────────
+  useEffect(() => {
+    localStorage.setItem("bm_active_tab", "mobile_orders");
+  }, []);
+
+  // ── Status advance (actual API call) ──────────────────────────────────────
   const advanceStatus = async (id, nextUiStatus) => {
     const order = orders.find(o => o.id === id);
     if (!order) return;
@@ -3562,11 +4743,23 @@ function MobileOrdersContent() {
     }
   };
 
+  // ── Request action → open confirm modal ───────────────────────────────────
+  const requestAdvance = (id, nextUiStatus, label) => {
+    setOpenDropdown(null);
+    setConfirmModal({ id, nextUiStatus, label });
+  };
+
+  const confirmAdvance = () => {
+    if (!confirmModal) return;
+    advanceStatus(confirmModal.id, confirmModal.nextUiStatus);
+    setConfirmModal(null);
+  };
+
   const allBrands   = [...new Set(orders.map(o => o.brand))];
   const allBranches = [...new Set(orders.map(o => o.branch))];
 
-  const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
-  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
+  const fmtPeso = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 
   const filtered = orders.filter(o => {
     if (filterBrand  !== "all" && o.brand  !== filterBrand)  return false;
@@ -3581,131 +4774,282 @@ function MobileOrdersContent() {
 
   const counts = {
     total:      orders.length,
-    pending:    orders.filter(o => o.status === "pending").length,
+    pending:    orders.filter(o => o.status === "processing").length,
     in_transit: orders.filter(o => o.status === "in_transit").length,
     received:   orders.filter(o => o.status === "received").length,
   };
 
+  // ── Sub-components ────────────────────────────────────────────────────────
+
   const StatusBadge = ({ status }) => {
     const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
     return (
-      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
-        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
         {s.label}
       </span>
     );
   };
 
+  // ── Confirmation Modal ────────────────────────────────────────────────────
+  const ConfirmModal = () => {
+    if (!confirmModal) return null;
+    const order = orders.find(o => o.id === confirmModal.id);
+    const isDanger = confirmModal.nextUiStatus === "rejected";
+    return (
+      <div
+        onClick={() => setConfirmModal(null)}
+        style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20 }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background: "#fff", borderRadius: 18, padding: "28px 30px", maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.22)", border: "1px solid rgba(0,168,76,0.15)" }}
+        >
+          {/* Icon */}
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: isDanger ? "#fef2f2" : "#f0fdf5", border: `1.5px solid ${isDanger ? "#fecaca" : "#d1eedd"}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            {isDanger ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00897b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
+                <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
+                <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
+              </svg>
+            )}
+          </div>
+
+          {/* Text */}
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: isDanger ? "#dc2626" : "#00897b", marginBottom: 6 }}>
+            Confirm Action
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#0d2b1e", marginBottom: 6 }}>
+            {confirmModal.label}
+          </div>
+          <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 24 }}>
+            Order <strong style={{ color: "#0d2b1e" }}>#{confirmModal.id}</strong>
+            {order ? <span> · {order.customer}</span> : null}
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button
+              onClick={() => setConfirmModal(null)}
+              style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid #d1eedd", background: "#f8fffe", color: "#5a7a65", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmAdvance}
+              style={{
+                padding: "9px 22px", borderRadius: 9, border: "none",
+                background: isDanger ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "linear-gradient(135deg,#2E7D32,#00897b)",
+                color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Action Dropdown (position:fixed so it never clips or shifts layout) ────
+  const [dropdownRect, setDropdownRect] = useState(null);
+
   const ActionButtons = ({ order }) => {
     const flow = STATUS_FLOW[order.status];
-    if (!flow) return <span style={{ fontSize:11, color:"#5a7a65", fontWeight:600 }}>Completed</span>;
+    const isOpen = openDropdown === order.id;
+    const btnRef = useRef(null);
+
+    if (!flow) return <span style={{ fontSize: 11, color: "#5a7a65", fontWeight: 600 }}>—</span>;
+
+    const actions = [
+      { label: flow.nextAction, nextStatus: flow.nextStatus, danger: false },
+      ...(flow.secondAction ? [{ label: flow.secondAction, nextStatus: flow.secondStatus, danger: true }] : []),
+    ];
+
+    const handleToggle = (e) => {
+      e.stopPropagation();
+      if (isOpen) {
+        setOpenDropdown(null);
+        setDropdownRect(null);
+      } else {
+        const rect = btnRef.current.getBoundingClientRect();
+        setDropdownRect({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+        setOpenDropdown(order.id);
+      }
+    };
+
     return (
-      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+      <div style={{ display: "inline-block" }} onClick={e => e.stopPropagation()}>
         <button
-          onClick={() => advanceStatus(order.id, flow.nextStatus)}
-          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff" }}>
-          <Check size={11} /> {flow.nextAction}
+          ref={btnRef}
+          onClick={handleToggle}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
+            <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
+            <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
+          </svg>
+          Action
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </button>
-        {flow.secondAction && (
-          <button
-            onClick={() => advanceStatus(order.id, flow.secondStatus)}
-            style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", border:"1px solid #fecaca", background:"#fff", color:"#dc2626" }}>
-            <X size={11} /> {flow.secondAction}
-          </button>
+
+        {isOpen && dropdownRect && (
+          <div
+            style={{
+              position: "fixed",
+              top: dropdownRect.top,
+              right: dropdownRect.right,
+              zIndex: 9999,
+              background: "#fff", border: "1px solid #d1eedd", borderRadius: 10,
+              boxShadow: "0 8px 28px rgba(0,0,0,0.13)", minWidth: 180, overflow: "hidden",
+            }}
+          >
+            {actions.map(({ label, nextStatus, danger }) => (
+              <button
+                key={nextStatus}
+                onClick={() => requestAdvance(order.id, nextStatus, label)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  width: "100%", padding: "10px 14px",
+                  background: "transparent", border: "none",
+                  borderTop: danger ? "1px solid #fecaca" : "none",
+                  cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 12, fontWeight: 700, textAlign: "left",
+                  color: danger ? "#dc2626" : "#0d2b1e",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = danger ? "#fff5f5" : "#f0fdf5"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                {danger ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+                {label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     );
   };
 
+  // ── Loading / Error states ────────────────────────────────────────────────
   if (loadingData) return (
-    <div style={{ padding:60, textAlign:"center", color:"#5a7a65", fontFamily:"'Montserrat',sans-serif" }}>
+    <div style={{ padding: 60, textAlign: "center", color: "#5a7a65", fontFamily: "'Montserrat',sans-serif" }}>
       Loading orders…
     </div>
   );
 
   if (error) return (
-    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
-      <div style={{ color:"#dc2626", marginBottom:12 }}>{error}</div>
+    <div style={{ padding: 40, textAlign: "center", fontFamily: "'Montserrat',sans-serif" }}>
+      <div style={{ color: "#dc2626", marginBottom: 12 }}>{error}</div>
       <button onClick={fetchOrders}
-        style={{ padding:"8px 20px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, cursor:"pointer" }}>
+        style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, cursor: "pointer" }}>
         Retry
       </button>
     </div>
   );
 
+  // ── Derived tab lists ─────────────────────────────────────────────────────
+  const activeOrders    = filtered.filter(o => o.status !== "received" && o.status !== "rejected");
+  const completedOrders = filtered.filter(o => o.status === "received" || o.status === "rejected");
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+    <div style={{ fontFamily: "'Montserrat',sans-serif" }}>
+
+      {/* ── Confirmation Modal ── */}
+      <ConfirmModal />
 
       {/* ── View Order Modal ── */}
       {viewOrder && (
         <div onClick={() => setViewOrder(null)}
-          style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
+          style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:480, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
+            style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
 
             {/* Modal header */}
-            <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <Package size={16} color="#fff" />
                 <div>
-                  <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>Order #{viewOrder.id}</div>
-                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:1 }}>{fmtDate(viewOrder.createdAt)}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{viewOrder.id}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(viewOrder.createdAt)}</div>
                 </div>
               </div>
               <button onClick={() => setViewOrder(null)}
-                style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={14} />
               </button>
             </div>
 
-            <div style={{ padding:"22px 24px" }}>
+            <div style={{ padding: "22px 24px" }}>
               {/* Customer */}
-              <div style={{ marginBottom:18, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
-                <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:6 }}>Customer</div>
-                <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{viewOrder.customer}</div>
-                <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>{viewOrder.phone}</div>
+              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 6 }}>Customer</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{viewOrder.customer}</div>
+                <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{viewOrder.phone}</div>
               </div>
+
               {/* Delivery Address */}
-              <div style={{ marginBottom:18, padding:"12px 14px", background:"#fffdf0", borderRadius:12, border:"1px solid #e8d5a3", display:"flex", gap:8, alignItems:"flex-start" }}>
-                <MapPin size={14} color="#8a6a00" style={{ marginTop:2, flexShrink:0 }} />
+              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <MapPin size={14} color="#8a6a00" style={{ marginTop: 2, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#8a6a00", marginBottom:4 }}>Delivery Address</div>
-                  <div style={{ fontWeight:600, fontSize:13, color:"#0d2b1e" }}>{viewOrder.address || "—"}</div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{viewOrder.address || "—"}</div>
                 </div>
               </div>
 
               {/* Brand / Branch */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
-                {[{ label:"Brand", value:viewOrder.brand }, { label:"Branch", value:viewOrder.branch }].map(({ label, value }, i) => (
-                    <div key={label} style={{ padding:"10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius:10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
-                      <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
-                      <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
-                    </div>
-                  ))}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+                {[{ label: "Brand", value: viewOrder.brand }, { label: "Branch", value: viewOrder.branch }].map(({ label, value }, i) => (
+                  <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{value}</div>
+                  </div>
+                ))}
               </div>
 
               {/* Items */}
-              <div style={{ marginBottom:18 }}>
-                <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Order Items</div>
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
                 {viewOrder.items.length === 0 ? (
-                  <div style={{ fontSize:12, color:"#5a7a65", fontStyle:"italic", padding:"10px 12px" }}>No item details available.</div>
+                  <div style={{ fontSize: 12, color: "#5a7a65", fontStyle: "italic", padding: "10px 12px" }}>No item details available.</div>
                 ) : viewOrder.items.map((item, i) => (
-                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:"1px solid #e0f2f1", marginBottom:4 }}>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: i % 2 === 0 ? "#f8fffe" : "#fff", border: "1px solid #e0f2f1", marginBottom: 4 }}>
                     <div>
-                      <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{item.name}</div>
-                      <div style={{ fontSize:11, color:"#5a7a65" }}>Qty: {item.qty}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: "#5a7a65" }}>Qty: {item.qty}</div>
                     </div>
-                    <div style={{ fontWeight:700, fontSize:13, color:"#00897b" }}>{fmtPeso(item.price * item.qty)}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#00897b" }}>{fmtPeso(item.price * item.qty)}</div>
                   </div>
                 ))}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
-                  <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Total</div>
-                  <div style={{ fontWeight:800, fontSize:16, color:"#00897b" }}>{fmtPeso(viewOrder.total)}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop: 8 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>Total</div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#00897b" }}>{fmtPeso(viewOrder.total)}</div>
                 </div>
               </div>
 
               {/* Status & Actions */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <StatusBadge status={viewOrder.status} />
                 <ActionButtons order={viewOrder} />
               </div>
@@ -3715,117 +5059,237 @@ function MobileOrdersContent() {
       )}
 
       {/* ── Page header ── */}
-      <div style={{ marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
-        <div>
-          <div style={{ fontSize:11, fontWeight:500, letterSpacing:"0.16em", textTransform:"uppercase", color:"#00897b", marginBottom:4 }}>Orders</div>
-          <h1 style={{ fontSize:26, fontWeight:800, color:"#0d2b1e", margin:0 }}>Mobile Orders</h1>
+ 
+      {/* ── Stat cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
+        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
+        <BmStatCard label="Processing"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
+        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
+        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+      </div>
+
+      {/* ── Tab bar + Refresh ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid #d1eedd", borderRadius: 14, padding: 5, width: "fit-content", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
+          <button
+            onClick={() => setActiveTab("active")}
+            style={{
+              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
+              transition: "all .15s",
+              background: activeTab === "active" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+              color: activeTab === "active" ? "#fff" : "#5a7a65",
+              boxShadow: activeTab === "active" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
+            }}
+          >
+            Active Orders
+            <span style={{
+              padding: "1px 8px", borderRadius: 20, fontSize: 11,
+              background: activeTab === "active" ? "rgba(255,255,255,0.25)" : "rgba(0,168,76,0.12)",
+              color: activeTab === "active" ? "#fff" : "#00695c",
+            }}>
+              {activeOrders.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            style={{
+              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
+              transition: "all .15s",
+              background: activeTab === "completed" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+              color: activeTab === "completed" ? "#fff" : "#5a7a65",
+              boxShadow: activeTab === "completed" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
+            }}
+          >
+            Completed
+            <span style={{
+              padding: "1px 8px", borderRadius: 20, fontSize: 11,
+              background: activeTab === "completed" ? "rgba(255,255,255,0.25)" : "rgba(0,200,83,0.15)",
+              color: activeTab === "completed" ? "#fff" : "#00695c",
+            }}>
+              {completedOrders.length}
+            </span>
+          </button>
         </div>
         <button onClick={fetchOrders}
-          style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-          <RefreshCw size={13} /> Refresh
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          ⟳ Refresh
         </button>
       </div>
 
-      {/* ── Stat cards ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
-        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46"/>}       bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
-        <BmStatCard label="Pending"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e"/>}  bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
-        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af"/>}     bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
-        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46"/>}          bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
-      </div>
-
-      {/* ── Order list ── */}
-      <BmSection>
-        <BmSectionHeader title="Order List" icon={<Package size={16} color="#fff" />} />
-
-        {/* Filters */}
-        <div style={{ padding:"12px 16px", borderBottom:"1px solid #f0f8f0", display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", background:"#f8fffe" }}>
-          <div style={{ position:"relative" }}>
-            <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }} />
-            <input
-              type="text"
-              placeholder="Search order # or customer..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ ...bmInput, paddingLeft:30, width:220, height:34 }}
-            />
+      {/* ── Active Orders Panel ── */}
+      {activeTab === "active" && (
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
+          <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}> Active Orders</span>
+            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{activeOrders.length} order{activeOrders.length !== 1 ? "s" : ""}</small>
           </div>
-          {[
-            { label:"Brand",  value:filterBrand,  set:setFilterBrand,  options:allBrands },
-            { label:"Branch", value:filterBranch, set:setFilterBranch, options:allBranches },
-            { label:"Status", value:filterStatus, set:setFilterStatus, options:["pending","accepted","in_transit","received","rejected"], labelMap: k => STATUS_CONFIG[k]?.label || k },
-          ].map(({ label, value, set, options, labelMap }) => (
-            <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
-              <span style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65" }}>{label}</span>
-              <select value={value} onChange={e => set(e.target.value)}
-                style={{ ...bmInput, width:"auto", height:34, paddingRight:12, appearance:"none", cursor:"pointer" }}>
-                <option value="all">All</option>
-                {options.map(o => <option key={o} value={o}>{labelMap ? labelMap(o) : o}</option>)}
-              </select>
-            </div>
-          ))}
-          <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>{filtered.length} order{filtered.length !== 1 ? "s" : ""}</span>
-        </div>
-
-        {/* Table */}
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:900 }}>
-            <thead>
-              <tr>
-                {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status","Actions"].map(h => (
-                  <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #d1eedd", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
+          <div style={{ width: "100%" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "10%" }} />
+              </colgroup>
+              <thead>
                 <tr>
-                  <td colSpan={9} style={{ padding:"48px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
-                    No orders match the current filters.
-                  </td>
+                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status","Actions"].map(h => (
+                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
+                  ))}
                 </tr>
-              ) : filtered.map(order => (
-                <tr key={order.id}
-                  onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                  onMouseLeave={e => e.currentTarget.style.background="transparent"}
-                  style={{ borderBottom:"1px solid #f0f8f0" }}>
-                  <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>#{order.id}</td>
-                  <td style={{ padding:"11px 14px" }}>
-                    <div style={{ fontWeight:700, color:"#0d2b1e", fontSize:13 }}>{order.customer}</div>
-                    <div style={{ fontSize:11, color:"#5a7a65" }}>{order.phone}</div>
-                  </td>
-                  <td style={{ padding:"11px 14px" }}>
-                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:400, background:"#f8fffe", color:"#5a7a65" }}>{order.brand}</span>
-                  </td>
-                  <td style={{ padding:"11px 14px" }}>
-                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c" }}>{order.branch}</span>
-                  </td>
-                  <td style={{ padding:"11px 14px" }}>
-                    <button
-                      onClick={() => setViewOrder(order)}
-                      style={{ ...bmActionBtn, borderColor:"#b2dfdb", background:"#e0f2f1", color:"#00695c", fontSize:11 }}>
-                      {order.items.length} item{order.items.length !== 1 ? "s" : ""} →
-                    </button>
-                  </td>
-                  <td style={{ padding:"11px 14px", fontWeight:800, color:"#00897b" }}>{fmtPeso(order.total)}</td>
-                  <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(order.createdAt)}</td>
-                  <td style={{ padding:"11px 14px" }}><StatusBadge status={order.status} /></td>
-                  <td style={{ padding:"11px 14px" }}><ActionButtons order={order} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {activeOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
+                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No active orders</div>
+                    </td>
+                  </tr>
+                ) : activeOrders.map(order => (
+                  <tr key={order.id}
+                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
+                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
+                  >
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
+                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
+                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
+                      <button
+                        onClick={() => setViewOrder(order)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                          border: "1px solid #b2dfdb", background: "#FFF7ED", color: "#00695c",
+                        }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                          <line x1="3" y1="6" x2="21" y2="6"/>
+                          <path d="M16 10a4 4 0 01-8 0"/>
+                        </svg>
+                        {order.items.length}
+                      </button>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><ActionButtons order={order} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </BmSection>
+      )}
+
+      {/* ── Completed Orders Panel ── */}
+      {activeTab === "completed" && (
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
+          <div style={{ background: "linear-gradient(135deg,#309920,#3B6D11)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}>✓ Completed Orders</span>
+            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{completedOrders.length} order{completedOrders.length !== 1 ? "s" : ""}</small>
+          </div>
+          <div style={{ width: "100%" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "11%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status"].map(h => (
+                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {completedOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
+                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No completed orders</div>
+                    </td>
+                  </tr>
+                ) : completedOrders.map(order => (
+                  <tr key={order.id}
+                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
+                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
+                  >
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
+                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
+                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
+                      <button
+                        onClick={() => setViewOrder(order)}
+                        style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                          border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65",
+                        }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                          <line x1="3" y1="6" x2="21" y2="6"/>
+                          <path d="M16 10a4 4 0 01-8 0"/>
+                        </svg>
+                        {order.items.length}
+                      </button>
+                    </td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PROFILE
 // ─────────────────────────────────────────────────────────────────────────────
 function ProfileContent({ user }) {
-  const [formData, setFormData] = useState({ name:user.name, email:user.email, personalEmail:'', role:user.role, currentPassword:'', newPassword:'', confirmPassword:'' });
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [formData, setFormData] = useState({
+    name: user.name, email: user.email, personalEmail: '',
+    role: user.role, currentPassword: '', newPassword: '', confirmPassword: ''
+  });
   const [showOtpModal,     setShowOtpModal]     = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp,              setOtp]              = useState('');
@@ -3833,171 +5297,223 @@ function ProfileContent({ user }) {
   const [otpError,         setOtpError]         = useState('');
   const [passwordErrors,   setPasswordErrors]   = useState([]);
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
+  const [showCurrentPw,    setShowCurrentPw]    = useState(false);
+  const [showNewPw,        setShowNewPw]        = useState(false);
+  const [showConfirmPw,    setShowConfirmPw]    = useState(false);
+  const [fieldErrors,      setFieldErrors]      = useState({});
 
-  const handleInputChange = (e) => {
+  // ── UI modal state ──
+  const [alertModal,   setAlertModal]   = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+
+  const showAlert   = (message, type = "info") => setAlertModal({ message, type });
+  const showConfirm = (message, onConfirm)     => setConfirmModal({ message, onConfirm });
+
+  // ── Keep formData in sync with user prop without re-rendering on every keystroke ──
+  const formDataRef = React.useRef(formData);
+  const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]:value }));
+    formDataRef.current = { ...formDataRef.current, [name]: value };
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Clear field error on change
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
+
     if (name === 'newPassword') {
-      if (value) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(value).errors); }
-      else       { setShowPasswordValidation(false); setPasswordErrors([]); }
+      if (value) {
+        setShowPasswordValidation(true);
+        setPasswordErrors(validatePasswordStrength(value).errors);
+      } else {
+        setShowPasswordValidation(false);
+        setPasswordErrors([]);
+      }
     }
-  };
+    if (name === 'confirmPassword') {
+      // live match feedback handled by fieldErrors below
+    }
+  }, []);
 
   const validatePasswordStrength = (password) => {
     const errors = [];
-    if (password.length < 8) errors.push('minLength');
-    if (!/[A-Z]/.test(password)) errors.push('uppercase');
-    if (!/[a-z]/.test(password)) errors.push('lowercase');
-    if (!/\d/.test(password))    errors.push('number');
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push('specialChar');
-    return { isValid:errors.length===0, errors };
+    if (password.length < 8)                                                        errors.push('minLength');
+    if (!/[A-Z]/.test(password))                                                    errors.push('uppercase');
+    if (!/[a-z]/.test(password))                                                    errors.push('lowercase');
+    if (!/\d/.test(password))                                                       errors.push('number');
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password))                  errors.push('specialChar');
+    return { isValid: errors.length === 0, errors };
   };
 
   const sendOtp = async () => {
     try {
       const emailToSend = formData.personalEmail || formData.email;
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:emailToSend }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToSend }),
+      });
       const data = await response.json();
-      if (data.success) { setOtpSent(true); alert(`OTP has been sent to ${emailToSend}`); }
-      else alert(data.message||data.error||'Failed to send OTP');
-    } catch (error) { console.error("Error sending OTP:", error); alert("Failed to send OTP. Please try again."); }
+      if (data.success) { setOtpSent(true); showAlert(`OTP has been sent to ${emailToSend}`, "success"); }
+      else showAlert(data.message || data.error || 'Failed to send OTP.', "error");
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      showAlert("Failed to send OTP. Please try again.", "error");
+    }
   };
 
   const verifyOtpAndChangePassword = async () => {
     try {
       setOtpError('');
       const emailToVerify = formData.personalEmail || formData.email;
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ currentPassword:formData.currentPassword, newPassword:formData.newPassword, email:emailToVerify, otp:otp.trim() }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: formData.currentPassword, newPassword: formData.newPassword, email: emailToVerify, otp: otp.trim() }),
+      });
       const data = await response.json();
       if (data.success) {
-        setShowOtpModal(false); setShowSuccessModal(true);
-        localStorage.removeItem('user'); localStorage.removeItem('tempUser');
+        setShowOtpModal(false);
+        setShowSuccessModal(true);
+        localStorage.removeItem('user');
+        localStorage.removeItem('tempUser');
         setTimeout(() => { window.location.href = '/admin-login'; }, 3000);
-      } else setOtpError(data.error||'Failed to change password');
-    } catch (error) { console.error("Error changing password:", error); setOtpError("Failed to change password. Please try again."); }
+      } else {
+        setOtpError(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error("Error changing password:", error);
+      setOtpError("Failed to change password. Please try again.");
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isUnlocked) return;
+
+    const errs = {};
     const isPasswordChange = formData.currentPassword || formData.newPassword || formData.confirmPassword;
+
     if (isPasswordChange) {
-      if (!formData.currentPassword) { alert('Please enter your current password'); return; }
-      if (!formData.newPassword)     { alert('Please enter a new password'); return; }
-      const pv = validatePasswordStrength(formData.newPassword);
-      if (!pv.isValid) { alert('Please ensure your password meets all the requirements'); return; }
-      if (formData.newPassword !== formData.confirmPassword) { alert('New passwords do not match!'); return; }
-      if (!formData.personalEmail && !formData.email) { alert('Please provide an email address to receive OTP'); return; }
-      sendOtp(); setShowOtpModal(true);
-    } else updateProfile();
+      if (!formData.currentPassword) errs.currentPassword = 'Please enter your current password.';
+      if (!formData.newPassword)     errs.newPassword     = 'Please enter a new password.';
+      else {
+        const pv = validatePasswordStrength(formData.newPassword);
+        if (!pv.isValid) errs.newPassword = 'Password does not meet all requirements.';
+      }
+      if (!formData.confirmPassword) {
+        errs.confirmPassword = 'Please confirm your new password.';
+      } else if (formData.newPassword !== formData.confirmPassword) {
+        errs.confirmPassword = 'Passwords do not match.';
+      }
+      if (!formData.personalEmail && !formData.email) errs.personalEmail = 'An email is required to receive OTP.';
+
+      if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+      sendOtp();
+      setShowOtpModal(true);
+    } else {
+      updateProfile();
+    }
   };
 
   const updateProfile = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:formData.name, email:formData.email, role:formData.role, branch:user.branch }) });
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: formData.name, email: formData.email, role: formData.role, branch: user.branch }),
+      });
       const data = await response.json();
       if (data.success) {
-        alert('Profile updated successfully!');
-        const updatedUser = {...user, name:formData.name, email:formData.email};
+        showAlert('Profile updated successfully!', 'success');
+        const updatedUser = { ...user, name: formData.name, email: formData.email };
         localStorage.setItem('user', JSON.stringify(updatedUser));
-      } else alert(data.error||'Failed to update profile');
-    } catch (error) { console.error("Error updating profile:", error); alert("Failed to update profile. Please try again."); }
-  };
-
-  const handleCancel = () => {
-    if (window.confirm('Discard changes?')) {
-      setFormData({ name:user.name, email:user.email, personalEmail:'', role:user.role, currentPassword:'', newPassword:'', confirmPassword:'' });
-      setOtp(''); setOtpSent(false); setShowOtpModal(false);
+        setIsUnlocked(false);
+      } else {
+        showAlert(data.error || 'Failed to update profile.', 'error');
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      showAlert("Failed to update profile. Please try again.", "error");
     }
   };
 
-  const PwValidation = () => (
-    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
-      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
-      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
-        <div key={key} style={{ color:passwordErrors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
-          <span>{passwordErrors.includes(key)?'✗':'✓'}</span> {text}
+  const handleCancel = () => {
+    showConfirm('Discard all unsaved changes?', () => {
+      setFormData({ name: user.name, email: user.email, personalEmail: '', role: user.role, currentPassword: '', newPassword: '', confirmPassword: '' });
+      setOtp(''); setOtpSent(false); setShowOtpModal(false);
+      setShowPasswordValidation(false); setPasswordErrors([]);
+      setFieldErrors({}); setIsUnlocked(false);
+    });
+  };
+
+  const initials = user.name
+    ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
+  // ── Shared input style ──
+  const inputStyle = (disabled) => ({
+    ...bmInput,
+    marginTop: 4,
+    background: disabled ? '#f5f8f5' : '#fff',
+    color: disabled ? '#9ca3af' : '#0d2b1e',
+    cursor: disabled ? 'not-allowed' : 'text',
+    border: disabled ? '1.5px solid #e5e7eb' : '1.5px solid #b2dfdb',
+  });
+
+  const PwChecklist = () => (
+    <div style={{ marginTop: 8, fontSize: 12, padding: '10px 14px', background: '#f0fdf5', borderRadius: 10, border: '1.5px solid #b2dfdb' }}>
+      <div style={{ marginBottom: 6, fontWeight: 700, color: '#0d2b1e', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Password must contain:</div>
+      {[
+        ['minLength',   'At least 8 characters'],
+        ['uppercase',   'Uppercase letter (A-Z)'],
+        ['lowercase',   'Lowercase letter (a-z)'],
+        ['number',      'Number (0-9)'],
+        ['specialChar', 'Special character (!@#$%^&*...)'],
+      ].map(([key, text]) => (
+        <div key={key} style={{ color: passwordErrors.includes(key) ? '#dc2626' : '#059669', marginBottom: 3, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          <span>{passwordErrors.includes(key) ? '✗' : '✓'}</span> {text}
         </div>
       ))}
     </div>
   );
 
-  const FormField = ({ label, name, type='text', placeholder='', disabled=false, hint }) => (
-    <div style={{ marginBottom:16 }}>
-      <label style={bmLabel}>{label}</label>
-      <input type={type} name={name} value={formData[name]} onChange={handleInputChange}
-        placeholder={placeholder} disabled={disabled}
-        style={{ ...bmInput, marginTop:4, background:'#f0fdf5', color:disabled?C.muted:'#0d2b1e', cursor:disabled?'not-allowed':'text' }}/>
-      {hint && <p style={{ fontSize:11, color:C.muted, marginTop:4 }}>{hint}</p>}
-    </div>
+  const FieldError = ({ name }) => fieldErrors[name]
+    ? <span style={{ fontSize: 11, color: '#dc2626', marginTop: 4, display: 'block', fontWeight: 600 }}>{fieldErrors[name]}</span>
+    : null;
+
+  const EyeToggle = ({ show, onToggle, disabled }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', color: '#5a7a65', display: 'flex', alignItems: 'center', padding: 0 }}
+    >
+      {show
+        ? <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        : <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      }
+    </button>
   );
 
-  // Derive initials (up to 2 chars) for avatar
-  const initials = user.name
-    ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
-    : '?';
-
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
 
       {/* ── Account Overview Card ── */}
-      <div style={{
-        background: C.white,
-        border: '1px solid rgba(0,168,76,0.12)',
-        borderRadius: 18,
-        boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
-        overflow: 'hidden',
-        marginBottom: 24,
-      }}>
+      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden', marginBottom: 24 }}>
         <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
           <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Account Overview</span>
         </div>
         <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 22 }}>
-
-          {/* Avatar */}
-          <div style={{
-            width: 68, height: 68, borderRadius: '50%',
-            background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22, fontWeight: 800, color: '#00695c',
-            flexShrink: 0, letterSpacing: 1,
-            border: '2.5px solid #a7f3d0',
-          }}>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#00695c', flexShrink: 0, letterSpacing: 1, border: '2.5px solid #a7f3d0' }}>
             {initials}
           </div>
-
-          {/* Name + email + role */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 20, color: '#0d2b1e', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user.name}
-            </div>
+            <div style={{ fontWeight: 800, fontSize: 20, color: '#0d2b1e', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
             <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5a7a65" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/>
-              </svg>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#5a7a65" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
               {user.email}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{
-                background: 'rgba(0,137,123,0.1)', color: '#00695c',
-                padding: '3px 12px', borderRadius: 20,
-                fontSize: 11, fontWeight: 700,
-              }}>
-                {user.role}
-              </span>
-              {user.branch && (
-                <span style={{
-                  background: '#f0fdf5', color: '#0d2b1e',
-                  padding: '3px 12px', borderRadius: 20,
-                  fontSize: 11, fontWeight: 700,
-                  border: '1.5px solid #b2dfdb',
-                }}>
-                  {user.branch}
-                </span>
-              )}
+              <span style={{ background: 'rgba(0,137,123,0.1)', color: '#00695c', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{user.role}</span>
+              {user.branch && <span style={{ background: '#f0fdf5', color: '#0d2b1e', padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1.5px solid #b2dfdb' }}>{user.branch}</span>}
             </div>
           </div>
-
-          {/* Right: stat pills */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, textAlign: 'right' }}>
             <div style={{ padding: '8px 16px', borderRadius: 12, background: '#f0fdf5', border: '1.5px solid #b2dfdb' }}>
               <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 2 }}>Account Status</div>
@@ -4013,56 +5529,184 @@ function ProfileContent({ user }) {
               </div>
             )}
           </div>
-
         </div>
       </div>
 
-      {/* ── Two-column: Personal Info + Change Password ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, alignItems:'start' }}>
-
-        {/* Profile info card */}
-        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px' }}>
-            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Personal Information</span>
+      {/* ── Lock/Unlock Banner ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: isUnlocked ? '#f0fdf5' : '#f5f8f5', border: `1.5px solid ${isUnlocked ? '#b2dfdb' : '#e5e7eb'}`, borderRadius: 14, padding: '12px 20px', marginBottom: 20, transition: 'all 0.2s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+         {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{isUnlocked ? 'Editing Enabled' : 'Profile Locked'}</div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>{isUnlocked ? 'Make your changes and save when done.' : 'Click Unlock to edit your profile.'}</div>
           </div>
-          <form onSubmit={handleSubmit} style={{ padding:'22px 24px' }}>
-            <FormField label="Full Name" name="name" />
-            <FormField label="Work Email Address" name="email" type="email" />
-            <FormField label="Personal Email (Optional)" name="personalEmail" type="email" placeholder="your.personal@email.com"
-              hint="OTP for password changes will be sent here" />
-            <FormField label="Role" name="role" disabled />
-            <div style={{ display:'flex', gap:10, marginTop:8 }}>
-              <button type="button" onClick={handleCancel}
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                Cancel
-              </button>
-              <button type="submit"
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (isUnlocked) {
+              handleCancel();
+            } else {
+              setIsUnlocked(true);
+            }
+          }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '8px 18px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            background: isUnlocked ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#2E7D32,#00897b)',
+            color: '#fff', boxShadow: isUnlocked ? '0 2px 8px rgba(220,38,38,0.3)' : '0 2px 8px rgba(0,180,90,0.3)',
+          }}
+        >
+          {isUnlocked ? '✕ Cancel' : ' Unlock'}
+        </button>
+      </div>
+
+      {/* ── Two-column: Personal Info + Change Password ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+
+        {/* ── Personal Information Card ── */}
+        <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Personal Information</span>
+          </div>
+          <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
+
+            {/* Full Name */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Full Name</label>
+              <input
+                type="text" name="name" value={formData.name}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="name" />
+            </div>
+
+            {/* Work Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Work Email Address</label>
+              <input
+                type="email" name="email" value={formData.email}
+                onChange={handleInputChange}
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <FieldError name="email" />
+            </div>
+
+            {/* Personal Email */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Personal Email <span style={{ color: '#9ca3af', fontWeight: 400 }}>(Optional)</span></label>
+              <input
+                type="email" name="personalEmail" value={formData.personalEmail}
+                onChange={handleInputChange}
+                placeholder="your.personal@email.com"
+                disabled={!isUnlocked}
+                style={inputStyle(!isUnlocked)}
+              />
+              <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>OTP for password changes will be sent here</p>
+              <FieldError name="personalEmail" />
+            </div>
+
+            {/* Role (always locked) */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Role</label>
+              <input
+                type="text" name="role" value={formData.role}
+                disabled
+                style={{ ...inputStyle(true), background: '#f0f0f0' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button
+                type="submit"
+                disabled={!isUnlocked}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: 'inherit', boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
+              >
                 Save Changes
               </button>
             </div>
           </form>
         </div>
 
-        {/* Password card */}
-        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px' }}>
-            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Change Password</span>
+        {/* ── Change Password Card ── */}
+        <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px' }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Change Password</span>
           </div>
-          <form onSubmit={handleSubmit} style={{ padding:'22px 24px' }}>
-            <div style={{ background:'#f0fdf5', borderRadius:12, padding:'12px 16px', marginBottom:20, border:`1.5px solid ${C.border}`, fontSize:12, color:C.muted, display:'flex', alignItems:'center', gap:8 }}>
-              🔐 An OTP will be sent to your email for verification
+          <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
+            <div style={{ background: isUnlocked ? '#f0fdf5' : '#f5f8f5', borderRadius: 12, padding: '12px 16px', marginBottom: 20, border: `1.5px solid ${isUnlocked ? C.border : '#e5e7eb'}`, fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', gap: 8 }}>
+               {isUnlocked ? 'An OTP will be sent to your email for verification' : 'Unlock your profile to change your password'}
             </div>
-            <FormField label="Current Password" name="currentPassword" type="password" placeholder="Enter current password" />
-            <div style={{ marginBottom:16 }}>
+
+            {/* Current Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Current Password</label>
+              <div style={{ position: 'relative', marginTop: 4 }}>
+                <input
+                  type={showCurrentPw ? 'text' : 'password'}
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleInputChange}
+                  placeholder={isUnlocked ? 'Enter current password' : '••••••••'}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showCurrentPw} onToggle={() => setShowCurrentPw(v => !v)} disabled={!isUnlocked} />
+              </div>
+              <FieldError name="currentPassword" />
+            </div>
+
+            {/* New Password */}
+            <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>New Password</label>
-              <input type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange}
-                placeholder="Enter new password" style={{ ...bmInput, marginTop:4 }}/>
-              {showPasswordValidation && <PwValidation/>}
+              <div style={{ position: 'relative', marginTop: 4 }}>
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleInputChange}
+                  placeholder={isUnlocked ? 'Enter new password' : '••••••••'}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showNewPw} onToggle={() => setShowNewPw(v => !v)} disabled={!isUnlocked} />
+              </div>
+              {isUnlocked && showPasswordValidation && <PwChecklist />}
+              <FieldError name="newPassword" />
             </div>
-            <FormField label="Confirm New Password" name="confirmPassword" type="password" placeholder="Confirm new password" />
-            <button type="submit"
-              style={{ width:'100%', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+
+            {/* Confirm New Password */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>Confirm New Password</label>
+              <div style={{ position: 'relative', marginTop: 4 }}>
+                <input
+                  type={showConfirmPw ? 'text' : 'password'}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  placeholder={isUnlocked ? 'Confirm new password' : '••••••••'}
+                  disabled={!isUnlocked}
+                  style={{ ...inputStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showConfirmPw} onToggle={() => setShowConfirmPw(v => !v)} disabled={!isUnlocked} />
+              </div>
+              {/* Live match indicator */}
+              {isUnlocked && formData.confirmPassword && (
+                <div style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: formData.newPassword === formData.confirmPassword ? '#059669' : '#dc2626', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {formData.newPassword === formData.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                </div>
+              )}
+              <FieldError name="confirmPassword" />
+            </div>
+
+            <button
+              type="submit"
+              disabled={!isUnlocked}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: isUnlocked ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, cursor: isUnlocked ? 'pointer' : 'not-allowed', fontFamily: 'inherit', boxShadow: isUnlocked ? '0 2px 10px rgba(0,180,90,0.28)' : 'none', opacity: isUnlocked ? 1 : 0.6 }}
+            >
               Update Password
             </button>
           </form>
@@ -4071,40 +5715,42 @@ function ProfileContent({ user }) {
 
       {/* ── OTP Modal ── */}
       {showOtpModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:440, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}>
-            <div style={{ textAlign:'center', marginBottom:22 }}>
-              <div style={{ width:56, height:56, borderRadius:'50%', background:'linear-gradient(135deg,#d1fae5,#6ee7b7)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:'1.6rem' }}>🔑</div>
-              <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', marginBottom:6 }}>Verify OTP</h2>
-              <p style={{ fontSize:13, color:C.muted }}>Code sent to <strong style={{ color:'#0d2b1e' }}>{formData.personalEmail||formData.email}</strong></p>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 22 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: '1.6rem' }}>🔑</div>
+              <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', marginBottom: 6 }}>Verify OTP</h2>
+              <p style={{ fontSize: 13, color: C.muted }}>Code sent to <strong style={{ color: '#0d2b1e' }}>{formData.personalEmail || formData.email}</strong></p>
             </div>
-            <div style={{ marginBottom:14 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Enter 6-Digit OTP</label>
-              <input type="text" placeholder="000000" value={otp}
-                onChange={e => { const v=e.target.value.replace(/\D/g,'').slice(0,6); setOtp(v); setOtpError(''); }}
+              <input
+                type="text" placeholder="000000" value={otp}
+                onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setOtp(v); setOtpError(''); }}
                 maxLength={6} autoFocus
-                style={{ ...bmInput, marginTop:6, fontSize:24, textAlign:'center', letterSpacing:'0.6rem', fontFamily:'monospace' }}/>
+                style={{ ...bmInput, marginTop: 6, fontSize: 24, textAlign: 'center', letterSpacing: '0.6rem', fontFamily: 'monospace' }}
+              />
             </div>
             {otpSent && !otpError && (
-              <div style={{ padding:'10px 14px', background:'rgba(16,185,129,0.08)', borderRadius:10, border:'1px solid #a7f3d0', color:'#059669', fontSize:12, fontWeight:700, textAlign:'center', marginBottom:12 }}>
-                ✅ OTP sent successfully
+              <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 10, border: '1px solid #a7f3d0', color: '#059669', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
+                 OTP sent successfully
               </div>
             )}
             {otpError && (
-              <div style={{ padding:'10px 14px', background:'#fee2e2', borderRadius:10, border:'1.5px solid #fecaca', color:'#dc2626', fontSize:12, fontWeight:700, textAlign:'center', marginBottom:12 }}>
-                ❌ {otpError}
+              <div style={{ padding: '10px 14px', background: '#fee2e2', borderRadius: 10, border: '1.5px solid #fecaca', color: '#dc2626', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
+                Please try again {otpError}
               </div>
             )}
-            <div style={{ textAlign:'center', marginBottom:20 }}>
-              <button type="button" onClick={sendOtp} style={{ background:'none', border:'none', color:'#00897b', cursor:'pointer', fontSize:12, fontWeight:700, textDecoration:'underline' }}>Resend OTP</button>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <button type="button" onClick={sendOtp} style={{ background: 'none', border: 'none', color: '#00897b', cursor: 'pointer', fontSize: 12, fontWeight: 700, textDecoration: 'underline' }}>Resend OTP</button>
             </div>
-            <div style={{ display:'flex', gap:10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
-              <button type="button" onClick={verifyOtpAndChangePassword} disabled={otp.length!==6}
-                style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:otp.length!==6?'not-allowed':'pointer', fontFamily:'inherit', opacity:otp.length!==6?0.5:1 }}>
+              <button type="button" onClick={verifyOtpAndChangePassword} disabled={otp.length !== 6}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: otp.length !== 6 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: otp.length !== 6 ? 0.5 : 1 }}>
                 Verify & Change
               </button>
             </div>
@@ -4114,21 +5760,47 @@ function ProfileContent({ user }) {
 
       {/* ── Success Modal ── */}
       {showSuccessModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-          <div style={{ background:C.white, borderRadius:20, padding:'40px 36px', maxWidth:420, width:'100%', textAlign:'center', boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)' }}>
-            <div style={{ width:72, height:72, borderRadius:'50%', background:'linear-gradient(135deg,#d1fae5,#6ee7b7)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2.2rem' }}>✅</div>
-            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:22, fontWeight:800, color:'#0d2b1e', marginBottom:10 }}>Password Changed!</h2>
-            <p style={{ color:C.muted, fontSize:13, lineHeight:1.7, marginBottom:20 }}>Your password has been updated successfully.<br/>You'll be redirected to login shortly.</p>
-            <div style={{ background:'#f0fdf5', borderRadius:12, padding:'10px 16px', fontSize:12, color:C.muted, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+          <div style={{ background: C.white, borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2.2rem' }}>✅</div>
+            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 22, fontWeight: 800, color: '#0d2b1e', marginBottom: 10 }}>Password Changed!</h2>
+            <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>Your password has been updated successfully.<br />You'll be redirected to login shortly.</p>
+            <div style={{ background: '#f0fdf5', borderRadius: 12, padding: '10px 16px', fontSize: 12, color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               💡 Use your new password on the next login
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Alert Modal ── */}
+      {alertModal && (
+        <AlertModal message={alertModal.message} type={alertModal.type} onClose={() => setAlertModal(null)} />
+      )}
+
+      {/* ── Confirm Modal ── */}
+      {confirmModal && (
+        <div onClick={() => setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>↩</div>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Discard Changes?</h2>
+            <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button type="button" onClick={() => setConfirmModal(null)}
+                style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Keep Editing
+              </button>
+              <button type="button" onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#c2410c,#ea580c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(194,65,12,0.35)' }}>
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // CREATE ACCOUNT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4331,51 +6003,68 @@ function CreateAccountModal({ applicant, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POS
 // ─────────────────────────────────────────────────────────────────────────────
+
 function POSContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
 
   const brandList = propBrands.length > 0 ? propBrands : [
-    { id: "ipharma",     name: "iPharma",       branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
-    { id: "coffeespot", name: "Coffee Spot",  branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
+    { id: "ipharma",     name: "iPharma",      branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
+    { id: "coffeespot",  name: "Coffee Spot",  branches: ["HQ","BGC Branch","Ortigas","Cubao"] },
   ];
 
-  const [menuItems,        setMenuItems]        = useState([]);
-  const [shopItems,        setShopItems]        = useState([]);
-  const [cart,             setCart]             = useState([]);
-  const [transactions,     setTransactions]     = useState([]);
-  const [loadingTx,        setLoadingTx]        = useState(false);
-  const [activeShop,       setActiveShop]       = useState("Coffee Spot");
-  const [activeBranch,     setActiveBranch]     = useState(isAdmin ? "" : userBranch);
-  const [searchProduct,    setSearchProduct]    = useState("");
-  const [txSearch,         setTxSearch]         = useState("");
-  const [txDateFrom,       setTxDateFrom]       = useState("");
-  const [txDateTo,         setTxDateTo]         = useState("");
-  const [activeTab,        setActiveTab]        = useState("cashier");
-  const [paymentMethod,    setPaymentMethod]    = useState("Cash");
-  const [cashReceived,     setCashReceived]     = useState("");
-  const [discountPct,      setDiscountPct]      = useState(0);
-  const [vatEnabled,       setVatEnabled]       = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [lastReceipt,      setLastReceipt]      = useState(null);
-  const [processing,       setProcessing]       = useState(false);
-  const [txPage,           setTxPage]           = useState(0);
-  const [noteInput,        setNoteInput]        = useState("");
+  const [menuItems,        setMenuItems]        = React.useState([]);
+  const [cart,             setCart]             = React.useState([]);
+  const [transactions,     setTransactions]     = React.useState([]);
+  const [voidedTx,         setVoidedTx]         = React.useState([]);
+  const [loadingTx,        setLoadingTx]        = React.useState(false);
+  const [activeBranch,     setActiveBranch]     = React.useState(isAdmin ? "" : userBranch);
+  const [searchProduct,    setSearchProduct]    = React.useState("");
+  const [txSearch,         setTxSearch]         = React.useState("");
+  const [txDateFrom,       setTxDateFrom]       = React.useState("");
+  const [txDateTo,         setTxDateTo]         = React.useState("");
+  const [activeTab,        setActiveTab]        = React.useState("cashier");
+  const [paymentMethod,    setPaymentMethod]    = React.useState("Cash");
+  const [cashReceived,     setCashReceived]     = React.useState("");
+  const [discountPct,      setDiscountPct]      = React.useState(0);
+  const [vatEnabled,       setVatEnabled]       = React.useState(false);
+  const [showReceiptModal, setShowReceiptModal] = React.useState(false);
+  const [lastReceipt,      setLastReceipt]      = React.useState(null);
+  const [processing,       setProcessing]       = React.useState(false);
+  const [txPage,           setTxPage]           = React.useState(0);
+  const [voidPage,         setVoidPage]         = React.useState(0);
+  const [noteInput,        setNoteInput]        = React.useState("");
+  const [activeShop,       setActiveShop]       = React.useState("Coffee Spot");
 
-  const VAT_RATE     = 0.12;
-  const TX_PAGE_SIZE = 20;
-  const fmtPHP       = n => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+  // Void feature state
+  const [selectedTxId,     setSelectedTxId]     = React.useState(null);
+  const [showVoidModal,    setShowVoidModal]     = React.useState(false);
+  const [voidPassword,     setVoidPassword]     = React.useState("");
+  const [voidPasswordErr,  setVoidPasswordErr]  = React.useState("");
+  const [voidProcessing,   setVoidProcessing]   = React.useState(false);
 
-  const fetchProducts = useCallback(async () => {
+  // Retrieve from voided
+  const [selectedVoidId,   setSelectedVoidId]   = React.useState(null);
+  const [showRetrieveModal,setShowRetrieveModal]= React.useState(false);
+  const [retrievePassword, setRetrievePassword] = React.useState("");
+  const [retrievePasswordErr,setRetrievePasswordErr] = React.useState("");
+  const [retrieveProcessing, setRetrieveProcessing] = React.useState(false);
+
+  const MANAGER_PASSWORD = "Admin123";
+  const VAT_RATE         = 0.12;
+  const TX_PAGE_SIZE     = 20;
+  const fmtPHP = n => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+  const fetchProducts = React.useCallback(async () => {
     try {
       const branchQ = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
-      const menuRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`);
-      const menuData = await menuRes.json();
-      setMenuItems(Array.isArray(menuData) ? menuData : []);
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${branchQ}`);
+      const data = await res.json();
+      setMenuItems(Array.isArray(data) ? data : []);
     } catch { setMenuItems([]); }
-  }, []);
+  }, [activeBranch]);
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = React.useCallback(async () => {
     setLoadingTx(true);
     try {
       const q   = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
@@ -4386,11 +6075,24 @@ function POSContent({ user, brands: propBrands = [] }) {
     finally { setLoadingTx(false); }
   }, [activeBranch]);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
-  useEffect(() => { setTxPage(0); }, [txSearch, txDateFrom, txDateTo]);
+  const fetchVoidedTransactions = React.useCallback(async () => {
+    try {
+      const q   = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : "";
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/voided${q}`);
+      const d   = await res.json();
+      setVoidedTx(Array.isArray(d) ? d : []);
+    } catch { setVoidedTx([]); }
+  }, [activeBranch]);
 
-  const allProducts = useMemo(() => {
+  React.useEffect(() => { fetchProducts(); },           [fetchProducts]);
+  React.useEffect(() => { fetchTransactions(); },       [fetchTransactions]);
+  React.useEffect(() => { fetchVoidedTransactions(); }, [fetchVoidedTransactions]);
+  React.useEffect(() => { setTxPage(0); },  [txSearch, txDateFrom, txDateTo]);
+  React.useEffect(() => { setVoidPage(0); }, [txSearch, txDateFrom, txDateTo]);
+  // Deselect when switching tabs
+  React.useEffect(() => { setSelectedTxId(null); setSelectedVoidId(null); }, [activeTab]);
+
+  const allProducts = React.useMemo(() => {
     if (!activeBranch) return [];
     const menu = menuItems
       .filter(m => m.branch === activeBranch)
@@ -4402,13 +6104,13 @@ function POSContent({ user, brands: propBrands = [] }) {
   const addToCart = (product) => {
     setCart(prev => {
       const existing = prev.find(c => c.id === product.id && c.source === product.source);
-      if (existing) return prev.map(c => c.id === product.id && c.source === product.source ? { ...c, qty:c.qty+1 } : c);
-      return [...prev, { ...product, qty:1 }];
+      if (existing) return prev.map(c => c.id === product.id && c.source === product.source ? { ...c, qty: c.qty+1 } : c);
+      return [...prev, { ...product, qty: 1 }];
     });
   };
 
   const updateQty = (id, source, delta) => {
-    setCart(prev => prev.map(c => c.id===id && c.source===source ? { ...c, qty:Math.max(0,c.qty+delta) } : c).filter(c => c.qty > 0));
+    setCart(prev => prev.map(c => c.id===id && c.source===source ? { ...c, qty: Math.max(0, c.qty+delta) } : c).filter(c => c.qty > 0));
   };
 
   const removeFromCart = (id, source) => setCart(prev => prev.filter(c => !(c.id===id && c.source===source)));
@@ -4423,30 +6125,117 @@ function POSContent({ user, brands: propBrands = [] }) {
   const cashShortfall = paymentMethod==="Cash" && cashReceived!=="" ? parseFloat(cashReceived||0) - totalAmt : 0;
 
   const processSale = async () => {
-    if (cart.length === 0) { alert("Cart is empty."); return; }
-    if (paymentMethod==="Cash" && parseFloat(cashReceived||0) < totalAmt) { alert("Cash received is less than total amount."); return; }
-    if (!activeBranch && isAdmin) { alert("Please select a branch first."); return; }
+    if (cart.length === 0)                                                     { alert("Cart is empty."); return; }
+    if (paymentMethod==="Cash" && parseFloat(cashReceived||0) < totalAmt)     { alert("Cash received is less than total amount."); return; }
+    if (!activeBranch && isAdmin)                                              { alert("Please select a branch first."); return; }
     setProcessing(true);
     try {
       const payload = {
-        branch: activeBranch||userBranch, cashier:user?.name||"Staff", shop:activeShop,
-        payment_method:paymentMethod, cash_received:paymentMethod==="Cash"?parseFloat(cashReceived):totalAmt,
-        discount_pct:discountPct, subtotal, discount_amt:discountAmt, vat_enabled:vatEnabled,
-        vat_amt:vatAmt, total:totalAmt, change_due:changeDue, note:noteInput,
-        items:cart.map(c => ({ id:c.id, source:c.source, name:c.displayName, price:c.price, qty:c.qty, subtotal:c.price*c.qty })),
+        branch: activeBranch||userBranch, cashier: user?.name||"Staff", shop: activeShop,
+        payment_method: paymentMethod,
+        cash_received: paymentMethod==="Cash" ? parseFloat(cashReceived) : totalAmt,
+        discount_pct: discountPct, subtotal, discount_amt: discountAmt,
+        vat_enabled: vatEnabled, vat_amt: vatAmt, total: totalAmt, change_due: changeDue, note: noteInput,
+        items: cart.map(c => ({ id:c.id, source:c.source, name:c.displayName, price:c.price, qty:c.qty, subtotal:c.price*c.qty })),
       };
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      const d   = await res.json();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+      });
+      const d = await res.json();
       if (d.success) {
-        setLastReceipt({ ...payload, id:d.id, date:new Date().toLocaleString() });
+        setLastReceipt({ ...payload, id: d.id, date: new Date().toLocaleString() });
         setShowReceiptModal(true);
         clearCart(); fetchTransactions(); fetchProducts();
-      } else alert(d.error||"Failed to process sale");
+      } else alert(d.error || "Failed to process sale");
     } catch { alert("Failed to process sale. Check server connection."); }
     finally { setProcessing(false); }
   };
 
-  const filteredTx = useMemo(() => {
+  // ── VOID ─────────────────────────────────────────────────────────────────
+  const openVoidModal = () => {
+    if (!selectedTxId) return;
+    setVoidPassword(""); setVoidPasswordErr(""); setShowVoidModal(true);
+  };
+
+  const confirmVoid = async () => {
+    if (voidPassword !== MANAGER_PASSWORD) {
+      setVoidPasswordErr("Incorrect manager password."); return;
+    }
+    setVoidProcessing(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedTxId}/void`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ voided_by: user?.name||"Manager", reason: "Manual void" }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setShowVoidModal(false); setSelectedTxId(null);
+        fetchTransactions(); fetchVoidedTransactions();
+      } else {
+        // Optimistic fallback for demo/dev without backend
+        const tx = transactions.find(t => t.id === selectedTxId);
+        if (tx) {
+          setTransactions(prev => prev.filter(t => t.id !== selectedTxId));
+          setVoidedTx(prev => [{ ...tx, voided_at: new Date().toISOString(), voided_by: user?.name||"Manager" }, ...prev]);
+        }
+        setShowVoidModal(false); setSelectedTxId(null);
+      }
+    } catch {
+      // Optimistic fallback
+      const tx = transactions.find(t => t.id === selectedTxId);
+      if (tx) {
+        setTransactions(prev => prev.filter(t => t.id !== selectedTxId));
+        setVoidedTx(prev => [{ ...tx, voided_at: new Date().toISOString(), voided_by: user?.name||"Manager" }, ...prev]);
+      }
+      setShowVoidModal(false); setSelectedTxId(null);
+    }
+    finally { setVoidProcessing(false); }
+  };
+
+  // ── RETRIEVE ──────────────────────────────────────────────────────────────
+  const openRetrieveModal = () => {
+    if (!selectedVoidId) return;
+    setRetrievePassword(""); setRetrievePasswordErr(""); setShowRetrieveModal(true);
+  };
+
+  const confirmRetrieve = async () => {
+    if (retrievePassword !== MANAGER_PASSWORD) {
+      setRetrievePasswordErr("Incorrect manager password."); return;
+    }
+    setRetrieveProcessing(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedVoidId}/retrieve`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ retrieved_by: user?.name||"Manager" }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setShowRetrieveModal(false); setSelectedVoidId(null);
+        fetchTransactions(); fetchVoidedTransactions();
+      } else {
+        // Optimistic fallback
+        const tx = voidedTx.find(t => t.id === selectedVoidId);
+        if (tx) {
+          const { voided_at, voided_by, ...restored } = tx;
+          setVoidedTx(prev => prev.filter(t => t.id !== selectedVoidId));
+          setTransactions(prev => [restored, ...prev]);
+        }
+        setShowRetrieveModal(false); setSelectedVoidId(null);
+      }
+    } catch {
+      const tx = voidedTx.find(t => t.id === selectedVoidId);
+      if (tx) {
+        const { voided_at, voided_by, ...restored } = tx;
+        setVoidedTx(prev => prev.filter(t => t.id !== selectedVoidId));
+        setTransactions(prev => [restored, ...prev]);
+      }
+      setShowRetrieveModal(false); setSelectedVoidId(null);
+    }
+    finally { setRetrieveProcessing(false); }
+  };
+
+  // ── FILTERS ───────────────────────────────────────────────────────────────
+  const filteredTx = React.useMemo(() => {
     const q = txSearch.toLowerCase();
     return transactions.filter(tx => {
       if (q && !String(tx.id).includes(q) && !(tx.cashier||"").toLowerCase().includes(q) && !(tx.branch||"").toLowerCase().includes(q)) return false;
@@ -4456,8 +6245,20 @@ function POSContent({ user, brands: propBrands = [] }) {
     });
   }, [transactions, txSearch, txDateFrom, txDateTo]);
 
-  const txTotalPages = Math.max(1, Math.ceil(filteredTx.length/TX_PAGE_SIZE));
-  const txPageItems  = filteredTx.slice(txPage*TX_PAGE_SIZE, (txPage+1)*TX_PAGE_SIZE);
+  const filteredVoidedTx = React.useMemo(() => {
+    const q = txSearch.toLowerCase();
+    return voidedTx.filter(tx => {
+      if (q && !String(tx.id).includes(q) && !(tx.cashier||"").toLowerCase().includes(q) && !(tx.branch||"").toLowerCase().includes(q)) return false;
+      if (txDateFrom && (tx.voided_at||tx.created_at) < txDateFrom) return false;
+      if (txDateTo   && (tx.voided_at||tx.created_at) > txDateTo+"T23:59:59") return false;
+      return true;
+    });
+  }, [voidedTx, txSearch, txDateFrom, txDateTo]);
+
+  const txTotalPages   = Math.max(1, Math.ceil(filteredTx.length/TX_PAGE_SIZE));
+  const txPageItems    = filteredTx.slice(txPage*TX_PAGE_SIZE, (txPage+1)*TX_PAGE_SIZE);
+  const voidTotalPages = Math.max(1, Math.ceil(filteredVoidedTx.length/TX_PAGE_SIZE));
+  const voidPageItems  = filteredVoidedTx.slice(voidPage*TX_PAGE_SIZE, (voidPage+1)*TX_PAGE_SIZE);
 
   const todayStr     = new Date().toISOString().slice(0,10);
   const todaySales   = transactions.filter(tx => (tx.created_at||"").startsWith(todayStr));
@@ -4465,14 +6266,18 @@ function POSContent({ user, brands: propBrands = [] }) {
   const todayCount   = todaySales.length;
   const todayAvg     = todayCount > 0 ? todayRevenue/todayCount : 0;
 
-  const allBranches = useMemo(() => {
+  const allBranches = React.useMemo(() => {
     const out = [];
-    brandList.forEach(b => (b.branches||[]).forEach(br => { const name=typeof br==="string"?br:br.name; if(!out.includes(name)) out.push(name); }));
+    brandList.forEach(b => (b.branches||[]).forEach(br => {
+      const name = typeof br==="string" ? br : br.name;
+      if (!out.includes(name)) out.push(name);
+    }));
     return out;
   }, [brandList]);
 
   const printReceipt = () => window.print();
 
+  // ── PAGINATION ────────────────────────────────────────────────────────────
   const POSPagination = ({ page, setPage, total, pageSize }) => {
     const totalPgs = Math.max(1, Math.ceil(total/pageSize));
     if (totalPgs <= 1) return null;
@@ -4496,6 +6301,117 @@ function POSContent({ user, brands: propBrands = [] }) {
     );
   };
 
+  // ── TX TABLE (shared between history and voided) ──────────────────────────
+  const TxTable = ({ items, selectedId, onSelect, isVoided = false }) => (
+    <div style={{ overflowX:"auto" }}>
+      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+        <thead>
+          <tr>
+            {["","#","Date", isVoided ? "Voided At" : null, isVoided ? "Voided By" : null, "Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].filter(Boolean).map(h=>(
+              <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(tx=>{
+            const isSelected = selectedId === tx.id;
+            return (
+              <tr key={tx.id}
+                onClick={()=>onSelect(isSelected ? null : tx.id)}
+                style={{ borderBottom:`1px solid #f0f8f0`, cursor:"pointer", background: isSelected ? "#e8f5e9" : "transparent", transition:"background .1s" }}
+                onMouseEnter={e=>{ if (!isSelected) e.currentTarget.style.background="#f6fef8"; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background = isSelected ? "#e8f5e9" : "transparent"; }}>
+                {/* Checkbox col */}
+                <td style={{ padding:"10px 10px 10px 14px" }}>
+                  <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${isSelected ? C.green : C.border}`, background: isSelected ? C.green : C.white, display:"flex", alignItems:"center", justifyContent:"center", transition:"all .1s" }}>
+                    {isSelected && <svg width={10} height={10} viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                </td>
+                <td style={{ padding:"10px 12px", fontWeight:700, color:C.muted, fontSize:12 }}>#{tx.id}</td>
+                <td style={{ padding:"10px 12px", color:C.muted, fontSize:12, whiteSpace:"nowrap" }}>
+                  {new Date(tx.created_at).toLocaleString("en-PH",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}
+                </td>
+                {isVoided && (
+                  <td style={{ padding:"10px 12px", color:"#c62828", fontSize:12, whiteSpace:"nowrap" }}>
+                    {tx.voided_at ? new Date(tx.voided_at).toLocaleString("en-PH",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}
+                  </td>
+                )}
+                {isVoided && (
+                  <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{tx.voided_by || "—"}</td>
+                )}
+                <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{tx.branch}</td>
+                <td style={{ padding:"10px 12px" }}>
+                  <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:tx.shop==="Coffee Spot"?"#fff8e1":"#e0f2f1", color:tx.shop==="Coffee Spot"?"#f57f17":"#00695c" }}>{tx.shop}</span>
+                </td>
+                <td style={{ padding:"10px 12px", color:C.ink, fontWeight:600, fontSize:12 }}>{tx.cashier}</td>
+                <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{(tx.items||[]).length} item{(tx.items||[]).length!==1?"s":""}</td>
+                <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPHP(tx.subtotal)}</td>
+                <td style={{ padding:"10px 12px" }}>
+                  {tx.discount_pct>0 ? <span style={{ color:C.warn, fontWeight:700 }}>−{tx.discount_pct}%</span> : <span style={{ color:C.muted }}>—</span>}
+                </td>
+                <td style={{ padding:"10px 12px" }}>
+                  {tx.vat_enabled ? <span style={{ color:"#1565c0", fontWeight:700 }}>+{fmtPHP(tx.vat_amt)}</span> : <span style={{ color:C.muted }}>—</span>}
+                </td>
+                <td style={{ padding:"10px 12px", fontWeight:800, color: isVoided ? C.muted : C.green }}>{fmtPHP(tx.total)}</td>
+                <td style={{ padding:"10px 12px" }}>
+                  <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600,
+                    background:tx.payment_method==="Cash"?"#e8f5e9":tx.payment_method==="GCash"?"#e3f2fd":"#f3e5f5",
+                    color:tx.payment_method==="Cash"?"#2e7d32":tx.payment_method==="GCash"?"#1565c0":"#6a1b9a" }}>
+                    {tx.payment_method}
+                  </span>
+                </td>
+                <td style={{ padding:"10px 12px" }}>
+                  {isVoided ? (
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"rgba(229,57,53,0.1)", color:"#c62828" }}>Voided</span>
+                  ) : (
+                    <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"rgba(16,185,129,0.1)", color:"#059669" }}>Completed</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  // ── MANAGER PASSWORD MODAL (shared) ───────────────────────────────────────
+  const ManagerModal = ({ title, subtitle, icon, actionLabel, actionColor, password, setPassword, error, onConfirm, onClose, processing }) => (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000 }}
+      onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:360, maxWidth:"95vw", boxShadow:"0 16px 64px rgba(0,0,0,0.25)" }}>
+        <div style={{ textAlign:"center", marginBottom:20 }}>
+          <div style={{ fontSize:"2.5rem", marginBottom:8 }}>{icon}</div>
+          <div style={{ fontWeight:900, fontSize:18, color:C.ink }}>{title}</div>
+          <div style={{ fontSize:13, color:C.muted, marginTop:6, lineHeight:1.5 }}>{subtitle}</div>
+        </div>
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Manager Password</div>
+          <input
+            type="password"
+            placeholder="Enter password…"
+            value={password}
+            onChange={e=>{ setPassword(e.target.value); }}
+            onKeyDown={e=>{ if(e.key==="Enter") onConfirm(); }}
+            autoFocus
+            style={{ ...invInputSt, fontSize:15, letterSpacing:"0.15em" }}
+          />
+          {error && <div style={{ marginTop:6, fontSize:12, color:C.red, fontWeight:700 }}>⚠ {error}</div>}
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={onClose} style={{ ...btnSt, flex:1, justifyContent:"center" }}>Cancel</button>
+          <button onClick={onConfirm} disabled={processing}
+            style={{ flex:1, height:36, border:"none", borderRadius:9, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+              background:`linear-gradient(135deg,${actionColor||C.red},${actionColor ? actionColor+"cc" : "#b71c1c"})`,
+              color:C.white, opacity:processing?0.7:1, justifyContent:"center", display:"flex", alignItems:"center", gap:6 }}>
+            {processing ? "Processing…" : actionLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
       <style>{`
@@ -4503,6 +6419,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         @media print { body > * { display: none !important; } .pos-receipt-print { display: block !important; } }
       `}</style>
 
+      {/* ── KPI CARDS ── */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
         {[
           { label:"Today's Revenue",     value:fmtPHP(todayRevenue), sub:"All transactions today",   accent:C.green },
@@ -4518,23 +6435,65 @@ function POSContent({ user, brands: propBrands = [] }) {
         ))}
       </div>
 
-      <div style={{ display:"flex", gap:4, background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:5, marginBottom:18, width:"fit-content", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-        {[{id:"cashier",label:"Cashier"},{id:"history",label:"Transaction History"}].map(tab=>(
-          <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
-            style={{ padding:"8px 22px", borderRadius:10, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-              background:activeTab===tab.id?`linear-gradient(135deg,${C.teal},${C.green})`:"transparent",
-              color:activeTab===tab.id?C.white:C.muted,
-              boxShadow:activeTab===tab.id?"0 2px 10px rgba(0,180,90,0.28)":"none", transition:"all .15s" }}>
-            {tab.label}
-            {tab.id==="history" && transactions.length>0 && (
-              <span style={{ marginLeft:7, background:"rgba(255,255,255,0.25)", padding:"1px 8px", borderRadius:20, fontSize:11 }}>{transactions.length}</span>
-            )}
+      {/* ── TAB BAR + VOID BUTTON ROW ── */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+        <div style={{ display:"flex", gap:4, background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:5, width:"fit-content", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+          {[
+            { id:"cashier", label:"Cashier" },
+            { id:"history", label:"Transaction History", count: transactions.length },
+            { id:"voided",  label:"Recently Voided",     count: voidedTx.length, countColor:"#c62828", countBg:"rgba(229,57,53,0.15)" },
+          ].map(tab=>(
+            <button key={tab.id} onClick={()=>setActiveTab(tab.id)}
+              style={{ padding:"8px 22px", borderRadius:10, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                background:activeTab===tab.id?`linear-gradient(135deg,${C.teal},${C.green})`:"transparent",
+                color:activeTab===tab.id?C.white:C.muted,
+                boxShadow:activeTab===tab.id?"0 2px 10px rgba(0,180,90,0.28)":"none", transition:"all .15s" }}>
+              {tab.label}
+              {tab.count > 0 && (
+                <span style={{ marginLeft:7, background: tab.countBg || "rgba(255,255,255,0.25)", color: tab.countColor || (activeTab===tab.id ? C.white : C.muted), padding:"1px 8px", borderRadius:20, fontSize:11 }}>{tab.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* VOID BUTTON — visible only on history/voided tabs */}
+        {activeTab === "history" && (
+          <button
+            onClick={openVoidModal}
+            disabled={!selectedTxId}
+            style={{ display:"flex", alignItems:"center", gap:7, height:38, padding:"0 18px", border:"none", borderRadius:10,
+              fontSize:13, fontWeight:800, cursor: selectedTxId ? "pointer" : "not-allowed", fontFamily:"inherit",
+              background: selectedTxId ? "linear-gradient(135deg,#e53935,#b71c1c)" : "#e0e0e0",
+              color: selectedTxId ? C.white : "#9e9e9e",
+              boxShadow: selectedTxId ? "0 3px 12px rgba(229,57,53,0.35)" : "none",
+              transition:"all .15s", opacity: selectedTxId ? 1 : 0.7 }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Void Transaction
+            {selectedTxId && <span style={{ background:"rgba(255,255,255,0.2)", padding:"1px 7px", borderRadius:12, fontSize:11 }}>#{selectedTxId}</span>}
           </button>
-        ))}
+        )}
+
+        {activeTab === "voided" && (
+          <button
+            onClick={openRetrieveModal}
+            disabled={!selectedVoidId}
+            style={{ display:"flex", alignItems:"center", gap:7, height:38, padding:"0 18px", border:"none", borderRadius:10,
+              fontSize:13, fontWeight:800, cursor: selectedVoidId ? "pointer" : "not-allowed", fontFamily:"inherit",
+              background: selectedVoidId ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0",
+              color: selectedVoidId ? C.white : "#9e9e9e",
+              boxShadow: selectedVoidId ? "0 3px 12px rgba(0,180,90,0.35)" : "none",
+              transition:"all .15s", opacity: selectedVoidId ? 1 : 0.7 }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>
+            Retrieve Transaction
+            {selectedVoidId && <span style={{ background:"rgba(255,255,255,0.2)", padding:"1px 7px", borderRadius:12, fontSize:11 }}>#{selectedVoidId}</span>}
+          </button>
+        )}
       </div>
 
+      {/* ── CASHIER TAB ── */}
       {activeTab === "cashier" && (
         <div style={{ display:"grid", gridTemplateColumns:"1fr 380px", gap:18, alignItems:"start" }}>
+          {/* Products panel */}
           <div>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -4553,7 +6512,7 @@ function POSContent({ user, brands: propBrands = [] }) {
 
             {allProducts.length === 0 ? (
               <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:"48px 0", textAlign:"center", color:C.muted }}>
-                <div style={{ fontSize:"2rem", marginBottom:10 }}>🏪</div>
+                <div style={{ fontSize:"2rem", marginBottom:10 }}></div>
                 <div style={{ fontWeight:700, fontSize:14 }}>
                   {!activeBranch ? "Select a branch to view products" : "No products found for this branch"}
                 </div>
@@ -4594,6 +6553,7 @@ function POSContent({ user, brands: propBrands = [] }) {
             )}
           </div>
 
+          {/* Cart panel */}
           <div style={{ position:"sticky", top:80 }}>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:18, boxShadow:"0 2px 18px rgba(0,140,60,0.09)", overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
@@ -4606,7 +6566,7 @@ function POSContent({ user, brands: propBrands = [] }) {
               <div style={{ maxHeight:280, overflowY:"auto", padding:cart.length===0?"0":"8px 0" }}>
                 {cart.length === 0 ? (
                   <div style={{ padding:"32px 0", textAlign:"center", color:C.muted, fontSize:13 }}>
-                    <div style={{ fontSize:"2rem", marginBottom:8 }}>🛒</div>
+                    <div style={{ fontSize:"2rem", marginBottom:8 }}></div>
                     Tap a product to add it
                   </div>
                 ) : cart.map(item=>(
@@ -4627,6 +6587,7 @@ function POSContent({ user, brands: propBrands = [] }) {
               </div>
 
               <div style={{ padding:"14px 18px", borderTop:`1px solid ${C.border}` }}>
+                {/* Discount */}
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
                   <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", whiteSpace:"nowrap" }}>Discount %</label>
                   <div style={{ display:"flex", gap:4 }}>
@@ -4634,12 +6595,11 @@ function POSContent({ user, brands: propBrands = [] }) {
                       <button key={d} onClick={()=>setDiscountPct(d)}
                         style={{ height:28, padding:"0 10px", borderRadius:7, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
                           background:discountPct===d?`linear-gradient(135deg,${C.teal},${C.green})`:C.bg,
-                          color:discountPct===d?C.white:C.muted }}>
-                        {d}%
-                      </button>
+                          color:discountPct===d?C.white:C.muted }}>{d}%</button>
                     ))}
                   </div>
                 </div>
+                {/* VAT toggle */}
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
                   <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em" }}>VAT (12%)</label>
                   <div onClick={()=>setVatEnabled(v=>!v)}
@@ -4647,6 +6607,7 @@ function POSContent({ user, brands: propBrands = [] }) {
                     <div style={{ position:"absolute", top:3, left:vatEnabled?23:3, width:18, height:18, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
                   </div>
                 </div>
+                {/* Totals */}
                 <div style={{ background:C.bg, borderRadius:10, padding:"12px 14px", marginBottom:12 }}>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:C.muted, marginBottom:5 }}>
                     <span>Subtotal</span><span style={{ fontWeight:700 }}>{fmtPHP(subtotal)}</span>
@@ -4665,6 +6626,7 @@ function POSContent({ user, brands: propBrands = [] }) {
                     <span>Total</span><span style={{ color:C.green }}>{fmtPHP(totalAmt)}</span>
                   </div>
                 </div>
+                {/* Payment method */}
                 <div style={{ marginBottom:10 }}>
                   <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Payment Method</div>
                   <div style={{ display:"flex", gap:6 }}>
@@ -4672,12 +6634,11 @@ function POSContent({ user, brands: propBrands = [] }) {
                       <button key={m} onClick={()=>setPaymentMethod(m)}
                         style={{ flex:1, height:32, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
                           background:paymentMethod===m?`linear-gradient(135deg,${C.teal},${C.green})`:C.bg,
-                          color:paymentMethod===m?C.white:C.muted, transition:"all .12s" }}>
-                        {m}
-                      </button>
+                          color:paymentMethod===m?C.white:C.muted, transition:"all .12s" }}>{m}</button>
                     ))}
                   </div>
                 </div>
+                {/* Cash received */}
                 {paymentMethod === "Cash" && (
                   <div style={{ marginBottom:10 }}>
                     <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Cash Received</div>
@@ -4690,6 +6651,7 @@ function POSContent({ user, brands: propBrands = [] }) {
                     )}
                   </div>
                 )}
+                {/* Note */}
                 <div style={{ marginBottom:12 }}>
                   <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder="Order note (optional)…" rows={2}
                     style={{ ...invInputSt, height:"auto", padding:"8px 11px", resize:"none", lineHeight:1.5 }}/>
@@ -4707,6 +6669,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         </div>
       )}
 
+      {/* ── TRANSACTION HISTORY TAB ── */}
       {activeTab === "history" && (
         <>
           <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
@@ -4723,10 +6686,18 @@ function POSContent({ user, brands: propBrands = [] }) {
             </div>
           </div>
 
+          {selectedTxId && (
+            <div style={{ background:"#fff8e1", border:"1px solid #ffe082", borderRadius:10, padding:"9px 16px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
+              <span style={{ fontSize:"1rem" }}>☑️</span>
+              <span style={{ color:"#5d4037", fontWeight:700 }}>Transaction <strong>#{selectedTxId}</strong> selected.</span>
+              <span style={{ color:C.muted }}>Click the red <strong>Void Transaction</strong> button to void it, or click the row again to deselect.</span>
+            </div>
+          )}
+
           <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
             <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-              <span style={{ fontWeight:800, fontSize:13 }}>📋 Transaction History</span>
-              <span style={{ fontSize:12, opacity:0.9 }}>{filteredTx.length} records</span>
+              <span style={{ fontWeight:800, fontSize:13 }}> Transaction History</span>
+              <span style={{ fontSize:12, opacity:0.9 }}>{filteredTx.length} records · click a row to select</span>
             </div>
 
             {loadingTx ? (
@@ -4735,53 +6706,7 @@ function POSContent({ user, brands: propBrands = [] }) {
               <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No transactions found.</div>
             ) : (
               <>
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-                    <thead>
-                      <tr>
-                        {["#","Date","Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].map(h=>(
-                          <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {txPageItems.map(tx=>(
-                        <tr key={tx.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                          onMouseEnter={e=>e.currentTarget.style.background="#f6fef8"}
-                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                          <td style={{ padding:"10px 12px", fontWeight:700, color:C.muted, fontSize:12 }}>#{tx.id}</td>
-                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12, whiteSpace:"nowrap" }}>
-                            {new Date(tx.created_at).toLocaleString("en-PH",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}
-                          </td>
-                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{tx.branch}</td>
-                          <td style={{ padding:"10px 12px" }}>
-                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:tx.shop==="Coffee Spot"?"#fff8e1":"#e0f2f1", color:tx.shop==="Coffee Spot"?"#f57f17":"#00695c" }}>{tx.shop}</span>
-                          </td>
-                          <td style={{ padding:"10px 12px", color:C.ink, fontWeight:600, fontSize:12 }}>{tx.cashier}</td>
-                          <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{(tx.items||[]).length} item{(tx.items||[]).length!==1?"s":""}</td>
-                          <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPHP(tx.subtotal)}</td>
-                          <td style={{ padding:"10px 12px" }}>
-                            {tx.discount_pct>0?<span style={{ color:C.warn, fontWeight:700 }}>−{tx.discount_pct}%</span>:<span style={{ color:C.muted }}>—</span>}
-                          </td>
-                          <td style={{ padding:"10px 12px" }}>
-                            {tx.vat_enabled?<span style={{ color:"#1565c0", fontWeight:700 }}>+{fmtPHP(tx.vat_amt)}</span>:<span style={{ color:C.muted }}>—</span>}
-                          </td>
-                          <td style={{ padding:"10px 12px", fontWeight:800, color:C.green }}>{fmtPHP(tx.total)}</td>
-                          <td style={{ padding:"10px 12px" }}>
-                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600,
-                              background:tx.payment_method==="Cash"?"#e8f5e9":tx.payment_method==="GCash"?"#e3f2fd":"#f3e5f5",
-                              color:tx.payment_method==="Cash"?"#2e7d32":tx.payment_method==="GCash"?"#1565c0":"#6a1b9a" }}>
-                              {tx.payment_method}
-                            </span>
-                          </td>
-                          <td style={{ padding:"10px 12px" }}>
-                            <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"rgba(16,185,129,0.1)", color:"#059669" }}>Completed</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <TxTable items={txPageItems} selectedId={selectedTxId} onSelect={setSelectedTxId} isVoided={false}/>
                 <POSPagination page={txPage} setPage={setTxPage} total={filteredTx.length} pageSize={TX_PAGE_SIZE}/>
               </>
             )}
@@ -4789,6 +6714,50 @@ function POSContent({ user, brands: propBrands = [] }) {
         </>
       )}
 
+      {/* ── RECENTLY VOIDED TAB ── */}
+      {activeTab === "voided" && (
+        <>
+          <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+            <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+              <div style={{ position:"relative", flex:"1 1 200px" }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" placeholder="Search ID, cashier, branch…" value={txSearch} onChange={e=>setTxSearch(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
+              </div>
+              <input type="date" value={txDateFrom} onChange={e=>setTxDateFrom(e.target.value)} style={{ ...invInputSt, width:150 }}/>
+              <input type="date" value={txDateTo}   onChange={e=>setTxDateTo(e.target.value)}   style={{ ...invInputSt, width:150 }}/>
+              {(txSearch||txDateFrom||txDateTo) && (
+                <button onClick={()=>{setTxSearch("");setTxDateFrom("");setTxDateTo("");}} style={{ ...smallBtnSt, height:36, border:`1px solid ${C.border}`, color:C.muted }}>Clear</button>
+              )}
+            </div>
+          </div>
+
+          {selectedVoidId && (
+            <div style={{ background:"#e8f5e9", border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"9px 16px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
+              <span style={{ fontSize:"1rem" }}></span>
+              <span style={{ color:"#1b5e20", fontWeight:700 }}>Voided transaction <strong>#{selectedVoidId}</strong> selected.</span>
+              <span style={{ color:C.muted }}>Click <strong>Retrieve Transaction</strong> to restore it to transaction history.</span>
+            </div>
+          )}
+
+          <div style={{ background:C.white, border:"1px solid rgba(229,57,53,0.15)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(229,57,53,0.07)" }}>
+            <div style={{ padding:"11px 18px", background:"linear-gradient(135deg,#e53935,#b71c1c)", display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+              <span style={{ fontWeight:800, fontSize:13 }}>Recently Voided</span>
+              <span style={{ fontSize:12, opacity:0.9 }}>{filteredVoidedTx.length} voided records · click a row to select for retrieval</span>
+            </div>
+
+            {filteredVoidedTx.length === 0 ? (
+              <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No voided transactions found.</div>
+            ) : (
+              <>
+                <TxTable items={voidPageItems} selectedId={selectedVoidId} onSelect={setSelectedVoidId} isVoided={true}/>
+                <POSPagination page={voidPage} setPage={setVoidPage} total={filteredVoidedTx.length} pageSize={TX_PAGE_SIZE}/>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── RECEIPT MODAL ── */}
       {showReceiptModal && lastReceipt && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000 }}
           onClick={e=>{ if(e.target===e.currentTarget) setShowReceiptModal(false); }}>
@@ -4849,166 +6818,172 @@ function POSContent({ user, brands: propBrands = [] }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
-
-// ActionDropdown — pencil button + scrollable dropdown
-// ─────────────────────────────────────────────────────────────────────────────
-function ActionDropdown({ application, onView, onApprove, onPending, onDelete }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
-
-  useEffect(() => {
-    const close = (e) => {
-      if (!ref.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  const close = () => setOpen(false);
-
-  return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
-      {/* ── Primary edit button ── */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "5px 11px",
-          fontSize: 12,
-          fontWeight: 700,
-          fontFamily: "inherit",
-          borderRadius: 8,
-          border: "1.5px solid #b2dfdb",
-          background: "#f0fdf5",
-          color: "#00695c",
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          transition: "background 0.15s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = "#e0f2f1")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "#f0fdf5")}
-      >
-        <Pencil size={13} />
-        Edit
-        <ChevronDown
-          size={11}
-          style={{
-            transition: "transform 0.2s",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-          }}
+      {/* ── VOID CONFIRMATION MODAL ── */}
+      {showVoidModal && (
+        <ManagerModal
+          title="Void Transaction"
+          subtitle={`You are about to void transaction #${selectedTxId}. This action requires manager authorization.`}
+          icon="🗑️"
+          actionLabel="Confirm Void"
+          actionColor="#e53935"
+          password={voidPassword}
+          setPassword={setVoidPassword}
+          error={voidPasswordErr}
+          onConfirm={confirmVoid}
+          onClose={()=>{ setShowVoidModal(false); setVoidPassword(""); setVoidPasswordErr(""); }}
+          processing={voidProcessing}
         />
-      </button>
+      )}
 
-      {/* ── Scrollable dropdown ── */}
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 5px)",
-            left: 0,
-            minWidth: 180,
-            maxHeight: 220,
-            overflowY: "auto",
-            background: C.white,
-            border: "0.5px solid #b2dfdb",
-            borderRadius: 12,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-            zIndex: 1000,
-          }}
-        >
-          <DropItem
-            icon={<Eye size={14} />}
-            label="View application"
-            onClick={() => { onView(application); close(); }}
-          />
-          <DropItem
-            icon={<Check size={14} />}
-            label="Approve"
-            onClick={() => { onApprove(application); close(); }}
-          />
-          <DropItem
-            icon={<Clock size={14} />}
-            label="Mark as pending"
-            onClick={() => { onPending(application); close(); }}
-          />
-          <DropItem
-            icon={<Download size={14} />}
-            label="Download / Print"
-            onClick={() => { window.print(); close(); }}
-          />
-          <div style={{ height: "0.5px", background: "#b2dfdb", margin: "4px 0" }} />
-          <DropItem
-            icon={<Trash2 size={14} />}
-            label="Delete"
-            onClick={() => { onDelete(application); close(); }}
-            danger
-          />
-        </div>
+      {/* ── RETRIEVE CONFIRMATION MODAL ── */}
+      {showRetrieveModal && (
+        <ManagerModal
+          title="Retrieve Transaction"
+          subtitle={`You are about to restore voided transaction #${selectedVoidId} back to Transaction History. Manager authorization required.`}
+          icon="♻️"
+          actionLabel="Confirm Retrieve"
+          actionColor={C.green}
+          password={retrievePassword}
+          setPassword={setRetrievePassword}
+          error={retrievePasswordErr}
+          onConfirm={confirmRetrieve}
+          onClose={()=>{ setShowRetrieveModal(false); setRetrievePassword(""); setRetrievePasswordErr(""); }}
+          processing={retrieveProcessing}
+        />
       )}
     </div>
   );
 }
-
-// ─── Single dropdown item ─────────────────────────────────────────────────────
-function DropItem({ icon, label, onClick, danger }) {
-  const [hover, setHover] = useState(false);
+function ActionDropdown({ application, onView, onAddAccount, onApprove, onDelete }) {
+  const [open, setOpen]         = useState(false);
+  const [menuPos, setMenuPos]   = useState({ top: 0, left: 0 });
+  const btnRef                  = useRef(null);
+  const menuRef                 = useRef(null);
+ 
+  // Position the dropdown relative to the button without shifting page layout
+  const openMenu = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      const menuH = 180; // approximate menu height
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow >= menuH
+        ? rect.bottom + window.scrollY + 4
+        : rect.top  + window.scrollY - menuH - 4;
+      // keep menu on-screen horizontally
+      const left = Math.min(rect.left + window.scrollX, window.innerWidth - 180);
+      setMenuPos({ top, left });
+    }
+    setOpen((v) => !v);
+  };
+ 
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (
+        menuRef.current  && !menuRef.current.contains(e.target) &&
+        btnRef.current   && !btnRef.current.contains(e.target)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+ 
+  const menuItems = [
+    { icon: <Eye size={13} />,         label: "View Application", color: "#0d2b1e", action: onView },
+    { icon: <UserPlus size={13} />,    label: "Add Account",      color: "#2563eb", action: onAddAccount },
+    { icon: <CheckCircle size={13} />, label: "Approve",          color: "#059669", action: onApprove },
+    { icon: <Trash2 size={13} />,      label: "Delete",           color: "#dc2626", action: onDelete, danger: true },
+  ];
+ 
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 9,
-        padding: "9px 14px",
-        fontSize: 13,
-        fontFamily: "inherit",
-        fontWeight: 600,
-        color: danger ? "#a32d2d" : "#0d2b1e",
-        background: hover
-          ? danger
-            ? "rgba(163,45,45,0.07)"
-            : "rgba(0,137,123,0.07)"
-          : "transparent",
-        border: "none",
-        width: "100%",
-        textAlign: "left",
-        cursor: "pointer",
-        transition: "background 0.12s",
-      }}
-    >
-      {icon}
-      {label}
-    </button>
+    <>
+      {/* Pencil trigger button */}
+      <button
+        ref={btnRef}
+        onClick={openMenu}
+        title="Actions"
+        style={{
+          width: 32, height: 32,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          borderRadius: 8,
+          border: open ? "1.5px solid #00897b" : "1px solid #b2dfdb",
+          background: open ? "#e0f2f1" : "#fff",
+          color: open ? "#00695c" : "#5a7a65",
+          cursor: "pointer", flexShrink: 0,
+          transition: "all .15s",
+        }}
+      >
+        <Pencil size={13} />
+      </button>
+ 
+      {/* Portal-style fixed menu — does NOT push layout */}
+      {open && (
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top:  menuPos.top,
+            left: menuPos.left,
+            zIndex: 3000,
+            background: "#fff",
+            border: "1px solid #d1eedd",
+            borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
+            padding: "6px 0",
+            minWidth: 180,
+            maxHeight: 220,
+            overflowY: "auto",
+          }}
+        >
+          {menuItems.map((item) => (
+            <button
+              key={item.label}
+              onClick={() => { setOpen(false); item.action?.(); }}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 9,
+                padding: "9px 14px",
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 700,
+                color: item.color,
+                fontFamily: "Montserrat, sans-serif",
+                textAlign: "left",
+                borderTop: item.danger ? "1px solid #fee2e2" : "none",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = item.danger ? "#fff5f5" : "#f0fdf5"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
-
+ 
 // ─────────────────────────────────────────────────────────────────────────────
-// ViewApplicationModal
+// SHARED MODAL SHELL  (stable — no layout shift)
 // ─────────────────────────────────────────────────────────────────────────────
-function ViewApplicationModal({ application, onClose }) {
-  if (!application) return null;
-  const isIPharma = application.franchise === "iPharma Mart";
-
+function ModalShell({ onClose, maxWidth = 700, children }) {
+  // Lock body scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+ 
   return (
     <div
       onClick={onClose}
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(13,43,30,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-        padding: 20,
+        position: "fixed", inset: 0,
+        background: "rgba(13,43,30,0.52)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20,
+        backdropFilter: "blur(3px)",
       }}
     >
       <div
@@ -5017,221 +6992,574 @@ function ViewApplicationModal({ application, onClose }) {
           background: C.white,
           borderRadius: 20,
           padding: "28px 32px",
-          width: "100%",
-          maxWidth: 700,
-          maxHeight: "90vh",
-          overflowY: "auto",
+          width: "100%", maxWidth,
+          maxHeight: "90vh", overflowY: "auto",
           boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
           border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: "Montserrat,sans-serif",
-              fontSize: 18,
-              fontWeight: 800,
-              color: "#0d2b1e",
-              margin: 0,
-            }}
-          >
-            📋 Franchise Application Details
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              border: "1px solid #b2dfdb",
-              background: "#e0f2f1",
-              cursor: "pointer",
-              color: "#00695c",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <X size={15} />
-          </button>
-        </div>
-
-        {/* Sub-header */}
-        <p style={{ fontSize: 13, color: C.muted, marginBottom: 22 }}>
-          Application ID: <strong>#{application.id}</strong> · Status:{" "}
-          <span
-            style={{
-              background:
-                application.status === "approved"
-                  ? "rgba(16,185,129,0.1)"
-                  : "rgba(245,158,11,0.1)",
-              color:
-                application.status === "approved" ? "#059669" : "#d97706",
-              padding: "2px 10px",
-              borderRadius: 20,
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          >
-            {application.status?.toUpperCase()}
-          </span>
-        </p>
-
-        {/* Sections */}
-        <div style={{ padding: "1rem 0" }}>
-          <AppSection title="Basic Information">
-            <AppGrid2>
-              <AppField label="Date Applied"  value={application.date} />
-              <AppField label="Payment Mode"  value={application.paymentMode} />
-              <div style={{ gridColumn: "1/-1" }}>
-                <AppField label="Chosen Concept" value={application.franchise} highlight />
-              </div>
-            </AppGrid2>
-          </AppSection>
-
-          <AppSection title="Applicant Information">
-            <AppGrid2>
-              <div style={{ gridColumn: "1/-1" }}>
-                <AppField label="Full Name" value={application.name} large />
-              </div>
-              <AppField label="Date of Birth"      value={application.dob} />
-              <AppField label="Civil Status"       value={application.civilStatus} />
-              {!isIPharma && (
-                <>
-                  <AppField label="Gender"      value={application.gender} />
-                  <AppField label="Nationality" value={application.nationality} />
-                </>
-              )}
-              <AppField label="No. of Dependents" value={application.dependents || "N/A"} />
-              <AppField label="Mobile Number"     value={application.phone} />
-              {isIPharma && application.telephone && (
-                <AppField label="Telephone" value={application.telephone} />
-              )}
-              <div style={{ gridColumn: "1/-1" }}>
-                <AppField label="Email Address"   value={application.email} />
-              </div>
-              <div style={{ gridColumn: "1/-1" }}>
-                <AppField label="Present Address" value={application.address} />
-              </div>
-            </AppGrid2>
-          </AppSection>
-
-          {isIPharma && application.education && (
-            <AppSection title="Education">
-              <AppField label="Educational Background" value={application.education} />
-            </AppSection>
-          )}
-
-          {application.spouseName && (
-            <AppSection title="Spouse Information">
-              <AppGrid2>
-                <AppField label="Spouse Name"       value={application.spouseName} />
-                <AppField label="Spouse Occupation" value={application.spouseOccupation} />
-                {isIPharma && application.spouseDob && (
-                  <AppField label="Spouse Date of Birth" value={application.spouseDob} />
-                )}
-              </AppGrid2>
-            </AppSection>
-          )}
-
-          {!isIPharma && (
-            <AppSection title="Employment Information">
-              <AppGrid2>
-                <AppField label="Employment Type"     value={application.employmentType} />
-                <AppField label="Years with Employer" value={`${application.yearsEmployer} years`} />
-                <AppField
-                  label="Monthly Income"
-                  value={`₱${parseInt(application.income).toLocaleString()}`}
-                  highlight
-                />
-                <AppField label="Position" value={application.position} />
-                <div style={{ gridColumn: "1/-1" }}>
-                  <AppField label="Employer / Business Name" value={application.employerName} />
-                </div>
-                <div style={{ gridColumn: "1/-1" }}>
-                  <AppField label="Business Address" value={application.businessAddress} />
-                </div>
-                <div style={{ gridColumn: "1/-1" }}>
-                  <AppField label="Nature of Business" value={application.businessNature} />
-                </div>
-              </AppGrid2>
-            </AppSection>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            justifyContent: "flex-end",
-            marginTop: 22,
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              padding: "9px 22px",
-              borderRadius: 10,
-              border: "1.5px solid #b2dfdb",
-              background: "#f0fdf5",
-              color: "#5a7a65",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Close
-          </button>
-          <button
-            onClick={() => window.print()}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "9px 24px",
-              borderRadius: 10,
-              border: "none",
-              background: "linear-gradient(135deg,#2E7D32,#00897b)",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            🖨️ Print Application
-          </button>
-        </div>
+        {children}
       </div>
     </div>
   );
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function AppSection({ title, children }) {
+ 
+// ─── Shared modal header ──────────────────────────────────────────────────────
+function ModalHeader({ title, onClose }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 800, color: C.dark, margin: 0 }}>{title}</h2>
+      <button
+        onClick={onClose}
+        style={{
+          width: 32, height: 32, borderRadius: "50%",
+          border: "1px solid #b2dfdb", background: "#e0f2f1",
+          cursor: "pointer", color: "#00695c",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+ 
+// ─── Shared footer buttons ────────────────────────────────────────────────────
+function ModalFooter({ onClose, onConfirm, confirmLabel, confirmIcon, confirmStyle, closeLabel = "Cancel" }) {
+  return (
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+      <button
+        onClick={onClose}
+        style={{
+          padding: "9px 22px", borderRadius: 10,
+          border: "1.5px solid #b2dfdb", background: "#f0fdf5",
+          color: "#5a7a65", fontSize: 13, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        {closeLabel}
+      </button>
+      {onConfirm && (
+        <button
+          onClick={onConfirm}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "9px 24px", borderRadius: 10, border: "none",
+            fontSize: 13, fontWeight: 700, cursor: "pointer",
+            fontFamily: "inherit",
+            ...(confirmStyle || {
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              color: "#fff",
+              boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+            }),
+          }}
+        >
+          {confirmIcon}
+          {confirmLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// VIEW APPLICATION MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function ViewApplicationModal({ application, onClose }) {
+  if (!application) return null;
+  const isIPharma = application.franchise === "iPharma Mart";
+ 
+  return (
+    <ModalShell onClose={onClose} maxWidth={700}>
+      <ModalHeader title="📋 Franchise Application Details" onClose={onClose} />
+ 
+      <p style={{ fontSize: 13, color: C.muted, marginBottom: 22 }}>
+        Application ID: <strong>#{application.id}</strong> · Status:{" "}
+        <span
+          style={{
+            background: application.status === "approved" ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
+            color:      application.status === "approved" ? "#059669" : "#d97706",
+            padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+          }}
+        >
+          {application.status?.toUpperCase()}
+        </span>
+      </p>
+ 
+      <div style={{ padding: "1rem 0" }}>
+        <AppSection title="Basic Information">
+          <AppGrid2>
+            <AppField label="Date Applied"   value={application.date} />
+            <AppField label="Payment Mode"   value={application.paymentMode} />
+            <div style={{ gridColumn: "1/-1" }}>
+              <AppField label="Chosen Concept" value={application.franchise} highlight />
+            </div>
+          </AppGrid2>
+        </AppSection>
+ 
+        <AppSection title="Applicant Information">
+          <AppGrid2>
+            <div style={{ gridColumn: "1/-1" }}>
+              <AppField label="Full Name" value={application.name} large />
+            </div>
+            <AppField label="Date of Birth"      value={application.dob} />
+            <AppField label="Civil Status"       value={application.civilStatus} />
+            {!isIPharma && (
+              <>
+                <AppField label="Gender"      value={application.gender} />
+                <AppField label="Nationality" value={application.nationality} />
+              </>
+            )}
+            <AppField label="No. of Dependents" value={application.dependents || "N/A"} />
+            <AppField label="Mobile Number"     value={application.phone} />
+            {isIPharma && application.telephone && (
+              <AppField label="Telephone" value={application.telephone} />
+            )}
+            <div style={{ gridColumn: "1/-1" }}>
+              <AppField label="Email Address"   value={application.email} />
+            </div>
+            <div style={{ gridColumn: "1/-1" }}>
+              <AppField label="Present Address" value={application.address} />
+            </div>
+          </AppGrid2>
+        </AppSection>
+ 
+        {isIPharma && application.education && (
+          <AppSection title="Education">
+            <AppField label="Educational Background" value={application.education} />
+          </AppSection>
+        )}
+ 
+        {application.spouseName && (
+          <AppSection title="Spouse Information">
+            <AppGrid2>
+              <AppField label="Spouse Name"          value={application.spouseName} />
+              <AppField label="Spouse Occupation"    value={application.spouseOccupation} />
+              {isIPharma && application.spouseDob && (
+                <AppField label="Spouse Date of Birth" value={application.spouseDob} />
+              )}
+            </AppGrid2>
+          </AppSection>
+        )}
+ 
+        {!isIPharma && (
+          <AppSection title="Employment Information">
+            <AppGrid2>
+              <AppField label="Employment Type"       value={application.employmentType} />
+              <AppField label="Years with Employer"   value={`${application.yearsEmployer} years`} />
+              <AppField label="Monthly Income"        value={`₱${parseInt(application.income).toLocaleString()}`} highlight />
+              <AppField label="Position"              value={application.position} />
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Employer / Business Name" value={application.employerName} />
+              </div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Business Address" value={application.businessAddress} />
+              </div>
+              <div style={{ gridColumn: "1/-1" }}>
+                <AppField label="Nature of Business" value={application.businessNature} />
+              </div>
+            </AppGrid2>
+          </AppSection>
+        )}
+      </div>
+ 
+      <ModalFooter
+        onClose={onClose}
+        closeLabel="Close"
+        onConfirm={() => window.print()}
+        confirmLabel="Print Application"
+        confirmIcon={<span style={{ fontSize: 14 }}>🖨️</span>}
+      />
+    </ModalShell>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD ACCOUNT MODAL  — validation modal before creating account
+// ─────────────────────────────────────────────────────────────────────────────
+export function AddAccountModal({ application, onClose, onConfirm }) {
+  if (!application) return null;
+  return (
+    <ModalShell onClose={onClose} maxWidth={440}>
+      <ModalHeader title="Create Franchisee Account" onClose={onClose} />
+ 
+      <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+        You are about to create a system account for:
+      </p>
+ 
+      {/* Applicant card */}
+      <div
+        style={{
+          background: "#f0fdf5", border: "1px solid #b2dfdb",
+          borderRadius: 12, padding: "14px 16px", marginBottom: 20,
+        }}
+      >
+        <p style={{ fontWeight: 800, fontSize: 14, color: C.dark, marginBottom: 4 }}>{application.name}</p>
+        <p style={{ fontSize: 12, color: C.muted }}>{application.email}</p>
+        <p style={{ fontSize: 12, color: C.muted }}>{application.franchise}</p>
+      </div>
+ 
+      <div
+        style={{
+          background: "#eff6ff", border: "1px solid #bfdbfe",
+          borderRadius: 10, padding: "10px 14px", fontSize: 12,
+          color: "#1d4ed8", marginBottom: 6,
+        }}
+      >
+        ℹ️ A temporary password will be sent to the applicant's email address.
+      </div>
+ 
+      <ModalFooter
+        onClose={onClose}
+        onConfirm={onConfirm}
+        confirmLabel="Create Account"
+        confirmIcon={<UserPlus size={14} />}
+      />
+    </ModalShell>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// APPROVE MODAL  — validation modal before approving
+// ─────────────────────────────────────────────────────────────────────────────
+export function ApproveModal({ application, onClose, onConfirm }) {
+  if (!application) return null;
+  return (
+    <ModalShell onClose={onClose} maxWidth={440}>
+      <ModalHeader title="Approve Application" onClose={onClose} />
+ 
+      <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+        Review the applicant details before approving:
+      </p>
+ 
+      <div
+        style={{
+          background: "#f0fdf5", border: "1px solid #b2dfdb",
+          borderRadius: 12, padding: "14px 16px", marginBottom: 16,
+        }}
+      >
+        <p style={{ fontWeight: 800, fontSize: 14, color: C.dark, marginBottom: 6 }}>{application.name}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
+          {[
+            ["ID",        `#${application.id}`],
+            ["Franchise", application.franchise],
+            ["Date",      application.date],
+            ["Payment",   application.paymentMode],
+          ].map(([lbl, val]) => (
+            <div key={lbl}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{lbl}</span>
+              <p style={{ fontSize: 12, fontWeight: 700, color: C.dark, marginTop: 2 }}>{val}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+ 
+      <div
+        style={{
+          background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)",
+          borderRadius: 10, padding: "10px 14px", fontSize: 12,
+          color: "#065f46", marginBottom: 6,
+        }}
+      >
+        ✅ Approving will mark this application as <strong>Approved</strong> and notify the applicant.
+      </div>
+ 
+      <ModalFooter
+        onClose={onClose}
+        onConfirm={onConfirm}
+        confirmLabel="Approve Application"
+        confirmIcon={<CheckCircle size={14} />}
+        confirmStyle={{
+          background: "linear-gradient(135deg,#059669,#10b981)",
+          color: "#fff",
+          boxShadow: "0 2px 10px rgba(5,150,105,0.35)",
+        }}
+      />
+    </ModalShell>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE VALIDATION MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+export function DeleteApplicationModal({ application, onClose, onConfirm }) {
+  if (!application) return null;
+  return (
+    <ModalShell onClose={onClose} maxWidth={420}>
+      {/* Icon */}
+      <div
+        style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}
+      >
+        <Trash2 size={22} color="#dc2626" />
+      </div>
+ 
+      <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: C.dark, marginBottom: 8 }}>
+        Delete Application?
+      </h2>
+      <p style={{ textAlign: "center", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+        You are about to delete the application from{" "}
+        <strong style={{ color: C.dark }}>"{application.name}"</strong> (#{application.id}).
+      </p>
+ 
+      <div
+        style={{
+          background: "#fff7ed", border: "1px solid #fed7aa",
+          borderRadius: 10, padding: "10px 14px",
+          fontSize: 12, color: "#c2410c", textAlign: "center", marginBottom: 16,
+        }}
+      >
+        ⚠ This action cannot be undone from the main list, but you can recover it from the <strong>Deleted</strong> tab.
+      </div>
+ 
+      <ModalFooter
+        onClose={onClose}
+        onConfirm={onConfirm}
+        confirmLabel="Delete Application"
+        confirmIcon={<Trash2 size={14} />}
+        confirmStyle={{
+          background: "linear-gradient(135deg,#dc2626,#ef4444)",
+          color: "#fff",
+          boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+        }}
+      />
+    </ModalShell>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// RESTORE VALIDATION MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+export function RestoreApplicationModal({ application, onClose, onConfirm }) {
+  if (!application) return null;
+  return (
+    <ModalShell onClose={onClose} maxWidth={420}>
+      <div
+        style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#d1fae5",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}
+      >
+        <RotateCcw size={22} color="#059669" />
+      </div>
+ 
+      <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: C.dark, marginBottom: 8 }}>
+        Restore Application?
+      </h2>
+      <p style={{ textAlign: "center", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+        Restore the application from{" "}
+        <strong style={{ color: C.dark }}>"{application.name}"</strong> (#{application.id}) back to the active list?
+      </p>
+ 
+      <div
+        style={{
+          background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)",
+          borderRadius: 10, padding: "10px 14px",
+          fontSize: 12, color: "#065f46", textAlign: "center", marginBottom: 6,
+        }}
+      >
+        ✅ The application will be moved back to the <strong>active</strong> applications list.
+      </div>
+ 
+      <ModalFooter
+        onClose={onClose}
+        onConfirm={onConfirm}
+        confirmLabel="Restore Application"
+        confirmIcon={<RotateCcw size={14} />}
+        confirmStyle={{
+          background: "linear-gradient(135deg,#2E7D32,#00897b)",
+          color: "#fff",
+          boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+        }}
+      />
+    </ModalShell>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETED APPLICATIONS TAB / PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+export function DeletedApplicationsTab({ deletedItems, onRestore }) {
+  const [restoreTarget, setRestoreTarget] = useState(null);
+  const [viewTarget,    setViewTarget]    = useState(null);
+ 
+  const fmt = (d) =>
+    new Date(d).toLocaleString("en-PH", {
+      month: "short", day: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+ 
+  const handleConfirmRestore = () => {
+    onRestore?.(restoreTarget);
+    setRestoreTarget(null);
+  };
+ 
+  const thSt = {
+    padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
+    color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
+    borderBottom: "2px solid #d1eedd", background: "#f8fffe",
+    whiteSpace: "nowrap",
+  };
+  const tdSt = {
+    padding: "11px 12px", borderBottom: "1px solid #f0f8f0",
+    verticalAlign: "middle", fontSize: 13,
+  };
+ 
+  return (
+    <div style={{ fontFamily: "Montserrat, sans-serif" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: C.dark, margin: 0 }}>Deleted Applications</h2>
+          <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+            {deletedItems.length} deleted {deletedItems.length === 1 ? "record" : "records"} · Restore to move back to active list
+          </p>
+        </div>
+        {deletedItems.length > 0 && (
+          <span
+            style={{
+              fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 20,
+              background: "#fee2e2", color: "#dc2626",
+            }}
+          >
+            {deletedItems.length} deleted
+          </span>
+        )}
+      </div>
+ 
+      {deletedItems.length === 0 ? (
+        <div
+          style={{
+            padding: "48px 0", textAlign: "center",
+            color: C.muted, fontSize: 14, fontStyle: "italic",
+            background: "#f8fffe", borderRadius: 16,
+            border: "1px dashed #b2dfdb",
+          }}
+        >
+          No deleted applications.
+        </div>
+      ) : (
+        <div
+          style={{
+            background: "#fff", border: "1px solid rgba(0,168,76,0.12)",
+            borderRadius: 18, boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+            overflow: "hidden",
+          }}
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {["ID", "Name", "Franchise", "Status", "Deleted At", "Reason", "Actions"].map((h) => (
+                  <th key={h} style={thSt}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {deletedItems.map((item) => (
+                <tr
+                  key={item.id}
+                  style={{ cursor: "default" }}
+                  onMouseEnter={(e) => { [...e.currentTarget.cells].forEach((c) => (c.style.background = "#fef2f2")); }}
+                  onMouseLeave={(e) => { [...e.currentTarget.cells].forEach((c) => (c.style.background = "")); }}
+                >
+                  <td style={{ ...tdSt, color: C.muted, fontSize: 12 }}>#{item.id}</td>
+                  <td style={{ ...tdSt, fontWeight: 700, color: C.dark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</td>
+                  <td style={{ ...tdSt, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.franchise}</td>
+                  <td style={tdSt}>
+                    <span
+                      style={{
+                        fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20,
+                        background: item.status === "approved" ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
+                        color:      item.status === "approved" ? "#059669" : "#d97706",
+                      }}
+                    >
+                      {item.status?.toUpperCase()}
+                    </span>
+                  </td>
+                  <td style={{ ...tdSt, color: C.muted, fontSize: 11 }}>{fmt(item.deletedAt)}</td>
+                  <td style={{ ...tdSt, color: "#9ca3af", fontSize: 12, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.deleteReason || "—"}
+                  </td>
+                  <td style={tdSt}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {/* View */}
+                      <button
+                        title="View application"
+                        onClick={() => setViewTarget(item)}
+                        style={{
+                          width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+                          borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1",
+                          color: "#00695c", cursor: "pointer", flexShrink: 0,
+                        }}
+                      >
+                        <Eye size={13} />
+                      </button>
+                      {/* Restore */}
+                      <button
+                        title="Restore application"
+                        onClick={() => setRestoreTarget(item)}
+                        style={{
+                          width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+                          borderRadius: 8, border: "1.5px solid #00897b", background: "#f0fdf5",
+                          color: "#00695c", cursor: "pointer", flexShrink: 0,
+                        }}
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+ 
+      {/* Restore confirmation modal */}
+      {restoreTarget && (
+        <RestoreApplicationModal
+          application={restoreTarget}
+          onClose={() => setRestoreTarget(null)}
+          onConfirm={handleConfirmRestore}
+        />
+      )}
+ 
+      {/* View modal from deleted tab */}
+      {viewTarget && (
+        <ViewApplicationModal
+          application={viewTarget}
+          onClose={() => setViewTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIELD / SECTION / GRID helpers (unchanged API, kept here for self-containment)
+// ─────────────────────────────────────────────────────────────────────────────
+export function AppSection({ title, children }) {
   return (
     <div style={{ marginBottom: "2rem" }}>
       <h3
         style={{
-          fontFamily: "Montserrat,sans-serif",
-          fontWeight: 800,
-          fontSize: 13,
-          color: "#00897b",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          marginBottom: 12,
-          paddingBottom: 8,
-          borderBottom: `2px solid ${C.border}`,
+          fontFamily: "Montserrat,sans-serif", fontWeight: 800, fontSize: 13,
+          color: "#00897b", textTransform: "uppercase", letterSpacing: "0.08em",
+          marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${C.border}`,
         }}
       >
         {title}
@@ -5240,26 +7568,22 @@ function AppSection({ title, children }) {
     </div>
   );
 }
-
-function AppGrid2({ children }) {
+ 
+export function AppGrid2({ children }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
       {children}
     </div>
   );
 }
-
-function AppField({ label, value, highlight, large }) {
+ 
+export function AppField({ label, value, highlight, large }) {
   return (
     <div>
       <p
         style={{
-          fontSize: 11,
-          fontWeight: 800,
-          color: "#5a7a65",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          marginBottom: 4,
+          fontSize: 11, fontWeight: 800, color: "#5a7a65",
+          textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4,
         }}
       >
         {label}
@@ -5268,7 +7592,7 @@ function AppField({ label, value, highlight, large }) {
         style={{
           fontWeight: highlight || large ? 800 : 600,
           fontSize: large ? 15 : 13,
-          color: highlight ? "#00897b" : "#0d2b1e",
+          color: highlight ? "#00897b" : C.dark,
         }}
       >
         {value}
@@ -5276,6 +7600,5 @@ function AppField({ label, value, highlight, large }) {
     </div>
   );
 }
-
 // ─── Exports ──────────────────────────────────────────────────────────────────
-export { ActionDropdown, ViewApplicationModal, AppSection, AppGrid2, AppField, POSContent };
+export { ActionDropdown,  POSContent };
