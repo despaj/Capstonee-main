@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cookieParser());
 app.use(cors({
-  origin: ["http://localhost:3000",  "https://www.franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
+  origin: ["http://localhost:3000",  "https://www.franchisync.xyz",   "https://franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
   credentials: true
 }));
 app.use(express.json());
