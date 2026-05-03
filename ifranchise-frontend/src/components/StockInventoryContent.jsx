@@ -38,6 +38,9 @@ const smallBtnSt = {
   fontFamily:"inherit", background:C.white,
 };
 
+const capitalizeName = (str) =>
+  str.replace(/\b\w/g, (c) => c.toUpperCase());
+
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 50;
 
@@ -240,9 +243,12 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     const excelRef = useRef(null);
 
   const emptyForm = useCallback(() => ({
-    name:"", branch: isAdmin ? "" : userBranch, brand:"",
-    unit:"pcs", stock:0, min_stock:0, cost_per_unit:"",
-  }), [isAdmin, userBranch]);
+  name:"", branch: isAdmin ? "" : userBranch, brand:"",
+  unit:"pcs", stock:0, min_stock:0, cost_per_unit:"",
+  // shop listing fields (optional)
+  listInShop: false,
+  shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+}), [isAdmin, userBranch]);
   const [form, setForm] = useState(emptyForm);
 
     const fetchItems = useCallback(async () => {
@@ -269,33 +275,118 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
-          const name = String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim();
-          if (!name) return;
-          rows_to_save.push({
-            name,
-            branch:        String(row.branch         || row.Branch         || "").trim() || "Unknown",
-            brand:         String(row.brand           || row.Brand           || "").trim(),
-            unit:          String(row.unit             || row.Unit             || "pcs").trim(),
-            stock:         parseFloat(row.stock        || row.Stock           || 0) || 0,
-            min_stock:     parseFloat(row.min_stock    || row["Min Stock"]    || 0) || 0,
-            cost_per_unit: parseFloat(row.cost_per_unit|| row["Cost/Unit"]   || 0) || 0,
-          });
-        });
+  const name = capitalizeName(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
+  if (!name) return;
+
+  // Skip if already exists in current items (same name + branch)
+  const branch = String(row.branch || row.Branch || "").trim() || "Unknown";
+  const alreadyExists = items.some(
+    i => i.name.trim().toLowerCase() === name.toLowerCase()
+      && i.branch.trim().toLowerCase() === branch.toLowerCase()
+  );
+  if (alreadyExists) return; // skip this row silently
+
+const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? row["list_in_shop"] ?? "";
+console.log("🔍 raw list_in_shop for", row.name || row.Name, ":", rawListInShop, "type:", typeof rawListInShop);
+const listInShop = rawListInShop === 1 
+  || rawListInShop === true 
+  || String(rawListInShop).trim().toLowerCase() === "1"
+  || String(rawListInShop).trim().toLowerCase() === "yes"
+  || String(rawListInShop).trim().toLowerCase() === "true";
+  const shopPrice    = parseFloat(row.shop_price    ?? row["Shop Price"]    ?? 0) || 0;
+const shopUnit     = String(row.shop_unit          ?? row["Shop Unit"]     ?? "").trim();
+const shopCategory = String(row.shop_category      ?? row["Shop Category"] ?? "Coffee Spot").trim();
+  rows_to_save.push({
+    name,
+    branch:        String(row.branch         || row.Branch         || "").trim() || "Unknown",
+    brand:         String(row.brand           || row.Brand           || "").trim(),
+    unit:          String(row.unit             || row.Unit             || "pcs").trim(),
+    stock:         parseFloat(row.stock        || row.Stock           || 0) || 0,
+    min_stock:     parseFloat(row.min_stock    || row["Min Stock"]    || 0) || 0,
+    cost_per_unit: parseFloat(row.cost_per_unit|| row["Cost/Unit"]   || 0) || 0,
+    // shop mirror fields
+    listInShop,
+    shopPrice,
+    shopUnit,
+    shopCategory,
+  });
+});
       });
-      let saved = 0;
-      for (const item of rows_to_save) {
+     let saved = 0;
+let shopSaved = 0;
+for (const item of rows_to_save) {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item),
+    });
+    const d = await res.json();
+    console.log("📦 Ingredient save result:", d, "| item:", item.name);
+    console.log("   listInShop:", item.listInShop, "| shopPrice:", item.shopPrice, "| type:", typeof item.listInShop);
+
+    if (d.success) {
+      saved++;
+      if (item.listInShop && item.shopPrice > 0) {
+  // Check if already exists in shop-items
+  try {
+    const checkRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+    const checkData = await checkRes.json();
+    const shopDuplicate = checkData.some(
+      s => s.name.trim().toLowerCase() === item.name.toLowerCase()
+        && s.shop.trim().toLowerCase() === item.shopCategory.toLowerCase()
+    );
+    if (shopDuplicate) {
+      console.log("⏭ Shop duplicate skipped:", item.name);
+      continue; // skip this item's shop mirror
+    }
+  } catch (e) {
+    console.warn("Could not check shop duplicates:", e);
+  }
+
+  console.log("🛒 Attempting shop-items POST for:", item.name);
+  const shopPayload = {
+  name:       item.name,
+  price:      item.shopPrice,
+  unit:       item.shopUnit,
+  stock:      item.stock,
+  shop:       item.shopCategory,
+  brand:      item.brand || "",
+  image_url:  "https://placehold.co/150x150/e8f5e9/2e7d32?text=" + encodeURIComponent(item.name.slice(0,8)),
+  is_visible: true,
+};
+        console.log("   shop payload:", shopPayload);
         try {
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+          const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(item),
+            body: JSON.stringify(shopPayload),
           });
-          const d = await res.json();
-          if (d.success) saved++;
-        } catch {}
+          const shopD = await shopRes.json();
+          console.log("   shop-items response:", shopD);
+          if (shopD.success) shopSaved++;
+          else console.error("❌ shop-items failed:", shopD);
+        } catch (e) {
+          console.error("❌ shop-items fetch error:", e);
+        }
+      } else {
+        console.log("⏭ Skipping shop mirror — listInShop:", item.listInShop, "shopPrice:", item.shopPrice);
       }
+    } else {
+      console.error("❌ Ingredient save failed:", d);
+    }
+  } catch (e) {
+    console.error("❌ Ingredient fetch error:", e);
+  }
+}
       e.target.value = "";
-      alert(`Parsed ${rows_to_save.length} row(s). Saved ${saved}.`);
+     const skipped = rows_to_save.length - saved;
+alert(
+  `Parsed ${rows_to_save.length} row(s).\n` +
+  `✅ Saved: ${saved} ingredient(s)\n` +
+  `${shopSaved > 0 ? `🛒 Added to Mobile Shop: ${shopSaved}\n` : ""}` +
+  `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
+);
       fetchItems();
     };
     reader.readAsArrayBuffer(file);
@@ -329,14 +420,51 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const pageItems  = filtered.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
 
     const saveItem = async e => {
-    e.preventDefault();
-    const payload = { ...form, branch: isAdmin ? form.branch : userBranch };
-    const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
-    const method = editing ? "PUT" : "POST";
+  e.preventDefault();
+  const payload = { ...form, branch: isAdmin ? form.branch : userBranch, name: capitalizeName(form.name.trim()) };
+
+  // Duplicate check for new items only
+  if (!editing) {
+    const duplicate = items.find(
+      i => i.name.trim().toLowerCase() === payload.name.trim().toLowerCase()
+        && i.branch.trim().toLowerCase() === payload.branch.trim().toLowerCase()
+    );
+    if (duplicate) {
+      alert(`"${payload.name}" already exists in ${payload.branch}. Please edit the existing item instead.`);
+      return;
+    }
+  }
+
+  const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
+  const method = editing ? "PUT" : "POST";
     try {
       const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const d   = await res.json();
-      if (d.success) { await fetchItems(); closeModal(); }
+   if (d.success) {
+  if (!editing && form.listInShop && form.shopPrice) {
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+  name:       payload.name,
+  price:      parseFloat(form.shopPrice) || 0,
+  unit:       form.shopUnit || "",
+  stock:      parseInt(payload.stock) || 0,
+  shop:       form.shopCategory,
+  brand:      payload.brand || "",
+  image_url:  "https://placehold.co/150x150/e8f5e9/2e7d32?text=" + encodeURIComponent(payload.name.slice(0,8)),
+  is_visible: true,
+  branches: [],
+}),
+      });
+    } catch (e) {
+      console.warn("Failed to mirror to shop-items:", e);
+    }
+  }
+  await fetchItems();
+  closeModal();
+}
       else alert(d.error || "Failed to save");
     } catch { alert("Failed to save ingredient"); }
   };
@@ -577,6 +705,75 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                     onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required />
                 </div>
               </div>
+              {/* ── List in Shop toggle ── */}
+{!editing && (
+  <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: form.listInShop ? 14 : 0 }}>
+      <div
+        onClick={() => setForm(f => ({ ...f, listInShop: !f.listInShop }))}
+        style={{
+          width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative",
+          background: form.listInShop ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0",
+          transition:"background .2s", flexShrink:0,
+        }}>
+        <div style={{
+          position:"absolute", top:3,
+          left: form.listInShop ? 21 : 3,
+          width:16, height:16, borderRadius:"50%",
+          background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)",
+          transition:"left .2s",
+        }}/>
+      </div>
+      <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer" }}
+        onClick={() => setForm(f => ({ ...f, listInShop: !f.listInShop }))}>
+        Also list in Mobile Shop Supplies
+      </label>
+    </div>
+
+    {form.listInShop && (
+      <div style={{ display:"grid", gap:12, marginTop:14, padding:"14px", background:C.bg, borderRadius:10, border:`1px solid ${C.border}` }}>
+        <p style={{ fontSize:11, color:C.muted, margin:0 }}>
+          Set the <strong>bulk/supply price and unit</strong> for the shop listing — separate from the ingredient cost above.
+        </p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          <div>
+            <label style={invLabelSt}>Shop Price (₱) *</label>
+            <input
+              type="number" min="0" step="0.01"
+              style={invInputSt}
+              placeholder="e.g. 500.00"
+              value={form.shopPrice}
+              onChange={e => setForm(f => ({ ...f, shopPrice: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label style={invLabelSt}>Shop Unit</label>
+            <input
+              type="text"
+              style={invInputSt}
+              placeholder="e.g. per sack, per case"
+              value={form.shopUnit}
+              onChange={e => setForm(f => ({ ...f, shopUnit: e.target.value }))}
+            />
+          </div>
+        </div>
+       <div>
+  <label style={invLabelSt}>Shop Category</label>
+  <select
+    style={invInputSt}
+    value={form.shopCategory}
+    onChange={e => setForm(f => ({ ...f, shopCategory: e.target.value, shopBranches: [] }))}>
+    <option value="Coffee Spot">Coffee Spot</option>
+    <option value="iPharma">iPharma</option>
+  </select>
+</div>
+
+      </div>
+    )}
+  </div>
+)}
+
+{/* ── existing save button row below ── */}
               <div style={{ display:"flex", justifyContent:"flex-end", gap:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
                 <button type="button" onClick={closeModal} style={btnSt}>Cancel</button>
                 <button type="submit" style={btnPrimarySt}>Save Ingredient</button>
