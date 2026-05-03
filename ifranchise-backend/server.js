@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cookieParser());
 app.use(cors({
-  origin: ["http://localhost:3000",  "https://www.franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081"],
+  origin: ["http://localhost:3000",  "https://www.franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
   credentials: true
 }));
 app.use(express.json());
@@ -1455,11 +1455,19 @@ app.delete("/brands/:id", async (req, res) => {
 // ─── SHOP ITEMS ───────────────────────────────────────────────
 app.get("/shop-items", async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT id, name, price, unit, image_url, is_visible, shop, brand, stock
-      FROM shop_items
-      ORDER BY created_at DESC
-    `);
+   const { brand } = req.query;
+const result = brand
+  ? await pool.query(
+      `SELECT id, name, price, unit, image_url, is_visible, shop, brand, stock, branches
+       FROM shop_items
+       WHERE brand = $1
+       ORDER BY created_at DESC`,
+      [brand]
+    )
+  : await pool.query(
+      `SELECT id, name, price, unit, image_url, is_visible, shop, brand, stock, branches
+       FROM shop_items ORDER BY created_at DESC`
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -1469,11 +1477,11 @@ app.get("/shop-items", async (req, res) => {
 
 app.post("/shop-items", async (req, res) => {
   try {
-    const { name, price, unit, image_url, shop, brand, stock, is_visible } = req.body;
+    const { name, price, unit, image_url, shop, brand, stock, is_visible,branches } = req.body;
     const result = await pool.query(
-      `INSERT INTO shop_items (name, price, unit, image_url, shop, brand, stock, is_visible)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true]
+      `INSERT INTO shop_items (name, price, unit, image_url, shop, brand, stock, is_visible, branches)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true, branches]
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
@@ -1485,12 +1493,12 @@ app.post("/shop-items", async (req, res) => {
 // NEW — full edit endpoint
 app.put("/shop-items/:id", async (req, res) => {
   try {
-    const { name, price, unit, image_url, shop, brand, stock, is_visible } = req.body;
+    const { name, price, unit, image_url, shop, brand, stock, is_visible, branches } = req.body;
     const result = await pool.query(
       `UPDATE shop_items
-       SET name=$1, price=$2, unit=$3, image_url=$4, shop=$5, brand=$6, stock=$7, is_visible=$8
-       WHERE id=$9 RETURNING *`,
-      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true, req.params.id]
+       SET name=$1, price=$2, unit=$3, image_url=$4, shop=$5, brand=$6, stock=$7, is_visible=$8, branches=$9
+       WHERE id=$10 RETURNING *`,
+      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true, branches || [], req.params.id]
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Item not found" });
@@ -2278,6 +2286,6 @@ app.get("/", (req, res) => {
   res.send("Franchise Backend with Per-Device Per-User Trust is Running");
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running at http://0.0.0.0:${PORT}`);
 });

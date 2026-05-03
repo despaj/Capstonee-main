@@ -2259,6 +2259,117 @@ const Field = ({ label, error, children }) => (
     </div>
   );
 
+function MultiSelectBranchDropdown({ branches, selected, onChange, disabled, error, msInputStyle }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const toggle = (br) => {
+    const updated = selected.includes(br)
+      ? selected.filter(b => b !== br)
+      : [...selected, br];
+    onChange(updated);
+  };
+
+  const selectAll = () => onChange([...branches]);
+  const clearAll  = () => onChange([]);
+
+  const label = disabled
+    ? "Select a brand first"
+    : selected.length === 0
+      ? "Select branches…"
+      : selected.length === branches.length
+        ? "All branches"
+        : selected.join(", ");
+
+  return (
+    <div ref={ref} style={{ position:"relative", marginTop:"0.3rem" }}>
+      <div
+        onClick={() => { if (!disabled) setOpen(v => !v); }}
+        style={{
+          ...msInputStyle,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.5 : 1,
+          border: `1px solid ${error ? "#e53935" : "#d1eedd"}`,
+          userSelect:"none", paddingRight:10,
+          minHeight:36, height:"auto", flexWrap:"wrap", gap:4,
+        }}>
+        {selected.length > 0 && !disabled ? (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4, flex:1 }}>
+            {selected.map(br => (
+              <span key={br} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 8px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c", border:"1px solid #b2dfdb" }}>
+                {br}
+                <span
+                  onMouseDown={e => { e.stopPropagation(); toggle(br); }}
+                  style={{ cursor:"pointer", fontSize:12, lineHeight:1, color:"#5a7a65" }}>×</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span style={{ color: C.muted, fontSize:13 }}>{label}</span>
+        )}
+        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition:"transform .15s" }}>
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+
+      {open && !disabled && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:500,
+          background:C.white, border:`1px solid ${C.border}`, borderRadius:10,
+          boxShadow:"0 8px 24px rgba(0,0,0,0.10)", overflow:"hidden",
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:`1px solid ${C.border}`, background:"#f8fffe" }}>
+            <span onMouseDown={e => { e.preventDefault(); selectAll(); }}
+              style={{ fontSize:11, fontWeight:700, color:"#00897b", cursor:"pointer" }}>
+              Select All
+            </span>
+            <span onMouseDown={e => { e.preventDefault(); clearAll(); }}
+              style={{ fontSize:11, fontWeight:700, color:C.muted, cursor:"pointer" }}>
+              Clear
+            </span>
+          </div>
+          <div style={{ maxHeight:180, overflowY:"auto" }}>
+            {branches.length === 0 ? (
+              <div style={{ padding:"12px", fontSize:12, color:C.muted, fontStyle:"italic", textAlign:"center" }}>No branches available</div>
+            ) : branches.map(br => (
+              <div key={br} onMouseDown={e => { e.preventDefault(); toggle(br); }}
+                style={{
+                  display:"flex", alignItems:"center", gap:10,
+                  padding:"9px 12px", cursor:"pointer", fontSize:13,
+                  background: selected.includes(br) ? "#f0fdf5" : C.white,
+                  borderBottom:`1px solid #f5fdf7`,
+                }}>
+                <div style={{
+                  width:16, height:16, borderRadius:4, flexShrink:0,
+                  border: `2px solid ${selected.includes(br) ? "#00897b" : "#b2dfdb"}`,
+                  background: selected.includes(br) ? "#00897b" : C.white,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                }}>
+                  {selected.includes(br) && (
+                    <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
+                </div>
+                <span style={{ fontWeight: selected.includes(br) ? 700 : 500, color: selected.includes(br) ? "#00695c" : C.ink }}>
+                  {br}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MobileShopContent() {
   const msInputStyle = {
     width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
@@ -2273,12 +2384,27 @@ function MobileShopContent() {
   const [editingItem,   setEditingItem]   = useState(null); // holds the item being edited
   const [editErrors,    setEditErrors]    = useState({});
   const [editLoading,   setEditLoading]   = useState(false);
-  const [newItem,       setNewItem]       = useState({ name:"", price:"", unit:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+  const [newItem, setNewItem] = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"",  });
 
   const excelRef = useRef(null);
+const [brands, setBrands] = useState([]);
 
-  useEffect(() => { fetchItems(); }, []);
+useEffect(() => { fetchItems(); fetchBrands(); }, []);
 
+const fetchBrands = async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+    const data = await res.json();
+    setBrands(Array.isArray(data) ? data : []);
+  } catch { setBrands([]); }
+};
+
+// Derive flat branch list from selected brand
+const getBranchesForBrand = (brandName) => {
+  const found = brands.find(b => b.name === brandName);
+  if (!found) return [];
+  return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
+};
   const fetchItems = async () => {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
     const data = await res.json();
@@ -2286,43 +2412,57 @@ function MobileShopContent() {
   };
 
   const validate = () => {
-    const newErrors = {};
-    if (!newItem.name.trim()) newErrors.name = "Item name is required";
-    if (!newItem.price) newErrors.price = "Price is required";
-    else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-    if (!newItem.stock) newErrors.stock = "Stock is required";
-    else if (isNaN(newItem.stock) || Number(newItem.stock) < 0) newErrors.stock = "Stock must be 0 or more";
-    if (!newItem.image_url.trim()) newErrors.image_url = "Image URL is required";
-    else { try { new URL(newItem.image_url); } catch { newErrors.image_url = "Invalid URL"; } }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const newErrors = {};
+  if (!newItem.brand) newErrors.brand = "Brand is required";
+  if (!newItem.name.trim()) newErrors.name = "Item name is required";
+  if (!newItem.price) newErrors.price = "Price is required";
+  else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
+  if (!newItem.image_url.trim()) newErrors.image_url = "Image URL is required";
+  else { try { new URL(newItem.image_url); } catch { newErrors.image_url = "Invalid URL"; } }
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
   const validateEdit = () => {
     const errs = {};
     if (!editingItem.name.trim()) errs.name = "Item name is required";
     if (!editingItem.price) errs.price = "Price is required";
     else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-    if (editingItem.stock === "" || editingItem.stock === undefined) errs.stock = "Stock is required";
-    else if (isNaN(editingItem.stock) || Number(editingItem.stock) < 0) errs.stock = "Stock must be 0 or more";
     if (!editingItem.image_url.trim()) errs.image_url = "Image URL is required";
     else { try { new URL(editingItem.image_url); } catch { errs.image_url = "Invalid URL"; } }
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   };
-
+const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
   const addItem = async () => {
-    if (loading || !validate()) return;
-    setLoading(true);
+  console.log("addItem called", newItem);  // ADD THIS
+  if (loading || !validate()) return;
+  console.log("passed validation");  // ADD THIS
+
+  // Duplicate check — same name + shop
+  const duplicate = items.find(
+    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
+      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
+  );
+  if (duplicate) {
+    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
+    return;
+  }
+
+  setLoading(true);
     await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: newItem.name, price: Number(newItem.price), unit: newItem.unit,
-        image_url: newItem.image_url, shop: newItem.shop, brand: newItem.brand,
-        stock: Number(newItem.stock),
-      }),
+  name:      capitalize(newItem.name),
+  price:     Number(newItem.price),
+  unit:      newItem.unit,
+  image_url: newItem.image_url,
+  shop:      newItem.brand,
+  brand:     newItem.brand,
+  stock:     0,
+}),
     });
-    setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"Coffee Spot", brand:"", stock:"" });
+    setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"", stock:"", branches:[] });
     setErrors({});
     setLoading(false);
     fetchItems();
@@ -2334,10 +2474,15 @@ function MobileShopContent() {
     await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: editingItem.name, price: Number(editingItem.price), unit: editingItem.unit || "",
-        image_url: editingItem.image_url, shop: editingItem.shop, brand: editingItem.brand,
-        stock: Number(editingItem.stock), is_visible: editingItem.is_visible,
-      }),
+  name:       capitalize(editingItem.name.trim()),
+  price:      Number(editingItem.price),
+  unit:       editingItem.unit || "",
+  image_url:  editingItem.image_url,
+  shop:       editingItem.brand,
+  brand:      editingItem.brand,
+  stock:      Number(editingItem.stock),
+  is_visible: editingItem.is_visible,
+}),
     });
     setEditingItem(null);
     setEditErrors({});
@@ -2355,32 +2500,58 @@ function MobileShopContent() {
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
-          const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-          const price = parseFloat(row.price || row.Price || 0) || 0;
-          if (!name || price <= 0) return;
-          rows_to_save.push({
-            name, price,
-            unit:      String(row.unit      || row.Unit      || "").trim(),
-            stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-            shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
-            brand:     String(row.brand     || row.Brand     || "").trim(),
-            image_url: String(row.image_url || row["Image URL"] || "").trim(),
-          });
+  const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
+  const price = parseFloat(row.price || row.Price || 0) || 0;
+  if (!name || price <= 0) return;
+
+  const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
+
+  // Skip duplicates — same name + shop
+  const alreadyExists = items.some(
+    i => i.name.trim().toLowerCase() === name.toLowerCase()
+      && i.shop.trim().toLowerCase() === shop.toLowerCase()
+  );
+  if (alreadyExists) return;
+
+rows_to_save.push({
+  name: capitalize(name.trim()), price,
+  unit:      String(row.unit      || row.Unit      || "").trim(),
+  stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
+  shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
+  brand:     String(row.brand     || row.Brand     || "").trim(),
+  image_url: String(row.image_url || row["Image URL"] || "").trim(),
+  is_visible: true,
+});
         });
       });
       let saved = 0;
       for (const item of rows_to_save) {
         try {
+          const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
           const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(item),
+            body: JSON.stringify({
+              name:      capitalize(item.name.trim()),
+              price:      item.price,
+  unit:       item.unit,
+  stock:      item.stock,
+  shop:       item.shop,
+  brand:      item.brand,
+  image_url:  item.image_url,
+  is_visible: item.is_visible,
+            }),
           });
           const d = await res.json();
           if (d.success) saved++;
         } catch {}
       }
       e.target.value = "";
-      alert(`Parsed ${rows_to_save.length} row(s). Saved ${saved}.`);
+     const skipped = rows_to_save.length - saved;
+alert(
+  `Parsed ${rows_to_save.length} row(s).\n` +
+  `✅ Saved: ${saved} item(s)\n` +
+  `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
+);
       fetchItems();
     };
     reader.readAsArrayBuffer(file);
@@ -2406,30 +2577,27 @@ function MobileShopContent() {
             {/* Body */}
             <div style={{ padding:"20px 24px" }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-                <Field label="Shop">
-                  <select value={editingItem.shop} onChange={e => setEditingItem({...editingItem, shop:e.target.value})} style={msInputStyle}>
-                    <option value="Coffee Spot">Coffee Spot</option>
-                    <option value="iPharma">iPharma</option>
-                  </select>
-                </Field>
-                <Field label="Item Name" error={editErrors.name}>
-                  <input value={editingItem.name} onChange={e => setEditingItem({...editingItem, name:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-                </Field>
-                <Field label="Brand (Optional)">
-                  <input value={editingItem.brand || ""} onChange={e => setEditingItem({...editingItem, brand:e.target.value})} style={msInputStyle} placeholder="e.g. Nescafé"/>
-                </Field>
-                <Field label="Price" error={editErrors.price}>
+  <Field label="Brand *" error={editErrors.brand}>
+    <select
+      value={editingItem.brand || ""}
+      onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
+      style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
+      <option value="">Select brand…</option>
+      {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+    </select>
+  </Field>
+  <Field label="Item Name *" error={editErrors.name}>
+    <input value={editingItem.name} onChange={e => setEditingItem({...editingItem, name:e.target.value})}
+      style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
+  </Field>
+  
+  <Field label="Price" error={editErrors.price}>
                   <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
                     style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
                 </Field>
                 <Field label="Unit (Optional)">
                   <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
                     style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
-                </Field>
-                <Field label="Stock" error={editErrors.stock}>
-                  <input type="number" value={editingItem.stock} onChange={e => setEditingItem({...editingItem, stock:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
                 </Field>
                 <Field label="Image URL" error={editErrors.image_url}>
                   <input value={editingItem.image_url || ""} onChange={e => setEditingItem({...editingItem, image_url:e.target.value})}
@@ -2466,40 +2634,36 @@ function MobileShopContent() {
         </div>
         <div style={{ padding:"20px 24px" }}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-            <Field label="Shop">
-              <select value={newItem.shop} onChange={e => setNewItem({...newItem, shop:e.target.value})} style={msInputStyle}>
-                <option value="Coffee Spot">Coffee Spot</option>
-                <option value="iPharma">iPharma</option>
-              </select>
-            </Field>
-            <Field label="Item Name" error={errors.name}>
-              <input value={newItem.name} onChange={e => setNewItem({...newItem, name:e.target.value})}
-                style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-            </Field>
-            <Field label="Brand (Optional)">
-              <input value={newItem.brand} onChange={e => setNewItem({...newItem, brand:e.target.value})} style={msInputStyle} placeholder="e.g. Nescafé"/>
-            </Field>
-            <Field label="Price" error={errors.price}>
-              <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
-                style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
-            </Field>
-            <Field label="Unit (Optional)">
-              <input value={newItem.unit} onChange={e => setNewItem({...newItem, unit:e.target.value})}
-                style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
-            </Field>
-            <Field label="Stock" error={errors.stock}>
-              <input type="number" value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})}
-                style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
-            </Field>
-            <Field label="Image URL" error={errors.image_url}>
-              <input value={newItem.image_url} onChange={e => setNewItem({...newItem, image_url:e.target.value})}
-                style={{ ...msInputStyle, border:`1px solid ${errors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
-              {newItem.image_url && !errors.image_url && (
-                <img src={newItem.image_url} alt="preview"
-                  style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
-                  onError={e => (e.target.style.display="none")}/>
-              )}
-            </Field>
+            <Field label="Brand *" error={errors.brand}>
+  <select
+    value={newItem.brand}
+    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value})}
+    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
+    <option value="">Select brand…</option>
+    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+  </select>
+</Field>
+<Field label="Item Name *" error={errors.name}>
+  <input value={newItem.name} onChange={e => setNewItem({...newItem, name:e.target.value})}
+    style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
+</Field>
+<Field label="Price *" error={errors.price}>
+  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
+    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+</Field>
+<Field label="Unit (Optional)">
+  <input value={newItem.unit} onChange={e => setNewItem({...newItem, unit:e.target.value})}
+    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+</Field>
+<Field label="Image URL *" error={errors.image_url}>
+  <input value={newItem.image_url} onChange={e => setNewItem({...newItem, image_url:e.target.value})}
+    style={{ ...msInputStyle, border:`1px solid ${errors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
+  {newItem.image_url && !errors.image_url && (
+    <img src={newItem.image_url} alt="preview"
+      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
+      onError={e => (e.target.style.display="none")}/>
+  )}
+</Field>
           </div>
 
           <div style={{ marginTop:"1.25rem", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -2528,7 +2692,7 @@ function MobileShopContent() {
           </div>
 
           <p style={{ marginTop:10, fontSize:11, color:C.muted, fontStyle:"italic" }}>
-            Excel columns: <strong>name</strong>, <strong>price</strong>, <strong>stock</strong> — <em>shop</em>, <em>brand</em>, <em>unit</em>, <em>image_url</em> optional.
+            Excel columns: <strong>name</strong>, <strong>price</strong> — <em>shop</em>, <em>brand</em>, <em>unit</em>, <em>stock</em>, <em>image_url</em> optional.
           </p>
         </div>
       </div>
@@ -2546,7 +2710,7 @@ function MobileShopContent() {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Brand","Price","Unit","Stock","Status",""].map((label, i) => (
+                  {["Image","Shop","Item Name","Brand","Price","Unit","Status",""].map((label, i) => (
                     <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
                       {label}
                     </th>
@@ -2561,7 +2725,7 @@ function MobileShopContent() {
                       onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                       onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                       <td style={{ padding:"10px 12px" }}>
-                        <img src={item.image_url} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
+                        <img src={item.image_url || null} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
                       </td>
                       <td style={{ padding:"10px 12px" }}>
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.shop}</span>
@@ -2570,12 +2734,12 @@ function MobileShopContent() {
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.brand || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"10px 12px", fontWeight:500, color:C.ink }}>{item.stock}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                          {item.is_visible ? "Visible" : "Hidden"}
-                        </span>
-                      </td>
+
+<td style={{ padding:"10px 12px" }}>
+  <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+    {item.is_visible ? "Visible" : "Hidden"}
+  </span>
+</td>
                       <td style={{ padding:"10px 12px" }}>
                         <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                           {/* Edit */}
