@@ -10,7 +10,7 @@ export default function StaffDashboard() {
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
     if (userString) return JSON.parse(userString);
-    navigate('/login');
+    navigate('/admin-login');
     return null;
   };
 
@@ -18,7 +18,7 @@ export default function StaffDashboard() {
 
   useEffect(() => {
     const currentUser = getUserFromStorage();
-    if (!currentUser) navigate('/login');
+    if (!currentUser) navigate('/admin-login');
     else setUser(currentUser);
   }, []);
 

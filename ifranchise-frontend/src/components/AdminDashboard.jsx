@@ -157,13 +157,16 @@ export default function AdminDashboard() {
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
   const handleLogout = () => setShowLogoutModal(true);
-  const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
+  const confirmLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberedUser');
+    window.location.href = '/admin-login';
+  };
   const [transactions, setTransactions] = useState([]);
 
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
     if (userString) return JSON.parse(userString);
-    navigate('/login');
     return null;
   };
 
@@ -182,7 +185,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const currentUser = getUserFromStorage();
-    if (!currentUser) navigate('/login');
+    if (!currentUser) navigate('/admin-login');
     else setUser(currentUser);
   }, []);
 
@@ -2671,43 +2674,38 @@ function ApplicationsContent({ applications: initialApps }) {
       {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)} />}
 
         {menuApp && (
-  <div onClick={() => setMenuApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-    <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', fontFamily:'Montserrat,sans-serif' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-        <h2 style={{ fontSize:17, fontWeight:800, color:'#0d2b1e', margin:0 }}>Actions</h2>
-        <button onClick={() => setMenuApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <X size={15}/>
-        </button>
-      </div>
-      <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>
-        Applicant: <strong style={{ color:'#0d2b1e' }}>{menuApp.name}</strong>
-      </p>
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        <button
-          onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
-          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-          <Eye size={15}/> View Application Details
-        </button>
-        <button
-          onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
-          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
-          <UserPlus size={15}/> Create Account
-        </button>
-        <button
-          onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
-          disabled={menuApp.status === 'approved'}
-          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:menuApp.status==='approved'?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:menuApp.status==='approved'?'#9e9e9e':'#fff', fontSize:13, fontWeight:700, cursor:menuApp.status==='approved'?'not-allowed':'pointer', fontFamily:'inherit', opacity:menuApp.status==='approved'?0.6:1 }}>
-          <Check size={15}/> {menuApp.status === 'approved' ? 'Already Approved' : 'Approve Application'}
-        </button>
-        <button
-          onClick={() => { handleDelete(menuApp.id); setMenuApp(null); }}
-          style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-          <Trash2 size={15}/> Delete Application
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+        <div onClick={() => setMenuApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', fontFamily:'Montserrat,sans-serif' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <h2 style={{ fontSize:17, fontWeight:800, color:'#0d2b1e', margin:0 }}>Actions</h2>
+              <button onClick={() => setMenuApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <X size={15}/>
+              </button>
+            </div>
+            <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>
+              Applicant: <strong style={{ color:'#0d2b1e' }}>{menuApp.name}</strong>
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <button
+                onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <Eye size={15}/> View Application Details
+              </button>
+              <button
+                onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
+                <UserPlus size={15}/> Create Account
+              </button>
+              <button
+                onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
+                disabled={menuApp.status === 'approved'}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:menuApp.status==='approved'?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:menuApp.status==='approved'?'#9e9e9e':'#fff', fontSize:13, fontWeight:700, cursor:menuApp.status==='approved'?'not-allowed':'pointer', fontFamily:'inherit', opacity:menuApp.status==='approved'?0.6:1 }}>
+                <Check size={15}/> {menuApp.status === 'approved' ? 'Already Approved' : 'Approve Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
 
@@ -2750,12 +2748,20 @@ function ApplicationsContent({ applications: initialApps }) {
                     <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.date}</td>
                     <td style={{ padding:'12px 14px' }}><StatusBadge status={app.status} /></td>
                     <td style={{ padding:'12px 14px', whiteSpace:'nowrap' }}>
-                      <button
-                        onClick={() => setMenuApp(app)}
-                        style={{ width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:8, border:'1px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', cursor:'pointer' }}
-                        title="Actions">
-                        <Pencil size={13}/>
-                      </button>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button
+                          onClick={() => setMenuApp(app)}
+                          style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}
+                          title="Actions">
+                          <Pencil size={11}/>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(app.id)}
+                          style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}
+                          title="Delete">
+                          <Trash2 size={11}/>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -3625,11 +3631,10 @@ function UsersContent() {
   const [filterBranchF,setFilterBranchF]= useState('all');
   const [searchQuery,  setSearchQuery]  = useState('');
 
-  // ── new state ──
-  const [deleteTarget,      setDeleteTarget]      = useState(null);   // user pending deletion
-  const [deleteHistory,     setDeleteHistory]     = useState([]);     // soft-deleted users
+  const [deleteTarget,      setDeleteTarget]      = useState(null); 
+  const [deleteHistory,     setDeleteHistory]     = useState([]); 
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [alertModal,        setAlertModal]        = useState(null);   // { message, type }
+  const [alertModal,        setAlertModal]        = useState(null);  
 
   const showAlert = (message, type = "info") => setAlertModal({ message, type });
 
@@ -3657,6 +3662,7 @@ useEffect(() => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
       const data = await response.json();
+       console.log("users from API:", data);
       setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -3681,10 +3687,14 @@ useEffect(() => {
       showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
       return;
     }
+
+     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+  const payload = { ...formData, brand: selectedBrand?.name || "" }; 
+
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (data.success) {
@@ -3702,27 +3712,42 @@ useEffect(() => {
   };
 
   const handleEditUser = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchUsers();
-        setShowEditModal(false);
-        setEditingUser(null);
-        resetForm();
-        showAlert("User updated successfully!", "success");
-      } else {
-        showAlert(data.error || "Failed to update user.", "error");
-      }
-    } catch (error) {
-      console.error("Error updating user:", error);
-      showAlert("Failed to update user.", "error");
+  e.preventDefault();
+
+  if (formData.password) { // ← this guard is missing in your current code
+    const passwordCheck = validatePasswordStrength(formData.password);
+    if (!passwordCheck.isValid) {
+      showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+      return;
     }
+  }
+
+  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+  const payload = {
+    ...formData,
+    brand: selectedBrand?.name || formData.brand || "",
   };
+
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (data.success) {
+      await fetchUsers();
+      setShowEditModal(false);
+      setEditingUser(null);
+      resetForm();
+      showAlert("User updated successfully!", "success");
+    } else {
+      showAlert(data.error || "Failed to update user.", "error");
+    }
+  } catch (error) {
+    console.error("Error updating user:", error);
+    showAlert("Failed to update user.", "error");
+  }
+};
 
   // Step 1: open confirm modal
   const handleDeleteUser = (user) => setDeleteTarget(user);
@@ -3750,7 +3775,6 @@ useEffect(() => {
     }
   };
 
-  // Restore: re-POST the deleted user data
   const handleRestore = async (entry) => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
@@ -3774,7 +3798,7 @@ useEffect(() => {
 
   const openEditModal = (user) => {
     setEditingUser(user);
-    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'' });
+    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
     const ownerBrand = brands.find(b =>       // ← add from here
       (b.branches || []).some(br => (br.name ?? br) === user.branch)
     );
@@ -3782,8 +3806,21 @@ useEffect(() => {
     setShowEditModal(true);
     setShowPassword(false);
   };
-  const resetForm = () => { setFormData({ name:'', email:'', role:'', branch:'', password:'' }); setShowPasswordValidation(false); setPasswordErrors([]); setShowPassword(false); setSelectedBrandId(""); setBranches([]); };
-  const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]:value })); };
+  const resetForm = () => {
+    setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
+    setShowPasswordValidation(false);
+    setPasswordErrors([]);
+    setShowPassword(false);
+    setSelectedBrandId("");
+    setBranches([]);
+  };
+  const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      const formatted = name === "name"
+        ? value.replace(/\b\w/g, c => c.toUpperCase())
+        : value;
+      setFormData(prev => ({ ...prev, [name]: formatted }));
+    };
 
   const handleGeneratePassword = () => {
     const generated = generateTempPassword();
@@ -3833,7 +3870,7 @@ const filteredUsers = users.filter(u => {
           {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
             <div key={name} style={{ marginBottom:14 }}>
               <label style={bmLabel}>{label}</label>
-              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4 }} />
+              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required autoFocus={name === "name"}  style={{ ...bmInput, marginTop:4 }} />
             </div>
           ))}
           <div style={{ marginBottom:14 }}>
@@ -3911,6 +3948,35 @@ const filteredUsers = users.filter(u => {
         ].map((s, i) => <BmStatCard key={i} {...s} />)}
       </div>
 
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
+  <div style={{ position:'relative' }}>
+    <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
+    <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+      style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
+  </div>
+  <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+    <option value="all">All Roles</option>
+    {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+  </select>
+  <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
+    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+    <option value="all">All Brands</option>
+    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+  </select>
+  <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
+    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+    <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
+    {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+  </select>
+  {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
+    <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
+      style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+      Clear filters
+    </button>
+  )}
+</div>
+
       {/* Table card */}
       <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
         <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -3978,8 +4044,8 @@ const filteredUsers = users.filter(u => {
       </div>
 
       {/* Modals */}
-      {showAddModal  && <UserModal title="Add New User" onSubmit={handleAddUser}  onClose={() => setShowAddModal(false)}  isEdit={false} />}
-      {showEditModal && <UserModal title="Edit User"    onSubmit={handleEditUser} onClose={() => { setShowEditModal(false); setEditingUser(null); }} isEdit={true} />}
+      {showAddModal  && <UserModal key="add" title="Add New User" onSubmit={handleAddUser}  onClose={() => {setShowAddModal(false); resetForm(); }}  isEdit={false} />}
+      {showEditModal && <UserModal key="edit" title="Edit User"    onSubmit={handleEditUser} onClose={() => { setShowEditModal(false); setEditingUser(null);  resetForm(); }} isEdit={true} />}
 
       {deleteTarget && (
         <UserDeleteConfirmModal
@@ -4052,6 +4118,28 @@ function CommunicationContent() {
     try { localStorage.setItem(PIN_KEY, JSON.stringify([...newSet])); } catch {}
   };
 
+const fetchDeleteHistory = async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history`);
+    const data = await res.json();
+    
+    console.log("Delete history raw:", data); // 👈 add this temporarily
+
+    setDeleteHistory(Array.isArray(data) ? data.map(e => ({
+      id:        e.id,
+      deletedAt: e.deleted_at,
+      data: {
+        title:      e.title,
+        content:    e.content,
+        image_url:  e.image_url,
+        created_by: e.created_by,
+      }
+    })) : []);
+  } catch (err) { console.error(err); }
+};
+
+useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); }, []);
+
   const fetchAnnouncements = async () => {
     setFetching(true);
     try {
@@ -4081,6 +4169,24 @@ function CommunicationContent() {
       prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev
     );
   };
+
+    const handlePermanentDelete = (entry) => {
+  showConfirm(
+    `Permanently delete "${entry.data.title}"? This cannot be undone.`,
+    async () => {
+      try {
+        await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
+          method: "DELETE"
+        });
+        fetchDeleteHistory();
+        showAlert(`"${entry.data.title}" permanently deleted.`, "success");
+      } catch (err) {
+        showAlert("Failed to permanently delete.", "error");
+      }
+    },
+    entry.data.title
+  );
+};
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -4126,9 +4232,9 @@ function CommunicationContent() {
         if (pinnedIds.has(strId)) {
           setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
         }
-        setDeleteHistory(prev => [{ data: item, deletedAt: new Date().toISOString() }, ...prev]);
         if (viewingItem?.id === item.id) setViewingItem(null);
         fetchAnnouncements();
+        fetchDeleteHistory();
         showAlert(`"${item.title}" has been deleted.`, "success");
       } catch (err) {
         console.error(err);
@@ -4151,8 +4257,13 @@ function CommunicationContent() {
       });
       const data = await res.json();
       if (!res.ok) { showAlert(data.error || "Failed to restore.", "error"); return; }
-      setDeleteHistory(prev => prev.filter(e => e !== entry));
+
+      await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, {
+        method: "DELETE"
+      });
+
       fetchAnnouncements();
+      fetchDeleteHistory();
       showAlert(`"${entry.data.title}" has been restored!`, "success");
     } catch (err) {
       console.error(err);
@@ -4360,7 +4471,7 @@ const emptyIcon =
             ) : (
               <div style={{ background: "#fff", borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,140,60,0.07)" }}>
                 {/* column headers */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 90px", gap: 8, padding: "10px 16px", borderBottom: `2px solid #e0f2f1`, fontSize: 10, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", background: "#f8fffe" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 200px", gap: 8, padding: "10px 16px", borderBottom: `2px solid #e0f2f1`, fontSize: 10, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", background: "#f8fffe" }}>
                   <span>Title</span>
                   <span>Content Preview</span>
                   <span>Deleted At</span>
@@ -4370,7 +4481,7 @@ const emptyIcon =
                   <div
                     key={i}
                     className="comm-del-row"
-                    style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 90px", gap: 8, alignItems: "center", padding: "12px 16px", borderBottom: i < deleteHistory.length - 1 ? `1px solid #f0f8f0` : "none", transition: "background .15s" }}
+                    style={{ display: "grid", gridTemplateColumns: "1fr 140px 160px 200px", gap: 8, alignItems: "center", padding: "12px 16px", borderBottom: i < deleteHistory.length - 1 ? `1px solid #f0f8f0` : "none", transition: "background .15s" }}
                   >
                     {/* Title + image indicator */}
                     <div>
@@ -4384,12 +4495,20 @@ const emptyIcon =
                     {/* Date */}
                     <div style={{ fontSize: 10, color: "#9ca3af" }}>{fmt(entry.deletedAt)}</div>
                     {/* Restore */}
-                    <button
-                      onClick={() => handleRestore(entry)}
-                      style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
-                    >
-                      <RotateCcw size={11} /> Restore
-                    </button>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-start" }}>
+                      <button
+                        onClick={() => handleRestore(entry)}
+                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        <RotateCcw size={11} /> Restore
+                      </button>
+                      <button
+                        onClick={() => handlePermanentDelete(entry)}
+                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", borderRadius: 9, border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        <Trash2 size={11} /> Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

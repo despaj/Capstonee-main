@@ -261,6 +261,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
     const importExcel = e => {
     const file = e.target.files[0];
+    const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async ev => {
@@ -269,7 +270,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
-          const name = String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim();
+          const name = toTitleCase(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
           if (!name) return;
           rows_to_save.push({
             name,
@@ -532,7 +533,11 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
             <form onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
               <div>
                 <label style={invLabelSt}>Ingredient Name *</label>
-                <input style={invInputSt} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} required placeholder="e.g. Coffee Beans" />
+                <input style={invInputSt} value={form.name} onChange={e => {
+                  const v = e.target.value.replace(/\b\w/g, c => c.toUpperCase());
+                  setForm(f => ({ ...f, name: v })); // ← v, not e.target.value
+                }}
+                required placeholder="e.g. Coffee Beans" />
               </div>
               {isAdmin ? (
                 <div>

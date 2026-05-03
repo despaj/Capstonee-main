@@ -593,7 +593,13 @@ const filteredCategories = useMemo(() => {
     setFormData(prev => ({ ...prev, cost, price }));
   }, [computedCost]);
 
-  const handleInputChange = e => { const {name,value}=e.target; setFormData(p=>({...p,[name]:value})); };
+    const handleInputChange = e => {
+      let { name, value } = e.target;
+      if (name === "name") {
+        value = value.replace(/\b\w/g, c => c.toUpperCase());
+      }
+      setFormData(p => ({ ...p, [name]: value }));
+    };
 
   const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
 
@@ -624,6 +630,7 @@ const filteredCategories = useMemo(() => {
 
   const importExcel = e => {
     const file = e.target.files[0];
+    const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async ev => {
@@ -632,9 +639,9 @@ const filteredCategories = useMemo(() => {
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
-          const name = String(row.name || row.Name || row["ITEM NAME"] || "").trim();
+          const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
           if (!name) return;
-          const category  = String(row.category || row.Category || "Other").trim();
+          const category = toTitleCase(String(row.category || row.Category || "Other").trim());
           const cost      = parseFloat(row.cost || row.Cost || 0) || 0;
           const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
           const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);

@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5001;
 
 app.use(cookieParser());
 app.use(cors({
-  origin: ["http://localhost:3000", "https://franchisync.vercel.app", "http://localhost:8081"],
+  origin: ["http://localhost:3000",  "https://www.franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081"],
   credentials: true
 }));
 app.use(express.json());
@@ -157,12 +157,12 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
       to: email,
       subject: "Your iFranchise Login OTP",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2E7D32;">Password Reset Request</h2>
+          <h2 style="color: #2E7D32;">Login Verification</h2>
           <p>Your one-time password is:</p>
           <h1 style="background: #E8F5E9; padding: 15px; text-align: center; letter-spacing: 5px;">${otp}</h1>
           <p style="color: #666;">This code will expire in 3 minutes.</p>
@@ -263,7 +263,7 @@ app.post("/auth/verify-password", async (req, res) => {
 app.get("/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, branch, age, address, contact_number FROM users ORDER BY id"
+      "SELECT id, name, email, role, brand, branch, age, address, contact_number FROM users ORDER BY id"
     );
     res.json(result.rows);
   } catch (err) {
@@ -395,7 +395,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -473,8 +473,8 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: email,
+      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      to: email,  
       subject: "Password Reset OTP - iFranchise",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
@@ -546,8 +546,8 @@ app.post("/api/send-credentials", async (req, res) => {
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: "onboarding@resend.dev",
-      to: "despajanelle@gmail.com",
+      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      to: to,
       subject: "Your Account Credentials",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
@@ -728,56 +728,71 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     if (!process.env.MINDEE_API_KEY)
       return res.status(500).json({ error: "Mindee API key missing" });
-
+ 
+    const { user_id } = req.body;
+ 
+    // Get uploader's brand and branch
+    let brand = null;
+    let branch = null;
+    if (user_id) {
+      const userResult = await pool.query(
+        "SELECT brand, branch FROM users WHERE id=$1",
+        [user_id]
+      );
+      if (userResult.rows.length > 0) {
+        brand = userResult.rows[0].brand;
+        branch = userResult.rows[0].branch;
+      }
+    }
+ 
     const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
     const inputSource = new mindee.PathInput({ inputPath: req.file.path });
-
+ 
     const response = await mindeeClient.enqueueAndGetResult(
       mindee.v2.product.Extraction,
       inputSource,
       { modelId: process.env.MINDEE_MODEL_ID }
     );
-
+ 
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-
+ 
     const fields = response.rawHttp.inference.result.fields;
-
-    const merchant = fields?.supplier_name?.value            ?? null;
-    const date     = fields?.date?.value                     ?? null;
-    const total    = fields?.total_amount?.value             ?? null;
-    const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
-
-    const vat = fields?.total_tax?.value
-          ?? fields?.taxes?.value
-          ?? fields?.tax?.value
-          ?? fields?.vat?.value
-          ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
-          ?? null;
-
+ 
+    const merchant    = fields?.supplier_name?.value            ?? null;
+    const date        = fields?.date?.value                     ?? null;
+    const total       = fields?.total_amount?.value             ?? null;
+    const currency    = fields?.locale?.fields?.currency?.value ?? "PHP";
+    const vat         = fields?.total_tax?.value
+                     ?? fields?.taxes?.value
+                     ?? fields?.tax?.value
+                     ?? fields?.vat?.value
+                     ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
+                     ?? null;
     const referenceNo = fields?.document_number?.value
-                 ?? fields?.invoice_number?.value
-                 ?? fields?.receipt_number?.value
-                 ?? null;     
-
-    const lineItems = (fields?.line_items?.items ?? []).map(item => ({
+                     ?? fields?.invoice_number?.value
+                     ?? fields?.receipt_number?.value
+                     ?? null;
+    const lineItems   = (fields?.line_items?.items ?? []).map(item => ({
       description: item.fields?.description?.value || "Item",
       quantity:    item.fields?.quantity?.value    || 0,
       unitPrice:   item.fields?.unit_price?.value  || 0,
       totalPrice:  item.fields?.total_price?.value || 0,
     }));
-
-    console.log("Extracted fields:", { merchant, date, total, currency, vat, referenceNo, dateReceived, lineItems });
-
-    res.json({ merchant, date, total, currency, vat, referenceNo, lineItems });
-
+ 
+    console.log("Extracted fields:", { merchant, date, total, currency, vat, referenceNo, brand, branch, lineItems });
+ 
+    // Send OCR response immediately
+    res.json({ merchant, date, total, currency, vat, referenceNo, brand, branch, lineItems });
+ 
+    // Save to DB in background
     const client = await pool.connect();
     let savedReceipt;
     try {
       await client.query("BEGIN");
       const receiptResult = await client.query(
-        `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [merchant, date, total, currency, vat, referenceNo]
+        `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [merchant, date, total, currency, vat, referenceNo, brand, branch]
       );
       savedReceipt = receiptResult.rows[0];
       for (const item of lineItems) {
@@ -794,8 +809,6 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
     } finally {
       client.release();
     }
-
-    res.json({ id: savedReceipt.id, merchant, date, total, currency, lineItems });
   } catch (err) {
     console.error("OCR error:", err.response?.data || err.message || err);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -806,46 +819,57 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
 app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
+ 
+    const { user_id } = req.body;
+ 
+    let brand = null;
+    let branch = null;
+    if (user_id) {
+      const userResult = await pool.query(
+        "SELECT brand, branch FROM users WHERE id=$1",
+        [user_id]
+      );
+      if (userResult.rows.length > 0) {
+        brand = userResult.rows[0].brand;
+        branch = userResult.rows[0].branch;
+      }
+    }
+ 
     const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
     const inputSource = new mindee.PathInput({ inputPath: req.file.path });
-
+ 
     const response = await mindeeClient.enqueueAndGetResult(
       mindee.v2.product.Extraction,
       inputSource,
       { modelId: process.env.MINDEE_MODEL_ID }
     );
-
+ 
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-
+ 
     const fields = response.rawHttp.inference.result.fields;
-
-    const merchant = fields?.supplier_name?.value            ?? null;
-    const date     = fields?.date?.value                     ?? null;
-    const total    = fields?.total_amount?.value             ?? null;
-    const currency = fields?.locale?.fields?.currency?.value ?? "PHP";
-
-    const vat = fields?.total_tax?.value
-         ?? fields?.taxes?.value
-         ?? fields?.tax?.value
-         ?? fields?.vat?.value
-         ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
-         ?? null;
-
+ 
+    const merchant    = fields?.supplier_name?.value            ?? null;
+    const date        = fields?.date?.value                     ?? null;
+    const total       = fields?.total_amount?.value             ?? null;
+    const currency    = fields?.locale?.fields?.currency?.value ?? "PHP";
+    const vat         = fields?.total_tax?.value
+                     ?? fields?.taxes?.value
+                     ?? fields?.tax?.value
+                     ?? fields?.vat?.value
+                     ?? fields?.taxes?.items?.[0]?.fields?.rate?.value
+                     ?? null;
     const referenceNo = fields?.document_number?.value
-                 ?? fields?.invoice_number?.value
-                 ?? fields?.receipt_number?.value
-                 ?? null;     
-
-    const lineItems = (fields?.line_items?.items ?? []).map(item => ({
+                     ?? fields?.invoice_number?.value
+                     ?? fields?.receipt_number?.value
+                     ?? null;
+    const lineItems   = (fields?.line_items?.items ?? []).map(item => ({
       description: item.fields?.description?.value || "Item",
       quantity:    item.fields?.quantity?.value    || 0,
       unitPrice:   item.fields?.unit_price?.value  || 0,
       totalPrice:  item.fields?.total_price?.value || 0,
     }));
-
-    res.json({ merchant, date, total, currency, vat, referenceNo, lineItems });
-    
+ 
+    res.json({ merchant, date, total, currency, vat, referenceNo, brand, branch, lineItems });
   } catch (err) {
     console.error("OCR extract error:", err.message);
     if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
@@ -855,24 +879,51 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
 
 app.get("/receipts", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM receipts ORDER BY created_at DESC");
+    const { user_id } = req.query;
+ 
+    if (!user_id) return res.status(400).json({ error: "user_id is required" });
+ 
+    const userResult = await pool.query(
+      "SELECT role, brand, branch FROM users WHERE id=$1",
+      [user_id]
+    );
+    if (userResult.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+ 
+    const { role, brand, branch } = userResult.rows[0];
+ 
+    // Admin and Franchisor see ALL receipts
+    // Staff, Manager, Franchisee see only their own branch
+    const isPrivileged = role === "Administrator" || role === "Franchisor";
+ 
+    const result = isPrivileged
+      ? await pool.query("SELECT * FROM receipts ORDER BY created_at DESC")
+      : await pool.query(
+          "SELECT * FROM receipts WHERE branch=$1 ORDER BY created_at DESC",
+          [branch]
+        );
+ 
     res.json(result.rows);
   } catch (err) {
+    console.error("Failed to fetch receipts:", err);
     res.status(500).json({ error: "Failed to fetch receipts" });
   }
 });
 
 app.get("/receipts/:id", async (req, res) => {
   try {
-    const receipt = await pool.query("SELECT * FROM receipts WHERE id=$1", [req.params.id]);
+    const receipt = await pool.query(
+      "SELECT * FROM receipts WHERE id=$1",
+      [req.params.id]
+    );
     if (receipt.rows.length === 0)
       return res.status(404).json({ error: "Receipt not found" });
-
+ 
     const items = await pool.query(
       "SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id",
       [req.params.id]
     );
-
+ 
     res.json({ ...receipt.rows[0], lineItems: items.rows });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch receipt" });
@@ -880,18 +931,30 @@ app.get("/receipts/:id", async (req, res) => {
 });
 
 app.post("/receipts/save", async (req, res) => {
-  const { merchant, date, total, currency, vat, referenceNo, lineItems } = req.body;
+  const { merchant, date, total, currency, vat, referenceNo, lineItems, user_id } = req.body;
+ 
+  let brand = null;
+  let branch = null;
+  if (user_id) {
+    const userResult = await pool.query(
+      "SELECT brand, branch FROM users WHERE id=$1",
+      [user_id]
+    );
+    if (userResult.rows.length > 0) {
+      brand = userResult.rows[0].brand;
+      branch = userResult.rows[0].branch;
+    }
+  }
+ 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-
     const receiptResult = await client.query(
-      `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no)
-      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [merchant, date, total, currency, vat, referenceNo]
+      `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [merchant, date, total, currency, vat, referenceNo, brand, branch]
     );
     const savedReceipt = receiptResult.rows[0];
-
     for (const item of (lineItems || [])) {
       await client.query(
         `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
@@ -899,7 +962,6 @@ app.post("/receipts/save", async (req, res) => {
         [savedReceipt.id, item.description, item.quantity, item.unitPrice, item.totalPrice]
       );
     }
-
     await client.query("COMMIT");
     res.json({ id: savedReceipt.id, success: true });
   } catch (err) {
@@ -916,17 +978,16 @@ app.put("/receipts/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-
     await client.query(
       `UPDATE receipts
-      SET merchant=$1, date=$2, total_amount=$3, currency=$4,
-          vat=$5, reference_no=$6
-      WHERE id=$7`,
+       SET merchant=$1, date=$2, total_amount=$3, currency=$4, vat=$5, reference_no=$6
+       WHERE id=$7`,
       [merchant, date, total_amount, currency, vat, reference_no, req.params.id]
     );
-
-    await client.query("DELETE FROM receipt_items WHERE receipt_id=$1", [req.params.id]);
-
+    await client.query(
+      "DELETE FROM receipt_items WHERE receipt_id=$1",
+      [req.params.id]
+    );
     for (const item of lineItems) {
       await client.query(
         `INSERT INTO receipt_items (receipt_id, description, quantity, unit_price, total_price)
@@ -934,11 +995,12 @@ app.put("/receipts/:id", async (req, res) => {
         [req.params.id, item.description, item.quantity, item.unit_price, item.total_price]
       );
     }
-
     await client.query("COMMIT");
-
     const receipt = await pool.query("SELECT * FROM receipts WHERE id=$1", [req.params.id]);
-    const items   = await pool.query("SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id", [req.params.id]);
+    const items   = await pool.query(
+      "SELECT * FROM receipt_items WHERE receipt_id=$1 ORDER BY id",
+      [req.params.id]
+    );
     res.json({ ...receipt.rows[0], lineItems: items.rows });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -947,7 +1009,7 @@ app.put("/receipts/:id", async (req, res) => {
     client.release();
   }
 });
-
+ 
 app.delete("/receipts/:id", async (req, res) => {
   try {
     await pool.query("DELETE FROM receipts WHERE id=$1", [req.params.id]);
@@ -1469,6 +1531,33 @@ app.delete("/shop-items/:id", async (req, res) => {
 
 // ─── ANNOUNCEMENTS ────────────────────────────────────────────
 
+app.get("/announcements/delete-history", async (req, res) => {
+  try {
+     await pool.query(
+      `DELETE FROM announcement_delete_history
+       WHERE deleted_at < NOW() - INTERVAL '30 days'`
+    );
+
+    const result = await pool.query(
+      `SELECT * FROM announcement_delete_history
+        WHERE deleted_at >= NOW() - INTERVAL '30 days'
+       ORDER BY deleted_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch delete history" });
+  }
+});
+
+app.delete("/announcements/delete-history/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM announcement_delete_history WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to remove from history" });
+  }
+});
+
 app.get("/announcements", async (req, res) => {
   try {
     const result = await pool.query(
@@ -1541,20 +1630,25 @@ app.delete("/announcements/:id", async (req, res) => {
   try {
     const { userId } = req.body;
 
-    const userResult = await pool.query(
-      "SELECT role FROM users WHERE id=$1", [userId]
-    );
+    const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    if (userResult.rows[0].role !== "Administrator") return res.status(403).json({ error: "Unauthorized" });
 
-    if (userResult.rows.length === 0)
-      return res.status(404).json({ error: "User not found" });
-
-    if (userResult.rows[0].role !== "Administrator")
-      return res.status(403).json({ error: "Unauthorized" });
+    // Save to history before deleting
+    const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [req.params.id]);
+    if (ann.rows.length > 0) {
+      const a = ann.rows[0];
+      await pool.query(
+        `INSERT INTO announcement_delete_history
+         (announcement_id, title, content, image_url, created_by, original_created_at, deleted_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [a.id, a.title, a.content, a.image_url||null, a.created_by, a.created_at, userId]
+      );
+    }
 
     await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
     res.json({ success: true });
   } catch (err) {
-    console.error("Update error:", err);
     res.status(500).json({ error: "Failed to delete announcement" });
   }
 });
@@ -1869,6 +1963,7 @@ async function fetchReportWithComments(id) {
   const rRes = await pool.query(
     `SELECT
        r.id, r.brand, r.branch, r.period,
+        r.content,
        r.submitted_by  AS "submittedBy",
        r.role, r.status, r.remark,
        r.submitted_at  AS "submittedAt",
@@ -1989,7 +2084,7 @@ app.get("/reports/export", async (req, res) => {
     res.status(500).json({ error: "Failed to export reports" });
   }
 });
-// GET /reports/:id
+
 app.get("/reports/:id", async (req, res) => {
   try {
     const report = await fetchReportWithComments(req.params.id);
@@ -2000,18 +2095,29 @@ app.get("/reports/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch report" });
   }
 });
+
+app.get("/generated-reports", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, report_id AS "reportId", snapshot, saved_at AS "savedAt"
+       FROM generated_reports ORDER BY saved_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch generated reports" });
+  }
+});
  
-// POST /reports  — submit a new report
 app.post("/reports", async (req, res) => {
   try {
-    const { brand, branch, period, submittedBy, role } = req.body;
+    const { brand, branch, period, submittedBy, role, content } = req.body; // ← add content
     if (!brand || !branch || !period || !submittedBy)
       return res.status(400).json({ error: "brand, branch, period, and submittedBy are required" });
- 
+
     const result = await pool.query(
-      `INSERT INTO reports (brand, branch, period, submitted_by, role)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [brand, branch, period, submittedBy, role || "Branch Manager"]
+      `INSERT INTO reports (brand, branch, period, submitted_by, role, content)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [brand, branch, period, submittedBy, role || "Branch Manager", content || ""]
     );
     const report = await fetchReportWithComments(result.rows[0].id);
     res.status(201).json({ success: true, report });
@@ -2020,8 +2126,33 @@ app.post("/reports", async (req, res) => {
     res.status(500).json({ error: "Failed to submit report" });
   }
 });
- 
-// PATCH /reports/:id/approve
+
+app.post("/reports/:id/save", async (req, res) => { 
+  try {
+    const report = await fetchReportWithComments(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found" });
+
+    const existing = await pool.query(
+      `SELECT id FROM generated_reports WHERE report_id = $1`, [req.params.id]
+    );
+    if (existing.rows.length > 0)
+      return res.status(409).json({ error: "Report already saved" });
+
+    const snapshot = { ...report, content: req.body.content || '' };
+
+    const result = await pool.query(
+      `INSERT INTO generated_reports (report_id, snapshot, saved_at)
+       VALUES ($1, $2, NOW())
+       RETURNING id, report_id AS "reportId", saved_at AS "savedAt"`,
+      [req.params.id, JSON.stringify(report)]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("POST /reports/:id/save error:", err);
+    res.status(500).json({ error: "Failed to save report" });
+  }
+});
+
 app.patch("/reports/:id/approve", async (req, res) => {
   try {
     const result = await pool.query(
@@ -2041,7 +2172,6 @@ app.patch("/reports/:id/approve", async (req, res) => {
   }
 });
  
-// PATCH /reports/:id/return  — body: { remark }
 app.patch("/reports/:id/return", async (req, res) => {
   try {
     const { remark } = req.body;
@@ -2065,7 +2195,6 @@ app.patch("/reports/:id/return", async (req, res) => {
   }
 });
  
-// POST /reports/:id/comments  — body: { text, author? }
 app.post("/reports/:id/comments", async (req, res) => {
   try {
     const { text, author = "Admin" } = req.body;
@@ -2089,6 +2218,15 @@ app.post("/reports/:id/comments", async (req, res) => {
   }
 });
  
+app.delete("/generated-reports/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM generated_reports WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete" });
+  }
+});
+
 // DELETE /reports/:id/comments/:commentId
 app.delete("/reports/:id/comments/:commentId", async (req, res) => {
   try {

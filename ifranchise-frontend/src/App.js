@@ -15,10 +15,9 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/apply-pharma" element={<IPharmaForm/>}/>
-           <Route path="/admin-dashboard" element={<AdminDashboard />} />
-           <Route path="/apply-franchise" element={<ApplyFranchise/>} />
-           <Route path="/receipts" element={<Receipts />} />
-          
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/apply-franchise" element={<ApplyFranchise/>} />
+          <Route path="/receipts" element={<Receipts />} />
         </Routes>
       </div>
     </Router>

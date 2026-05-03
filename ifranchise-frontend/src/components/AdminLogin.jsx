@@ -68,11 +68,7 @@ export default function AdminLogin() {
   // ===== CHECK FOR EXISTING SESSION ON MOUNT =====
   useEffect(() => {
     const checkExistingSession = () => {
-      // Check remember me storage
-      const rememberedUser = localStorage.getItem("rememberedUser");
-      const sessionUser = sessionStorage.getItem("user");
-      const storedUser = rememberedUser || sessionUser;
-      
+      const storedUser = localStorage.getItem("rememberedUser") || sessionStorage.getItem("user");
 
       if (storedUser) {
         try {
@@ -85,7 +81,6 @@ export default function AdminLogin() {
           console.error("Error parsing stored user:", err);
           localStorage.removeItem("rememberedUser");
           sessionStorage.removeItem("user");
-              localStorage.removeItem("user"); // ← ADD THIS  
         }
       }
       setIsCheckingSession(false);
@@ -283,9 +278,9 @@ export default function AdminLogin() {
           setUserRole(data.user.role);
         } else if (data.skipOtp && !rememberMe) {
           // No remember me: use sessionStorage
-          sessionStorage.setItem("user", JSON.stringify(data.user));
+          localStorage.setItem("user", JSON.stringify(data.user)); // not sessionStorage
           setLoggedIn(true);
-          setUserRole(data.user.role);
+          setUserRole(data.user.role)
         } else {
           setOtpEmail(email.trim());
           sessionStorage.setItem("tempUser", JSON.stringify(data.user));
@@ -392,7 +387,7 @@ export default function AdminLogin() {
         const userWithExpiry = { ...user, rememberExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000 };
         localStorage.setItem("rememberedUser", JSON.stringify(userWithExpiry));
       } else {
-        sessionStorage.setItem("user", JSON.stringify(user));
+       localStorage.setItem("user", JSON.stringify(user)); 
       }
       sessionStorage.removeItem("tempUser");
       setLoggedIn(true);

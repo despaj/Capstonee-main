@@ -2,13 +2,15 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import logo from '../assets/logo.png';
+import Receipts from './Receipts';
+import jsPDF from 'jspdf';
 import {
   Home, Box, Layers, DollarSign, FileText, MessageCircle,
   User, LogOut, Search, Package, AlertTriangle, BarChart2,
   Store, Globe, MapPin, Phone, Mail, ChevronDown, X, Check,
   RefreshCw, Calendar, BarChart, Archive, TrendingUp, TrendingDown,
   Eye, ShoppingCart, Lock, ChevronRight, Plus, Pencil, Trash2,
-  Send, Download, Receipt, Zap, Activity, Sparkles, Shield,
+  Send, Download, Receipt, Zap, Activity, Sparkles, Shield, Save,
   Edit2, Bell, Users, FileCheck, Star,
 } from 'lucide-react';
 
@@ -216,14 +218,13 @@ export default function FranchiseeDashboard() {
   const getUserFromStorage = () => {
     const userString = localStorage.getItem('user');
     if (userString) return JSON.parse(userString);
-    navigate('/login');
     return null;
   };
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
     const currentUser = getUserFromStorage();
-    if (!currentUser) navigate('/login');
+    if (!currentUser) navigate('/admin-login');
     else setUser(currentUser);
   }, []);
 
@@ -238,7 +239,11 @@ export default function FranchiseeDashboard() {
   }, []);
 
   const handleLogout = () => setShowLogoutModal(true);
-  const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
+  const confirmLogout = () => { 
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberedUser');
+    window.location.href = '/admin-login';
+  };
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
@@ -391,7 +396,7 @@ export default function FranchiseeDashboard() {
           {activeModule === 'menuInventory'  && <FrMenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <FrStockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
-          {activeModule === 'receipts'       && <FrReceiptsContent user={user} />}
+          {activeModule === 'receipts'       && <Receipts />}
           {activeModule === 'reports'        && <FrReportsContent user={user} transactions={transactions} />}
           {activeModule === 'staff'          && <FrStaffManagementContent user={user} />}
           {activeModule === 'communication'  && <FrCommunicationContent />}
@@ -1673,6 +1678,59 @@ function FrReportsContent({ user, transactions = [] }){
   const [viewReportId, setViewReportId] = useState(null);
   const [submitting, setSubmitting] = useState(null);
 
+  const [kpiStats, setKpiStats] = useState({ salesRevenue: 0, cogs: 0, salesProfit: 0, txCount: 0 });
+const [kpiLoading, setKpiLoading] = useState(false);
+
+  useEffect(() => {
+  const fetchSavedReports = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/generated-reports`);
+      const data = await res.json();
+      
+      // Map DB records back to the report shape
+      const loaded = data.map(item => {
+        const snapshot = typeof item.snapshot === 'string' 
+          ? JSON.parse(item.snapshot) 
+          : item.snapshot;
+        return {
+          id: item.reportId,
+          localId: item.id,
+          generatedDate: snapshot.submittedAt 
+            ? new Date(snapshot.submittedAt).toLocaleString('en-PH') 
+            : new Date(item.savedAt).toLocaleString('en-PH'),
+          period: snapshot.period,
+          content: snapshot.content,
+          saved: true,
+        };
+      });
+
+      setReports(loaded);
+    } catch (err) {
+      console.error('Failed to load saved reports:', err);
+    }
+  };
+
+  fetchSavedReports();
+}, []);
+
+const fetchKpiStats = async (from, to) => {
+  if (!from || !to || !branch) return;
+  setKpiLoading(true);
+  try {
+    const params = new URLSearchParams({ from, to, branch });
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+    const data = await res.json();
+    setKpiStats(data);
+  } catch (err) {
+    console.error('Failed to fetch KPI stats:', err);
+  }
+  setKpiLoading(false);
+};
+
+useEffect(() => {
+  fetchKpiStats(dateFrom, dateTo);
+}, [dateFrom, dateTo]);
+
   const generateReport = async () => {
   if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
   setGenerating(true);
@@ -1691,10 +1749,9 @@ function FrReportsContent({ user, transactions = [] }){
       const totalRevenue   = filtered.reduce((s, tx) => s + Number(tx.total || 0), 0);
       const totalTx        = filtered.length;
       const avgOrder       = totalTx ? (totalRevenue / totalTx) : 0;
-      const totalCost      = filtered.reduce((s, tx) => s + Number(tx.cost || 0), 0);
+      const totalCost      = filtered.reduce((s, tx) => s + Number(tx.cogs || 0), 0);
       const totalProfit    = totalRevenue - totalCost;
 
-      // payment breakdown
       const paymentBreakdown = filtered.reduce((acc, tx) => {
         const m = tx.payment_method || 'Unknown';
         acc[m] = (acc[m] || 0) + Number(tx.total || 0);
@@ -1723,54 +1780,140 @@ function FrReportsContent({ user, transactions = [] }){
       const peakDay   = Object.entries(dailyMap).sort((a, b) => b[1] - a[1])[0];
       const lowestDay = Object.entries(dailyMap).sort((a, b) => a[1] - b[1])[0];
 
-      const fmtP = n => '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+      const fmtP = n => 'PHP ' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
       const prompt = `
-      You are a franchise business analyst. Generate a professional sales performance report based on the REAL data below. Do not make up numbers — use only what is provided.
+      CRITICAL FORMATTING RULE: Use only standard ASCII characters. 
+      - Write currency as "PHP" followed by the amount (e.g. PHP 2,406.20) — never use the peso sign symbol.
+      - Use "to" instead of arrows (e.g. "2026-04-30 to 2026-05-03").
+      - Use only straight apostrophes and quotes. No smart/curly quotes.
+      - No special unicode symbols of any kind.
 
-      BRANCH: ${branch}
-      PERIOD: ${dateFrom} to ${dateTo}
+      You are a senior business analyst preparing an official franchise performance report for executive review. Generate a comprehensive, formally structured sales report using ONLY the data provided below. Do not fabricate or estimate any figures not listed.
 
-      REAL SALES DATA:
-      - Total Transactions: ${totalTx}
-      - Total Revenue: ${fmtP(totalRevenue)}
-      - Average Order Value: ${fmtP(avgOrder)}
-      - Total Cost of Sales: ${totalCost > 0 ? fmtP(totalCost) : 'Not available'}
-      - Gross Profit: ${totalCost > 0 ? fmtP(totalProfit) : 'Not available'}
-      - Peak Day: ${peakDay ? `${peakDay[0]} (${fmtP(peakDay[1])})` : 'N/A'}
-      - Lowest Day: ${lowestDay ? `${lowestDay[0]} (${fmtP(lowestDay[1])})` : 'N/A'}
-      - Top Selling Items: ${topItems || 'No item data available'}
-      - Payment Methods: ${Object.entries(paymentBreakdown).map(([k, v]) => `${k}: ${fmtP(v)}`).join(', ') || 'N/A'}
+      REPORT METADATA
+      ---------------
+      Branch:   ${branch}
+      Period:   ${dateFrom} to ${dateTo}
+      Prepared: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
 
-      Write the report with these sections:
-      1. Executive Summary
-      2. Sales Performance
-      3. Revenue Analysis
-      4. Top Selling Items
-      5. Payment Method Breakdown
-      6. Recommendations
+      VERIFIED DATA INPUTS
+      --------------------
+      Total Transactions  : ${totalTx}
+      Total Revenue       : ${fmtP(totalRevenue)}
+      Average Order Value : ${fmtP(avgOrder)}
+      Cost of Sales       : ${totalCost > 0 ? fmtP(totalCost) : 'Not provided'}
+      Gross Profit        : ${totalCost > 0 ? fmtP(totalProfit) : 'Not provided'}
+      Peak Sales Day      : ${peakDay ? `${peakDay[0]} — ${fmtP(peakDay[1])}` : 'N/A'}
+      Lowest Sales Day    : ${lowestDay ? `${lowestDay[0]} — ${fmtP(lowestDay[1])}` : 'N/A'}
+      Top-Selling Items   : ${topItems || 'No item-level data available'}
+      Payment Breakdown   : ${Object.entries(paymentBreakdown).map(([k, v]) => `${k}: ${fmtP(v)}`).join(' | ') || 'N/A'}
 
-      Be specific, use the actual numbers above, and give actionable recommendations based on the data.
-            `.trim();
+      FORMAT REQUIREMENTS
+      -------------------
+      Use the exact structure below. Maintain formal business language throughout. Use proper headers, aligned spacing, and numbered sections. Do not use markdown symbols like ** or ##. Write in plain text suitable for a PDF document.
 
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: prompt }]
-      }),
-    });
+      ═══════════════════════════════════════════════════════════════
+              FRANCHISE SALES & PERFORMANCE REPORT
+              Branch: ${branch}
+              Period: ${dateFrom} to ${dateTo}
+              Date Prepared: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+      ═══════════════════════════════════════════════════════════════
 
-    const data = await res.json();
-    const text = data.content?.[0]?.text || 'Failed to generate report.';
-    setAiReport(text);
+      I. EXECUTIVE SUMMARY
+      ────────────────────
+      [2–3 paragraph formal overview of overall performance. Mention total revenue, transaction volume, and general assessment. Use complete professional sentences. Do NOT use bullet points here.]
 
-    const newReport = {
-      id: Date.now(),
-      generatedDate: new Date().toLocaleString('en-PH'),
-      period: `${dateFrom} → ${dateTo}`,
-      content: text,
-    };
+      II. SALES PERFORMANCE OVERVIEW
+      ───────────────────────────────
+      [Discuss transaction volume, average order value, peak and lowest sales days. Analyze trends and what they indicate about customer behavior. Formal paragraph format.]
+
+      III. REVENUE & PROFITABILITY ANALYSIS
+      ──────────────────────────────────────
+      [Present revenue figures formally. If cost data is available, analyze gross profit margin. If not, note the limitation professionally. Include observations about revenue distribution across the period.]
+
+      IV. TOP-SELLING PRODUCTS
+      ─────────────────────────
+      [Discuss the top items by revenue and quantity. Identify patterns, bestsellers, and any notable gaps. Use formal analytical language.]
+
+      V. PAYMENT METHOD ANALYSIS
+      ───────────────────────────
+      [Break down revenue by payment method. Note the dominant method, compare proportions, and recommend any adjustments to payment infrastructure or promotions.]
+
+      VI. STRATEGIC RECOMMENDATIONS
+      ──────────────────────────────
+      [Provide 4–6 numbered, specific, actionable recommendations based strictly on the data above. Each recommendation should cite the data point that supports it. Written in formal directive language.]
+
+      VII. CONCLUSION
+      ───────────────
+      [One formal closing paragraph summarizing key takeaways and affirming the branch's performance outlook.]
+
+      ═══════════════════════════════════════════════════════════════
+        This report was automatically generated based on verified
+        transaction data for the stated period. Figures are accurate
+        as of the report generation date.
+      ═══════════════════════════════════════════════════════════════
+      `.trim();
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }]
+        }),
+      });
+
+      const data = await res.json();
+      const reportText = data.content?.[0]?.text || 'Failed to generate report.'; 
+      const sanitizeReport = (text) => {
+      return text
+        .replace(/₱/g, 'PHP ')        // peso sign -> PHP
+        .replace(/±/g, 'PHP ')        // malformed peso sign
+        .replace(/→/g, 'to')          // arrow
+        .replace(/!'/g, 'to')         // corrupted arrow
+        .replace(/[^\x00-\x7F]/g, c => {
+          // Replace any remaining non-ASCII with closest ASCII equivalent
+          const map = {
+            '\u2019': "'", '\u2018': "'",   // smart quotes
+            '\u201C': '"', '\u201D': '"',   // smart double quotes
+            '\u2013': '-', '\u2014': '--',  // em/en dash
+            '\u2026': '...',               // ellipsis
+            '\u00b1': '+/-',               // plus-minus
+            '\u00b2': '2', '\u00b3': '3',
+          };
+          return map[c] || '';
+        });
+      };
+      const cleanReportText = sanitizeReport(reportText);
+      setAiReport(cleanReportText);
+
+const submitRes = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    brand: user?.brand || '',
+    branch,
+    period: `${dateFrom} → ${dateTo}`,
+    submittedBy: user?.name || user?.email || 'Branch Manager',
+    role: user?.role || 'Branch Manager',
+    content: reportText,
+  }),
+});
+const submitData = await submitRes.json();
+console.log('🟢 POST /reports response:', submitData);
+console.log('🟢 real DB id:', submitData.report?.id);
+
+const realId = submitData.report?.id;
+console.log('🟢 newReport will use id:', realId);
+
+      const newReport = {
+        id: realId,
+        localId: Date.now(),
+        generatedDate: new Date().toLocaleString('en-PH'),
+        period: `${dateFrom} → ${dateTo}`,
+        content: reportText,  // ← use reportText here too
+      };
+
     setReports(prev => [newReport, ...prev]);
 
   } catch {
@@ -1780,15 +1923,174 @@ function FrReportsContent({ user, transactions = [] }){
 };
 
   const downloadReport = report => {
-    const content = `FRANCHISE SALES & PERFORMANCE REPORT\n${'='.repeat(50)}\nBranch: ${branch}\nPeriod: ${report.period}\nGenerated: ${report.generatedDate}\n${'='.repeat(50)}\n\n${report.content}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `report_${branch.replace(/\s+/g,'_')}_${report.id}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 18;
+    const contentW = pageW - margin * 2;
+    let y = 0;
+
+    const addPage = () => {
+      doc.addPage();
+      y = margin;
+    };
+
+    const checkY = (needed = 8) => {
+      if (y + needed > pageH - margin) addPage();
+    };
+
+    const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', style);
+      doc.setTextColor(...color);
+      const lines = doc.splitTextToSize(text, contentW - indent);
+      lines.forEach(line => {
+        checkY(fontSize * 0.45 + 2);
+        doc.text(line, margin + indent, y);
+        y += fontSize * 0.45 + 1.5;
+      });
+    };
+
+    const writeDivider = (color = [180, 180, 180]) => {
+      checkY(6);
+      doc.setDrawColor(...color);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
+    };
+
+    // ── Cover header block ──────────────────────────────────────────
+    y = margin;
+
+    // Dark header bar
+    doc.setFillColor(13, 43, 30);
+    doc.rect(0, 0, pageW, 38, 'F');
+
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(160, 220, 190);
+    const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+    doc.text(`Branch: ${branch}   |   Period: ${safePeriod}   |   Generated: ${report.generatedDate}`, pageW / 2, 22, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setTextColor(120, 180, 150);
+    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 30, { align: 'center' });
+
+    y = 46;
+
+    const cleanContent = report.content
+  // ASCII-safe currency and symbols
+  .replace(/₱/g, 'PHP ')
+  .replace(/±/g, 'PHP ')
+  .replace(/→/g, 'to')
+  .replace(/!'/g, 'to')
+  // Smart quotes and dashes
+  .replace(/[\u2018\u2019]/g, "'")
+  .replace(/[\u201C\u201D]/g, '"')
+  .replace(/\u2013/g, '-')
+  .replace(/\u2014/g, '--')
+  .replace(/\u2026/g, '...')
+  // Box-drawing characters
+  .replace(/[═─━]+/g, '')
+  // Strip embedded duplicate headers
+  .replace(/^.*FRANCHISE SALES.*$/gm, '')
+  .replace(/^.*Branch:.*Period:.*$/gm, '')
+  .replace(/^.*Date Prepared:.*$/gm, '')
+  .replace(/^.*This report was automatically.*$/gm, '')
+  .replace(/^.*transaction data for.*$/gm, '')
+  .replace(/^.*report generation date.*$/gm, '')
+  .replace(/[^\x00-\x7F]/g, '')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+    const sectionRegex = /^(I{1,3}V?|VI{0,3}|VII)\.\s+(.+)$/m;
+    const lines = cleanContent.split('\n');
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) { y += 3; return; }
+
+      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+        checkY(14);
+        y += 4;
+        // Green accent bar
+        doc.setFillColor(0, 137, 123);
+        doc.rect(margin, y - 4, 3, 9, 'F');
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(13, 43, 30);
+        doc.text(trimmed, margin + 6, y + 2);
+        y += 8;
+        writeDivider([0, 137, 123]);
+      }
+      // Numbered recommendation  e.g. "1. Do something"
+      else if (/^\d+\.\s+/.test(trimmed)) {
+        checkY(8);
+        const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
+        doc.setFontSize(9.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 137, 123);
+        doc.text(num.replace('.', ''), margin + 2, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
+        wrapped.forEach((wl, i) => {
+          if (i > 0) checkY(6);
+          doc.text(wl, margin + 9, y);
+          y += 5.5;
+        });
+      }
+      // Normal paragraph text
+      else {
+        writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
+        y += 1;
+      }
+    });
+
+    // ── Footer on every page ────────────────────────────────────────
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFillColor(245, 247, 245);
+      doc.rect(0, pageH - 12, pageW, 12, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 140, 130);
+      const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+      doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+    }
+
+    doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
   };
+
+const saveReport = async report => {
+  if (!report.id) { alert('No report ID found. Try regenerating.'); return; }
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const responseData = await res.json();
+    if (res.status === 409) { alert('Report already saved.'); return; }
+    if (!res.ok) throw new Error(responseData.error || 'Unknown error');
+
+    const saveRes = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: report.content }),
+    });
+
+    setReports(prev => prev.map(r => r.id === report.id ? { ...r, saved: true } : r));
+    alert('Report saved successfully!');
+  } catch(err) {
+    alert('Failed to save report.');
+  }
+};
 
   const submitReport = async report => {
     setSubmitting(report.id);
@@ -1806,12 +2108,36 @@ function FrReportsContent({ user, transactions = [] }){
 
   return (
     <div style={{ fontFamily: "'Poppins', sans-serif" }}>
-      <div className="v-stat-grid">
-        <VKpi label="Cost of Sales" placeholder icon={<TrendingDown size={20} />} color="orange" sub="Connect POS & Inventory" />
-        <VKpi label="Sales Revenue" placeholder icon={<TrendingUp size={20} />} color="green" sub="Connect POS & Inventory" />
-        <VKpi label="Gross Profit" placeholder icon={<DollarSign size={20} />} color="blue" sub="Revenue − Cost of Sales" />
-        <VKpi label="Reports Generated" value={reports.length + history.length} sub="This session" icon={<FileText size={20} />} color="purple" />
-      </div>
+    <div className="v-stat-grid">
+      <VKpi
+        label="Cost of Sales"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.cogs).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<TrendingDown size={20} />}
+        color="orange"
+        sub={`${dateFrom} to ${dateTo}`}
+      />
+      <VKpi
+        label="Sales Revenue"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.salesRevenue).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<TrendingUp size={20} />}
+        color="green"
+        sub={`${kpiStats.txCount} transactions`}
+      />
+      <VKpi
+        label="Gross Profit"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.salesProfit).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<DollarSign size={20} />}
+        color="blue"
+        sub="Revenue minus Cost of Sales"
+      />
+      <VKpi
+        label="Reports Generated"
+        value={reports.length + history.length}
+        sub="This session"
+        icon={<FileText size={20} />}
+        color="purple"
+      />
+    </div>
 
       {/* Generate Report Card */}
       <div className="v-card" style={{ padding: '22px 24px', marginBottom: 20 }}>
@@ -1882,10 +2208,16 @@ function FrReportsContent({ user, transactions = [] }){
                 <tr><th>Generated</th><th>Period</th><th>Preview</th><th>Actions</th></tr>
               </thead>
               <tbody>
-                {reports.map(r => (
-                  <tr key={r.id}>
+               {reports.map(r => (
+  <tr key={r.localId || r.id}>
                     <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{r.generatedDate}</td>
-                    <td><span className="v-badge v-badge-blue">{r.period}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span className="v-badge v-badge-blue">{r.period}</span>
+                        {r.saved && <span className="v-badge v-badge-green"><Archive size={10} /> Saved</span>}
+                      </div>
+                    </td>
+                    
                     <td style={{ maxWidth: 260 }}>
                       <div style={{ fontSize: 12, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Poppins,sans-serif' }}>
                         {r.content.slice(0, 80)}…
@@ -1896,14 +2228,20 @@ function FrReportsContent({ user, transactions = [] }){
                         <button className="v-btn v-btn-ghost v-btn-sm" onClick={() => setViewReportId(viewReportId === r.id ? null : r.id)}>
                           <Eye size={12} /> {viewReportId === r.id ? 'Hide' : 'View'}
                         </button>
-                        <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(r)}>
-                          <Download size={12} /> Download
+                        <button 
+                          className="v-btn v-btn-sm v-btn-blue" 
+                          onClick={() => saveReport(r)}
+                          disabled={r.saved}
+                          style={{ opacity: r.saved ? 0.6 : 1 }}
+                        >
+                          <Save size={12} /> {r.saved ? 'Saved' : 'Save'}
                         </button>
                         <button
                           className="v-btn v-btn-primary v-btn-sm"
                           onClick={() => submitReport(r)}
-                          disabled={submitting === r.id}
-                          style={{ opacity: submitting === r.id ? 0.7 : 1 }}
+                          disabled={submitting === r.id || !r.saved}
+                          style={{ opacity: (submitting === r.id || !r.saved) ? 0.5 : 1 }}
+                          title={!r.saved ? 'Save the report first before submitting' : ''}
                         >
                           {submitting === r.id
                             ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
@@ -1919,6 +2257,10 @@ function FrReportsContent({ user, transactions = [] }){
               <div style={{ margin: '16px 0', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>Report Details — {reports.find(r => r.id === viewReportId)?.period}</div>
+                  
+                  <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(reports.find(r => r.id === viewReportId))}>
+                  <Download size={12} /> Download PDF
+                </button>
                   <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setViewReportId(null)}><X size={12} /> Close</button>
                 </div>
                 <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{reports.find(r => r.id === viewReportId)?.content}</pre>

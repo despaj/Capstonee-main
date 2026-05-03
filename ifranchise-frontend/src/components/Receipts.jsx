@@ -54,6 +54,17 @@ function findDuplicateItemsInReceipt(lineItems) {
   return Object.values(groups).filter(g => g.indices.length > 1);
 }
 
+// ── Get current user from localStorage ──────────────────────────────────────
+function getCurrentUser() {
+  try {
+    return JSON.parse(
+      localStorage.getItem("rememberedUser") ||
+      localStorage.getItem("user") ||
+      "{}"
+    );
+  } catch { return {}; }
+}
+
 export default function Receipts() {
   const [receipts, setReceipts]   = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -66,18 +77,28 @@ export default function Receipts() {
   const [search, setSearch]       = useState("");
   const [leftPage, setLeftPage]   = useState(1);
 
-  // ── Multi-select state ────────────────────────────────────────────────────
   const [selectMode,    setSelectMode]    = useState(false);
   const [selectedIds,   setSelectedIds]   = useState(new Set());
-
   const [itemDuplicates,    setItemDuplicates]    = useState([]);
   const [showItemDupModal,  setShowItemDupModal]  = useState(false);
-  
+
+  // ── Current user info ──────────────────────────────────────────────────────
+  const currentUser   = getCurrentUser();
+  const userId        = currentUser?.id;
+  const userRole      = currentUser?.role;
+  const userBranch    = currentUser?.branch;
+  const userBrand     = currentUser?.brand;
+
+  // Roles that see only their own branch
+  const isBranchScoped = ["Staff", "Manager", "Franchisee"].includes(userRole);
+  const isPrivileged   = ["Administrator", "Franchisor"].includes(userRole);
 
   const fetchReceipts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/receipts`);
+      const res = await axios.get(`${API}/receipts`, {
+        params: { user_id: userId }
+      });
       setReceipts(res.data);
     } catch (err) {
       console.error("Failed to fetch receipts", err);
@@ -89,7 +110,6 @@ export default function Receipts() {
   const [printReceipts, setPrintReceipts] = useState([]);
 
   const fetchDetail = async (id) => {
-    // In select mode, clicking toggles selection instead of viewing detail
     if (selectMode) {
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -122,7 +142,9 @@ export default function Receipts() {
         const merchant = (r.merchant || "").toLowerCase();
         const total    = String(r.total_amount || "");
         const date     = (r.date || "").toLowerCase();
-        if (!merchant.includes(q) && !total.includes(q) && !date.includes(q)) return false;
+        const branch   = (r.branch || "").toLowerCase();
+        const brand    = (r.brand || "").toLowerCase();
+        if (!merchant.includes(q) && !total.includes(q) && !date.includes(q) && !branch.includes(q) && !brand.includes(q)) return false;
       }
       return true;
     });
@@ -142,19 +164,27 @@ export default function Receipts() {
   const grandTotal   = filtered.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
   const receiptCount = filtered.length;
 
-  // ── Select mode helpers ───────────────────────────────────────────────────
+  // ── Branch summary (for privileged users) ─────────────────────────────────
+  const branchSummary = useMemo(() => {
+    if (!isPrivileged) return [];
+    const map = {};
+    filtered.forEach(r => {
+      const key = r.branch || "Unassigned";
+      if (!map[key]) map[key] = { branch: key, brand: r.brand || "—", count: 0, total: 0 };
+      map[key].count++;
+      map[key].total += parseFloat(r.total_amount || 0);
+    });
+    return Object.values(map).sort((a, b) => b.total - a.total);
+  }, [filtered, isPrivileged]);
+
   const toggleSelectMode = () => {
     setSelectMode(v => !v);
     setSelectedIds(new Set());
   };
 
-  const selectAll = () => {
-    setSelectedIds(new Set(activeList.map(r => r.id)));
-  };
-
+  const selectAll    = () => setSelectedIds(new Set(activeList.map(r => r.id)));
   const clearSelection = () => setSelectedIds(new Set());
 
-  // ── Edit helpers ──────────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
     setEditData({
@@ -248,42 +278,37 @@ export default function Receipts() {
   const printRef = useRef(null);
 
   const handlePrint = async (receiptsToprint) => {
-  if (receiptsToprint.length === 0) { alert("No receipts to print."); return; }
-
-  const full = await Promise.all(
-    receiptsToprint.map(async r => {
-      if (r.lineItems) return r;
-      try {
-        const res = await axios.get(`${API}/receipts/${r.id}`);
-        return res.data;
-      } catch { return r; }
-    })
-  );
-
-  setPrintReceipts(full);
-
-  setTimeout(() => {
-    const el = printRef.current;
-    if (!el) return;
-    el.setAttribute("data-print", "true");
-    el.style.display = "block";
-    document.body.appendChild(el);
-
-    // Wait for image to fully load before printing
-    const img = el.querySelector("img");
-    if (img && !img.complete) {
-      img.onload = () => {
+    if (receiptsToprint.length === 0) { alert("No receipts to print."); return; }
+    const full = await Promise.all(
+      receiptsToprint.map(async r => {
+        if (r.lineItems) return r;
+        try {
+          const res = await axios.get(`${API}/receipts/${r.id}`);
+          return res.data;
+        } catch { return r; }
+      })
+    );
+    setPrintReceipts(full);
+    setTimeout(() => {
+      const el = printRef.current;
+      if (!el) return;
+      el.setAttribute("data-print", "true");
+      el.style.display = "block";
+      document.body.appendChild(el);
+      const img = el.querySelector("img");
+      if (img && !img.complete) {
+        img.onload = () => {
+          window.print();
+          el.style.display = "none";
+          el.removeAttribute("data-print");
+        };
+      } else {
         window.print();
         el.style.display = "none";
         el.removeAttribute("data-print");
-      };
-    } else {
-      window.print();
-      el.style.display = "none";
-      el.removeAttribute("data-print");
-    }
-  }, 300);
-}
+      }
+    }, 300);
+  };
 
   const fmtReceiptDate = (val) => {
     const d = toDateStr(val);
@@ -387,6 +412,10 @@ export default function Receipts() {
               ? `${new Date(toDateStr(filtered[filtered.length-1].date) + "T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric"})} → ${new Date(toDateStr(filtered[0].date) + "T00:00:00").toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}`
               : "—",
             accent: "#1565c0" },
+          ...(isBranchScoped
+            ? [{ label: "Branch", value: userBranch || "—", accent: C.greenDk }]
+            : []
+          ),
           ...(selectMode ? [{ label: "Selected for Print", value: selectedIds.size, accent: C.warn }] : []),
         ].map((card, i) => (
           <div key={i} style={s.summaryCard}>
@@ -395,6 +424,36 @@ export default function Receipts() {
           </div>
         ))}
       </div>
+
+      {/* Branch breakdown table — privileged users only */}
+      {/* {isPrivileged && branchSummary.length > 0 && (
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 20px", marginBottom: 18, boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
+            Branch Breakdown
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  {["Brand", "Branch", "Receipts", "Total Amount"].map(h => (
+                    <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: C.white, background: `linear-gradient(135deg,${C.teal},${C.green})`, letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {branchSummary.map((row, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.bg }}>
+                    <td style={{ padding: "9px 12px", color: C.ink, fontWeight: 600 }}>{row.brand}</td>
+                    <td style={{ padding: "9px 12px", color: C.ink, fontWeight: 700 }}>{row.branch}</td>
+                    <td style={{ padding: "9px 12px", color: C.muted }}>{row.count}</td>
+                    <td style={{ padding: "9px 12px", color: C.greenDk, fontWeight: 800 }}>PHP {row.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )} */}
 
       {/* Date Filter */}
       <div style={s.filterRow}>
@@ -418,7 +477,7 @@ export default function Receipts() {
               <svg style={s.searchIcon} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
-              <input className="search-input" style={s.searchInput} type="text" placeholder="Search merchant, date, amount…" value={search} onChange={e => setSearch(e.target.value)} />
+              <input className="search-input" style={s.searchInput} type="text" placeholder="Search merchant, branch, brand…" value={search} onChange={e => setSearch(e.target.value)} />
               {search && (
                 <button style={s.searchClear} onClick={() => setSearch("")}>
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -482,7 +541,6 @@ export default function Receipts() {
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-                              {/* Checkbox shown in select mode */}
                               {selectMode && (
                                 <input
                                   type="checkbox"
@@ -495,7 +553,7 @@ export default function Receipts() {
                               <p style={{ ...s.cardMerchant, margin: 0 }}>{r.merchant || "Unknown Merchant"}</p>
                             </div>
                             {isRecent(r) && leftPage === 2 && <span style={s.recentBadge}>New</span>}
-                            {isChecked && <span style={{ fontSize: 9, fontWeight: 800, background: C.teal, color: "#fff", borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0, marginLeft: 6 }}>✓ Selected</span>}
+                            {isChecked && <span style={{ fontSize: 9, fontWeight: 800, background: C.teal, color: "#fff", borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0, marginLeft: 6 }}>✓</span>}
                           </div>
                           <p style={s.cardTotal}>{r.currency || "PHP"} {Number(r.total_amount).toFixed(2)}</p>
                           <div style={s.cardDates}>
@@ -518,7 +576,6 @@ export default function Receipts() {
           {/* ── RIGHT PANEL ── */}
           <div style={s.detail}>
             {selectMode ? (
-              /* Select mode right panel */
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, gap: 16 }}>
                 <div style={{ width: 72, height: 72, borderRadius: 20, background: "linear-gradient(135deg,rgba(0,200,83,0.12),rgba(0,137,123,0.08))", display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px dashed ${C.border}` }}>
                   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -531,8 +588,8 @@ export default function Receipts() {
                   </div>
                   <div style={{ fontSize: 12, color: C.muted, maxWidth: 260, lineHeight: 1.6 }}>
                     {selectedIds.size === 0
-                      ? "Tap receipts on the left to select them for export."
-                      : `Click "Export to Excel" above to download the selected receipts as an Excel file with a summary sheet, line items sheet, and individual receipt sheets.`}
+                      ? "Tap receipts on the left to select them for print."
+                      : "Click Print below to download selected receipts."}
                   </div>
                 </div>
                 {selectedIds.size > 0 && (
@@ -571,6 +628,7 @@ export default function Receipts() {
                   <div>
                     <h3 style={s.detailMerchant}>{selected.merchant || "Unknown"}</h3>
                     <div style={s.detailMetaRow}>
+                      
                       <span style={s.detailMetaChip}><strong>Receipt date:</strong>&nbsp;{fmtReceiptDate(selected.date)}</span>
                       <span style={s.detailMetaSep}>·</span>
                       <span style={s.detailMetaChip}><strong>Date scanned:</strong>&nbsp;{fmtScannedDate(selected.created_at)}</span>
@@ -581,8 +639,7 @@ export default function Receipts() {
                       <p style={{ margin: 0, fontSize: 11, color: C.muted }}>Total</p>
                       <p style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800, color: C.greenDk }}>{selected.currency} {Number(selected.total_amount).toFixed(2)}</p>
                     </div>
-                    {/* Quick export single receipt */}
-                   <button style={{ ...s.editBtn, background: C.greenLt, borderColor: C.border, color: C.greenDk }}
+                    <button style={{ ...s.editBtn, background: C.greenLt, borderColor: C.border, color: C.greenDk }}
                       onClick={() => handlePrint([selected])}>
                       🖨 Print
                     </button>
@@ -600,7 +657,6 @@ export default function Receipts() {
                     </button>
                   </div>
                 </div>
-
                 {itemDuplicates.length > 0 && (
                   <div style={s.itemDupBanner}>
                     <span style={{ fontSize: 15, marginRight: 8 }}>⚠</span>
@@ -610,7 +666,6 @@ export default function Receipts() {
                     <button style={s.itemDupBannerClose} onClick={() => setItemDuplicates([])}>✕</button>
                   </div>
                 )}
-
                 <table style={s.table}>
                   <thead>
                     <tr>{["Item","Qty","Unit Price","Total"].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
@@ -674,14 +729,22 @@ export default function Receipts() {
               </button>
             </div>
             <div style={s.modalBody}>
+              {/* Show brand/branch as read-only in edit modal */}
+              {(selected?.brand || selected?.branch) && (
+                <div style={{ display: "flex", gap: 10, marginBottom: 16, padding: "10px 14px", background: C.greenLt, borderRadius: 10, border: `1px solid ${C.greenMid}` }}>
+                  {selected?.brand && <span style={{ fontSize: 12, color: C.greenDk, fontWeight: 700 }}>🏷 {selected.brand}</span>}
+                  {selected?.branch && <span style={{ fontSize: 12, color: C.greenDk, fontWeight: 700 }}>📍 {selected.branch}</span>}
+                  <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>Brand &amp; branch are auto-assigned</span>
+                </div>
+              )}
               <div style={s.fieldGrid}>
                 {[
                   { label: "Merchant",     field: "merchant",     type: "text"   },
                   { label: "Date",         field: "date",         type: "date"   },
                   { label: "Currency",     field: "currency",     type: "text"   },
                   { label: "Total Amount", field: "total_amount", type: "number" },
-                  { label: "VAT",            field: "vat",           type: "number" },
-                  { label: "OR / Ref #",     field: "reference_no",  type: "text"   },
+                  { label: "VAT",          field: "vat",          type: "number" },
+                  { label: "OR / Ref #",   field: "reference_no", type: "text"   },
                 ].map(({ label, field, type }) => (
                   <div key={field} style={s.fieldGroup}>
                     <label style={s.fieldLabel}>{label}</label>
@@ -727,10 +790,8 @@ export default function Receipts() {
         </div>,
         document.body
       )}
-        <ReceiptPrintTemplate
-        ref={printRef}
-        receipts={printReceipts}
-      />
+
+      <ReceiptPrintTemplate ref={printRef} receipts={printReceipts} />
     </div>
   );
 }
@@ -761,10 +822,12 @@ const s = {
   card:         { background: "#ffffff", padding: "10px 14px", borderRadius: 10, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,140,60,0.07)", marginBottom: 5 },
   cardMerchant: { fontWeight: 700, margin: 0, color: "#0d2b1e", fontSize: 13 },
   cardTotal:    { margin: "3px 0 0", fontWeight: 700, color: "#00897b", fontSize: 13 },
+  cardChip:     { fontSize: 10, fontWeight: 600, color: "#00695c", background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 6, padding: "2px 7px" },
   cardDates:    { display: "flex", alignItems: "center", gap: 4, marginTop: 3 },
   cardDateLabel:{ fontSize: 10, fontWeight: 700, color: "#5a7a65", flexShrink: 0 },
   cardDateVal:  { fontSize: 10, color: "#0d2b1e" },
   recentBadge:  { fontSize: 9, fontWeight: 800, background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0, marginLeft: 6 },
+  contextChip:  { fontSize: 12, fontWeight: 600, color: "#00695c", background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 8, padding: "4px 10px" },
   detail:       { flex: 1, background: "#ffffff", borderRadius: 16, padding: 24, boxShadow: "0 2px 18px rgba(0,140,60,0.07)", border: "1px solid rgba(0,168,76,0.12)" },
   detailHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
   detailMerchant:{ margin: 0, color: "#0d2b1e", fontSize: 18, fontWeight: 800 },
