@@ -371,55 +371,11 @@ export default function Receipts() {
       )}
 
       {/* Page header */}
-      <div style={{ marginBottom: 22, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 600, color: C.greenDk, letterSpacing: "-0.6px", margin: 0 }}>Liquidation Report</h1>
-
-        {/* ── Export toolbar ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {selectMode && (
-            <>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>
-                {selectedIds.size} selected
-              </span>
-              <button style={{ ...s.toolBtn, color: C.green, borderColor: C.border }} onClick={selectAll}>Select All</button>
-              <button style={{ ...s.toolBtn, color: C.muted, borderColor: C.border }} onClick={clearSelection}>Clear</button>
-              <button
-                className="export-btn"
-                style={{
-                  ...s.toolBtn,
-                  background: selectedIds.size > 0 ? "linear-gradient(135deg,#00c853,#00897b)" : "#e0e0e0",
-                  color: selectedIds.size > 0 ? "#fff" : "#9e9e9e",
-                  border: "none", fontWeight: 800, paddingLeft: 18, paddingRight: 18,
-                  cursor: selectedIds.size > 0 ? "pointer" : "not-allowed",
-                }}
-                onClick={async () => {
-                  const selected = await Promise.all(
-                    [...selectedIds].map(async id => {
-                      try { const res = await axios.get(`${API}/receipts/${id}`); return res.data; }
-                      catch { return receipts.find(r => r.id === id) || null; }
-                    })
-                  );
-                  handlePrint(selected.filter(Boolean));
-                }}
-                disabled={selectedIds.size === 0}
-              >
-                🖨 Print A4
-              </button>
-            </>
-          )}
-        </div>
+      <div style={{ marginBottom: 22 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 600, color: C.greenDk, letterSpacing: "-0.6px", margin: 0 }}>
+          Liquidation Report
+        </h1>
       </div>
-
-      {/* Select mode banner */}
-      {selectMode && (
-        <div style={{ background: "linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.05))", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "11px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: C.greenDk, fontWeight: 600, flexWrap: "wrap" }}>
-          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-          </svg>
-          <span>Selection mode active — tap receipts to select them, then click <strong>Print A4</strong>.</span>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: C.muted }}>{selectedIds.size} of {activeList.length} selected</span>
-        </div>
-      )}
 
       {/* Summary Cards */}
       <div style={s.summaryRow}>
