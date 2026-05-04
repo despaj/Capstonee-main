@@ -111,6 +111,8 @@ function rowToApplication(row) {
 // ─── AUTH ───────────────────────────────────────────────────
 
 app.post("/login", async (req, res) => {
+    console.log("ALL HEADERS:", JSON.stringify(req.headers));
+  console.log("x-client header:", req.headers["x-client"]);
   const { email, password } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
 
