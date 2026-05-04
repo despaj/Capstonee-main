@@ -127,6 +127,8 @@ console.log("Email received:", JSON.stringify(email));
     console.log("DB password:", JSON.stringify(user.rows[0].password));
 console.log("Input password:", JSON.stringify(password));
 console.log("Match:", password === user.rows[0].password);
+console.log("Role:", JSON.stringify(user.rows[0].role));
+console.log("isWeb:", isWeb);
 
     const validPass = password === user.rows[0].password;
 if (!validPass)
