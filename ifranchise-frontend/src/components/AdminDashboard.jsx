@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD — Logic unchanged, UI updated to match FranchiseeDashboard
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -17,7 +14,7 @@ import {
   ChevronRight, Lock, Unlock 
 } from 'lucide-react';
 
-// ─── Design tokens (kept from original + Franchisee palette) ─────────────────
+
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -25,7 +22,7 @@ const C = {
   ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
-// ─── Shared CSS (Franchisee-style) ───────────────────────────────────────────
+
 const ADMIN_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -45,7 +42,7 @@ const ADMIN_CSS = `
   }
 `;
 
-// ─── Original style helpers (unchanged) ──────────────────────────────────────
+
 const invInputSt = {
   height:36, padding:"0 11px", borderRadius:9,
   border:`1px solid ${C.border}`, background:C.bg,
@@ -143,9 +140,6 @@ const bmActionBtn = (variant = "default") => ({
     : { background: "#f0fdf5", color: "#00695c", border: "1.5px solid #b2dfdb" }),
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD — Shell with Franchisee UI
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState('dashboard');
@@ -175,11 +169,20 @@ export default function AdminDashboard() {
       .then(res => res.json()).then(data => setStats(data)).catch(err => console.error(err));
   }, [preset]);
 
-  useEffect(() => {
-    fetch("http://localhost:5001/transactions")
-      .then(res => res.json()).then(data => setTransactions(data))
-      .catch(err => console.error("Failed to fetch transactions", err));
-  }, []);
+  // Replace the existing transactions useEffect with this:
+const fetchTransactions = useCallback(async () => {
+  try {
+    const res = await fetch("http://localhost:5001/transactions");
+    const data = await res.json();
+    setTransactions(data);
+  } catch (err) {
+    console.error("Failed to fetch transactions", err);
+  }
+}, []);
+
+useEffect(() => {
+  fetchTransactions();
+}, [fetchTransactions]);
 
   const [user, setUser] = useState(getUserFromStorage);
 
@@ -492,7 +495,13 @@ export default function AdminDashboard() {
 
         {/* Content */}
         <div className="ad-content">
-          {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
+          {activeModule === 'dashboard' && (
+  <DashboardContent
+    transactions={transactions}
+    brands={brands}
+    onRefreshTransactions={fetchTransactions}  // ← add this
+  />
+)}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <POSContent user={user} brands={brands} />}
@@ -607,12 +616,6 @@ export default function AdminDashboard() {
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ALL CONTENT COMPONENTS BELOW ARE UNCHANGED FROM ORIGINAL
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE CONFIRM MODAL
-// ─────────────────────────────────────────────────────────────────────────────
 function DeleteConfirmModal({ target, onConfirm, onClose }) {
   const isBrand = target.type === "brand";
   return (
@@ -702,9 +705,6 @@ function DeleteConfirmModal({ target, onConfirm, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE HISTORY PANEL
-// ─────────────────────────────────────────────────────────────────────────────
 function DeleteHistoryPanel({ history, onRestore, onClose }) {
   const fmt = (d) =>
     new Date(d).toLocaleString("en-PH", {
@@ -839,9 +839,6 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BM MODAL (shared add/edit wrapper)
-// ─────────────────────────────────────────────────────────────────────────────
 function BmModal({ title, onClose, onSubmit, children }) {
   return (
     <div
@@ -912,9 +909,6 @@ function BmModal({ title, onClose, onSubmit, children }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BRAND FORM FIELDS
-// ─────────────────────────────────────────────────────────────────────────────
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
@@ -1032,9 +1026,6 @@ function BrandFormFields({ form, setForm }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BRANCH FORM FIELDS
-// ─────────────────────────────────────────────────────────────────────────────
 function BranchFormFields({ form, setForm, brands }) {
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
   const inputSt = {
@@ -1113,9 +1104,6 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -1129,7 +1117,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [selectedBrand,       setSelectedBrand]       = useState(null);
   const [selectedBranch,      setSelectedBranch]      = useState(null);
 
-  // ── Delete modal & history ──────────────────────────────────────────────
+  
   const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
   const [deletedHistory, setDeletedHistory] = useState([]);    // [{ type, id, name, brandName?, deletedAt, data }]
   const [showHistory,    setShowHistory]    = useState(false);
@@ -1157,7 +1145,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     }
   };
 
-  // ── Add / Edit Brand ───────────────────────────────────────────────────
+  
   const handleAddBrand = async (e) => {
     e.preventDefault();
     const duplicate = brands.some(
@@ -1188,8 +1176,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     } catch { alert("Failed to update brand"); }
   };
 
-  // ── Delete Brand (modal-driven) ────────────────────────────────────────
-  const handleDeleteBrand = async () => {
+    const handleDeleteBrand = async () => {
     const { id, name } = deleteTarget;
     const brand = brands.find((b) => b.id === id);
     try {
@@ -1206,8 +1193,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     } catch { alert("Failed to delete brand"); }
   };
 
-  // ── Add / Edit Branch ──────────────────────────────────────────────────
-  const handleAddBranch = async (e) => {
+    const handleAddBranch = async (e) => {
     e.preventDefault();
     const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
     const duplicate   = parentBrand?.branches?.some(
@@ -1239,8 +1225,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     } catch { alert("Failed to update branch"); }
   };
 
-  // ── Delete Branch (modal-driven) ───────────────────────────────────────
-  const handleDeleteBranch = async () => {
+    const handleDeleteBranch = async () => {
     const { id, name, brandName } = deleteTarget;
     const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
     try {
@@ -1257,8 +1242,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     } catch { alert("Failed to delete branch"); }
   };
 
-  // ── Restore ────────────────────────────────────────────────────────────
-  const handleRestore = async (entry) => {
+    const handleRestore = async (entry) => {
     try {
       if (entry.type === "brand") {
         const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
@@ -1291,7 +1275,6 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     } catch { alert("Failed to restore"); }
   };
 
-  // ── Derived data ───────────────────────────────────────────────────────
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
   const allRegions    = [
     ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
@@ -1329,7 +1312,6 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     );
   };
 
-  // ── Shared table styles ────────────────────────────────────────────────
   const thSt = {
     padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
     color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
@@ -1341,8 +1323,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
     verticalAlign: "middle", overflow: "hidden",
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────
-  return (
+    return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
       <style>{`
         .bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; }
@@ -1593,8 +1574,8 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   );
 }
 
-// ---------DASHBOARD------------------
-function DashboardContent({ transactions, brands: propBrands = [] }) {
+// Change the function signature:
+function DashboardContent({ transactions, brands: propBrands = [], onRefreshTransactions }) {
   const today   = new Date();
   const fmt8    = (d) => d.toISOString().slice(0, 10);
   const fmtAmt  = (n) => '₱' + Number(n||0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -1643,6 +1624,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
 
 const fetchKpis = useCallback(async () => {
   setKpiLoading(true);
+    onRefreshTransactions?.();
   try {
     const params = new URLSearchParams();
     if (rangeMode === 'preset') {
@@ -1670,7 +1652,8 @@ const fetchKpis = useCallback(async () => {
   } finally {
     setKpiLoading(false);
   }
-}, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
+}, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand, onRefreshTransactions]);
+
 
   useEffect(() => {
     if (!viewingArchive) fetchKpis();
@@ -1691,87 +1674,119 @@ const fetchKpis = useCallback(async () => {
   };
 
     const chartData = useMemo(() => {
-    if (viewingArchive) return viewingArchive.chartData;
+  if (viewingArchive) return viewingArchive.chartData;
 
-    // Apply brand/branch filter
-    let txList = transactions;
-    if (filterBranch) {
-      txList = transactions.filter(tx => tx.branch === filterBranch);
-    } else if (filterBrand && selectedBrand) {
-      const branchNames = (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name);
-      txList = transactions.filter(tx => branchNames.includes(tx.branch));
+  let txList = transactions;
+  if (filterBranch) {
+    txList = transactions.filter(tx => tx.branch === filterBranch);
+  } else if (filterBrand && selectedBrand) {
+    const branchNames = (selectedBrand.branches || []).map(br => typeof br === 'string' ? br : br.name);
+    txList = transactions.filter(tx => branchNames.includes(tx.branch));
+  }
+
+  if (!txList.length) return { labels: [], values: [] };
+
+  const now = new Date();
+
+  const filtered = txList.filter(tx => {
+    const d = new Date(tx.created_at);
+    if (preset === 'day') return d.toDateString() === now.toDateString();
+    if (preset === 'week') {
+      const start = new Date(now);
+      start.setDate(now.getDate() - now.getDay());
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return d >= start && d <= end;
     }
+    if (preset === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (preset === 'year') return d.getFullYear() === now.getFullYear();
+    if (rangeMode === 'custom' && appliedRange) {
+      const from = new Date(appliedRange.from);
+      const to = new Date(appliedRange.to);
+      to.setHours(23, 59, 59, 999);
+      return d >= from && d <= to;
+    }
+    return true;
+  });
 
-    if (!txList.length) return { labels: [], values: [] };
-
-    const now = new Date();
-
-    const filtered = txList.filter(tx => {
-      const d = new Date(tx.created_at);
-      if (preset === "day") return d.toDateString() === now.toDateString();
-      if (preset === "week") {
-        const start = new Date(now);
-        start.setDate(now.getDate() - now.getDay());
-        start.setHours(0,0,0,0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23,59,59,999);
-        return d >= start && d <= end;
-      }
-      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (preset === "year")  return d.getFullYear() === now.getFullYear();
-      if (rangeMode === 'custom' && appliedRange) {
-        const from = new Date(appliedRange.from);
-        const to   = new Date(appliedRange.to);
-        return d >= from && d <= to;
-      }
-      return true;
+  // ── DAY: ordered 0-23, show only hours with data ──────────────────────────
+  if (preset === 'day') {
+    const hourMap = {};
+    filtered.forEach(tx => {
+      const h = new Date(tx.created_at).getHours();
+      hourMap[h] = (hourMap[h] || 0) + Number(tx.total || 0);
     });
+    const hours = Object.keys(hourMap).map(Number).sort((a, b) => a - b);
+    return {
+      labels: hours.map(h => `${String(h).padStart(2, '0')}:00`),
+      values: hours.map(h => hourMap[h]),
+    };
+  }
 
-    let grouped = {};
-
-    if (preset === "day") {
-      filtered.forEach(tx => {
-        const hour  = new Date(tx.created_at).getHours();
-        const label = `${hour}:00`;
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "week") {
-      filtered.forEach(tx => {
-        const label = new Date(tx.created_at).toLocaleDateString("en-US", { weekday: "short" });
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "month") {
-      filtered.forEach(tx => {
-        const day   = new Date(tx.created_at).getDate();
-        const label = `Day ${day}`;
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "year") {
-      filtered.forEach(tx => {
-        const label = new Date(tx.created_at).toLocaleDateString("en-US", { month: "short" });
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (rangeMode === 'custom' && appliedRange) {
-      const from     = new Date(appliedRange.from);
-      const to       = new Date(appliedRange.to);
-      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
-      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
-      const labels   = Array.from({length: numWeeks}, (_, i) => `Week ${i+1}`);
-      const values   = Array(numWeeks).fill(0);
-      filtered.forEach(tx => {
-        const d       = new Date(tx.created_at);
-        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks-1);
-        values[weekIdx] += tx.total || 0;
-      });
-      return { labels, values };
-    }
-
-    const labels = Object.keys(grouped);
-    const values = labels.map(l => grouped[l]);
+  // ── WEEK: Mon–Sun ordered by actual day index ─────────────────────────────
+  if (preset === 'week') {
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayMap = {};
+    filtered.forEach(tx => {
+      const dayIdx = new Date(tx.created_at).getDay(); // 0=Sun … 6=Sat
+      dayMap[dayIdx] = (dayMap[dayIdx] || 0) + Number(tx.total || 0);
+    });
+    // Build all 7 days in order, zero-fill missing days
+    const labels = DAY_NAMES;
+    const values = DAY_NAMES.map((_, i) => dayMap[i] || 0);
     return { labels, values };
-  }, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
+  }
 
+  // ── MONTH: Day 1–31 ordered ───────────────────────────────────────────────
+  if (preset === 'month') {
+    const dayMap = {};
+    filtered.forEach(tx => {
+      const day = new Date(tx.created_at).getDate();
+      dayMap[day] = (dayMap[day] || 0) + Number(tx.total || 0);
+    });
+    const days = Object.keys(dayMap).map(Number).sort((a, b) => a - b);
+    return {
+      labels: days.map(d => `Day ${d}`),
+      values: days.map(d => dayMap[d]),
+    };
+  }
+
+  // ── YEAR: Jan–Dec ordered ─────────────────────────────────────────────────
+  if (preset === 'year') {
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthMap = {};
+    filtered.forEach(tx => {
+      const m = new Date(tx.created_at).getMonth(); // 0–11
+      monthMap[m] = (monthMap[m] || 0) + Number(tx.total || 0);
+    });
+    const months = Object.keys(monthMap).map(Number).sort((a, b) => a - b);
+    return {
+      labels: months.map(m => MONTH_NAMES[m]),
+      values: months.map(m => monthMap[m]),
+    };
+  }
+
+  // ── CUSTOM RANGE: weekly buckets ──────────────────────────────────────────
+  if (rangeMode === 'custom' && appliedRange) {
+    const from = new Date(appliedRange.from);
+    const to = new Date(appliedRange.to);
+    to.setHours(23, 59, 59, 999);
+    const diffDays = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+    const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
+    const weekLabels = Array.from({ length: numWeeks }, (_, i) => `Week ${i + 1}`);
+    const weekValues = Array(numWeeks).fill(0);
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      const weekIdx = Math.min(Math.floor((d - from) / (7 * 24 * 60 * 60 * 1000)), numWeeks - 1);
+      weekValues[weekIdx] += Number(tx.total || 0);
+    });
+    return { labels: weekLabels, values: weekValues };
+  }
+
+  return { labels: [], values: [] };
+}, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
   const values    = chartData.values;
   const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
   const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
@@ -2068,6 +2083,19 @@ const fetchKpis = useCallback(async () => {
               <button className="db-apply-btn" onClick={applyCustomRange}>Apply</button>
             </div>
           )}
+          <button
+  onClick={() => { fetchKpis(); onRefreshTransactions?.(); }}
+  style={{
+    display: 'flex', alignItems: 'center', gap: 7,
+    padding: '7px 16px', borderRadius: 10,
+    border: '1.5px solid #b2dfdb', background: '#fff',
+    color: '#00695c', fontSize: 12, fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit',
+  }}
+>
+  <RefreshCw size={13} style={{ animation: kpiLoading ? 'spin 1s linear infinite' : 'none' }} />
+  Refresh
+</button>
           <button onClick={() => setShowArchivePanel(v => !v)}
             style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:10, border:'1.5px solid #b2dfdb', background:showArchivePanel?'#e0f2f1':'#fff', color:'#00695c', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
             <Archive size={13}/> Archives
@@ -2399,7 +2427,6 @@ const fetchBrands = async () => {
   } catch { setBrands([]); }
 };
 
-// Derive flat branch list from selected brand
 const getBranchesForBrand = (brandName) => {
   const found = brands.find(b => b.name === brandName);
   if (!found) return [];
@@ -2435,11 +2462,10 @@ const getBranchesForBrand = (brandName) => {
   };
 const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
   const addItem = async () => {
-  console.log("addItem called", newItem);  // ADD THIS
+  console.log("addItem called", newItem);  
   if (loading || !validate()) return;
-  console.log("passed validation");  // ADD THIS
+  console.log("passed validation");  
 
-  // Duplicate check — same name + shop
   const duplicate = items.find(
     i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
       && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
@@ -2506,7 +2532,6 @@ const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
   const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
 
-  // Skip duplicates — same name + shop
   const alreadyExists = items.some(
     i => i.name.trim().toLowerCase() === name.toLowerCase()
       && i.shop.trim().toLowerCase() === shop.toLowerCase()
@@ -2772,9 +2797,7 @@ alert(
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
 // APPLICATIONS — 
-// ─────────────────────────────────────────────────────────────────────────────
 function ApplicationsContent({ applications: initialApps }) {
   const [applications, setApplications] = useState(initialApps);
   const [viewApp,      setViewApp]      = useState(null);
@@ -2969,7 +2992,6 @@ function ReportsContent() {
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
 
-  // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -3006,8 +3028,7 @@ function ReportsContent() {
     hour:"numeric", minute:"2-digit", hour12:true,
   });
 
-  // ── Sync open modals when reports state changes ─────────────────
-  const syncModals = (updated) => {
+    const syncModals = (updated) => {
     setViewReport    (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
     setApproveReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
     setCommentReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
@@ -3021,8 +3042,7 @@ function ReportsContent() {
     });
   };
 
-  // ── Approve ───────────────────────
-  const handleApprove = async (id) => {
+    const handleApprove = async (id) => {
     setActionLoading(true);
     try {
       const res = await fetch(`${API}/reports/${id}/approve`, { method:"PATCH" });
@@ -3037,8 +3057,7 @@ function ReportsContent() {
     }
   };
 
-  // ── Return ──────────────────────────────────────────────────────
-  const handleReturn = async (id) => {
+    const handleReturn = async (id) => {
     if (!remarkText.trim()) { alert("Please enter a return reason."); return; }
     setActionLoading(true);
     try {
@@ -3059,8 +3078,7 @@ function ReportsContent() {
     }
   };
 
-  // ── Add comment ─────────────────────────────────────────────────
-  const handleAddComment = async (id) => {
+    const handleAddComment = async (id) => {
     if (!commentText.trim()) return;
     setActionLoading(true);
     try {
@@ -3071,7 +3089,6 @@ function ReportsContent() {
       });
       if (!res.ok) throw new Error();
       const newComment = await res.json();
-      // Append comment locally without re-fetching entire list
       setReports(prev => {
         const next = prev.map(r =>
           r.id === id ? { ...r, comments:[...(r.comments||[]), newComment] } : r
@@ -3087,8 +3104,7 @@ function ReportsContent() {
     }
   };
 
-  // ── Delete comment ──────────────────────────────────────────────
-  const handleDeleteComment = async (reportId, commentId) => {
+    const handleDeleteComment = async (reportId, commentId) => {
     try {
       const res = await fetch(`${API}/reports/${reportId}/comments/${commentId}`, {
         method: "DELETE",
@@ -3108,16 +3124,14 @@ function ReportsContent() {
     }
   };
 
-  // ── Export CSV ──────────────────────────────────────────────────
-  const handleExport = (brand) => {
+    const handleExport = (brand) => {
     const params = new URLSearchParams();
     if (brand)                    params.set("brand",  brand);
     if (filterStatus !== "all")   params.set("status", filterStatus);
     window.open(`${API}/reports/export?${params}`, "_blank");
   };
 
-  // ── Derived data ────────────────────────────────────────────────
-  const allBrands = [...new Set(reports.map(r => r.brand))];
+    const allBrands = [...new Set(reports.map(r => r.brand))];
 
   const getBrandBranches = (brand) =>
     [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
@@ -3127,7 +3141,6 @@ function ReportsContent() {
     return reports.filter(r => {
       if (r.brand !== brand) return false;
       if (branchFilter !== "all" && r.branch !== branchFilter) return false;
-      // status + search are already filtered server-side, but keep client guard:
       if (filterStatus !== "all" && r.status !== filterStatus) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -3145,8 +3158,7 @@ function ReportsContent() {
     approved: reports.filter(r => r.status === "approved").length,
   };
 
-  // ── Sub-components (unchanged styling) ─────────────────────────
-  const StatusBadge = ({ status }) => {
+    const StatusBadge = ({ status }) => {
     const s = REPORT_STATUS[status] || REPORT_STATUS.pending;
     return (
       <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
@@ -3252,8 +3264,7 @@ function ReportsContent() {
     </>
   );
 
-  // ── Loading / error states ──────────────────────────────────────
-  if (loading) return (
+    if (loading) return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
       <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
       <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
@@ -3270,8 +3281,7 @@ function ReportsContent() {
     </div>
   );
 
-  // ── Render ──────────────────────────────────────────────────────
-  return (
+    return (
     <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
 
       {/* VIEW modal */}
@@ -3506,12 +3516,6 @@ function ReportsContent() {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// USERS 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// ALERT MODAL
-// ─────────────────────────────────────────────────────────────────────────────
 function AlertModal({ message, onClose, type = "info" }) {
   const isError = type === "error";
   const isSuccess = type === "success";
@@ -3567,9 +3571,6 @@ function AlertModal({ message, onClose, type = "info" }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE CONFIRM MODAL (user-flavored)
-// ─────────────────────────────────────────────────────────────────────────────
 function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
   return (
     <div
@@ -3636,9 +3637,6 @@ function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// USER DELETE HISTORY PANEL
-// ─────────────────────────────────────────────────────────────────────────────
 function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
   const fmt = (d) =>
     new Date(d).toLocaleString("en-PH", {
@@ -3774,9 +3772,6 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 function UsersContent() {
   const [users,        setUsers]        = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -3878,7 +3873,7 @@ useEffect(() => {
   const handleEditUser = async (e) => {
   e.preventDefault();
 
-  if (formData.password) { // ← this guard is missing in your current code
+  if (formData.password) { 
     const passwordCheck = validatePasswordStrength(formData.password);
     if (!passwordCheck.isValid) {
       showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
@@ -3913,10 +3908,10 @@ useEffect(() => {
   }
 };
 
-  // Step 1: open confirm modal
+
   const handleDeleteUser = (user) => setDeleteTarget(user);
 
-  // Step 2: confirmed — call API, push to history
+  
   const confirmDelete = async () => {
     const user = deleteTarget;
     setDeleteTarget(null);
@@ -4238,9 +4233,6 @@ const filteredUsers = users.filter(u => {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ANNOUNCEMENT — 
-// ─────────────────────────────────────────────────────────────────────────────
 function CommunicationContent() {
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds]         = useState(new Set());
@@ -4257,7 +4249,7 @@ function CommunicationContent() {
   const [viewingItem, setViewingItem]     = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
 
-  // ── UI modal state ──
+  
   const [alertModal,   setAlertModal]   = useState(null); // { message, type }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm, itemName }
 
