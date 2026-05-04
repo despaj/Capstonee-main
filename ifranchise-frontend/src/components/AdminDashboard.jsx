@@ -8,6 +8,7 @@ import logo from '../assets/logo.png';
 import Receipts from './Receipts';
 import StockInventoryContent from './StockInventoryContent';
 import MenuInventoryContent from './MenuInventoryContent';
+import jsPDF from 'jspdf';
 import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
@@ -2968,6 +2969,7 @@ function ReportsContent() {
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
   // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
@@ -3145,6 +3147,88 @@ function ReportsContent() {
     approved: reports.filter(r => r.status === "approved").length,
   };
 
+const downloadReport = (report) => {
+  const doc = generatePdfDoc(report);
+  const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
+  doc.save(`report_${(report.branch||'').replace(/\s+/g,'_')}_${safePeriod.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+};
+
+const generatePdfDoc = (report) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = 0;
+
+  const addPage = () => { doc.addPage(); y = margin; };
+  const checkY = (needed = 8) => { if (y + needed > pageH - margin) addPage(); };
+
+  const writeLine = (text, fontSize = 10, style = 'normal', color = [30,30,30], indent = 0) => {
+    doc.setFontSize(fontSize); doc.setFont('helvetica', style); doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(text, contentW - indent);
+    lines.forEach(line => { checkY(fontSize * 0.45 + 2); doc.text(line, margin + indent, y); y += fontSize * 0.45 + 1.5; });
+  };
+  const writeDivider = (color = [180,180,180]) => {
+    checkY(6); doc.setDrawColor(...color); doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y); y += 4;
+  };
+
+  y = margin;
+  doc.setFillColor(13, 43, 30);
+  doc.rect(0, 0, pageW, 38, 'F');
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(255,255,255);
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(160,220,190);
+  const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
+  doc.text(`Branch: ${report.branch}   |   Period: ${safePeriod}   |   Generated: ${fmtDate(report.submittedAt)}`, pageW / 2, 22, { align: 'center' });
+  doc.setFontSize(8); doc.setTextColor(120,180,150);
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 30, { align: 'center' });
+  y = 46;
+
+  const cleanContent = (report.content || '').replace(/₱/g,'PHP ').replace(/→/g,'to')
+    .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
+    .replace(/\u2013/g,'-').replace(/\u2014/g,'--').replace(/[═─━]+/g,'')
+    .replace(/[^\x00-\x7F]/g,'').replace(/\n{3,}/g,'\n\n').trim();
+
+  if (!cleanContent) {
+    writeLine('No report content available.', 10, 'normal', [100,100,100]);
+  } else {
+    cleanContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) { y += 3; return; }
+      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+        checkY(14); y += 4;
+        doc.setFillColor(0,137,123); doc.rect(margin, y - 4, 3, 9, 'F');
+        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(13,43,30);
+        doc.text(trimmed, margin + 6, y + 2); y += 8; writeDivider([0,137,123]);
+      } else if (/^\d+\.\s+/.test(trimmed)) {
+        checkY(8);
+        const parts = trimmed.split(/(?<=^\d+\.)\s+/);
+        const num = parts[0]; const rest = parts.slice(1).join(' ');
+        doc.setFontSize(9.5); doc.setFont('helvetica','bold'); doc.setTextColor(0,137,123);
+        doc.text(num.replace('.',''), margin + 2, y);
+        doc.setFont('helvetica','normal'); doc.setTextColor(40,40,40);
+        const wrapped = doc.splitTextToSize(rest, contentW - 10);
+        wrapped.forEach((wl, i) => { if (i > 0) checkY(6); doc.text(wl, margin + 9, y); y += 5.5; });
+      } else {
+        writeLine(trimmed, 9.5, 'normal', [50,50,50]);
+        y += 1;
+      }
+    });
+  }
+
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i); doc.setFillColor(245,247,245); doc.rect(0, pageH - 12, pageW, 12, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(120,140,130);
+    doc.text(`${report.branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+    doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+  }
+
+  return doc; // return doc instead of calling .save()
+};
+
   // ── Sub-components (unchanged styling) ─────────────────────────
   const StatusBadge = ({ status }) => {
     const s = REPORT_STATUS[status] || REPORT_STATUS.pending;
@@ -3161,7 +3245,7 @@ function ReportsContent() {
     const items = [
       {
         label:"View", icon:<Search size={13}/>, color:"#00695c", bg:"#e0f2f1", border:"#b2dfdb",
-        onClick:() => { setViewReport(report); setOpenDropdown(null); },
+        onClick:() => { setViewReport(report); setPdfPreviewUrl(null); setOpenDropdown(null); },
       },
       {
         label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor:"#fff",
@@ -3276,47 +3360,160 @@ function ReportsContent() {
 
       {/* VIEW modal */}
       {viewReport && (
-        <ModalShell title={`Report #${viewReport.id}`} subtitle={viewReport.brand + " · " + viewReport.branch} icon={<FileText size={16} color="#fff"/>} onClose={() => setViewReport(null)}>
+        <ModalShell
+          title={`Report #${viewReport.id}`}
+          subtitle={viewReport.brand + " · " + viewReport.branch}
+          icon={<FileText size={16} color="#fff"/>}
+          onClose={() => { setViewReport(null); setPdfPreviewUrl(null); }}
+          maxWidth={680}
+        >
           <ReportMetaGrid report={viewReport}/>
-          <div style={{ marginBottom:16, padding:"14px", background:"#f8fffe", borderRadius:12, border:"1.5px dashed #b2dfdb", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#6ee7b7)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+
+          {/* Clickable PDF card */}
+          <div
+            onClick={() => {
+              const doc = generatePdfDoc(viewReport);
+              const url = doc.output('bloburl');
+              setPdfPreviewUrl(url);
+            }}
+            style={{
+              marginBottom: 16,
+              padding: "14px",
+              background: "#f8fffe",
+              borderRadius: 12,
+              border: "1.5px dashed #b2dfdb",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              transition: "background 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "#e0f7f4";
+              e.currentTarget.style.borderColor = "#00897b";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "#f8fffe";
+              e.currentTarget.style.borderColor = "#b2dfdb";
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10,
+                background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
                 <FileText size={17} color="#00897b"/>
               </div>
               <div>
-                <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Report #{viewReport.id}</div>
-                <div style={{ fontSize:11, color:"#5a7a65" }}>{viewReport.period}</div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
+                  Report #{viewReport.id}
+                </div>
+                <div style={{ fontSize: 11, color: "#5a7a65" }}>
+                  {viewReport.period} · Click to preview PDF
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => handleExport()}
-              style={{ ...bmActionBtn, background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", border:"none" }}>
-              <Download size={11}/> Export CSV
-            </button>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 14px", borderRadius: 10,
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              color: "#fff", fontSize: 12, fontWeight: 700,
+              pointerEvents: "none",
+            }}>
+              <Eye size={11}/> Preview
+            </div>
           </div>
-          {viewReport.remark && (
-            <div style={{ marginBottom:16, padding:"12px 14px", background:"#fff3e0", borderRadius:12, border:"1px solid #ffcc80" }}>
-              <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#e65100", marginBottom:4 }}>Return Remark</div>
-              <div style={{ fontSize:13, color:"#bf360c" }}>{viewReport.remark}</div>
+
+          {/* Inline PDF iframe preview */}
+          {pdfPreviewUrl && (
+            <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd",
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>PDF Preview</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => downloadReport(viewReport)}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <Download size={11}/> Download
+                  </button>
+                  <button
+                    onClick={() => setPdfPreviewUrl(null)}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#fff", color: "#5a7a65", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <X size={11}/> Close
+                  </button>
+                </div>
+              </div>
+              <iframe
+                src={pdfPreviewUrl}
+                style={{ width: "100%", height: 500, border: "none", display: "block" }}
+                title="Report PDF Preview"
+              />
             </div>
           )}
+
+          {viewReport.remark && (
+            <div style={{ marginBottom: 16, padding: "12px 14px", background: "#fff3e0", borderRadius: 12, border: "1px solid #ffcc80" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#e65100", marginBottom: 4 }}>Return Remark</div>
+              <div style={{ fontSize: 13, color: "#bf360c" }}>{viewReport.remark}</div>
+            </div>
+          )}
+
           {viewReport.comments?.length > 0 && (
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:8 }}>Comments ({viewReport.comments.length})</div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>
+                Comments ({viewReport.comments.length})
+              </div>
               {viewReport.comments.slice(-2).map((c, i) => (
-                <div key={c.id || i} style={{ padding:"9px 12px", background:"#f0fdf5", borderRadius:10, border:"1px solid #d1eedd", marginBottom:6, fontSize:12, color:"#0d2b1e" }}>
-                  <span style={{ fontWeight:700, color:"#00897b" }}>{c.author}</span>
-                  <span style={{ color:"#5a7a65", marginLeft:8, fontSize:11 }}>{fmtDate(c.postedAt)}</span>
-                  <div style={{ marginTop:4 }}>{c.text}</div>
+                <div key={c.id || i} style={{ padding: "9px 12px", background: "#f0fdf5", borderRadius: 10, border: "1px solid #d1eedd", marginBottom: 6, fontSize: 12, color: "#0d2b1e" }}>
+                  <span style={{ fontWeight: 700, color: "#00897b" }}>{c.author}</span>
+                  <span style={{ color: "#5a7a65", marginLeft: 8, fontSize: 11 }}>{fmtDate(c.postedAt)}</span>
+                  <div style={{ marginTop: 4 }}>{c.text}</div>
                 </div>
               ))}
             </div>
           )}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <StatusBadge status={viewReport.status}/>
-            <button onClick={() => setViewReport(null)} style={{ padding:"8px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Close</button>
+            <button
+              onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
+              style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              Close
+            </button>
           </div>
         </ModalShell>
+      )}
+
+      {/* Inline PDF iframe preview */}
+      {pdfPreviewUrl && (
+        <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd",
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>PDF Preview</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => downloadReport(viewReport)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Download size={11}/> Download
+              </button>
+              <button
+                onClick={() => setPdfPreviewUrl(null)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#fff", color: "#5a7a65", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <X size={11}/> Close
+              </button>
+            </div>
+          </div>
+          <iframe
+            src={pdfPreviewUrl}
+            style={{ width: "100%", height: 500, border: "none", display: "block" }}
+            title="Report PDF Preview"
+          />
+        </div>
       )}
 
       {/* APPROVE modal */}
@@ -3777,6 +3974,101 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
+
+  const PasswordValidation = ({ errors }) => (
+    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
+      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
+      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
+        <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
+          <span>{errors.includes(key)?'✗':'✓'}</span> {text}
+        </div>
+      ))}
+    </div>
+  );
+
+const UserModal = ({
+  title, onSubmit, onClose, isEdit,
+  formData, handleInputChange, setFormData,
+  selectedBrandId, setSelectedBrandId,
+  brands, branches, brandsLoading,
+  showPassword, setShowPassword,
+  showPasswordValidation, passwordErrors,
+  handleGeneratePassword, pwChange,
+}) => (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+          <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
+        </div>
+        <form onSubmit={onSubmit}>
+          {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
+            <div key={name} style={{ marginBottom:14 }}>
+              <label style={bmLabel}>{label}</label>
+              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+            </div>
+          ))}
+          <div style={{ marginBottom:14 }}>
+            <label style={bmLabel}>Role</label>
+            <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+              <option value="">Select Role</option>
+              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={bmLabel}>Brand</label>
+              <select
+                value={selectedBrandId}
+                onChange={e => { setSelectedBrandId(e.target.value); setFormData(p => ({ ...p, branch:'' })); }}
+                required={!isEdit}
+                disabled={brandsLoading}
+                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+                <option value="">{brandsLoading ? "Loading brands…" : "Select Brand"}</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom:14 }}>
+              <label style={bmLabel}>Branch</label>
+              <select
+                name="branch"
+                value={formData.branch}
+                onChange={handleInputChange}
+                required
+                disabled={!selectedBrandId}
+                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+                <option value="">
+                  {!selectedBrandId ? "Select a brand first" : branches.length === 0 ? "No branches available" : "Select Branch"}
+                </option>
+                {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+              </select>
+            </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span>{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</span>
+              <button type="button" onClick={handleGeneratePassword} style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Generate</button>
+            </label>
+            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
+              <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
+                placeholder={isEdit?"Leave blank to keep current":""} required={!isEdit}
+                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
+              <button type="button" onClick={() => setShowPassword(v=>!v)}
+                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
+                {showPassword?"Hide":"Show"}
+              </button>
+            </div>
+            {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
+          </div>
+          <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
+            <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
+            <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
+              <Check size={14}/> {isEdit ? 'Save Changes' : 'Add User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
 function UsersContent() {
   const [users,        setUsers]        = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -4005,98 +4297,12 @@ const filteredUsers = users.filter(u => {
   return true;
 });
 
-  const PasswordValidation = ({ errors }) => (
-    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
-      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
-      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
-        <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
-          <span>{errors.includes(key)?'✗':'✓'}</span> {text}
-        </div>
-      ))}
-    </div>
-  );
-
   const pwChange = (e) => {
     handleInputChange(e);
     const v = e.target.value;
     if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
     else   { setShowPasswordValidation(false); setPasswordErrors([]); }
   };
-
-  const UserModal = ({ title, onSubmit, onClose, isEdit }) => (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-          <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
-        </div>
-        <form onSubmit={onSubmit}>
-          {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
-            <div key={name} style={{ marginBottom:14 }}>
-              <label style={bmLabel}>{label}</label>
-              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} required autoFocus={name === "name"}  style={{ ...bmInput, marginTop:4 }} />
-            </div>
-          ))}
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Role</label>
-            <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-              <option value="">Select Role</option>
-              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
-            </select>
-          </div>
-            <div style={{ marginBottom:14 }}>
-              <label style={bmLabel}>Brand</label>
-              <select
-                value={selectedBrandId}
-                onChange={e => { setSelectedBrandId(e.target.value); setFormData(p => ({ ...p, branch:'' })); }}
-                required={!isEdit}
-                disabled={brandsLoading}
-                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-                <option value="">{brandsLoading ? "Loading brands…" : "Select Brand"}</option>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom:14 }}>
-              <label style={bmLabel}>Branch</label>
-              <select
-                name="branch"
-                value={formData.branch}
-                onChange={handleInputChange}
-                required
-                disabled={!selectedBrandId}
-                style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-                <option value="">
-                  {!selectedBrandId ? "Select a brand first" : branches.length === 0 ? "No branches available" : "Select Branch"}
-                </option>
-                {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-              </select>
-            </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span>{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</span>
-              <button type="button" onClick={handleGeneratePassword} style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Generate</button>
-            </label>
-            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
-              <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
-                placeholder={isEdit?"Leave blank to keep current":""} required={!isEdit}
-                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
-              <button type="button" onClick={() => setShowPassword(v=>!v)}
-                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
-                {showPassword?"Hide":"Show"}
-              </button>
-            </div>
-            {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
-          </div>
-          <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
-            <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-            <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
-              <Check size={14}/> {isEdit ? 'Save Changes' : 'Add User'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
@@ -4208,9 +4414,48 @@ const filteredUsers = users.filter(u => {
       </div>
 
       {/* Modals */}
-      {showAddModal  && <UserModal key="add" title="Add New User" onSubmit={handleAddUser}  onClose={() => {setShowAddModal(false); resetForm(); }}  isEdit={false} />}
-      {showEditModal && <UserModal key="edit" title="Edit User"    onSubmit={handleEditUser} onClose={() => { setShowEditModal(false); setEditingUser(null);  resetForm(); }} isEdit={true} />}
-
+      {showAddModal  && <UserModal 
+      key="add" title="Add New User" 
+      onSubmit={handleAddUser}  
+      onClose={() => {setShowAddModal(false); resetForm(); }}  
+      isEdit={false} formData={formData}
+      handleInputChange={handleInputChange}
+      selectedBrandId={selectedBrandId}
+      setSelectedBrandId={setSelectedBrandId}
+      setFormData={setFormData} 
+      brands={brands}
+      branches={branches}
+      brandsLoading={brandsLoading}
+      showPassword={showPassword}
+      setShowPassword={setShowPassword}
+      showPasswordValidation={showPasswordValidation}
+      passwordErrors={passwordErrors}
+      handleGeneratePassword={handleGeneratePassword}
+      pwChange={pwChange}
+    />}
+      {showEditModal && (
+      <UserModal
+        key="edit"
+        title="Edit User"
+        onSubmit={handleEditUser}
+        onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
+        isEdit={true}
+        formData={formData}
+        setFormData={setFormData}
+        handleInputChange={handleInputChange}
+        selectedBrandId={selectedBrandId}
+        setSelectedBrandId={setSelectedBrandId}
+        brands={brands}
+        branches={branches}
+        brandsLoading={brandsLoading}
+        showPassword={showPassword}
+        setShowPassword={setShowPassword}
+        showPasswordValidation={showPasswordValidation}
+        passwordErrors={passwordErrors}
+        handleGeneratePassword={handleGeneratePassword}
+        pwChange={pwChange}
+      />
+    )}
       {deleteTarget && (
         <UserDeleteConfirmModal
           user={deleteTarget}

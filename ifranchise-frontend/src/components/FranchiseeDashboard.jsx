@@ -1679,30 +1679,46 @@ function FrReportsContent({ user, transactions = [] }){
   const [submitting, setSubmitting] = useState(null);
 
   const [kpiStats, setKpiStats] = useState({ salesRevenue: 0, cogs: 0, salesProfit: 0, txCount: 0 });
-const [kpiLoading, setKpiLoading] = useState(false);
+  const [kpiLoading, setKpiLoading] = useState(false);
+  const [submittedReports, setSubmittedReports] = useState([]);
+  const [deletedReports, setDeletedReports] = useState([]);
+  const [retrieving, setRetrieving] = useState(null);
 
-  useEffect(() => {
+useEffect(() => {
   const fetchSavedReports = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/generated-reports`);
-      const data = await res.json();
-      
-      // Map DB records back to the report shape
-      const loaded = data.map(item => {
-        const snapshot = typeof item.snapshot === 'string' 
-          ? JSON.parse(item.snapshot) 
+      // Fetch both saved snapshots and current live reports
+      const [savedRes, liveRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
+        fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
+      ]);
+
+      const savedData = await savedRes.json();
+      const liveData = await liveRes.json();
+
+      // Build a map of current live statuses by report id
+      const liveStatusMap = {};
+      liveData.forEach(r => { liveStatusMap[r.id] = r.status; });
+
+      const loaded = savedData.map(item => {
+        const snapshot = typeof item.snapshot === 'string'
+          ? JSON.parse(item.snapshot)
           : item.snapshot;
         return {
           id: item.reportId,
-          localId: item.id,
-          generatedDate: snapshot.submittedAt 
-            ? new Date(snapshot.submittedAt).toLocaleString('en-PH') 
-            : new Date(item.savedAt).toLocaleString('en-PH'),
-          period: snapshot.period,
-          content: snapshot.content,
+          localId: `saved-${item.id}`,
+          generatedDate: item.savedAt
+            ? new Date(item.savedAt).toLocaleString('en-PH')
+            : snapshot.submittedAt
+              ? new Date(snapshot.submittedAt).toLocaleString('en-PH')
+              : '—',
+          period: snapshot.period || '—',
+          content: snapshot.content || '',
           saved: true,
+          // Use live status, fall back to snapshot status
+          status: liveStatusMap[item.reportId] ?? snapshot.status,
         };
-      });
+      }).filter(r => r.status !== 'submitted' && r.status !== 'deleted');
 
       setReports(loaded);
     } catch (err) {
@@ -1710,8 +1726,8 @@ const [kpiLoading, setKpiLoading] = useState(false);
     }
   };
 
-  fetchSavedReports();
-}, []);
+  if (branch) fetchSavedReports();
+}, [branch]);
 
 const fetchKpiStats = async (from, to) => {
   if (!from || !to || !branch) return;
@@ -1726,6 +1742,51 @@ const fetchKpiStats = async (from, to) => {
   }
   setKpiLoading(false);
 };
+
+useEffect(() => {
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`);
+      const data = await res.json();
+      setSubmittedReports(data.map(h => ({
+        id: h.id,
+        generatedDate: h.generatedDate,
+        period: h.period,
+        submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
+        expiresAt: h.expiresAt,
+      })));
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    }
+  };
+  if (branch) fetchHistory();
+}, [branch]);
+
+useEffect(() => {
+  const fetchDeletedReports = async () => {
+    if (!branch) return;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`);
+      const data = await res.json();
+      setDeletedReports(data.map(r => ({
+        id: r.id,
+        localId: `deleted-${r.id}`,
+        period: r.period,
+        generatedDate: r.generatedDate
+          ? new Date(r.generatedDate).toLocaleString('en-PH')
+          : '—',
+        deletedAt: r.deletedAt
+          ? new Date(r.deletedAt).toLocaleString('en-PH')
+          : '—',
+        expiresAt: r.expiresAt,
+        content: r.content,
+      })));
+    } catch (err) {
+      console.error('Failed to load deleted reports:', err);
+    }
+  };
+  fetchDeletedReports();
+}, [branch]);
 
 useEffect(() => {
   fetchKpiStats(dateFrom, dateTo);
@@ -1887,39 +1948,111 @@ useEffect(() => {
       const cleanReportText = sanitizeReport(reportText);
       setAiReport(cleanReportText);
 
-const submitRes = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    brand: user?.brand || '',
-    branch,
-    period: `${dateFrom} → ${dateTo}`,
-    submittedBy: user?.name || user?.email || 'Branch Manager',
-    role: user?.role || 'Branch Manager',
-    content: reportText,
-  }),
-});
-const submitData = await submitRes.json();
-console.log('🟢 POST /reports response:', submitData);
-console.log('🟢 real DB id:', submitData.report?.id);
+      const submitRes = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: user?.brand || '',
+          branch,
+          period: `${dateFrom} → ${dateTo}`,
+          submittedBy: user?.name || user?.email || 'Branch Manager',
+          role: user?.role || 'Branch Manager',
+          content: reportText,
+        }),
+      });
+      const submitData = await submitRes.json();
 
-const realId = submitData.report?.id;
-console.log('🟢 newReport will use id:', realId);
+      const realId = submitData.report?.id;
 
       const newReport = {
         id: realId,
-        localId: Date.now(),
+        localId: `new-${Date.now()}`,
         generatedDate: new Date().toLocaleString('en-PH'),
         period: `${dateFrom} → ${dateTo}`,
         content: reportText,  // ← use reportText here too
       };
 
-    setReports(prev => [newReport, ...prev]);
+      setReports(prev => {
+        const exists = prev.some(r => r.id === realId);
+        if (exists) return prev.map(r => r.id === realId ? { ...r, ...newReport } : r);
+        return [newReport, ...prev];
+        });
 
-  } catch {
-    setAiReport('Failed to generate report. Please try again.');
+      } catch {
+        setAiReport('Failed to generate report. Please try again.');
+      }
+      setGenerating(false);
+    };
+
+const deleteReport = async report => {
+  if (!window.confirm(`Delete report for ${report.period}? It will be recoverable for 30 days.`)) return;
+
+  if (!report.id) {
+    setDeletedReports(prev => [{
+      ...report,
+      deletedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, ...prev]);
+    setReports(prev => prev.filter(r => r.localId !== report.localId));
+    if (viewReportId === report.id) setViewReportId(null);
+    return;
   }
-  setGenerating(false);
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    const data = await res.json();
+
+    setDeletedReports(prev => [{
+      ...report,
+      deletedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: data.expiresAt,
+    }, ...prev]);
+    setReports(prev => prev.filter(r => r.id !== report.id));
+    if (viewReportId === report.id) setViewReportId(null);
+  } catch {
+    alert('Failed to delete report. Please try again.');
+  }
+};
+
+const retrieveReport = async report => {
+  if (!report.id) {
+    // Local-only report, just move back to generated
+    setReports(prev => [{
+      ...report,
+      deletedAt: undefined,
+      expiresAt: undefined,
+    }, ...prev]);
+    setDeletedReports(prev => prev.filter(r => r.localId !== report.localId));
+    return;
+  }
+
+  setRetrieving(report.id);
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Retrieve failed');
+    const data = await res.json();
+
+    // Move back to generated reports
+    setReports(prev => [{
+      id: data.report.id,
+      localId: `retrieved-${Date.now()}`,
+      generatedDate: data.report.generatedDate
+        ? new Date(data.report.generatedDate).toLocaleString('en-PH')
+        : new Date().toLocaleString('en-PH'),
+      period: data.report.period,
+      content: data.report.content,
+      saved: false,
+    }, ...prev]);
+    setDeletedReports(prev => prev.filter(r => r.id !== report.id));
+  } catch {
+    alert('Failed to retrieve report. Please try again.');
+  }
+  setRetrieving(null);
 };
 
   const downloadReport = report => {
@@ -2079,12 +2212,6 @@ const saveReport = async report => {
     if (res.status === 409) { alert('Report already saved.'); return; }
     if (!res.ok) throw new Error(responseData.error || 'Unknown error');
 
-    const saveRes = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: report.content }),
-    });
-
     setReports(prev => prev.map(r => r.id === report.id ? { ...r, saved: true } : r));
     alert('Report saved successfully!');
   } catch(err) {
@@ -2092,19 +2219,43 @@ const saveReport = async report => {
   }
 };
 
-  const submitReport = async report => {
-    setSubmitting(report.id);
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branch, period: report.period, generatedDate: report.generatedDate, content: report.content }),
-      });
-    } catch {}
-    setHistory(prev => [{ id: report.id, generatedDate: report.generatedDate, period: report.period, submittedAt: new Date().toLocaleString('en-PH') }, ...prev]);
+const submitReport = async report => {
+  setSubmitting(report.id);
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reportId: report.id,
+        branch,
+        period: report.period,
+        generatedDate: report.generatedDate,
+        content: report.content,
+        submittedBy: user?.name || user?.email || 'Branch Manager',
+        brand: user?.brand || '',
+      }),
+    });
+
+    if (!res.ok) throw new Error('Submit failed');
+    const data = await res.json();
+
+    // Move to submitted reports
+    setSubmittedReports(prev => [{
+      id: report.id,
+      localId: report.localId,
+      generatedDate: report.generatedDate,
+      period: report.period,
+      content: report.content,
+      submittedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: data.expiresAt,
+    }, ...prev]);
+
     setReports(prev => prev.filter(r => r.id !== report.id));
-    setSubmitting(null);
-  };
+  } catch {
+    alert('Failed to submit report. Please try again.');
+  }
+  setSubmitting(null);
+};
 
   return (
     <div style={{ fontFamily: "'Poppins', sans-serif" }}>
@@ -2205,22 +2356,17 @@ const saveReport = async report => {
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
               <thead>
-                <tr><th>Generated</th><th>Period</th><th>Preview</th><th>Actions</th></tr>
+                <tr><th>Generated</th><th>Period</th><th>Actions</th></tr>
               </thead>
               <tbody>
-               {reports.map(r => (
-  <tr key={r.localId || r.id}>
-                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{r.generatedDate}</td>
+              {reports.map(r => (
+                <React.Fragment key={r.localId}>
+                  <tr>
+                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{r.generatedDate}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span className="v-badge v-badge-blue">{r.period}</span>
                         {r.saved && <span className="v-badge v-badge-green"><Archive size={10} /> Saved</span>}
-                      </div>
-                    </td>
-                    
-                    <td style={{ maxWidth: 260 }}>
-                      <div style={{ fontSize: 12, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Poppins,sans-serif' }}>
-                        {r.content.slice(0, 80)}…
                       </div>
                     </td>
                     <td>
@@ -2247,52 +2393,160 @@ const saveReport = async report => {
                             ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
                             : <><Send size={12} /> Submit to Admin</>}
                         </button>
+                        <button
+                          className="v-btn v-btn-sm"
+                          onClick={() => deleteReport(r)}
+                          style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+
+                  {viewReportId === r.id && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: 0, border: 'none' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>Report Details — {r.period}</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(r)}>
+                                <Download size={12} /> Download PDF
+                              </button>
+                              <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setViewReportId(null)}>
+                                <X size={12} /> Close
+                              </button>
+                            </div>
+                          </div>
+                          <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
               </tbody>
             </table>
-            {viewReportId && reports.find(r => r.id === viewReportId) && (
-              <div style={{ margin: '16px 0', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>Report Details — {reports.find(r => r.id === viewReportId)?.period}</div>
-                  
-                  <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(reports.find(r => r.id === viewReportId))}>
-                  <Download size={12} /> Download PDF
-                </button>
-                  <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setViewReportId(null)}><X size={12} /> Close</button>
-                </div>
-                <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{reports.find(r => r.id === viewReportId)?.content}</pre>
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      {/* Report History */}
-      <div className="v-card" style={{ padding: '20px 22px' }}>
+      {/* Submitted Reports */}
+      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
         <div className="v-section-head">
-          <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{history.length} submitted</span>
+          <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+            {submittedReports.length} submitted to admin
+          </span>
         </div>
-        {history.length === 0 ? (
-          <VEmptyState icon="📁" title="No submitted reports yet" sub="Reports submitted to admin will appear here for reference." />
+        {submittedReports.length === 0 ? (
+          <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
               <thead>
-                <tr><th>Submitted At</th><th>Period</th><th>Generated</th><th>Status</th></tr>
+                <tr>
+                  <th>Submitted At</th>
+                  <th>Period</th>
+                  <th>Generated</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                </tr>
               </thead>
               <tbody>
-                {history.map(h => (
-                  <tr key={h.id}>
-                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{h.submittedAt}</td>
-                    <td><span className="v-badge v-badge-green">{h.period}</span></td>
-                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{h.generatedDate}</td>
-                    <td><span className="v-badge v-badge-blue"><Send size={10} /> Submitted</span></td>
-                  </tr>
-                ))}
+                {submittedReports.map(h => {
+                  const daysLeft = h.expiresAt
+                    ? Math.ceil((new Date(h.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  return (
+                    <tr key={h.id}>
+                      <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{h.submittedAt}</td>
+                      <td><span className="v-badge v-badge-green">{h.period}</span></td>
+                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{h.generatedDate}</td>
+                      <td style={{ fontSize: 12, color: daysLeft !== null && daysLeft <= 5 ? '#ef4444' : '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                        {daysLeft !== null ? `${daysLeft}d left` : '—'}
+                      </td>
+                      <td><span className="v-badge v-badge-blue"><Send size={10} /> Submitted</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Report History (deleted reports) */}
+      <div className="v-card" style={{ padding: '20px 22px' }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+            {deletedReports.length} deleted · recoverable for 30 days
+          </span>
+        </div>
+        {deletedReports.length === 0 ? (
+          <VEmptyState icon="🗑️" title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead>
+                <tr>
+                  <th>Deleted At</th>
+                  <th>Period</th>
+                  <th>Generated</th>
+                  <th>Expires In</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedReports.map((r, i) => {
+                  const daysLeft = r.expiresAt
+                    ? Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  const isExpiringSoon = daysLeft !== null && daysLeft <= 5;
+
+                  return (
+                    <tr key={r.id || r.localId || i}>
+                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
+                        {r.deletedAt}
+                      </td>
+                      <td><span className="v-badge v-badge-blue">{r.period}</span></td>
+                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                        {r.generatedDate}
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, fontFamily: 'Poppins,sans-serif',
+                          color: isExpiringSoon ? '#ef4444' : '#94a3b8',
+                        }}>
+                          {daysLeft !== null ? (
+                            isExpiringSoon
+                              ? `⚠ ${daysLeft}d left`
+                              : `${daysLeft}d left`
+                          ) : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="v-btn v-btn-sm"
+                          onClick={() => retrieveReport(r)}
+                          disabled={retrieving === r.id}
+                          style={{
+                            background: '#f0fdf5',
+                            color: '#00897b',
+                            border: '1px solid #b2dfdb',
+                            opacity: retrieving === r.id ? 0.6 : 1,
+                          }}
+                        >
+                          {retrieving === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(0,137,123,0.3)', borderTopColor: '#00897b', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
+                            : <><RefreshCw size={12} /> Retrieve</>}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
