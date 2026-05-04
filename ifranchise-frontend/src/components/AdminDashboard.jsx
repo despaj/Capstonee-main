@@ -3248,7 +3248,7 @@ const generatePdfDoc = (report) => {
         onClick:() => { setViewReport(report); setPdfPreviewUrl(null); setOpenDropdown(null); },
       },
       {
-        label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor:"#fff",
+        label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor: "#00695c",
         disabled: report.status === "approved",
         onClick:() => { setApproveReport(report); setOpenDropdown(null); },
       },

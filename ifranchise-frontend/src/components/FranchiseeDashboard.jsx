@@ -1683,6 +1683,31 @@ function FrReportsContent({ user, transactions = [] }){
   const [submittedReports, setSubmittedReports] = useState([]);
   const [deletedReports, setDeletedReports] = useState([]);
   const [retrieving, setRetrieving] = useState(null);
+  const [returnedReports, setReturnedReports] = useState([]);
+
+  useEffect(() => {
+    const fetchReturnedReports = async () => {
+      if (!branch) return;
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_API_URL}/reports?branch=${branch}&status=returned`
+        );
+        const data = await res.json();
+        setReturnedReports(data.map(r => ({
+          id: r.id,
+          period: r.period,
+          submittedAt: new Date(r.submittedAt).toLocaleString('en-PH'),
+          remark: r.remark || '',
+          comments: r.comments || [],
+          content: r.content || '',
+          status: r.status,
+        })));
+      } catch (err) {
+        console.error('Failed to load returned reports:', err);
+      }
+    };
+    fetchReturnedReports();
+  }, [branch]);
 
 useEffect(() => {
   const fetchSavedReports = async () => {
@@ -1754,6 +1779,9 @@ useEffect(() => {
         period: h.period,
         submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
         expiresAt: h.expiresAt,
+        comments: h.comments || [], 
+        remark: h.remark || '',  
+        status: h.status,    
       })));
     } catch (err) {
       console.error('Failed to load history:', err);
@@ -2431,51 +2459,199 @@ const submitReport = async report => {
           </div>
         )}
       </div>
-
-      {/* Submitted Reports */}
-      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
-        <div className="v-section-head">
-          <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
-            {submittedReports.length} submitted to admin
-          </span>
-        </div>
-        {submittedReports.length === 0 ? (
-          <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="v-table">
-              <thead>
-                <tr>
-                  <th>Submitted At</th>
-                  <th>Period</th>
-                  <th>Generated</th>
-                  <th>Expires</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {submittedReports.map(h => {
+    {/* Submitted Reports */}
+    <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      <div className="v-section-head">
+        <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
+        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+          {submittedReports.length + returnedReports.length} submitted to admin
+        </span>
+      </div>
+      {submittedReports.length === 0 && returnedReports.length === 0 ? (
+        <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="v-table">
+            <thead>
+              <tr>
+                <th>Submitted At</th>
+                <th>Period</th>
+                <th>Generated</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Merge and sort both lists by submittedAt descending */}
+              {[
+                ...submittedReports.map(h => ({ ...h, _type: 'submitted' })),
+                ...returnedReports.map(h => ({ ...h, _type: 'returned' })),
+              ]
+                .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
+                .map(h => {
                   const daysLeft = h.expiresAt
                     ? Math.ceil((new Date(h.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
                     : null;
+                  const isReturned = h._type === 'returned';
+                  const hasComments = h.comments?.length > 0;
+                  const isExpanded = viewReportId === h.id;
+
                   return (
-                    <tr key={h.id}>
-                      <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{h.submittedAt}</td>
-                      <td><span className="v-badge v-badge-green">{h.period}</span></td>
-                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{h.generatedDate}</td>
-                      <td style={{ fontSize: 12, color: daysLeft !== null && daysLeft <= 5 ? '#ef4444' : '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
-                        {daysLeft !== null ? `${daysLeft}d left` : '—'}
-                      </td>
-                      <td><span className="v-badge v-badge-blue"><Send size={10} /> Submitted</span></td>
-                    </tr>
+                    <React.Fragment key={`${h._type}-${h.id}`}>
+                      <tr style={{ background: isReturned ? '#fff9f9' : 'transparent' }}>
+                        <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                          {h.submittedAt}
+                        </td>
+                        <td>
+                          <span className="v-badge v-badge-blue">{h.period}</span>
+                        </td>
+                        <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                          {h.generatedDate || '—'}
+                        </td>
+                        <td style={{
+                          fontSize: 12,
+                          color: daysLeft !== null && daysLeft <= 5 ? '#ef4444' : '#94a3b8',
+                          fontFamily: 'Poppins,sans-serif',
+                        }}>
+                          {daysLeft !== null ? `${daysLeft}d left` : '—'}
+                        </td>
+                        <td>
+                          {isReturned ? (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                              background: '#fee2e2', color: '#991b1b',
+                            }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+                              Returned
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                              background: '#dbeafe', color: '#1e40af',
+                            }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                              Submitted
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {(hasComments || isReturned) && (
+                            <button
+                              className="v-btn v-btn-sm v-btn-ghost"
+                              onClick={() => setViewReportId(isExpanded ? null : h.id)}
+                              style={{
+                                fontSize: 11,
+                                color: isReturned ? '#dc2626' : '#00897b',
+                                border: `1px solid ${isReturned ? '#fca5a5' : '#b2dfdb'}`,
+                                background: isReturned ? '#fff0f0' : '#f0fdf5',
+                              }}
+                            >
+                              <MessageCircle size={11} />
+                              {isExpanded ? 'Hide' : `View${hasComments ? ` (${h.comments.length})` : ''}`}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Expandable remark + comments row */}
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '0 0 10px', border: 'none' }}>
+                            <div style={{
+                              margin: '4px 0',
+                              borderRadius: 12,
+                              border: `1.5px solid ${isReturned ? '#fca5a5' : 'rgba(0,168,76,0.15)'}`,
+                              overflow: 'hidden',
+                            }}>
+                              {/* Return remark (only for returned) */}
+                              {isReturned && h.remark && (
+                                <div style={{
+                                  padding: '12px 16px',
+                                  background: '#fef2f2',
+                                  borderBottom: hasComments ? '1px solid #fecaca' : 'none',
+                                }}>
+                                  <div style={{
+                                    fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
+                                    letterSpacing: '0.07em', color: '#b91c1c',
+                                    marginBottom: 6, fontFamily: 'Montserrat,sans-serif',
+                                  }}>
+                                    Return Reason
+                                  </div>
+                                  <div style={{
+                                    fontSize: 13, color: '#7f1d1d',
+                                    fontFamily: 'Poppins,sans-serif', lineHeight: 1.6,
+                                    padding: '10px 12px',
+                                    background: '#fee2e2',
+                                    borderRadius: 8,
+                                    border: '1px solid #fca5a5',
+                                  }}>
+                                    {h.remark}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Comments */}
+                              {hasComments ? (
+                                <div style={{
+                                  padding: '12px 16px',
+                                  background: isReturned ? '#fff9f9' : '#f8fffe',
+                                }}>
+                                  <div style={{
+                                    fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
+                                    letterSpacing: '0.07em',
+                                    color: isReturned ? '#b91c1c' : '#00897b',
+                                    marginBottom: 8, fontFamily: 'Montserrat,sans-serif',
+                                  }}>
+                                    Admin Comments ({h.comments.length})
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {h.comments.map((c, i) => (
+                                      <div key={c.id || i} style={{
+                                        padding: '9px 12px',
+                                        background: '#fff',
+                                        borderRadius: 8,
+                                        border: `1px solid ${isReturned ? '#fca5a5' : '#d1eedd'}`,
+                                        fontSize: 12,
+                                        fontFamily: 'Poppins,sans-serif',
+                                      }}>
+                                        <span style={{ fontWeight: 700, color: isReturned ? '#dc2626' : '#00897b' }}>
+                                          {c.author}
+                                        </span>
+                                        <span style={{ color: '#94a3b8', marginLeft: 8, fontSize: 11 }}>
+                                          {new Date(c.postedAt).toLocaleString('en-PH')}
+                                        </span>
+                                        <div style={{ marginTop: 4, color: '#374151' }}>{c.text}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : isReturned && !h.remark ? (
+                                <div style={{
+                                  padding: '14px 16px',
+                                  background: '#fef2f2',
+                                  fontSize: 12,
+                                  color: '#b91c1c',
+                                  fontFamily: 'Poppins,sans-serif',
+                                  fontStyle: 'italic',
+                                }}>
+                                  No return reason or comments provided.
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
 
       {/* Report History (deleted reports) */}
       <div className="v-card" style={{ padding: '20px 22px' }}>
