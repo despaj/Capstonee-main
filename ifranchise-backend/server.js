@@ -118,8 +118,15 @@ app.post("/login", async (req, res) => {
 
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    console.log("User found:", user.rows.length);
+console.log("Email received:", JSON.stringify(email));
+
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
+
+    console.log("DB password:", JSON.stringify(user.rows[0].password));
+console.log("Input password:", JSON.stringify(password));
+console.log("Match:", password === user.rows[0].password);
 
     const validPass = password === user.rows[0].password;
 if (!validPass)
