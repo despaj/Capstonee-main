@@ -39,6 +39,14 @@ setInterval(async () => {
 
 const otpStore = {};
 
+async function sendPushNotification(expoPushToken, title, body) {
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: expoPushToken, title, body, sound: 'default' }),
+  });
+}
+
 function getOrCreateDeviceId(req, res) {
   let deviceId = req.cookies?.device_id;
   if (!deviceId) {
@@ -318,6 +326,12 @@ app.delete("/users/:id", async (req, res) => {
   } catch {
     res.status(500).json({ error: "Failed to delete user" });
   }
+});
+
+app.post('/users/:id/push-token', async (req, res) => {
+  const { token } = req.body;
+  await pool.query('UPDATE users SET push_token=$1 WHERE id=$2', [token, req.params.id]);
+  res.json({ success: true });
 });
 
 // ─── PROFILE (api/users) ─────────────────────────────────────
@@ -1605,7 +1619,23 @@ app.post("/announcements", async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [title, content, userId]
     );
-
+ 
+try {
+  const allUsers = await pool.query("SELECT id FROM users");
+  await Promise.all(allUsers.rows.map(u =>
+    pool.query(
+      `INSERT INTO notifications (user_id, type, title, body)
+       VALUES ($1, 'announcement', $2, $3)`,
+      [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content]
+    )
+  ));
+  const tokens = await pool.query('SELECT push_token FROM users WHERE push_token IS NOT NULL');
+  await Promise.all(tokens.rows.map(r =>
+    sendPushNotification(r.push_token, 'New Announcement', title)
+  ));
+} catch (notifErr) {
+  console.error("Notification insert failed (non-fatal):", notifErr.message);
+}
     res.json({ success: true, announcement: result.rows[0] });
   } catch (err) {
     console.error("Create announcement error:", err);
@@ -1758,15 +1788,40 @@ app.put("/orders/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid status value" });
 
     const result = await pool.query(
-      "UPDATE orders SET status=$1 WHERE id=$2 RETURNING *",
-      [status, req.params.id]
-    );
+  "UPDATE orders SET status=$1 WHERE id=$2 RETURNING *",
+  [status, req.params.id]
+);
 
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Order not found" });
+// ← check FIRST before using result
+if (result.rows.length === 0)
+  return res.status(404).json({ error: "Order not found" });
 
-    res.json({ success: true, order: result.rows[0] });
-  } catch (err) {
+const order = result.rows[0];
+if (order?.user_id) {
+  const statusLabels = {
+    pending:   "Order Placed",
+    shipping:  "Order Shipped",
+    received:  "Order Delivered",
+    cancelled: "Order Cancelled",
+  };
+  await pool.query(
+    `INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)`,
+    [order.user_id, `order_${status}`, statusLabels[status] || "Order Update",
+     `Your order #${order.id} is now ${status}.`]
+  );
+}
+
+const userRow = await pool.query(
+  'SELECT push_token FROM users WHERE id=$1', [order.user_id]
+);
+const token = userRow.rows[0]?.push_token;
+if (token) {
+  await sendPushNotification(token, 'Order Update',
+    `Your order #${req.params.id} is now ${status}.`);
+}
+
+res.json({ success: true, order: result.rows[0] });
+ } catch (err) {
     console.error("PUT /orders/:id error:", err);
     res.status(500).json({ error: "Failed to update order status" });
   }
@@ -2398,6 +2453,42 @@ app.delete("/reports/:id", async (req, res) => {
   } catch (err) {
     console.error("DELETE /reports/:id error:", err);
     res.status(500).json({ error: "Failed to delete report" });
+  }
+});
+
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────
+
+app.get("/notifications", async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const result = await pool.query(
+      "SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC",
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /notifications error:", err);
+    res.status(500).json({ error: "Failed to fetch notifications" });
+  }
+});
+
+app.patch("/notifications/:id/read", async (req, res) => {
+  try {
+    await pool.query("UPDATE notifications SET is_read=true WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to mark read" });
+  }
+});
+
+app.patch("/notifications/read-all", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    await pool.query("UPDATE notifications SET is_read=true WHERE user_id=$1", [userId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to mark all read" });
   }
 });
 
