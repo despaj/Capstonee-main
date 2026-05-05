@@ -5,11 +5,8 @@ import welcome from "../assets/welcomepage.png";
 
 // 👇 Replace these with your actual image imports
 import card1Img from "../assets/cards.png";
-import card2Img from "../assets/cards.png";
-import card3Img from "../assets/cards.png";
-import card4Img from "../assets/cards.png";
-import card5Img from "../assets/cards.png";
-import card6Img from "../assets/cards.png";
+import card3Img from "../assets/cards (1).png";
+import card2Img from "../assets/cards (2).png";
 
 const CARDS = [
    {
@@ -704,7 +701,12 @@ export default function LandingPage() {
           <div className="footer-links">
             <a href="#" className="footer-link">Privacy Policy & Terms of Service</a>
             
-            <a href="#" className="footer-link">Contact Us</a>
+           <a 
+  href="mailto:ifranchisebusiness.ph@gmail.com" 
+  className="footer-link"
+>
+  Contact Us
+</a>
   
           </div>
         </div>

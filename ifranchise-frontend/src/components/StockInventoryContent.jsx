@@ -5,6 +5,7 @@ const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
   bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
+  ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
 const invInputSt = {
@@ -44,30 +45,188 @@ const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 15;
 
-/* ── tiny inline SVG icons ── */
-const SearchIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon       = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon    = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon   = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const SortAscIcon = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon= ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
-const FilterIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const ChevronIcon = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const HistoryIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
-const RestoreIcon = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
-const ActivityIcon= ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-
-/* ── format timestamp ── */
 const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
   month:"short", day:"numeric", year:"numeric",
   hour:"2-digit", minute:"2-digit",
 });
 
+/* ── tiny inline SVG icons ── */
+const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const TrashIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const PlusIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const FileIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
+const SortAscIcon  = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
+const SortDescIcon = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
+const FilterIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
+const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
+const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
+const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+const AlertCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+const CheckCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
+
 /* ─────────────────────────────────────────────────────────────────────────
-   BrandBranchFilter  (unchanged from original)
+   UI MODAL  (replaces all alert / confirm)
+───────────────────────────────────────────────────────────────────────── */
+function UIModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const { type, title, message, lines, confirmLabel, cancelLabel } = modal;
+
+  const iconMap = {
+    error:   <AlertCircleIcon size={26} color="#dc2626"/>,
+    success: <CheckCircleIcon size={26} color={C.green}/>,
+    info:    <InfoIcon size={26} color="#1d4ed8"/>,
+    confirm: <AlertCircleIcon size={26} color={C.warn}/>,
+  };
+  const headerColorMap = {
+    error:   { bg:"#fef2f2",  border:"#fecaca",      titleColor:"#991b1b"  },
+    success: { bg:C.greenLt,  border:C.greenMid,     titleColor:C.greenDk  },
+    info:    { bg:"#eff6ff",  border:"#bfdbfe",      titleColor:"#1e3a8a"  },
+    confirm: { bg:C.warnBg,   border:"#fed7aa",      titleColor:"#9a3412"  },
+  };
+  const hc = headerColorMap[type] || headerColorMap.info;
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}`, display:"flex", alignItems:"flex-start", gap:13 }}>
+          <div style={{ flexShrink:0, marginTop:1 }}>{iconMap[type]}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:16, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
+            {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.55, opacity:0.85 }}>{message}</div>}
+          </div>
+          <button onClick={onClose} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:`1px solid ${hc.border}`, background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
+            <XIcon size={13}/>
+          </button>
+        </div>
+
+        {/* Lines (for import summary) */}
+        {lines && lines.length > 0 && (
+          <div style={{ maxHeight:180, overflowY:"auto", padding:"12px 24px", borderBottom:`1px solid ${C.border}` }}>
+            {lines.map((l, i) => (
+              <div key={i} style={{ fontSize:12, color:l.warn ? C.warn : C.muted, padding:"3px 0", display:"flex", alignItems:"flex-start", gap:7 }}>
+                <span style={{ marginTop:1, flexShrink:0, color:l.warn?"#e65100":C.green }}>{l.warn ? "–" : "+"}</span>
+                <span>{l.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          {type === "confirm" && (
+            <button onClick={onClose} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>{cancelLabel || "Cancel"}</button>
+          )}
+          {type === "confirm" ? (
+            <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>{confirmLabel || "Confirm"}</button>
+          ) : (
+            <button onClick={onClose} style={{ ...btnPrimarySt }}>{confirmLabel || "OK"}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   DELETE CONFIRM MODAL
+───────────────────────────────────────────────────────────────────────── */
+function DeleteConfirmModal({ item, onConfirm, onCancel }) {
+  if (!item) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
+          <div style={{ flexShrink:0, marginTop:1 }}>
+            <AlertCircleIcon size={26} color="#dc2626"/>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:16, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Ingredient</div>
+            <div style={{ fontSize:13, color:C.ink, lineHeight:1.55 }}>
+              Are you sure you want to delete <strong style={{ color:C.ink }}>"{item.name}"</strong>?
+            </div>
+            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:9, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+              This will move the ingredient to Delete History where it can be restored.
+            </div>
+          </div>
+          <button onClick={onCancel} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
+            <XIcon size={13}/>
+          </button>
+        </div>
+        {/* Item summary */}
+        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:16 }}>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Branch</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.branch || "—"}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Unit</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.unit}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Stock</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.stock}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Cost/Unit</div>
+            <div style={{ fontWeight:700, color:C.green }}>₱{Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
+          <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)", display:"inline-flex", alignItems:"center", gap:6 }}>
+            <TrashIcon size={13}/> Delete Ingredient
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   IMPORT LOADING MODAL
+───────────────────────────────────────────────────────────────────────── */
+function ImportLoadingModal({ visible, progress }) {
+  if (!visible) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ background:C.white, borderRadius:22, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px" }}>
+          <UploadIcon size={30} color={C.green}/>
+        </div>
+        <div style={{ fontSize:17, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
+        <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
+
+        {/* Progress bar */}
+        <div style={{ background:C.greenLt, borderRadius:999, height:8, overflow:"hidden", marginBottom:12 }}>
+          <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
+        </div>
+        <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
+        {progress.current > 0 && (
+          <div style={{ fontSize:11, color:C.muted, opacity:0.7 }}>{progress.current} / {progress.total} rows processed</div>
+        )}
+
+        <div style={{ marginTop:18, display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:C.green }}>
+          <LoaderIcon size={16} color={C.green}/>
+          <span style={{ fontSize:12, fontWeight:700 }}>Do not close this window</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BrandBranchFilter
 ───────────────────────────────────────────────────────────────────────── */
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = useState("");
@@ -159,7 +318,7 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   BranchSearchSelect  (unchanged)
+   BranchSearchSelect
 ───────────────────────────────────────────────────────────────────────── */
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
@@ -204,7 +363,7 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Pagination  (unchanged)
+   Pagination
 ───────────────────────────────────────────────────────────────────────── */
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
@@ -236,7 +395,6 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        {/* header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>Delete History</h2>
@@ -250,15 +408,11 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
             <XIcon size={15}/>
           </button>
         </div>
-
-        {/* column headers */}
         {history.length > 0 && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
             <span>Ingredient</span><span>Branch</span><span>Stock</span><span>Deleted At</span><span></span>
           </div>
         )}
-
-        {/* list */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {history.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>
@@ -288,7 +442,7 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   ACTIVITY LOG PANEL  (add + edit history)
+   ACTIVITY LOG PANEL
 ───────────────────────────────────────────────────────────────────────── */
 function ActivityLogPanel({ log, onClose }) {
   const [search, setSearch] = useState("");
@@ -318,8 +472,6 @@ function ActivityLogPanel({ log, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-
-        {/* header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>Activity Log</h2>
@@ -329,8 +481,6 @@ function ActivityLogPanel({ log, onClose }) {
             <XIcon size={15}/>
           </button>
         </div>
-
-        {/* filters */}
         <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
           <div style={{ position:"relative", flex:"1 1 200px" }}>
             <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
@@ -344,13 +494,9 @@ function ActivityLogPanel({ log, onClose }) {
             <option value="import">Imported</option>
           </select>
         </div>
-
-        {/* column headers */}
         <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
           <span>Action</span><span>Ingredient</span><span>Branch</span><span>By</span><span>Timestamp</span>
         </div>
-
-        {/* rows */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {filtered.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
@@ -404,11 +550,22 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const [statusFilt, setStatusFilt] = useState("");
   const [page,       setPage]       = useState(0);
   const [sort,       setSort]       = useState({ col:"name", asc:true });
-  const [confirmDel, setConfirmDel] = useState(null);
   const [showModal,  setShowModal]  = useState(false);
   const [editing,    setEditing]    = useState(null);
 
-  /* ── NEW: history state ── */
+  /* ── UI Modal state ── */
+  const [uiModal,      setUiModal]      = useState(null);
+  const showUiModal = useCallback((opts) => setUiModal(opts), []);
+  const closeUiModal = useCallback(() => setUiModal(null), []);
+
+  /* ── Delete confirm modal ── */
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  /* ── Import loading modal ── */
+  const [importLoading,  setImportLoading]  = useState(false);
+  const [importProgress, setImportProgress] = useState({ percent:0, label:"Preparing…", current:0, total:0 });
+
+  /* ── History state ── */
   const [deleteHistory,     setDeleteHistory]     = useState([]);
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
   const [activityLog,       setActivityLog]       = useState([]);
@@ -498,75 +655,128 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const importExcel = e => {
     const file = e.target.files[0];
     if (!file) return;
+
+    setImportLoading(true);
+    setImportProgress({ percent:5, label:"Reading file…", current:0, total:0 });
+
     const reader = new FileReader();
     reader.onload = async ev => {
-      const wb = XLSX.read(ev.target.result, { type:"array" });
-      const rows_to_save = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
-        rows.forEach(row => {
-          const name   = capitalizeName(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
-          if (!name) return;
-          const rowBranch = String(row.branch || row.Branch || "").trim() || "Unknown";
-          const alreadyExists = items.some(
-            i => normalizeName(i.name) === normalizeName(name) && i.branch.trim().toLowerCase() === rowBranch.toLowerCase()
-          );
-          if (alreadyExists) return;
-          const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
-          const listInShop = rawListInShop === 1 || rawListInShop === true
-            || String(rawListInShop).trim().toLowerCase() === "1"
-            || String(rawListInShop).trim().toLowerCase() === "yes"
-            || String(rawListInShop).trim().toLowerCase() === "true";
-          rows_to_save.push({
-            name,
-            branch:        rowBranch,
-            brand:         String(row.brand         || row.Brand         || "").trim(),
-            unit:          String(row.unit           || row.Unit          || "pcs").trim(),
-            stock:         parseFloat(row.stock      || row.Stock         || 0) || 0,
-            min_stock:     parseFloat(row.min_stock  || row["Min Stock"]  || 0) || 0,
-            cost_per_unit: parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
-            listInShop,
-            shopPrice:    parseFloat(row.shop_price  || row["Shop Price"] || 0) || 0,
-            shopUnit:     String(row.shop_unit       || row["Shop Unit"]  || "").trim(),
-            shopCategory: String(row.shop_category   || row["Shop Category"] || "Coffee Spot").trim(),
+      try {
+        setImportProgress({ percent:15, label:"Parsing spreadsheet…", current:0, total:0 });
+        const wb = XLSX.read(ev.target.result, { type:"array" });
+        const rows_to_save = [];
+
+        wb.SheetNames.forEach(sheetName => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
+          rows.forEach(row => {
+            const name   = capitalizeName(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
+            if (!name) return;
+            const rowBranch = String(row.branch || row.Branch || "").trim() || "Unknown";
+            const alreadyExists = items.some(
+              i => normalizeName(i.name) === normalizeName(name) && i.branch.trim().toLowerCase() === rowBranch.toLowerCase()
+            );
+            if (alreadyExists) return;
+            const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
+            const listInShop = rawListInShop === 1 || rawListInShop === true
+              || String(rawListInShop).trim().toLowerCase() === "1"
+              || String(rawListInShop).trim().toLowerCase() === "yes"
+              || String(rawListInShop).trim().toLowerCase() === "true";
+            rows_to_save.push({
+              name,
+              branch:        rowBranch,
+              brand:         String(row.brand         || row.Brand         || "").trim(),
+              unit:          String(row.unit           || row.Unit          || "pcs").trim(),
+              stock:         parseFloat(row.stock      || row.Stock         || 0) || 0,
+              min_stock:     parseFloat(row.min_stock  || row["Min Stock"]  || 0) || 0,
+              cost_per_unit: parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
+              listInShop,
+              shopPrice:    parseFloat(row.shop_price  || row["Shop Price"] || 0) || 0,
+              shopUnit:     String(row.shop_unit       || row["Shop Unit"]  || "").trim(),
+              shopCategory: String(row.shop_category   || row["Shop Category"] || "Coffee Spot").trim(),
+            });
           });
         });
-      });
 
-      let saved = 0, shopSaved = 0;
-      for (const item of rows_to_save) {
-        try {
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item),
+        setImportProgress({ percent:25, label:`Found ${rows_to_save.length} rows. Importing…`, current:0, total:rows_to_save.length });
+
+        let saved = 0, shopSaved = 0, skipped = 0;
+        const skippedNames = [];
+
+        for (let idx = 0; idx < rows_to_save.length; idx++) {
+          const item = rows_to_save[idx];
+          const pct  = 25 + Math.round(((idx + 1) / rows_to_save.length) * 65);
+          setImportProgress({
+            percent: pct,
+            label: `Saving "${item.name}"…`,
+            current: idx + 1,
+            total: rows_to_save.length,
           });
-          const d = await res.json();
-          if (d.success) {
-            saved++;
-            /* log import activity */
-            await logActivity("import", item.name, item.branch, `stock=${item.stock} ${item.unit}, cost=₱${item.cost_per_unit}`);
-            if (item.listInShop && item.shopPrice > 0) {
-              try {
-                const checkRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-                const checkData = await checkRes.json();
-                const shopDup   = checkData.some(s => s.name.trim().toLowerCase() === item.name.toLowerCase() && s.shop.trim().toLowerCase() === item.shopCategory.toLowerCase());
-                if (!shopDup) {
-                  const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                    method:"POST", headers:{"Content-Type":"application/json"},
-                    body:JSON.stringify({ name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock, shop:item.shopCategory, brand:item.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(item.name.slice(0,8)), is_visible:true }),
-                  });
-                  const shopD = await shopRes.json();
-                  if (shopD.success) shopSaved++;
-                }
-              } catch {}
+
+          try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+              method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item),
+            });
+            const d = await res.json();
+            if (d.success) {
+              saved++;
+              await logActivity("import", item.name, item.branch, `stock=${item.stock} ${item.unit}, cost=₱${item.cost_per_unit}`);
+              if (item.listInShop && item.shopPrice > 0) {
+                try {
+                  const checkRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+                  const checkData = await checkRes.json();
+                  const shopDup   = checkData.some(s => s.name.trim().toLowerCase() === item.name.toLowerCase() && s.shop.trim().toLowerCase() === item.shopCategory.toLowerCase());
+                  if (!shopDup) {
+                    const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+                      method:"POST", headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({ name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock, shop:item.shopCategory, brand:item.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(item.name.slice(0,8)), is_visible:true }),
+                    });
+                    const shopD = await shopRes.json();
+                    if (shopD.success) shopSaved++;
+                  }
+                } catch {}
+              }
+            } else {
+              skipped++;
+              skippedNames.push(item.name);
             }
+          } catch {
+            skipped++;
+            skippedNames.push(item.name);
           }
-        } catch {}
+        }
+
+        setImportProgress({ percent:100, label:"Complete!", current:rows_to_save.length, total:rows_to_save.length });
+        await fetchItems();
+        await fetchActivityLog();
+
+        const summaryLines = [
+          { text:`${rows_to_save.length} row(s) parsed from file` },
+          { text:`${saved} ingredient(s) saved successfully` },
+          ...(shopSaved > 0 ? [{ text:`${shopSaved} item(s) also added to Mobile Shop` }] : []),
+          ...(skipped > 0 ? [
+            { text:`${skipped} item(s) failed or skipped`, warn:true },
+            ...skippedNames.map(n => ({ text:n, warn:true })),
+          ] : []),
+        ];
+
+        setTimeout(() => {
+          setImportLoading(false);
+          e.target.value = "";
+          showUiModal({
+            type: skipped > 0 ? "info" : "success",
+            title: "Import Complete",
+            message: skipped > 0
+              ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
+              : `Successfully imported ${saved} ingredient(s) into stock inventory.`,
+            lines: summaryLines,
+          });
+        }, 400);
+
+      } catch (err) {
+        setImportLoading(false);
+        e.target.value = "";
+        showUiModal({ type:"error", title:"Import Failed", message:"An error occurred while processing the Excel file. Please check the file format and try again." });
       }
-      e.target.value = "";
-      const skipped = rows_to_save.length - saved;
-      alert(`Parsed ${rows_to_save.length} row(s).\n✅ Saved: ${saved} ingredient(s)\n${shopSaved>0?`🛒 Added to Mobile Shop: ${shopSaved}\n`:""}${skipped>0?`⏭ Skipped (duplicates): ${skipped}`:""}`);
-      await fetchItems();
-      await fetchActivityLog();
     };
     reader.readAsArrayBuffer(file);
   };
@@ -608,7 +818,10 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       const duplicate = items.find(
         i => normalizeName(i.name) === normalizeName(payload.name) && i.branch.trim().toLowerCase() === payload.branch.trim().toLowerCase()
       );
-      if (duplicate) { alert(`"${payload.name}" already exists in ${payload.branch}.`); return; }
+      if (duplicate) {
+        showUiModal({ type:"error", title:"Duplicate Ingredient", message:`"${payload.name}" already exists in ${payload.branch}. Please use a different name.` });
+        return;
+      }
     }
 
     const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
@@ -618,7 +831,6 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const d   = await res.json();
       if (d.success) {
-        /* ── build human-readable changes string for edits ── */
         let changesStr = null;
         if (editing) {
           const changed = [];
@@ -629,15 +841,8 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
           changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
         }
 
-        /* log to activity */
-        await logActivity(
-          editing ? "edit" : "add",
-          payload.name,
-          payload.branch,
-          changesStr
-        );
+        await logActivity(editing ? "edit" : "add", payload.name, payload.branch, changesStr);
 
-        /* mirror to shop if flagged */
         if (!editing && form.listInShop && form.shopPrice) {
           try {
             await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
@@ -650,31 +855,47 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         await fetchItems();
         await fetchActivityLog();
         closeModal();
-      } else alert(d.error || "Failed to save");
-    } catch { alert("Failed to save ingredient"); }
+        showUiModal({
+          type:"success",
+          title: editing ? "Ingredient Updated" : "Ingredient Added",
+          message: editing
+            ? `"${payload.name}" has been updated successfully.`
+            : `"${payload.name}" has been added to stock inventory.`,
+        });
+      } else {
+        showUiModal({ type:"error", title:"Failed to Save", message: d.error || "An unexpected error occurred." });
+      }
+    } catch {
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to save ingredient. Please check your connection and try again." });
+    }
   };
 
-  /* ── delete ── */
-  const deleteItem = async id => {
-    try {
-      /* fetch full item data before deleting */
-      const item = items.find(i => i.id === id);
+  /* ── delete (trigger modal) ── */
+  const handleDeleteItem = (item) => {
+    setDeleteTarget(item);
+  };
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${id}`, { method:"DELETE" });
+  /* ── confirm delete ── */
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const item = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, { method:"DELETE" });
       const d   = await res.json();
       if (d.success) {
-        /* save to delete history */
-        if (item) {
-          await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({ ingredient_data: item, deleted_by: userName }),
-          });
-        }
+        await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ ingredient_data: item, deleted_by: userName }),
+        });
         await fetchItems();
         await fetchDeleteHistory();
-        setConfirmDel(null);
-      } else alert(d.error || "Failed to delete");
-    } catch { alert("Failed to delete"); }
+      } else {
+        showUiModal({ type:"error", title:"Failed to Delete", message: d.error || "An unexpected error occurred." });
+      }
+    } catch {
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete ingredient. Please check your connection and try again." });
+    }
   };
 
   /* ── restore from delete history ── */
@@ -695,16 +916,18 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       });
       const result = await res.json();
       if (result.success) {
-        /* remove from delete history */
         await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
-        /* log restore as an "add" */
         await logActivity("add", d.name, d.branch, "Restored from delete history");
         await fetchItems();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        alert(`"${d.name}" has been restored.`);
-      } else alert(result.error || "Failed to restore");
-    } catch { alert("Failed to restore ingredient"); }
+        showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored to stock inventory.` });
+      } else {
+        showUiModal({ type:"error", title:"Restore Failed", message: result.error || "Failed to restore ingredient." });
+      }
+    } catch {
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore ingredient. Please check your connection and try again." });
+    }
   };
 
   const openEdit = item => {
@@ -732,14 +955,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   /* ── render ── */
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
 
       {/* stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:18 }}>
         {[
-          { label:"Total Ingredients", value:items.length.toLocaleString(),                                                                       sub:"Registered",  accent:C.green    },
-          { label:"Low Stock Alerts",  value:lowCount,                                                                                            sub:"Needs reorder",accent:"#e65100" },
-          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis",   accent:"#1565c0" },
+          { label:"Total Ingredients", value:items.length.toLocaleString(),                                                                       sub:"Registered",   accent:C.green    },
+          { label:"Low Stock Alerts",  value:lowCount,                                                                                            sub:"Needs reorder", accent:"#e65100" },
+          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis",    accent:"#1565c0" },
         ].map((s,i) => (
           <div key={i} style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
             <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
@@ -772,7 +998,6 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
           </select>
           <div style={{ flex:1 }}/>
 
-          {/* ── History buttons ── */}
           <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
             <HistoryIcon size={13}/> Delete History
             {deleteHistory.length > 0 && (
@@ -828,8 +1053,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                 </thead>
                 <tbody>
                   {pageItems.map(item => {
-                    const low   = Number(item.stock) < Number(item.min_stock);
-                    const isDel = confirmDel === item.id;
+                    const low = Number(item.stock) < Number(item.min_stock);
                     return (
                       <tr key={item.id} style={{ borderBottom:"1px solid #f2faf5" }}
                         onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
@@ -863,11 +1087,10 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                             <button onClick={()=>openEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
                               <EditIcon/> Edit
                             </button>
-                            <button onClick={()=>{ if(isDel) deleteItem(item.id); else setConfirmDel(item.id); }}
-                              style={{ ...smallBtnSt, border:isDel?"none":"1px solid #ffcdd2", color:isDel?C.white:"#e53935", background:isDel?"#e53935":C.white }}>
-                              <TrashIcon/> {isDel?"Confirm?":"Delete"}
+                            <button onClick={()=>handleDeleteItem(item)}
+                              style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", background:C.white }}>
+                              <TrashIcon/> Delete
                             </button>
-                            {isDel && <button onClick={()=>setConfirmDel(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
                           </div>
                         </td>
                       </tr>
@@ -986,6 +1209,23 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
           </div>
         </div>
       )}
+
+      {/* ── DELETE CONFIRM MODAL ── */}
+      <DeleteConfirmModal
+        item={deleteTarget}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* ── IMPORT LOADING MODAL ── */}
+      <ImportLoadingModal visible={importLoading} progress={importProgress}/>
+
+      {/* ── UI MODAL (alerts / errors / success) ── */}
+      <UIModal
+        modal={uiModal}
+        onClose={closeUiModal}
+        onConfirm={() => { if (uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}
+      />
 
       {/* ── DELETE HISTORY PANEL ── */}
       {showDeleteHistory && (
