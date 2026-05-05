@@ -41,7 +41,7 @@ const smallBtnSt = {
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 15;
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -393,7 +393,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   
 const emptyForm = useCallback(() => ({
   name:"", category:"", branch:isAdmin?"":userBranch,
-  cost:"", stock:0, minStock:0, price:"", ingredients:[],
+  cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
 }), [isAdmin, userBranch]);
 
 const [formData, setFormData] = useState(emptyForm);
@@ -573,6 +573,7 @@ const filteredCategories = useMemo(() => {
     setFormData({
       name:item.name, category:item.category, branch:item.branch,
       cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price,
+      image_url: item.image_url || "",
       ingredients: (item.ingredients||[]).map(ing => ({
         stock_item_id: ing.stock_item_id || ing.id,
         name:          ing.name,
@@ -761,6 +762,63 @@ const filteredCategories = useMemo(() => {
         <label style={invLabelSt}>Item Name</label>
         <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
       </div>
+      {/* Image Upload */}
+<div style={{ marginBottom:13 }}>
+  <label style={invLabelSt}>Product Image</label>
+  <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+    <div style={{ flex:1 }}>
+      <input
+        type="text"
+        placeholder="Paste image URL or upload below…"
+        value={formData.image_url || ""}
+        onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
+        style={invInputSt}
+      />
+    </div>
+    <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
+      <FileIcon size={13}/> Upload
+      <input
+        type="file"
+        accept="image/*"
+        style={{ display:"none" }}
+        onChange={async e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const fd = new FormData();
+          fd.append("image", file);
+          try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
+              method: "POST",
+              body: fd,
+            });
+            const d = await res.json();
+            if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
+            else alert("Upload failed");
+          } catch { alert("Upload failed"); }
+        }}
+      />
+    </label>
+  </div>
+
+  {/* Preview */}
+  {formData.image_url && (
+    <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
+      <img
+        src={formData.image_url}
+        alt="preview"
+        style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
+        onError={e => e.target.style.display="none"}
+      />
+      <button
+        type="button"
+        onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
+        style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+        <XIcon size={9}/>
+      </button>
+    </div>
+  )}
+</div>
+
       {isAdmin && (
         <div style={{ marginBottom:13 }}>
           <label style={invLabelSt}>Brand</label>

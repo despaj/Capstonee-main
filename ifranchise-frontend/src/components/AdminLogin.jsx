@@ -11,6 +11,7 @@ import FranchisorDashboard from "./FranchisorDashboard";
 import ManagerDashboard from "./ManagerDashboard";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
+
 export default function AdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -65,28 +66,31 @@ export default function AdminLogin() {
   const [otpLockedUntil, setOtpLockedUntil] = useState(null);
   const [otpLockRemaining, setOtpLockRemaining] = useState("");
 
-  // ===== CHECK FOR EXISTING SESSION ON MOUNT =====
-  useEffect(() => {
-    const checkExistingSession = () => {
-      const storedUser = localStorage.getItem("rememberedUser") || sessionStorage.getItem("user");
+useEffect(() => {
+  const checkExistingSession = () => {
+    const storedUser = 
+      localStorage.getItem("rememberedUser") || 
+      localStorage.getItem("user") ||
+      sessionStorage.getItem("user");
 
-      if (storedUser) {
-        try {
-          const user = JSON.parse(storedUser);
-          if (user && user.role) {
-            setLoggedIn(true);
-            setUserRole(user.role);
-          }
-        } catch (err) {
-          console.error("Error parsing stored user:", err);
-          localStorage.removeItem("rememberedUser");
-          sessionStorage.removeItem("user");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        if (user && user.role) {
+          setLoggedIn(true);
+          setUserRole(user.role);
         }
+      } catch (err) {
+        console.error("Error parsing stored user:", err);
+        localStorage.removeItem("rememberedUser");
+        localStorage.removeItem("user");        // ← ADD THIS
+        sessionStorage.removeItem("user");
       }
-      setIsCheckingSession(false);
-    };
-    checkExistingSession();
-  }, []);
+    }
+    setIsCheckingSession(false);
+  };
+  checkExistingSession();
+}, []);
 
   useEffect(() => {
     if (!email) return;

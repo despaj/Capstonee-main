@@ -149,7 +149,9 @@ const bmActionBtn = (variant = "default") => ({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState(() => {
+      return localStorage.getItem('fr_activeModule') || 'dashboard';
+    });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showViewApplicationModal, setShowViewApplicationModal] = useState(false);
@@ -170,6 +172,10 @@ export default function AdminDashboard() {
     if (userString) return JSON.parse(userString);
     return null;
   };
+
+    useEffect(() => {
+    localStorage.setItem('fr_activeModule', activeModule);
+  }, [activeModule]);
 
   useEffect(() => {
     fetch(`http://localhost:5001/dashboard/stats?preset=${preset}`)
@@ -1149,8 +1155,15 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      setBrands(list);
-      onBrandsChange?.(list);
+
+          const sorted = [...list].sort((a, b) => {
+      if (a.name === "Head Office") return -1;
+      if (b.name === "Head Office") return 1;
+      return 0;
+    });
+
+      setBrands(sorted);
+      onBrandsChange?.(sorted);
     } catch (err) {
       console.error("Failed to fetch brands:", err);
     } finally {
@@ -2781,6 +2794,17 @@ function ApplicationsContent({ applications: initialApps }) {
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
   const [menuApp, setMenuApp] = useState(null);
+  const [alertModal, setAlertModal] = useState(null);
+  
+   const showAlert = (message, type = "info") =>
+    setAlertModal({ message, type });
+  {alertModal && (
+    <AlertModal
+      message={alertModal.message}
+      type={alertModal.type}
+      onClose={() => setAlertModal(null)}
+    />
+  )}
 
   const handleApprove = async (id) => {
     try {
@@ -2836,7 +2860,7 @@ function ApplicationsContent({ applications: initialApps }) {
         </div>
       )}
 
-      {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)} />}
+      {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)}  onAlert={(msg, type) => showAlert(msg, type)} />}
 
         {menuApp && (
         <div onClick={() => setMenuApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
@@ -2945,7 +2969,6 @@ const REPORT_STATUS = {
   pending:  { label:"Pending",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
   reviewed: { label:"Reviewed", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
   approved: { label:"Approved", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  returned: { label:"Returned", bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
 };
 
 const API = process.env.REACT_APP_API_URL || "";
@@ -2961,15 +2984,14 @@ function ReportsContent() {
   // modal states
   const [viewReport,    setViewReport]    = useState(null);
   const [approveReport, setApproveReport] = useState(null);
-  const [commentReport, setCommentReport] = useState(null);
-  const [returnReport,  setReturnReport]  = useState(null);
-  const [remarkText,    setRemarkText]    = useState("");
+  const [commentReport, setCommentReport] = useState(null); 
   const [commentText,   setCommentText]   = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+
 
   // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
@@ -3034,28 +3056,6 @@ function ReportsContent() {
       setApproveReport(null);
     } catch {
       alert("Failed to approve report. Please try again.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ── Return ──────────────────────────────────────────────────────
-  const handleReturn = async (id) => {
-    if (!remarkText.trim()) { alert("Please enter a return reason."); return; }
-    setActionLoading(true);
-    try {
-      const res = await fetch(`${API}/reports/${id}/return`, {
-        method: "PATCH",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ remark: remarkText.trim() }),
-      });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      patchReport(updated);
-      setReturnReport(null);
-      setRemarkText("");
-    } catch {
-      alert("Failed to return report. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -3179,9 +3179,10 @@ const generatePdfDoc = (report) => {
   doc.rect(0, 0, pageW, 38, 'F');
   doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(255,255,255);
   doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
+
   doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(160,220,190);
   const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
-  doc.text(`Branch: ${report.branch}   |   Period: ${safePeriod}   |   Generated: ${fmtDate(report.submittedAt)}`, pageW / 2, 22, { align: 'center' });
+  
   doc.setFontSize(8); doc.setTextColor(120,180,150);
   doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 30, { align: 'center' });
   y = 46;
@@ -3256,11 +3257,6 @@ const generatePdfDoc = (report) => {
         label:"Comment", icon:<MessageCircle size={13}/>, color:"#1e40af", bg:"#dbeafe", border:"#93c5fd",
         badge: report.comments?.length || 0,
         onClick:() => { setCommentReport(report); setOpenDropdown(null); },
-      },
-      {
-        label:"Return", icon:<X size={13}/>, color:"#dc2626", bg:"#fff", border:"#fecaca",
-        disabled: report.status === "returned" || report.status === "approved",
-        onClick:() => { setReturnReport(report); setRemarkText(""); setOpenDropdown(null); },
       },
     ];
     return (
@@ -3406,9 +3402,9 @@ const generatePdfDoc = (report) => {
                 <FileText size={17} color="#00897b"/>
               </div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
-                  Report #{viewReport.id}
-                </div>
+              <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
+                REP-{String(viewReport.id).padStart(5, '0')} 
+              </div>
                 <div style={{ fontSize: 11, color: "#5a7a65" }}>
                   {viewReport.period} · Click to preview PDF
                 </div>
@@ -3576,25 +3572,6 @@ const generatePdfDoc = (report) => {
         </ModalShell>
       )}
 
-      {/* RETURN modal */}
-      {returnReport && (
-        <ModalShell title={`Return Report #${returnReport.id}`} subtitle={returnReport.brand + " · " + returnReport.branch} icon={<X size={16} color="#fff"/>} onClose={() => setReturnReport(null)} maxWidth={440}>
-          <ReportMetaGrid report={returnReport}/>
-          <div style={{ marginBottom:18 }}>
-            <label style={bmLabel}>Reason for Return</label>
-            <textarea value={remarkText} onChange={e => setRemarkText(e.target.value)} placeholder="Explain what needs to be corrected or resubmitted..." rows={4}
-              style={{ ...bmInput, marginTop:4, resize:"vertical", lineHeight:1.6 }}/>
-          </div>
-          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-            <button onClick={() => setReturnReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={() => handleReturn(returnReport.id)} disabled={actionLoading}
-              style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 20px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", opacity:actionLoading?0.7:1, fontFamily:"inherit" }}>
-              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <X size={13}/>} Confirm Return
-            </button>
-          </div>
-        </ModalShell>
-      )}
-
       {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
         <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
@@ -3682,7 +3659,9 @@ const generatePdfDoc = (report) => {
                       onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
                       onMouseLeave={e => e.currentTarget.style.background="transparent"}
                       style={{ borderBottom:"1px solid #f0f8f0" }}>
-                      <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>#{report.id}</td>
+                      <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>
+                        REP-{String(report.id).padStart(5, '0')}  {/* ← was #{report.id} */}
+                      </td>
                       <td style={{ padding:"11px 14px", fontWeight:700, color:"#0d2b1e" }}>{report.submittedBy}</td>
                       <td style={{ padding:"11px 14px" }}>
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#00695c" }}>{report.role}</span>
@@ -3986,15 +3965,15 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     </div>
   );
 
-const UserModal = ({
-  title, onSubmit, onClose, isEdit,
-  formData, handleInputChange, setFormData,
-  selectedBrandId, setSelectedBrandId,
-  brands, branches, brandsLoading,
-  showPassword, setShowPassword,
-  showPasswordValidation, passwordErrors,
-  handleGeneratePassword, pwChange,
-}) => (
+  const UserModal = ({
+    title, onSubmit, onClose, isEdit,
+    formData, handleInputChange, setFormData,
+    selectedBrandId, setSelectedBrandId,
+    brands, branches, brandsLoading,
+    showPassword, setShowPassword,
+    showPasswordValidation, passwordErrors,
+    handleGeneratePassword, pwChange,
+  }) => (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
@@ -4061,7 +4040,7 @@ const UserModal = ({
           <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
             <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
             <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
-              <Check size={14}/> {isEdit ? 'Save Changes' : 'Add User'}
+              {isEdit ? 'Save Changes' : '✉ Create & Send'}
             </button>
           </div>
         </form>
@@ -4126,6 +4105,29 @@ useEffect(() => {
     }
   };
 
+  const handleSendCredentials = async (user) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: user.email,
+          name: user.name,
+          password: "—",  // placeholder; see note below
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showAlert(`Credentials sent to ${user.email}!`, "success");
+      } else {
+        showAlert(data.error || "Failed to send credentials.", "error");
+      }
+    } catch (error) {
+      console.error("Error sending credentials:", error);
+      showAlert("Failed to send credentials.", "error");
+    }
+  };
+
   const validatePasswordStrength = (password) => {
     const errors = [];
     if (password.length < 8) errors.push("minLength");
@@ -4136,36 +4138,45 @@ useEffect(() => {
     return { isValid: errors.length === 0, errors };
   };
 
-  const handleAddUser = async (e) => {
-    e.preventDefault();
-    const passwordCheck = validatePasswordStrength(formData.password);
-    if (!passwordCheck.isValid) {
-      showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
-      return;
-    }
+const handleAddUser = async (e) => {
+  e.preventDefault();
+  const passwordCheck = validatePasswordStrength(formData.password);
+  if (!passwordCheck.isValid) {
+    showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+    return;
+  }
 
-     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const payload = { ...formData, brand: selectedBrand?.name || "" }; 
+  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+  const payload = { ...formData, brand: selectedBrand?.name || "" };
 
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          to: formData.email,
+          name: formData.name,
+          password: formData.password,  // still plaintext before resetForm() clears it
+        }),
       });
-      const data = await response.json();
-      if (data.success) {
-        await fetchUsers();
-        setShowAddModal(false);
-        resetForm();
-        showAlert("User added successfully!", "success");
-      } else {
-        showAlert(data.error || "Failed to add user.", "error");
-      }
-    } catch (error) {
-      console.error("Error adding user:", error);
-      showAlert("Failed to add user.", "error");
+
+      await fetchUsers();
+      setShowAddModal(false);
+      resetForm();
+      showAlert("User added & credentials sent!", "success");
+    } else {
+      showAlert(data.error || "Failed to add user.", "error");
     }
-  };
+  } catch (error) {
+    console.error("Error adding user:", error);
+    showAlert("Failed to add user.", "error");
+  }
+};
 
   const handleEditUser = async (e) => {
   e.preventDefault();
@@ -4401,6 +4412,8 @@ const filteredUsers = users.filter(u => {
                       <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
                         <Pencil size={11}/>
                       </button>
+                  
+
                       <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
                         <Trash2 size={11}/>
                       </button>
@@ -4502,7 +4515,6 @@ function CommunicationContent() {
   const [viewingItem, setViewingItem]     = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
 
-  // ── UI modal state ──
   const [alertModal,   setAlertModal]   = useState(null); // { message, type }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm, itemName }
 
@@ -6337,7 +6349,7 @@ function generateTempPassword(length = 10) {
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-function CreateAccountModal({ applicant, onClose }) {
+function CreateAccountModal({ applicant, onClose, onAlert }) {
   const [tempPassword, setTempPassword] = useState(generateTempPassword());
   const [showPassword, setShowPassword] = useState(false);
   const [sending, setSending] = useState(false);
@@ -6411,9 +6423,10 @@ function CreateAccountModal({ applicant, onClose }) {
     const name   = form.fullName.value;
     const email  = form.email.value;
     const phone  = form.phone.value;
-    const brand  = form.brand.value; 
     const role   = form.role.value;
     const branch = form.branch.value;
+    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+    const brand = selectedBrand?.name || "";
 
     setSending(true);
     try {
@@ -6423,18 +6436,18 @@ function CreateAccountModal({ applicant, onClose }) {
       });
       if (!userRes.ok) {
         const err = await userRes.json();
-        alert(err.error || "Failed to create account.");
+        onAlert(err.error || "Failed to create account.", "error");
         setSending(false);
         return;
       }
-      await fetch(`${process.env.REACT_APP_API_URL}/api/send-credentials`, {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to: email, name, password: tempPassword }),
       });
-      alert(`Account created and credentials sent to ${email}!`);
+     onAlert(`Account created and credentials sent to ${email}!`, "success");
       onClose();
     } catch (err) {
-      alert("Something went wrong. Please try again.");
+      onAlert("Something went wrong. Please try again.", "error");
     } finally {
       setSending(false);
     }
@@ -6493,7 +6506,7 @@ function CreateAccountModal({ applicant, onClose }) {
                     : "Select Branch"}
               </option>
               {branches.map(br => (
-                <option key={br.id} value={br.id}>{br.name}</option>
+                <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option> 
               ))}
             </select>
           </div>
@@ -6554,7 +6567,15 @@ function POSContent({ user, brands: propBrands = [] }) {
   const [activeTab,        setActiveTab]        = React.useState("cashier");
   const [paymentMethod,    setPaymentMethod]    = React.useState("Cash");
   const [cashReceived,     setCashReceived]     = React.useState("");
+
+  
   const [discountPct,      setDiscountPct]      = React.useState(0);
+  const [discountType,        setDiscountType]        = React.useState("None");
+  const [showDiscountAuth,    setShowDiscountAuth]     = React.useState(false);
+  const [pendingDiscount,     setPendingDiscount]      = React.useState(null);
+  const [discountAuthInput,   setDiscountAuthInput]    = React.useState("");
+  const [discountAuthErr,     setDiscountAuthErr]      = React.useState("");
+  const [customDiscountInput, setCustomDiscountInput]  = React.useState("");
   const [vatEnabled,       setVatEnabled]       = React.useState(false);
   const [showReceiptModal, setShowReceiptModal] = React.useState(false);
   const [lastReceipt,      setLastReceipt]      = React.useState(null);
@@ -6642,7 +6663,41 @@ function POSContent({ user, brands: propBrands = [] }) {
   };
 
   const removeFromCart = (id, source) => setCart(prev => prev.filter(c => !(c.id===id && c.source===source)));
-  const clearCart = () => { setCart([]); setCashReceived(""); setDiscountPct(0); setNoteInput(""); };
+  
+  const clearCart = () => {
+    setCart([]);
+    setCashReceived("");
+    setDiscountPct(0);
+    setDiscountType("None");
+    setNoteInput("");
+    setCustomDiscountInput(""); 
+    setShowDiscountAuth(false);
+    setPendingDiscount(null);
+  };
+
+  const confirmDiscountAuth = () => {
+  if (discountAuthInput !== MANAGER_PASSWORD) {
+    setDiscountAuthErr("Incorrect manager password.");
+    return;
+  }
+  if (pendingDiscount.label === "Others") {
+    const pct = parseFloat(customDiscountInput);
+    if (!pct || pct <= 0 || pct > 100) {
+      setDiscountAuthErr("Enter a valid discount % (1–100).");
+      return;
+    }
+    setDiscountPct(pct);
+    setDiscountType("Others");
+  } else {
+    setDiscountPct(pendingDiscount.pct);
+    setDiscountType(pendingDiscount.label);
+  }
+  setShowDiscountAuth(false);
+  setDiscountAuthInput("");
+  setDiscountAuthErr("");
+  setCustomDiscountInput("");
+  setPendingDiscount(null);
+};
 
   const subtotal      = cart.reduce((s, c) => s + (c.price||0)*c.qty, 0);
   const discountAmt   = subtotal * (discountPct/100);
@@ -6679,9 +6734,17 @@ function POSContent({ user, brands: propBrands = [] }) {
     finally { setProcessing(false); }
   };
 
-  // ── VOID ─────────────────────────────────────────────────────────────────
   const openVoidModal = () => {
     if (!selectedTxId) return;
+    const tx = transactions.find(t => t.id === selectedTxId);
+    if (tx) {
+      const createdAt = new Date(tx.created_at);
+      const hoursDiff = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursDiff > 24) {
+        alert("This transaction can no longer be voided. Void window is 24 hours from the time of sale.");
+        return;
+      }
+    }
     setVoidPassword(""); setVoidPasswordErr(""); setShowVoidModal(true);
   };
 
@@ -6690,37 +6753,40 @@ function POSContent({ user, brands: propBrands = [] }) {
       setVoidPasswordErr("Incorrect manager password."); return;
     }
     setVoidProcessing(true);
+    
+    const tx = transactions.find(t => t.id === selectedTxId);
+    if (tx) {
+      const voidedEntry = { 
+        ...tx, 
+        voided_at: new Date().toISOString(), 
+        voided_by: user?.name || "Manager" 
+      };
+      setTransactions(prev => prev.filter(t => t.id !== selectedTxId));
+      setVoidedTx(prev => [voidedEntry, ...prev]);
+    }
+    
+    setShowVoidModal(false);
+    setSelectedTxId(null);
+
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${selectedTxId}/void`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ voided_by: user?.name||"Manager", reason: "Manual void" }),
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voided_by: user?.name || "Manager", reason: "Manual void" }),
       });
       const d = await res.json();
       if (d.success) {
-        setShowVoidModal(false); setSelectedTxId(null);
-        fetchTransactions(); fetchVoidedTransactions();
-      } else {
-        // Optimistic fallback for demo/dev without backend
-        const tx = transactions.find(t => t.id === selectedTxId);
-        if (tx) {
-          setTransactions(prev => prev.filter(t => t.id !== selectedTxId));
-          setVoidedTx(prev => [{ ...tx, voided_at: new Date().toISOString(), voided_by: user?.name||"Manager" }, ...prev]);
-        }
-        setShowVoidModal(false); setSelectedTxId(null);
+        setTimeout(() => {
+          fetchTransactions();
+          fetchVoidedTransactions();
+        }, 500);
       }
     } catch {
-      // Optimistic fallback
-      const tx = transactions.find(t => t.id === selectedTxId);
-      if (tx) {
-        setTransactions(prev => prev.filter(t => t.id !== selectedTxId));
-        setVoidedTx(prev => [{ ...tx, voided_at: new Date().toISOString(), voided_by: user?.name||"Manager" }, ...prev]);
-      }
-      setShowVoidModal(false); setSelectedTxId(null);
+    } finally { 
+      setVoidProcessing(false); 
     }
-    finally { setVoidProcessing(false); }
   };
 
-  // ── RETRIEVE ──────────────────────────────────────────────────────────────
   const openRetrieveModal = () => {
     if (!selectedVoidId) return;
     setRetrievePassword(""); setRetrievePasswordErr(""); setShowRetrieveModal(true);
@@ -6762,7 +6828,6 @@ function POSContent({ user, brands: propBrands = [] }) {
     finally { setRetrieveProcessing(false); }
   };
 
-  // ── FILTERS ───────────────────────────────────────────────────────────────
   const filteredTx = React.useMemo(() => {
     const q = txSearch.toLowerCase();
     return transactions.filter(tx => {
@@ -6836,7 +6901,7 @@ function POSContent({ user, brands: propBrands = [] }) {
         <thead>
           <tr>
             {["","#","Date", isVoided ? "Voided At" : null, isVoided ? "Voided By" : null, "Branch","Shop","Cashier","Items","Subtotal","Discount","VAT","Total","Payment","Status"].filter(Boolean).map(h=>(
-              <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+              <th key={h} style={{ padding:"8px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -6903,7 +6968,6 @@ function POSContent({ user, brands: propBrands = [] }) {
     </div>
   );
 
-  // ── MANAGER PASSWORD MODAL (shared) ───────────────────────────────────────
   const ManagerModal = ({ title, subtitle, icon, actionLabel, actionColor, password, setPassword, error, onConfirm, onClose, processing }) => (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000 }}
       onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
@@ -6939,7 +7003,6 @@ function POSContent({ user, brands: propBrands = [] }) {
     </div>
   );
 
-  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
       <style>{`
@@ -6985,21 +7048,50 @@ function POSContent({ user, brands: propBrands = [] }) {
         </div>
 
         {/* VOID BUTTON — visible only on history/voided tabs */}
-        {activeTab === "history" && (
-          <button
-            onClick={openVoidModal}
-            disabled={!selectedTxId}
-            style={{ display:"flex", alignItems:"center", gap:7, height:38, padding:"0 18px", border:"none", borderRadius:10,
-              fontSize:13, fontWeight:800, cursor: selectedTxId ? "pointer" : "not-allowed", fontFamily:"inherit",
-              background: selectedTxId ? "linear-gradient(135deg,#e53935,#b71c1c)" : "#e0e0e0",
-              color: selectedTxId ? C.white : "#9e9e9e",
-              boxShadow: selectedTxId ? "0 3px 12px rgba(229,57,53,0.35)" : "none",
-              transition:"all .15s", opacity: selectedTxId ? 1 : 0.7 }}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            Void Transaction
-            {selectedTxId && <span style={{ background:"rgba(255,255,255,0.2)", padding:"1px 7px", borderRadius:12, fontSize:11 }}>#{selectedTxId}</span>}
-          </button>
-        )}
+        {activeTab === "history" && (() => {
+          const selectedTx = transactions.find(t => t.id === selectedTxId);
+          const isExpired = selectedTx
+            ? (Date.now() - new Date(selectedTx.created_at).getTime()) / (1000 * 60 * 60) > 24
+            : false;
+          const canVoid = selectedTxId && !isExpired;
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <button
+                onClick={openVoidModal}
+                disabled={!selectedTxId}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 18px",
+                  border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800,
+                  cursor: selectedTxId && !isExpired ? "pointer" : "not-allowed", fontFamily: "inherit",
+                  background: canVoid
+                    ? "linear-gradient(135deg,#e53935,#b71c1c)"
+                    : "#e0e0e0",
+                  color: canVoid ? C.white : "#9e9e9e",
+                  boxShadow: canVoid ? "0 3px 12px rgba(229,57,53,0.35)" : "none",
+                  transition: "all .15s", opacity: selectedTxId ? 1 : 0.7,
+                }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+                {isExpired ? "Void Expired" : "Void Transaction"}
+                {selectedTxId && (
+                  <span style={{ background: "rgba(255,255,255,0.2)", padding: "1px 7px", borderRadius: 12, fontSize: 11 }}>
+                    #{selectedTxId}
+                  </span>
+                )}
+              </button>
+              {isExpired && (
+                <span style={{ fontSize: 11, color: "#c62828", fontWeight: 600 }}>
+                  ⚠ Past 24-hour void window
+                </span>
+              )}  
+            </div>
+          );
+        })()}
 
         {activeTab === "voided" && (
           <button
@@ -7064,9 +7156,9 @@ function POSContent({ user, brands: propBrands = [] }) {
                         <div style={{ position:"absolute", top:8, right:8, background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white, borderRadius:20, fontSize:11, fontWeight:800, padding:"2px 8px" }}>×{inCart.qty}</div>
                       )}
                       {product.image_url ? (
-                        <img src={product.image_url} alt="" style={{ width:"100%", height:90, objectFit:"cover", borderRadius:9, marginBottom:10 }} onError={e=>e.target.style.display="none"}/>
+                        <img src={product.image_url} alt="" style={{ width:"100%", height:130, objectFit:"cover", borderRadius:9, marginBottom:10 }} onError={e=>e.target.style.display="none"}/>
                       ) : (
-                        <div style={{ width:"100%", height:90, borderRadius:9, background:`linear-gradient(135deg,${C.greenLt},${C.greenMid})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"2rem", marginBottom:10 }}>🛒</div>
+                        <div style={{ width:"100%", height:130, borderRadius:9, background:`linear-gradient(135deg,${C.greenLt},${C.greenMid})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"2rem", marginBottom:10 }}>🛒</div>
                       )}
                       <div style={{ fontWeight:700, fontSize:13, color:C.ink, marginBottom:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{product.displayName}</div>
                       {product.category && <div style={{ fontSize:11, color:C.muted, marginBottom:6 }}>{product.category}</div>}
@@ -7081,7 +7173,6 @@ function POSContent({ user, brands: propBrands = [] }) {
             )}
           </div>
 
-          {/* Cart panel */}
           <div style={{ position:"sticky", top:80 }}>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:18, boxShadow:"0 2px 18px rgba(0,140,60,0.09)", overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
@@ -7090,7 +7181,6 @@ function POSContent({ user, brands: propBrands = [] }) {
                   <button onClick={clearCart} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:C.white, borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Clear</button>
                 )}
               </div>
-
               <div style={{ maxHeight:280, overflowY:"auto", padding:cart.length===0?"0":"8px 0" }}>
                 {cart.length === 0 ? (
                   <div style={{ padding:"32px 0", textAlign:"center", color:C.muted, fontSize:13 }}>
@@ -7115,18 +7205,107 @@ function POSContent({ user, brands: propBrands = [] }) {
               </div>
 
               <div style={{ padding:"14px 18px", borderTop:`1px solid ${C.border}` }}>
-                {/* Discount */}
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                  <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", whiteSpace:"nowrap" }}>Discount %</label>
-                  <div style={{ display:"flex", gap:4 }}>
-                    {[0,5,10,15,20].map(d=>(
-                      <button key={d} onClick={()=>setDiscountPct(d)}
-                        style={{ height:28, padding:"0 10px", borderRadius:7, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-                          background:discountPct===d?`linear-gradient(135deg,${C.teal},${C.green})`:C.bg,
-                          color:discountPct===d?C.white:C.muted }}>{d}%</button>
-                    ))}
+              {/* Discount */}
+              <div style={{ marginBottom:10 }}>
+                <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:6 }}>Discount</label>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {[
+                    { label:"None",           pct:0,  requiresAuth:false },
+                    { label:"PWD",            pct:20, requiresAuth:true  },
+                    { label:"Senior Citizen", pct:20, requiresAuth:true  },
+                    { label:"Others",         pct:null, requiresAuth:true },
+                  ].map(d => {
+                    const isActive = d.pct !== null
+                      ? discountPct === d.pct && discountType === d.label
+                      : discountType === "Others";
+                    return (
+                      <button key={d.label}
+                        onClick={() => {
+                          if (d.label === "None") {
+                            setDiscountPct(0);
+                            setDiscountType("None");
+                            setShowDiscountAuth(false);
+                            setCustomDiscountInput("");
+                          } else {
+                            setPendingDiscount(d);
+                            setDiscountAuthInput("");
+                            setDiscountAuthErr("");
+                            setCustomDiscountInput("");
+                            setShowDiscountAuth(true);
+                          }
+                        }}
+                        style={{ height:32, padding:"0 14px", borderRadius:8, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                          background:isActive ? `linear-gradient(135deg,${C.teal},${C.green})` : C.bg,
+                          color:isActive ? C.white : C.muted }}>
+                        {d.label}{d.pct !== null && d.label !== "None" ? ` (${d.pct}%)` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active discount badge */}
+                {discountType && discountType !== "None" && discountPct > 0 && (
+                  <div style={{ marginTop:6, fontSize:12, color:C.ok, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ background:C.okBg, border:`1px solid ${C.greenMid}`, borderRadius:20, padding:"2px 10px" }}>
+                      {discountType} — {discountPct}% off
+                    </span>
+                    <button onClick={()=>{ setDiscountPct(0); setDiscountType("None"); }}
+                      style={{ background:"none", border:"none", cursor:"pointer", color:"#e53935", fontSize:13, fontWeight:800, padding:0 }}>×</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Discount Auth Modal */}
+              {showDiscountAuth && pendingDiscount && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000 }}
+                  onClick={e=>{ if(e.target===e.currentTarget){ setShowDiscountAuth(false); } }}>
+                  <div style={{ background:C.white, borderRadius:18, padding:"26px 28px", width:340, maxWidth:"95vw", boxShadow:"0 16px 48px rgba(0,0,0,0.22)" }}>
+                    <div style={{ fontWeight:800, fontSize:16, color:C.ink, marginBottom:4 }}>
+                      {pendingDiscount.label} Discount
+                    </div>
+                    <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
+                      Manager authorization required to apply this discount.
+                    </div>
+
+                    {/* Custom % input for Others */}
+                    {pendingDiscount.label === "Others" && (
+                      <div style={{ marginBottom:12 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5 }}>Custom Discount %</div>
+                        <input
+                          type="number" min="1" max="100"
+                          placeholder="e.g. 15"
+                          value={customDiscountInput}
+                          onChange={e => setCustomDiscountInput(e.target.value)}
+                          style={{ ...invInputSt }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:5 }}>Manager Password</div>
+                      <input
+                        type="password"
+                        placeholder="Enter password…"
+                        value={discountAuthInput}
+                        onChange={e=>{ setDiscountAuthInput(e.target.value); setDiscountAuthErr(""); }}
+                        onKeyDown={e=>{ if(e.key==="Enter") confirmDiscountAuth(); }}
+                        autoFocus
+                        style={{ ...invInputSt }}
+                      />
+                      {discountAuthErr && (
+                        <div style={{ marginTop:5, fontSize:12, color:"#e53935", fontWeight:700 }}>⚠ {discountAuthErr}</div>
+                      )}
+                    </div>
+
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={()=>setShowDiscountAuth(false)}
+                        style={{ ...btnSt, flex:1, justifyContent:"center" }}>Cancel</button>
+                      <button onClick={confirmDiscountAuth}
+                        style={{ ...btnPrimarySt, flex:1, justifyContent:"center" }}>Apply Discount</button>
+                    </div>
                   </div>
                 </div>
+              )} 
                 {/* VAT toggle */}
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
                   <label style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em" }}>VAT (12%)</label>
@@ -7158,7 +7337,7 @@ function POSContent({ user, brands: propBrands = [] }) {
                 <div style={{ marginBottom:10 }}>
                   <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6 }}>Payment Method</div>
                   <div style={{ display:"flex", gap:6 }}>
-                    {["Cash","GCash","Card","Others"].map(m=>(
+                    {["Cash","GCash","Others"].map(m=>(
                       <button key={m} onClick={()=>setPaymentMethod(m)}
                         style={{ flex:1, height:32, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
                           background:paymentMethod===m?`linear-gradient(135deg,${C.teal},${C.green})`:C.bg,
@@ -7383,6 +7562,7 @@ function POSContent({ user, brands: propBrands = [] }) {
     </div>
   );
 }
+
 function ActionDropdown({ application, onView, onAddAccount, onApprove, onDelete }) {
   const [open, setOpen]         = useState(false);
   const [menuPos, setMenuPos]   = useState({ top: 0, left: 0 });

@@ -138,6 +138,8 @@ const VIBE_CSS = `
 
 const fmtPeso = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const fmtReportId = (id) => `REP-${String(id).padStart(5, '0')}`;
+
 const UNITS = ['pcs','kg','g','liters','ml','tbsp','tsp','cups','bottles','packs','bags','boxes','cans'];
 
 const validatePw = pw => {
@@ -206,27 +208,34 @@ const ReadOnlyBanner = ({ message = 'View only — contact your admin to make ch
     {message}
   </div>
 );
+  
+const getUserFromStorage = () => {
+  try {
+    const userString = localStorage.getItem('user') || localStorage.getItem('rememberedUser');
+    if (!userString || userString === 'undefined' || userString === 'null') return null;
+    const parsed = JSON.parse(userString);
+    if (!parsed || typeof parsed !== 'object' || !parsed.name) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
-export default function FranchiseeDashboard() {
+export default function FranchiseeDashboard({ onLogout }) {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState(() => {
+    return localStorage.getItem('fr_activeModule') || 'dashboard';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  const getUserFromStorage = () => {
-    const userString = localStorage.getItem('user');
-    if (userString) return JSON.parse(userString);
-    return null;
-  };
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
-    const currentUser = getUserFromStorage();
-    if (!currentUser) navigate('/admin-login');
-    else setUser(currentUser);
-  }, []);
+  localStorage.setItem('fr_activeModule', activeModule);
+}, [activeModule]);
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL}/transactions`)
@@ -242,7 +251,8 @@ export default function FranchiseeDashboard() {
   const confirmLogout = () => { 
     localStorage.removeItem('user');
     localStorage.removeItem('rememberedUser');
-    window.location.href = '/admin-login';
+    localStorage.removeItem('fr_activeModule');
+    onLogout();
   };
 
   const navigation = [
@@ -966,7 +976,7 @@ function FrMenuInventoryContent({ user, brands }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedRows, setExpandedRows] = useState({});
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 15;
 
   const fetchInventory = useCallback(async () => {
     if (!userBranch) return;
@@ -1117,7 +1127,7 @@ function FrMenuInventoryContent({ user, brands }) {
             </table>
           </div>
         )}
-        {filtered.length > PAGE_SIZE && (
+        {filtered.length > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
             <span style={{ fontSize: 12, color: '#5a7a65' }}>
               Showing <strong>{(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}</strong> of <strong>{filtered.length.toLocaleString()}</strong>
@@ -1141,7 +1151,7 @@ function FrStockInventoryContent({ user, brands }) {
   const [unitFilter, setUnitFilter]   = useState('');
   const [statusFilt, setStatusFilt]   = useState('');
   const [page, setPage]           = useState(0);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 10;
 
   const fetchItems = useCallback(async () => {
     if (!userBranch) return;
@@ -1243,7 +1253,22 @@ function FrStockInventoryContent({ user, brands }) {
                 )}
               </tbody>
             </table>
+              {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
+            <span style={{ fontSize: 12, color: '#5a7a65' }}>
+              Showing <strong>{(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}</strong> of <strong>{filtered.length.toLocaleString()}</strong>
+            </span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => setPage(0)} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>«</button>
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>‹</button>
+              <button onClick={() => setPage(p => Math.min(Math.ceil(filtered.length / PAGE_SIZE) - 1, p + 1))} disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= Math.ceil(filtered.length / PAGE_SIZE) - 1 ? 0.35 : 1 }}>›</button>
+              <button onClick={() => setPage(Math.ceil(filtered.length / PAGE_SIZE) - 1)} disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= Math.ceil(filtered.length / PAGE_SIZE) - 1 ? 0.35 : 1 }}>»</button>
+            </div>
           </div>
+        )}
+          </div>
+
         )}
       </div>
     </div>
@@ -1392,46 +1417,78 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
               </div>
             </div>
 
-            {!userBranch ? (
-              <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
-                <VEmptyState icon="⚠️" title="No branch assigned to your account" sub="Contact your admin to assign a branch." />
-              </div>
-            ) : allProducts.length === 0 ? (
-              <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
-                <VEmptyState icon="🏪" title={`No products found for ${userBranch}`} sub="Menu items will appear here once added by admin." />
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
-                {allProducts.map(product => {
-                  const inCart = cart.find(c => c.id === product.id && c.source === product.source);
-                  return (
-                    <div
-                      key={`${product.source}-${product.id}`}
-                      onClick={() => addToCart(product)}
-                      style={{
-                        background: '#fff', border: `2px solid ${inCart ? '#00897b' : 'rgba(0,168,76,0.12)'}`,
-                        borderRadius: 14, padding: '14px 12px', cursor: 'pointer', transition: 'all .15s',
-                        boxShadow: inCart ? '0 4px 16px rgba(0,137,123,0.18)' : '0 1px 6px rgba(0,140,60,0.05)',
-                        position: 'relative', transform: inCart ? 'scale(1.02)' : 'scale(1)',
-                      }}
-                    >
-                      {inCart && (
-                        <div style={{ position: 'absolute', top: 8, right: 8, background: 'var(--grad-main)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '2px 8px' }}>×{inCart.qty}</div>
-                      )}
-                      {product.image_url ? (
-                        <img src={product.image_url} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 9, marginBottom: 10 }} onError={e => e.target.style.display = 'none'} />
-                      ) : (
-                        <div style={{ width: '100%', height: 90, borderRadius: 9, background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', marginBottom: 10 }}>🛒</div>
-                      )}
-                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Montserrat,sans-serif' }}>{product.displayName}</div>
-                      {product.category && <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{product.category}</div>}
-                      <div style={{ fontWeight: 800, fontSize: 15, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(product.price)}</div>
-                      {product.stock !== undefined && <div style={{ fontSize: 10, color: product.stock <= 5 ? '#ef4444' : '#94a3b8', marginTop: 3, fontWeight: 600 }}>Stock: {product.stock}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+{!userBranch ? (
+  <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
+    <VEmptyState icon="⚠️" title="No branch assigned to your account" sub="Contact your admin to assign a branch." />
+  </div>
+) : allProducts.length === 0 ? (
+  <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
+    <VEmptyState icon="🏪" title={`No products found for ${userBranch}`} sub="Menu items will appear here once added by admin." />
+  </div>
+) : (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
+    {allProducts.map(product => {
+      const inCart = cart.find(c => c.id === product.id && c.source === product.source);
+      return (
+        <div
+          key={`${product.source}-${product.id}`}
+          onClick={() => addToCart(product)}
+          style={{
+            background: '#fff',
+            border: `2px solid ${inCart ? '#00897b' : 'rgba(0,168,76,0.12)'}`,
+            borderRadius: 14,
+            padding: '14px 12px',
+            cursor: 'pointer',
+            transition: 'all .15s',
+            boxShadow: inCart ? '0 4px 16px rgba(0,180,90,0.18)' : '0 1px 6px rgba(0,140,60,0.05)',
+            position: 'relative',
+          }}
+          onMouseEnter={e => { if (!inCart) e.currentTarget.style.borderColor = '#00c853'; }}
+          onMouseLeave={e => { if (!inCart) e.currentTarget.style.borderColor = 'rgba(0,168,76,0.12)'; }}
+        >
+          {inCart && (
+            <div style={{
+              position: 'absolute', top: 8, right: 8,
+              background: 'var(--grad-main)', color: '#fff',
+              borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '2px 8px'
+            }}>×{inCart.qty}</div>
+          )}
+          {product.image_url ? (
+            <img
+              src={product.image_url} alt=""
+              style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 9, marginBottom: 10 }}
+              onError={e => e.target.style.display = 'none'}
+            />
+          ) : (
+            <div style={{
+              width: '100%', height: 130, borderRadius: 9,
+              background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '2rem', marginBottom: 10
+            }}>🛒</div>
+          )}
+          <div style={{
+            fontWeight: 700, fontSize: 13, color: '#0d2b1e', marginBottom: 4,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            fontFamily: 'Montserrat,sans-serif'
+          }}>{product.displayName}</div>
+          {product.category && (
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{product.category}</div>
+          )}
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>
+            {fmtPeso(product.price)}
+          </div>
+          {product.stock !== undefined && (
+            <div style={{
+              fontSize: 10, marginTop: 3, fontWeight: 600,
+              color: product.stock <= 5 ? '#e65100' : '#94a3b8'
+            }}>Stock: {product.stock}</div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
           </div>
 
           <div style={{ position: 'sticky', top: 80 }}>
@@ -1683,31 +1740,7 @@ function FrReportsContent({ user, transactions = [] }){
   const [submittedReports, setSubmittedReports] = useState([]);
   const [deletedReports, setDeletedReports] = useState([]);
   const [retrieving, setRetrieving] = useState(null);
-  const [returnedReports, setReturnedReports] = useState([]);
-
-  useEffect(() => {
-    const fetchReturnedReports = async () => {
-      if (!branch) return;
-      try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL}/reports?branch=${branch}&status=returned`
-        );
-        const data = await res.json();
-        setReturnedReports(data.map(r => ({
-          id: r.id,
-          period: r.period,
-          submittedAt: new Date(r.submittedAt).toLocaleString('en-PH'),
-          remark: r.remark || '',
-          comments: r.comments || [],
-          content: r.content || '',
-          status: r.status,
-        })));
-      } catch (err) {
-        console.error('Failed to load returned reports:', err);
-      }
-    };
-    fetchReturnedReports();
-  }, [branch]);
+  const [viewSubmittedId, setViewSubmittedId] = useState(null);
 
 useEffect(() => {
   const fetchSavedReports = async () => {
@@ -1773,16 +1806,20 @@ useEffect(() => {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`);
       const data = await res.json();
-      setSubmittedReports(data.map(h => ({
-        id: h.id,
-        generatedDate: h.generatedDate,
-        period: h.period,
-        submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
-        expiresAt: h.expiresAt,
-        comments: h.comments || [], 
-        remark: h.remark || '',  
-        status: h.status,    
-      })));
+
+    setSubmittedReports(data.map(h => ({
+      id: h.id,
+      content: h.content || '',
+      generatedDate: h.generatedDate
+        ? new Date(h.generatedDate).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—',
+      period: h.period,
+      submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
+      expiresAt: h.expiresAt,
+      comments: h.comments || [],
+      remark: h.remark || '',
+      status: h.status,
+    })));
     } catch (err) {
       console.error('Failed to load history:', err);
     }
@@ -2136,10 +2173,12 @@ const retrieveReport = async report => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(160, 220, 190);
     const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
-    doc.text(`Branch: ${branch}   |   Period: ${safePeriod}   |   Generated: ${report.generatedDate}`, pageW / 2, 22, { align: 'center' });
+    
+    doc.text(`REP-${String(report.id).padStart(5, '0')}   |   Branch: ${branch}   |   Period: ${safePeriod}`, pageW / 2, 22, { align: 'center' });
+    doc.text(`Generated: ${report.generatedDate}`, pageW / 2, 28, { align: 'center' });
     doc.setFontSize(8);
     doc.setTextColor(120, 180, 150);
-    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 30, { align: 'center' });
+    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 33.5, { align: 'center' });
 
     y = 46;
 
@@ -2255,6 +2294,7 @@ const submitReport = async report => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reportId: report.id,
+        reportNumber: fmtReportId(report.id), 
         branch,
         period: report.period,
         generatedDate: report.generatedDate,
@@ -2271,7 +2311,9 @@ const submitReport = async report => {
     setSubmittedReports(prev => [{
       id: report.id,
       localId: report.localId,
-      generatedDate: report.generatedDate,
+      generatedDate: report.generatedDate 
+    ? new Date(report.generatedDate).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—',
       period: report.period,
       content: report.content,
       submittedAt: new Date().toLocaleString('en-PH'),
@@ -2384,13 +2426,18 @@ const submitReport = async report => {
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
               <thead>
-                <tr><th>Generated</th><th>Period</th><th>Actions</th></tr>
+                <tr><th>Report #</th><th>Generated</th><th>Period</th><th>Actions</th></tr>
               </thead>
-              <tbody>
+            <tbody>
               {reports.map(r => (
                 <React.Fragment key={r.localId}>
                   <tr>
-                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>{r.generatedDate}</td>
+                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
+                    </td>
+                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                      {r.generatedDate}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span className="v-badge v-badge-blue">{r.period}</span>
@@ -2402,8 +2449,8 @@ const submitReport = async report => {
                         <button className="v-btn v-btn-ghost v-btn-sm" onClick={() => setViewReportId(viewReportId === r.id ? null : r.id)}>
                           <Eye size={12} /> {viewReportId === r.id ? 'Hide' : 'View'}
                         </button>
-                        <button 
-                          className="v-btn v-btn-sm v-btn-blue" 
+                        <button
+                          className="v-btn v-btn-sm v-btn-blue"
                           onClick={() => saveReport(r)}
                           disabled={r.saved}
                           style={{ opacity: r.saved ? 0.6 : 1 }}
@@ -2434,10 +2481,12 @@ const submitReport = async report => {
 
                   {viewReportId === r.id && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 0, border: 'none' }}>
+                      <td colSpan={4} style={{ padding: 0, border: 'none' }}>
                         <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>Report Details — {r.period}</div>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                              {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'} — {r.period}
+                            </div>
                             <div style={{ display: 'flex', gap: 8 }}>
                               <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(r)}>
                                 <Download size={12} /> Download PDF
@@ -2454,199 +2503,108 @@ const submitReport = async report => {
                   )}
                 </React.Fragment>
               ))}
-              </tbody>
+            </tbody>
             </table>
           </div>
         )}
       </div>
-    {/* Submitted Reports */}
+{/* Submitted Reports */}
     <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
       <div className="v-section-head">
         <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
         <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
-          {submittedReports.length + returnedReports.length} submitted to admin
+          {submittedReports.length} submitted to admin
         </span>
       </div>
-      {submittedReports.length === 0 && returnedReports.length === 0 ? (
+      {submittedReports.length === 0 ? (
         <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="v-table">
             <thead>
               <tr>
+                <th>Report #</th>
                 <th>Submitted At</th>
                 <th>Period</th>
                 <th>Generated</th>
-                <th>Expires</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {/* Merge and sort both lists by submittedAt descending */}
-              {[
-                ...submittedReports.map(h => ({ ...h, _type: 'submitted' })),
-                ...returnedReports.map(h => ({ ...h, _type: 'returned' })),
-              ]
-                .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
-                .map(h => {
-                  const daysLeft = h.expiresAt
-                    ? Math.ceil((new Date(h.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
-                    : null;
-                  const isReturned = h._type === 'returned';
-                  const hasComments = h.comments?.length > 0;
-                  const isExpanded = viewReportId === h.id;
+              {submittedReports.map(h => (
+                <React.Fragment key={h.id}>
+                  <tr>
+                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      REP-{String(h.id).padStart(5, '0')}
+                    </td>
+                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                      {h.submittedAt}
+                    </td>
+                    <td>
+                      <span className="v-badge v-badge-blue">{h.period}</span>
+                    </td>
+                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                      {h.generatedDate || '—'}
+                    </td>
+                    <td>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: '#dbeafe', color: '#1e40af',
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                        Submitted
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="v-btn v-btn-ghost v-btn-sm"
+                        onClick={() => setViewSubmittedId(viewSubmittedId === h.id ? null : h.id)}
+                      >
+                        <Eye size={12} /> {viewSubmittedId === h.id ? 'Hide' : 'View'}
+                      </button>
+                    </td>
+                  </tr>
 
-                  return (
-                    <React.Fragment key={`${h._type}-${h.id}`}>
-                      <tr style={{ background: isReturned ? '#fff9f9' : 'transparent' }}>
-                        <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
-                          {h.submittedAt}
-                        </td>
-                        <td>
-                          <span className="v-badge v-badge-blue">{h.period}</span>
-                        </td>
-                        <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
-                          {h.generatedDate || '—'}
-                        </td>
-                        <td style={{
-                          fontSize: 12,
-                          color: daysLeft !== null && daysLeft <= 5 ? '#ef4444' : '#94a3b8',
-                          fontFamily: 'Poppins,sans-serif',
-                        }}>
-                          {daysLeft !== null ? `${daysLeft}d left` : '—'}
-                        </td>
-                        <td>
-                          {isReturned ? (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                              background: '#fee2e2', color: '#991b1b',
-                            }}>
-                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
-                              Returned
-                            </span>
-                          ) : (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                              background: '#dbeafe', color: '#1e40af',
-                            }}>
-                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
-                              Submitted
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {(hasComments || isReturned) && (
-                            <button
-                              className="v-btn v-btn-sm v-btn-ghost"
-                              onClick={() => setViewReportId(isExpanded ? null : h.id)}
-                              style={{
-                                fontSize: 11,
-                                color: isReturned ? '#dc2626' : '#00897b',
-                                border: `1px solid ${isReturned ? '#fca5a5' : '#b2dfdb'}`,
-                                background: isReturned ? '#fff0f0' : '#f0fdf5',
-                              }}
-                            >
-                              <MessageCircle size={11} />
-                              {isExpanded ? 'Hide' : `View${hasComments ? ` (${h.comments.length})` : ''}`}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* Expandable remark + comments row */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '0 0 10px', border: 'none' }}>
-                            <div style={{
-                              margin: '4px 0',
-                              borderRadius: 12,
-                              border: `1.5px solid ${isReturned ? '#fca5a5' : 'rgba(0,168,76,0.15)'}`,
-                              overflow: 'hidden',
-                            }}>
-                              {/* Return remark (only for returned) */}
-                              {isReturned && h.remark && (
-                                <div style={{
-                                  padding: '12px 16px',
-                                  background: '#fef2f2',
-                                  borderBottom: hasComments ? '1px solid #fecaca' : 'none',
-                                }}>
-                                  <div style={{
-                                    fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
-                                    letterSpacing: '0.07em', color: '#b91c1c',
-                                    marginBottom: 6, fontFamily: 'Montserrat,sans-serif',
-                                  }}>
-                                    Return Reason
-                                  </div>
-                                  <div style={{
-                                    fontSize: 13, color: '#7f1d1d',
-                                    fontFamily: 'Poppins,sans-serif', lineHeight: 1.6,
-                                    padding: '10px 12px',
-                                    background: '#fee2e2',
-                                    borderRadius: 8,
-                                    border: '1px solid #fca5a5',
-                                  }}>
-                                    {h.remark}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Comments */}
-                              {hasComments ? (
-                                <div style={{
-                                  padding: '12px 16px',
-                                  background: isReturned ? '#fff9f9' : '#f8fffe',
-                                }}>
-                                  <div style={{
-                                    fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
-                                    letterSpacing: '0.07em',
-                                    color: isReturned ? '#b91c1c' : '#00897b',
-                                    marginBottom: 8, fontFamily: 'Montserrat,sans-serif',
-                                  }}>
-                                    Admin Comments ({h.comments.length})
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    {h.comments.map((c, i) => (
-                                      <div key={c.id || i} style={{
-                                        padding: '9px 12px',
-                                        background: '#fff',
-                                        borderRadius: 8,
-                                        border: `1px solid ${isReturned ? '#fca5a5' : '#d1eedd'}`,
-                                        fontSize: 12,
-                                        fontFamily: 'Poppins,sans-serif',
-                                      }}>
-                                        <span style={{ fontWeight: 700, color: isReturned ? '#dc2626' : '#00897b' }}>
-                                          {c.author}
-                                        </span>
-                                        <span style={{ color: '#94a3b8', marginLeft: 8, fontSize: 11 }}>
-                                          {new Date(c.postedAt).toLocaleString('en-PH')}
-                                        </span>
-                                        <div style={{ marginTop: 4, color: '#374151' }}>{c.text}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : isReturned && !h.remark ? (
-                                <div style={{
-                                  padding: '14px 16px',
-                                  background: '#fef2f2',
-                                  fontSize: 12,
-                                  color: '#b91c1c',
-                                  fontFamily: 'Poppins,sans-serif',
-                                  fontStyle: 'italic',
-                                }}>
-                                  No return reason or comments provided.
-                                </div>
-                              ) : null}
+                  {viewSubmittedId === h.id && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                              REP-{String(h.id).padStart(5, '0')} — {h.period}
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                className="v-btn v-btn-sm v-btn-blue"
+                                onClick={() => downloadReport(h)}
+                              >
+                                <Download size={12} /> Download PDF
+                              </button>
+                              <button
+                                className="v-btn v-btn-secondary v-btn-sm"
+                                onClick={() => setViewSubmittedId(null)}
+                              >
+                                <X size={12} /> Close
+                              </button>
+                            </div>
+                          </div>
+                          {h.content ? (
+                            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                              {h.content}
+                            </pre>
+                          ) : (
+                            <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>
+                              Report content not available.
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
             </tbody>
           </table>
         </div>
@@ -2668,6 +2626,7 @@ const submitReport = async report => {
             <table className="v-table">
               <thead>
                 <tr>
+                  <th>Report #</th>
                   <th>Deleted At</th>
                   <th>Period</th>
                   <th>Generated</th>
@@ -2684,6 +2643,9 @@ const submitReport = async report => {
 
                   return (
                     <tr key={r.id || r.localId || i}>
+                      <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                        {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}  {/* ← ADD */}
+                      </td>
                       <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
                         {r.deletedAt}
                       </td>
@@ -2697,9 +2659,7 @@ const submitReport = async report => {
                           color: isExpiringSoon ? '#ef4444' : '#94a3b8',
                         }}>
                           {daysLeft !== null ? (
-                            isExpiringSoon
-                              ? `⚠ ${daysLeft}d left`
-                              : `${daysLeft}d left`
+                            isExpiringSoon ? `⚠ ${daysLeft}d left` : `${daysLeft}d left`
                           ) : '—'}
                         </span>
                       </td>

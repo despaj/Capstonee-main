@@ -81,6 +81,8 @@ export default function Receipts() {
   const [selectedIds,   setSelectedIds]   = useState(new Set());
   const [itemDuplicates,    setItemDuplicates]    = useState([]);
   const [showItemDupModal,  setShowItemDupModal]  = useState(false);
+const [filterBrand,  setFilterBrand]  = useState(null);
+const [filterBranch, setFilterBranch] = useState(null);
 
   // ── Current user info ──────────────────────────────────────────────────────
   const currentUser   = getCurrentUser();
@@ -107,6 +109,18 @@ export default function Receipts() {
     }
   };
 
+  const brandsFromReceipts = useMemo(() => {
+  const map = {};
+  receipts.forEach(r => {
+    if (!r.brand) return;
+    if (!map[r.brand]) map[r.brand] = { id: r.brand, name: r.brand, branches: [] };
+    if (r.branch && !map[r.brand].branches.includes(r.branch)) {
+      map[r.brand].branches.push(r.branch);
+    }
+  });
+  return Object.values(map);
+}, [receipts]);
+
   const [printReceipts, setPrintReceipts] = useState([]);
 
   const fetchDetail = async (id) => {
@@ -132,23 +146,28 @@ export default function Receipts() {
 
   useEffect(() => { fetchReceipts(); }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return receipts.filter(r => {
-      const rDate = toDateStr(r.date);
-      if (dateFrom && rDate < dateFrom) return false;
-      if (dateTo   && rDate > dateTo)   return false;
-      if (q) {
-        const merchant = (r.merchant || "").toLowerCase();
-        const total    = String(r.total_amount || "");
-        const date     = (r.date || "").toLowerCase();
-        const branch   = (r.branch || "").toLowerCase();
-        const brand    = (r.brand || "").toLowerCase();
-        if (!merchant.includes(q) && !total.includes(q) && !date.includes(q) && !branch.includes(q) && !brand.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [receipts, dateFrom, dateTo, search]);
+const filtered = useMemo(() => {
+  const q = search.trim().toLowerCase();
+  return receipts.filter(r => {
+    const rDate = toDateStr(r.date);
+    if (dateFrom && rDate < dateFrom) return false;
+    if (dateTo   && rDate > dateTo)   return false;
+    if (filterBranch) {
+      if (r.branch !== filterBranch) return false;
+    } else if (filterBrand) {
+      if (r.brand !== filterBrand) return false;
+    }
+    if (q) {
+      const merchant = (r.merchant || "").toLowerCase();
+      const total    = String(r.total_amount || "");
+      const date     = (r.date || "").toLowerCase();
+      const branch   = (r.branch || "").toLowerCase();
+      const brand    = (r.brand || "").toLowerCase();
+      if (!merchant.includes(q) && !total.includes(q) && !date.includes(q) && !branch.includes(q) && !brand.includes(q)) return false;
+    }
+    return true;
+  });
+}, [receipts, dateFrom, dateTo, search, filterBrand, filterBranch]);
 
   const recentReceipts = useMemo(() => filtered.filter(isRecent), [filtered]);
   const allReceipts    = useMemo(() => filtered, [filtered]);
@@ -276,6 +295,105 @@ export default function Receipts() {
   };
 
   const printRef = useRef(null);
+
+  // ── needed for BrandBranchFilter ──────────────────────────────────────────────
+const invInputSt = {
+  height:36, padding:"0 11px", borderRadius:9,
+  border:`1px solid ${C.border}`, background:C.bg,
+  fontSize:13, color:C.ink, outline:"none",
+  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+};
+
+const FilterIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+const ChevronIcon = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
+const StoreIcon   = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+
+function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
+  const [brandQ, setBrandQ]   = useState("");
+  const [branchQ, setBranchQ] = useState("");
+  const [openB, setOpenB]     = useState(false);
+  const [openBr, setOpenBr]   = useState(false);
+  const brandRef  = useRef(null);
+  const branchRef = useRef(null);
+
+  useEffect(() => {
+    const fn = e => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const selectedBrand    = brands.find(b => b.id === activeBrand);
+  const branchList       = selectedBrand ? (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
+  const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const optSt  = active => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+
+  return (
+    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+      <div ref={brandRef} style={{ position:"relative", minWidth:180 }}>
+        <div onClick={() => { setOpenB(v => !v); setBrandQ(""); }}
+          style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
+          <FilterIcon/>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
+            {selectedBrand ? selectedBrand.name : "All Brands"}
+          </span>
+          <ChevronIcon dir={openB ? "up" : "down"} style={{ position:"absolute", right:10 }}/>
+        </div>
+        {openB && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
+                placeholder="Search brand…" onClick={e => e.stopPropagation()}
+                style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBrand)} onMouseDown={() => { onChangeBrand(null); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>
+              All Brands
+            </div>
+            {filteredBrands.map(b => (
+              <div key={b.id} style={optSt(activeBrand === b.id)}
+                onMouseDown={() => { onChangeBrand(b.id); onChangeBranch(null); setBrandQ(""); setOpenB(false); }}>
+                {b.name}
+                <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches || []).length} branches</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand ? 1 : 0.45 }}>
+        <div onClick={() => { if (activeBrand) { setOpenBr(v => !v); setBranchQ(""); } }}
+          style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+          <StoreIcon size={12} color={activeBrand ? C.green : C.muted}/>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>
+            {activeBranch || (activeBrand ? "All Branches" : "Select brand first")}
+          </span>
+        </div>
+        {openBr && activeBrand && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
+                placeholder="Search branch…" style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(null); setOpenBr(false); }}>
+              All Branches
+            </div>
+            {filteredBranches.map(br => (
+              <div key={br} style={optSt(activeBranch === br)}
+                onMouseDown={() => { onChangeBranch(br); setOpenBr(false); }}>
+                <StoreIcon size={11} color={C.green}/> {br}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
   const handlePrint = async (receiptsToprint) => {
     if (receiptsToprint.length === 0) { alert("No receipts to print."); return; }
@@ -456,15 +574,30 @@ export default function Receipts() {
       )} */}
 
       {/* Date Filter */}
-      <div style={s.filterRow}>
-        <span style={s.filterLabel}>Filter by receipt date:</span>
-        <input type="date" style={s.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-        <span style={s.filterLabel}>to</span>
-        <input type="date" style={s.dateInput} value={dateTo}   onChange={e => setDateTo(e.target.value)} />
-        {(dateFrom || dateTo) && (
-          <button style={s.clearBtn} onClick={() => { setDateFrom(""); setDateTo(""); }}>✕ Clear</button>
-        )}
-      </div>
+<div style={s.filterRow}>
+  <span style={s.filterLabel}>Filter by receipt date:</span>
+  <input type="date" style={s.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+  <span style={s.filterLabel}>to</span>
+  <input type="date" style={s.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+  {(dateFrom || dateTo) && (
+    <button style={s.clearBtn} onClick={() => { setDateFrom(""); setDateTo(""); }}>✕ Clear</button>
+  )}
+
+  {/* Brand / Branch — same component as inventory */}
+  <BrandBranchFilter
+    brands={brandsFromReceipts}
+    activeBrand={filterBrand}
+    activeBranch={filterBranch}
+    onChangeBrand={id => { setFilterBrand(id); setFilterBranch(null); }}
+    onChangeBranch={val => setFilterBranch(val)}
+  />
+
+  {(filterBrand || filterBranch) && (
+    <button style={s.clearBtn} onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+      ✕ Brand/Branch
+    </button>
+  )}
+</div>
 
       {loading ? (
         <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 14, fontWeight: 700 }}>Loading receipts…</div>
@@ -628,10 +761,31 @@ export default function Receipts() {
                   <div>
                     <h3 style={s.detailMerchant}>{selected.merchant || "Unknown"}</h3>
                     <div style={s.detailMetaRow}>
-                      
-                      <span style={s.detailMetaChip}><strong>Receipt date:</strong>&nbsp;{fmtReceiptDate(selected.date)}</span>
-                      <span style={s.detailMetaSep}>·</span>
-                      <span style={s.detailMetaChip}><strong>Date scanned:</strong>&nbsp;{fmtScannedDate(selected.created_at)}</span>
+                      <div style={s.detailMetaRow}>
+                        {selected.brand && (
+                          <>
+                            <span style={s.detailMetaChip}>
+                              <strong>Brand:</strong>&nbsp;{selected.brand}
+                            </span>
+                            <span style={s.detailMetaSep}>·</span>
+                          </>
+                        )}
+                        {selected.branch && (
+                          <>
+                            <span style={s.detailMetaChip}>
+                              <strong>Branch:</strong>&nbsp;{selected.branch}
+                            </span>
+                            <span style={s.detailMetaSep}>·</span>
+                          </>
+                        )}
+                        <span style={s.detailMetaChip}>
+                          <strong>Receipt date:</strong>&nbsp;{fmtReceiptDate(selected.date)}
+                        </span>
+                        <span style={s.detailMetaSep}>·</span>
+                        <span style={s.detailMetaChip}>
+                          <strong>Date scanned:</strong>&nbsp;{fmtScannedDate(selected.created_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

@@ -177,6 +177,12 @@ const ReceiptPrintTemplate = forwardRef(({ receipts }, ref) => {
                     <div className="print-totals">
                     <table>
                         <tbody>
+                           {r.reference_no && (
+                              <tr>
+                                <td className="label">OR / REF #</td>
+                                <td className="value">{r.reference_no}</td>
+                              </tr>
+                            )}
                         <tr>
                             <td className="label">SUBTOTAL</td>
                             <td className="value">{grandTotal.toFixed(2)}</td>

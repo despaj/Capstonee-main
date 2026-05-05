@@ -119,14 +119,14 @@ app.post("/login", async (req, res) => {
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     console.log("User found:", user.rows.length);
-console.log("Email received:", JSON.stringify(email));
+    console.log("Email received:", JSON.stringify(email));
 
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
 
     console.log("DB password:", JSON.stringify(user.rows[0].password));
-console.log("Input password:", JSON.stringify(password));
-console.log("Match:", password === user.rows[0].password);
+    console.log("Input password:", JSON.stringify(password));
+    console.log("Match:", password === user.rows[0].password);
 
     const validPass = password === user.rows[0].password;
 if (!validPass)
@@ -145,10 +145,6 @@ if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       branch: user.rows[0].branch,
       brand:  user.rows[0].brand,
     };
-
-    
-console.log("Role:", JSON.stringify(user.rows[0].role));
-console.log("isWeb:", isWeb);
 
     const device = await pool.query(
       `SELECT * FROM trusted_devices
@@ -184,9 +180,9 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      from: "<FranchiSync@noreply.franchisync.xyz>",
       to: email,
-      subject: "Your iFranchise Login OTP",
+      subject: "Your FranchiSync Login OTP",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Login Verification</h2>
@@ -290,7 +286,7 @@ app.post("/auth/verify-password", async (req, res) => {
 app.get("/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, brand, branch, age, address, contact_number FROM users ORDER BY id"
+      "SELECT id, name, email, role, brand, branch, age, address, contact_number, saved_address FROM users ORDER BY id"
     );
     res.json(result.rows);
   } catch (err) {
@@ -314,21 +310,48 @@ app.post("/users", async (req, res) => {
   }
 });
 
+app.patch("/users/:id/saved-address", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { savedAddress } = req.body;
+    const result = await pool.query(
+      `UPDATE users SET saved_address=$1 WHERE id=$2 RETURNING *`,
+      [savedAddress, id]
+    );
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("PATCH saved-address error:", err);
+    res.status(500).json({ error: "Failed to save address" });
+  }
+});
+
 app.put("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, branch, password, age, address, contact_number } = req.body;
+    const {
+      firstName, lastName, middleInitial,
+      email, age, address, contactNumber, savedAddress, newPassword
+    } = req.body;
+
+    // Combine name fields the way your DB stores it
+    const name = [firstName, middleInitial ? middleInitial + '.' : '', lastName]
+      .filter(Boolean).join(' ').trim();
+
     let query, params;
-    if (password) {
-      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, password=$5, age=$6, address=$7, contact_number=$8 WHERE id=$9 RETURNING *`;
-      params = [name, email, role, branch, password, age || null, address || null, contact_number || null, id];
+    if (newPassword) {
+      const bcrypt = require('bcrypt');
+      const hashed = await bcrypt.hash(newPassword, 10);
+      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5, saved_address=$6, password=$7 WHERE id=$8 RETURNING *`;
+      params = [name, email, age || null, address || null, contactNumber || null, savedAddress || null, hashed, id];
     } else {
-      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, age=$5, address=$6, contact_number=$7 WHERE id=$8 RETURNING *`;
-      params = [name, email, role, branch, age || null, address || null, contact_number || null, id];
+      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5, saved_address=$6 WHERE id=$7 RETURNING *`;
+      params = [name, email, age || null, address || null, contactNumber || null, savedAddress || null, id];
     }
+
     const result = await pool.query(query, params);
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
+    console.error("PUT /users/:id error:", err);
     res.status(500).json({ error: "Failed to update user" });
   }
 });
@@ -353,7 +376,7 @@ app.post('/users/:id/push-token', async (req, res) => {
 app.get("/api/users/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, branch, age, address, contact_number FROM users WHERE id=$1",
+      "SELECT id, name, email, role, branch, age, address, contact_number, saved_address FROM users WHERE id=$1",
       [req.params.id]
     );
     if (result.rows.length === 0)
@@ -371,6 +394,7 @@ app.get("/api/users/:id", async (req, res) => {
       branch:        row.branch,
       contactNumber: row.contact_number || "",
       address:       row.address || "",
+      savedAddress:  row.saved_address || "",   // ← ADD
       age:           row.age || "",
     });
   } catch (err) {
@@ -381,16 +405,17 @@ app.get("/api/users/:id", async (req, res) => {
 
 app.put("/api/users/:id", async (req, res) => {
   try {
-    const { firstName, lastName, email, age, address, contactNumber, newPassword } = req.body;
+    const { firstName, lastName, email, age, address, contactNumber, savedAddress, newPassword } = req.body; // ← ADD savedAddress
+
     const fullName = `${firstName || ""} ${lastName || ""}`.trim();
 
     let query, params;
     if (newPassword) {
-      query = `UPDATE users SET name=$1, email=$2, password=$3, age=$4, address=$5, contact_number=$6 WHERE id=$7 RETURNING *`;
-      params = [fullName, email, newPassword, age || null, address || null, contactNumber || null, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, password=$3, age=$4, address=$5, contact_number=$6, saved_address=$7 WHERE id=$8 RETURNING *`;
+      params = [fullName, email, newPassword, age || null, address || null, contactNumber || null, savedAddress || null, req.params.id];
     } else {
-      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5 WHERE id=$6 RETURNING *`;
-      params = [fullName, email, age || null, address || null, contactNumber || null, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5, saved_address=$6 WHERE id=$7 RETURNING *`;
+      params = [fullName, email, age || null, address || null, contactNumber || null, savedAddress || null, req.params.id];
     }
 
     const result = await pool.query(query, params);
@@ -410,6 +435,7 @@ app.put("/api/users/:id", async (req, res) => {
         branch:        row.branch,
         contactNumber: row.contact_number || "",
         address:       row.address || "",
+        savedAddress:  row.saved_address || "",   // ← ADD
         age:           row.age || "",
       }
     });
@@ -428,7 +454,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      from: "<FranchiSync@noreply.franchisync.xyz>",
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -506,9 +532,9 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      from: "<FranchiSync@noreply.franchisync.xyz>",
       to: email,  
-      subject: "Password Reset OTP - iFranchise",
+      subject: "Password Reset OTP - FranchiSync",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Password Reset Request</h2>
@@ -579,7 +605,7 @@ app.post("/api/send-credentials", async (req, res) => {
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: "iFranchise <iFranchise@noreply.franchisync.xyz>",
+      from: " <FranchiSync@noreply.franchisync.xyz>",
       to: to,
       subject: "Your Account Credentials",
       html: `
@@ -764,7 +790,6 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
  
     const { user_id } = req.body;
  
-    // Get uploader's brand and branch
     let brand = null;
     let branch = null;
     if (user_id) {
@@ -823,9 +848,10 @@ app.post("/upload", upload.single("receipt"), async (req, res) => {
     try {
       await client.query("BEGIN");
       const receiptResult = await client.query(
-        `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [merchant, date, total, currency, vat, referenceNo, brand, branch]
+        `INSERT INTO receipts 
+        (merchant, date, total_amount, currency, vat, reference_no, brand, branch, uploaded_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [merchant, date, total, currency, vat, referenceNo, brand, branch, user_id || null]
       );
       savedReceipt = receiptResult.rows[0];
       for (const item of lineItems) {
@@ -912,30 +938,44 @@ app.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
 
 app.get("/receipts", async (req, res) => {
   try {
-    const { user_id } = req.query;
- 
+    const { user_id, brand, branch } = req.query;
     if (!user_id) return res.status(400).json({ error: "user_id is required" });
- 
+
     const userResult = await pool.query(
-      "SELECT role, brand, branch FROM users WHERE id=$1",
-      [user_id]
+      "SELECT role, brand, branch FROM users WHERE id=$1", [user_id]
     );
     if (userResult.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
- 
-    const { role, brand, branch } = userResult.rows[0];
- 
-    // Admin and Franchisor see ALL receipts
-    // Staff, Manager, Franchisee see only their own branch
-    const isPrivileged = role === "Administrator" || role === "Franchisor";
- 
-    const result = isPrivileged
-      ? await pool.query("SELECT * FROM receipts ORDER BY created_at DESC")
-      : await pool.query(
-          "SELECT * FROM receipts WHERE branch=$1 ORDER BY created_at DESC",
-          [branch]
-        );
- 
+
+    const { role } = userResult.rows[0];
+    const isAdmin  = role === "Administrator";
+
+    // Build dynamic WHERE clauses
+    const conditions = [];
+    const values     = [];
+
+    if (!isAdmin) {
+      // Non-admins only see their own receipts
+      values.push(user_id);
+      conditions.push(`uploaded_by = $${values.length}`);
+    }
+
+    // Optional brand/branch filters (for admin filtering in UI)
+    if (brand) {
+      values.push(brand);
+      conditions.push(`brand = $${values.length}`);
+    }
+    if (branch) {
+      values.push(branch);
+      conditions.push(`branch = $${values.length}`);
+    }
+
+    const where  = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const result = await pool.query(
+      `SELECT * FROM receipts ${where} ORDER BY created_at DESC`,
+      values
+    );
+
     res.json(result.rows);
   } catch (err) {
     console.error("Failed to fetch receipts:", err);
@@ -966,26 +1006,25 @@ app.get("/receipts/:id", async (req, res) => {
 app.post("/receipts/save", async (req, res) => {
   const { merchant, date, total, currency, vat, referenceNo, lineItems, user_id } = req.body;
  
-  let brand = null;
-  let branch = null;
+  let brand = null, branch = null;
   if (user_id) {
     const userResult = await pool.query(
-      "SELECT brand, branch FROM users WHERE id=$1",
-      [user_id]
+      "SELECT brand, branch FROM users WHERE id=$1", [user_id]
     );
     if (userResult.rows.length > 0) {
-      brand = userResult.rows[0].brand;
+      brand  = userResult.rows[0].brand;
       branch = userResult.rows[0].branch;
     }
   }
- 
+  
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const receiptResult = await client.query(
-      `INSERT INTO receipts (merchant, date, total_amount, currency, vat, reference_no, brand, branch)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [merchant, date, total, currency, vat, referenceNo, brand, branch]
+      `INSERT INTO receipts
+      (merchant, date, total_amount, currency, vat, reference_no, brand, branch, uploaded_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [merchant, date, total, currency, vat, referenceNo, brand, branch, user_id || null]
     );
     const savedReceipt = receiptResult.rows[0];
     for (const item of (lineItems || [])) {
@@ -1080,20 +1119,22 @@ app.get("/inventory", async (req, res) => {
 
 app.post("/inventory", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
+    console.log("image_url received:", image_url);
 
     if (!branch)
       return res.status(400).json({ error: "Branch is required" });
 
     const result = await pool.query(
-      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [
         name, category, branch, brand || null,
         parseInt(stock) || 0,
         parseInt(min_stock ?? minStock) || 0,
         parseFloat(cost) || 0,
         parseFloat(price) || 0,
+        image_url || null,
       ]
     );
     res.json({ success: true, item: result.rows[0] });
@@ -1105,18 +1146,20 @@ app.post("/inventory", async (req, res) => {
 
 app.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
+    console.log("image_url received:", image_url);
 
     const result = await pool.query(
       `UPDATE inventory
-       SET name=$1, category=$2, branch=$3, brand=$4, stock=$5, min_stock=$6, cost=$7, price=$8, updated_at=NOW()
-       WHERE id=$9 RETURNING *`,
+       SET name=$1, category=$2, branch=$3, brand=$4, stock=$5, min_stock=$6, cost=$7, price=$8, image_url=$9, updated_at=NOW()
+       WHERE id=$10 RETURNING *`,
       [
         name, category, branch, brand || null,
         parseInt(stock) || 0,
         parseInt(min_stock ?? minStock) || 0,
         parseFloat(cost) || 0,
         parseFloat(price) || 0,
+        image_url || null,
         req.params.id,
       ]
     );
@@ -1615,6 +1658,7 @@ app.get("/announcements", async (req, res) => {
 });
 
 app.post("/announcements", async (req, res) => {
+    console.log("POST /announcements called", new Date().toISOString());
   try {
     const { title, content, userId } = req.body;
 
@@ -1635,12 +1679,15 @@ app.post("/announcements", async (req, res) => {
     );
  
 try {
+  const announcementId = result.rows[0].id;
   const allUsers = await pool.query("SELECT id FROM users");
+
   await Promise.all(allUsers.rows.map(u =>
     pool.query(
-      `INSERT INTO notifications (user_id, type, title, body)
-       VALUES ($1, 'announcement', $2, $3)`,
-      [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content]
+      `INSERT INTO notifications (user_id, type, title, body, reference_id)
+      VALUES ($1, 'announcement', $2, $3, $4)
+      ON CONFLICT DO NOTHING`,
+      [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
     )
   ));
   const tokens = await pool.query('SELECT push_token FROM users WHERE push_token IS NOT NULL');
@@ -1871,13 +1918,32 @@ app.get("/transactions", async (req, res) => {
     const { branch } = req.query;
     const result = branch
       ? await pool.query(
-          "SELECT * FROM transactions WHERE branch=$1 ORDER BY created_at DESC", [branch]
+          "SELECT * FROM transactions WHERE branch=$1 AND (is_voided = false OR is_voided IS NULL) ORDER BY created_at DESC", [branch]
         )
-      : await pool.query("SELECT * FROM transactions ORDER BY created_at DESC");
+      : await pool.query(
+          "SELECT * FROM transactions WHERE (is_voided = false OR is_voided IS NULL) ORDER BY created_at DESC"
+        );
     res.json(result.rows);
   } catch (err) {
     console.error("GET /transactions error:", err);
     res.status(500).json({ error: "Failed to fetch transactions" });
+  }
+});
+
+app.get("/transactions/voided", async (req, res) => {
+  try {
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query(
+          "SELECT * FROM transactions WHERE branch=$1 AND is_voided = true ORDER BY voided_at DESC", [branch]
+        )
+      : await pool.query(
+          "SELECT * FROM transactions WHERE is_voided = true ORDER BY voided_at DESC"
+        );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /transactions/voided error:", err);
+    res.status(500).json({ error: "Failed to fetch voided transactions" });
   }
 });
 
@@ -1964,6 +2030,62 @@ app.post("/transactions", async (req, res) => {
     res.status(500).json({ error: "Failed to save transaction" });
   } finally {
     client.release();
+  }
+});
+
+app.post("/transactions/:id/void", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { voided_by, reason } = req.body;
+
+    const result = await pool.query(
+      `UPDATE transactions 
+       SET is_voided = true, 
+           voided_at = NOW(), 
+           voided_by = $1,
+           void_reason = $2
+       WHERE id = $3 
+       AND (is_voided = false OR is_voided IS NULL)
+       RETURNING *`,
+      [voided_by || "Manager", reason || "Manual void", id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Transaction not found or already voided" });
+    }
+
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) {
+    console.error("POST /transactions/:id/void error:", err);
+    res.status(500).json({ error: "Failed to void transaction" });
+  }
+});
+
+app.post("/transactions/:id/retrieve", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { retrieved_by } = req.body;
+
+    const result = await pool.query(
+      `UPDATE transactions 
+       SET is_voided = false, 
+           voided_at = NULL, 
+           voided_by = NULL,
+           void_reason = NULL
+       WHERE id = $1 
+       AND is_voided = true
+       RETURNING *`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Transaction not found or not voided" });
+    }
+
+    res.json({ success: true, transaction: result.rows[0] });
+  } catch (err) {
+    console.error("POST /transactions/:id/retrieve error:", err);
+    res.status(500).json({ error: "Failed to retrieve transaction" });
   }
 });
 
@@ -2087,8 +2209,10 @@ app.post('/reports/submit', async (req, res) => {
 app.get('/reports/history', async (req, res) => {
   const { branch } = req.query;
   try {
-    const result = await pool.query(  // ← was db.query
-      `SELECT id, period, submitted_at as "submittedAt", submitted_at AS "generatedDate",expires_at as "expiresAt"
+    const result = await pool.query(
+      `SELECT id, period, content, submitted_at as "submittedAt", 
+              submitted_at AS "generatedDate", expires_at as "expiresAt",
+              status, remark
        FROM reports
        WHERE branch = $1 AND status = 'submitted' AND expires_at > NOW()
        ORDER BY submitted_at DESC`,
@@ -2301,7 +2425,6 @@ app.post('/ai/report', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
- 
 
 app.get("/reports/:id", async (req, res) => {
   try {
