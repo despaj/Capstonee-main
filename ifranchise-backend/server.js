@@ -1102,6 +1102,20 @@ app.delete("/receipts/:id", async (req, res) => {
 
 // ─── INVENTORY ───────────────────────────────────────────────
 
+// ── helper ──────────────────────────────────────────────────────────────────
+async function logActivity(action, itemId, itemName, details = {}, performedBy = "system") {
+  try {
+    await pool.query(
+      `INSERT INTO activity_log (action, item_id, item_name, details, performed_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [action, itemId, itemName, JSON.stringify(details), performedBy]
+    );
+  } catch (err) {
+    console.error("Failed to write activity log:", err);
+  }
+}
+
+// ── GET /inventory ───────────────────────────────────────────────────────────
 app.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -1126,6 +1140,35 @@ app.get("/inventory", async (req, res) => {
   }
 });
 
+app.get("/inventory-delete-history", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM inventory_delete_history ORDER BY deleted_at DESC`
+    );
+    const rows = result.rows.map(row => ({
+      id:         row.id,
+      deleted_at: row.deleted_at,
+      deleted_by: row.deleted_by,
+      inventory_data: (() => {
+        try { return typeof row.inventory_data === "string"
+          ? JSON.parse(row.inventory_data)
+          : row.inventory_data; }
+        catch { return {}; }
+      })(),
+      ingredients_data: (() => {
+        try { return typeof row.ingredients_data === "string"
+          ? JSON.parse(row.ingredients_data)
+          : row.ingredients_data; }
+        catch { return []; }
+      })(),
+    }));
+    res.json(rows);
+  } catch (err) {
+    console.error("GET /inventory-delete-history error:", err);
+    res.status(500).json({ error: "Failed to fetch delete history" });
+  }
+});
+
 app.post("/inventory", async (req, res) => {
   try {
     const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
@@ -1146,7 +1189,17 @@ app.post("/inventory", async (req, res) => {
         image_url || null,
       ]
     );
-    res.json({ success: true, item: result.rows[0] });
+
+    const newItem = result.rows[0];
+
+    // ✅ Log the addition
+    await logActivity("ADDED", newItem.id, newItem.name, {
+      category, branch, brand, stock: newItem.stock,
+      min_stock: newItem.min_stock, cost: newItem.cost,
+      price: newItem.price,
+    });
+
+    res.json({ success: true, item: newItem });
   } catch (err) {
     console.error("POST /inventory error:", err);
     res.status(500).json({ error: "Failed to add inventory item" });
@@ -1157,6 +1210,12 @@ app.put("/inventory/:id", async (req, res) => {
   try {
     const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
     console.log("image_url received:", image_url);
+
+    // Fetch old values for the diff
+    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
+    const oldItem = before.rows[0];
 
     const result = await pool.query(
       `UPDATE inventory
@@ -1172,31 +1231,29 @@ app.put("/inventory/:id", async (req, res) => {
         req.params.id,
       ]
     );
+
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Item not found" });
-    res.json({ success: true, item: result.rows[0] });
+
+    const updatedItem = result.rows[0];
+
+    // ✅ Build a before/after diff and log it
+    const changes = {};
+    const fields = ["name", "category", "branch", "brand", "stock", "min_stock", "cost", "price", "image_url"];
+    for (const field of fields) {
+      const oldVal = String(oldItem[field] ?? "");
+      const newVal = String(updatedItem[field] ?? "");
+      if (oldVal !== newVal) changes[field] = { from: oldItem[field], to: updatedItem[field] };
+    }
+
+    await logActivity("EDITED", updatedItem.id, updatedItem.name, { changes });
+
+    res.json({ success: true, item: updatedItem });
   } catch (err) {
     console.error("PUT /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to update inventory item" });
   }
 });
-
-app.delete("/inventory/:id", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "DELETE FROM inventory WHERE id=$1 RETURNING id",
-      [req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Item not found" });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("DELETE /inventory/:id error:", err);
-    res.status(500).json({ error: "Failed to delete inventory item" });
-  }
-});
-
-// ─── INVENTORY DELETE HISTORY ─────────────────────────────────
 
 app.get("/inventory-delete-history", async (req, res) => {
   try {
@@ -1214,10 +1271,24 @@ app.post("/inventory-delete-history", async (req, res) => {
   try {
     const { inventory_data, ingredients_data, deleted_by } = req.body;
     await pool.query(
-      `INSERT INTO inventory_delete_history (inventory_data, ingredients_data, deleted_by)
-       VALUES ($1, $2, $3)`,
-      [JSON.stringify(inventory_data), JSON.stringify(ingredients_data || []), deleted_by || "Unknown"]
-    );
+      `INSERT INTO inventory_delete_history (inventory_data, ingredients_data, deleted_at, deleted_by)
+         VALUES ($1, $2, $3, NOW())`,
+  [
+    JSON.stringify({
+      name:      item.name,
+      category:  item.category,
+      branch:    item.branch,
+      brand:     item.brand,
+      stock:     item.stock,
+      min_stock: item.min_stock,
+      cost:      item.cost,
+      price:     item.price,
+      image_url: item.image_url,
+    }),
+    JSON.stringify(ings.rows),
+    req.body.deleted_by || "Unknown",
+  ]
+);
     res.json({ success: true });
   } catch (err) {
     console.error("POST /inventory-delete-history error:", err);
@@ -1225,15 +1296,63 @@ app.post("/inventory-delete-history", async (req, res) => {
   }
 });
 
+app.delete("/inventory/:id", async (req, res) => {
+  try {
+    const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Item not found" });
+    const item = before.rows[0];
+
+    const ings = await pool.query(
+      `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name
+       FROM product_ingredients pi
+       JOIN ingredients i ON i.id = pi.ingredient_id
+       WHERE pi.inventory_id = $1`,
+      [item.id]
+    );
+
+    await pool.query(
+      `INSERT INTO inventory_delete_history
+         (inventory_data, ingredients_data, deleted_by, deleted_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [
+        JSON.stringify({
+          name:      item.name,
+          category:  item.category,
+          branch:    item.branch,
+          brand:     item.brand,
+          stock:     item.stock,
+          min_stock: item.min_stock,
+          cost:      item.cost,
+          price:     item.price,
+          image_url: item.image_url,
+        }),
+        JSON.stringify(ings.rows),
+        req.body?.deleted_by || "Unknown",  // ✅ safe optional chaining
+      ]
+    );
+
+    await logActivity("DELETED", item.id, item.name, {
+      category: item.category, branch: item.branch,
+      stock: item.stock, cost: item.cost, price: item.price,
+    });
+
+    await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /inventory/:id error:", err);
+    res.status(500).json({ error: "Failed to delete inventory item" });
+  }
+});
+
 app.delete("/inventory-delete-history/:id", async (req, res) => {
   try {
-    await pool.query(
-      "DELETE FROM inventory_delete_history WHERE id = $1", [req.params.id]
-    );
+    await pool.query("DELETE FROM inventory_delete_history WHERE id=$1", [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     console.error("DELETE /inventory-delete-history/:id error:", err);
-    res.status(500).json({ error: "Failed to delete history entry" });
+    res.status(500).json({ error: "Failed to remove history entry" });
   }
 });
 

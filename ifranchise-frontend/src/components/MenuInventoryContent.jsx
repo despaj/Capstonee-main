@@ -805,47 +805,18 @@ const emptyForm = useCallback(() => ({
     } catch { alert("Failed to update item"); }
   };
 
-  const handleDeleteItem = async id => {
-    try {
-      const item = inventory.find(i => i.id === id);
-
-      // Fetch full ingredient details before deleting
-      let ingredientsData = [];
-      if (item) {
-        try {
-          const ingRes  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}/ingredients`);
-          const ingData = await ingRes.json();
-          ingredientsData = Array.isArray(ingData) ? ingData.map(ing => ({
-            stock_item_id: ing.ingredient_id,
-            name:          ing.ingredient_name,
-            qty_required:  ing.qty_required,
-            unit:          ing.unit,
-          })) : [];
-        } catch {}
-      }
-
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method:"DELETE" });
-      const d   = await res.json();
-      if (d.success) {
-        if (item) {
-          // Save to delete history with full ingredient data
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              inventory_data:   item,
-              ingredients_data: ingredientsData,
-              deleted_by:       userName,
-            }),
-          });
-          await logActivity("delete", item.name, item.branch);
-        }
-        await refetch();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-        setConfirmDeleteId(null);
-      } else alert(d.error || "Failed to delete");
-    } catch { alert("Failed to delete"); }
-  };
+const handleDeleteItem = async id => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: "DELETE" });
+    const d   = await res.json();
+    if (d.success) {
+      await refetch();
+      await fetchDeleteHistory(); 
+      await fetchActivityLog();
+      setConfirmDeleteId(null);
+    } else alert(d.error || "Failed to delete");
+  } catch { alert("Failed to delete"); }
+};
 
   const handleRestore = async (entry) => {
     try {
