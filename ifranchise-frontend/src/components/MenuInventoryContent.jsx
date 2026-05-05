@@ -45,20 +45,38 @@ const PAGE_SIZE = 50;
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 
-// ─── Mini SVG icons ───────────────────────────────────────────────────────────
-const SearchIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon       = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon    = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon   = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const TagIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
-const FilterIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const ChevronIcon = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const SortAscIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon= () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
+// ─── Fuzzy duplicate detection ────────────────────────────────────────────────
+const normalizeName = str => {
+  if (!str) return "";
+  return str.toLowerCase().trim().replace(/\s+/g," ").replace(/[''']/g,"").replace(/s$/,"");
+};
+const findDuplicate = (name, branch, existingItems) => {
+  const normalizedNew = normalizeName(name);
+  if (!normalizedNew) return null;
+  return existingItems.find(item => {
+    if (item.branch !== branch) return false;
+    return normalizeName(item.name) === normalizedNew;
+  }) || null;
+};
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const TrashIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const PlusIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const FileIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
+const TagIcon      = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
+const FilterIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
+const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
+const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
+const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
+const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
+const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
 
 // ─── Chip ─────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
@@ -69,7 +87,7 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
-
+// ─── BrandBranchFilter ────────────────────────────────────────────────────────
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = useState("");
   const [branchQ, setBranchQ] = useState("");
@@ -137,7 +155,7 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   );
 }
 
-
+// ─── BranchSearchSelect ───────────────────────────────────────────────────────
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -173,7 +191,7 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
   );
 }
 
-
+// ─── CategorySelect ───────────────────────────────────────────────────────────
 function CategorySelect({ value, onChange, categories, onAddCategory }) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -205,6 +223,7 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
   );
 }
 
+// ─── Pagination ───────────────────────────────────────────────────────────────
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
@@ -228,8 +247,164 @@ function Pagination({ page, setPage, total, pageSize }) {
   );
 }
 
+// ─── Delete History Panel ─────────────────────────────────────────────────────
+function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+            {history.length > 0 && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#dc2626" }}>
+                {history.length} deleted
+              </span>
+            )}
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={15}/>
+          </button>
+        </div>
+
+        {/* Column headers */}
+        {history.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+            <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
+          </div>
+        )}
+
+        {/* Rows */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {history.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
+          ) : history.map((entry, i) => {
+            const d    = entry.inventory_data   || {};
+            const ings = entry.ingredients_data || [];
+            return (
+              <div key={entry.id} style={{ padding:"14px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.category}</div>
+                  </div>
+                  <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
+                  <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock}</div>
+                  <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price||0)}</div>
+                  <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}</div>
+                  <button onClick={() => onRestore(entry)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                    <RestoreIcon/> Restore
+                  </button>
+                </div>
+                {/* Ingredient chips */}
+                {ings.length > 0 && (
+                  <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:5, paddingLeft:4 }}>
+                    <span style={{ fontSize:10, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center" }}>Ingredients:</span>
+                    {ings.map((ing, idx) => (
+                      <span key={idx} style={{ fontSize:11, padding:"2px 9px", borderRadius:20, background:C.greenLt, color:C.greenDk, fontWeight:600, border:`1px solid ${C.greenMid}` }}>
+                        {ing.name} × {ing.qty_required} {ing.unit}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Activity Log Panel ───────────────────────────────────────────────────────
+function InventoryActivityLogPanel({ log, onClose }) {
+  const [search, setSearch]         = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const filtered = log.filter(entry => {
+    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!entry.item_name?.toLowerCase().includes(q) &&
+          !(entry.performed_by||"").toLowerCase().includes(q) &&
+          !(entry.branch||"").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const actionBadge = action => {
+    const map = {
+      add:    { bg:"rgba(16,185,129,0.12)",  color:"#059669", label:"Added"   },
+      edit:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8", label:"Edited"  },
+      import: { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed", label:"Imported"},
+      delete: { bg:"rgba(239,68,68,0.12)",   color:"#dc2626", label:"Deleted" },
+    };
+    const s = map[action] || map.edit;
+    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={15}/>
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 200px" }}>
+            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
+            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
+              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
+          </div>
+          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
+            <option value="all">All Actions</option>
+            <option value="add">Added</option>
+            <option value="edit">Edited</option>
+            <option value="import">Imported</option>
+            <option value="delete">Deleted</option>
+          </select>
+        </div>
+
+        {/* Column headers */}
+        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
+        </div>
+
+        {/* Rows */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
+          ) : filtered.map((entry, i) => (
+            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
+              <div>{actionBadge(entry.action)}</div>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
+                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
+              </div>
+              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performed_by || "System"}</div>
+              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── InventoryTable ───────────────────────────────────────────────────────────
 function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
-  const [sort, setSort]           = useState({ col:"name", asc:true });
+  const [sort, setSort]             = useState({ col:"name", asc:true });
   const [expandedRows, setExpanded] = useState({});
 
   const sorted = useMemo(() => {
@@ -280,7 +455,7 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
           </thead>
           <tbody>
             {pageItems.map(item => {
-              const low        = item.stock < item.min_stock;
+              const low        = Number(item.stock) <= Number(item.min_stock);
               const isConfirm  = confirmDeleteId === item.id;
               const ingredients= item.ingredients || [];
               const isExpanded = expandedRows[item.id];
@@ -298,7 +473,8 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
                     </td>
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
-                        {item.stock} {low&&<span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:C.warn }}/>}
+                        {item.stock}
+                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
                       </span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
@@ -356,11 +532,13 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
   );
 }
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
+  const userName   = user?.name   || "Unknown";
 
-  const brandList = propBrands.length > 0 ? propBrands : [];
+  const brandList   = propBrands.length > 0 ? propBrands : [];
   const allBranches = useMemo(() => {
     const out = [];
     brandList.forEach(b => (b.branches||[]).forEach(br => {
@@ -370,6 +548,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
+  // ── Core state ──────────────────────────────────────────────────────────────
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
@@ -384,45 +563,50 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [page,            setPage]            = useState(0);
 
+  // ── History / log state ─────────────────────────────────────────────────────
+  const [deleteHistory,     setDeleteHistory]     = useState([]);
+  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [activityLog,       setActivityLog]       = useState([]);
+  const [showActivityLog,   setShowActivityLog]   = useState(false);
+
+  // ── Ingredient picker state ─────────────────────────────────────────────────
   const [ingSearch,   setIngSearch]   = useState("");
   const [ingQty,      setIngQty]      = useState("1");
   const [ingUnit,     setIngUnit]     = useState("");
   const [ingPicked,   setIngPicked]   = useState(null);
   const [ingDropOpen, setIngDropOpen] = useState(false);
-  const ingRef = useRef(null);
-  
-const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch,
-  cost:"", stock:0, minStock:0, price:"", ingredients:[],
-}), [isAdmin, userBranch]);
+  const ingRef  = useRef(null);
+  const excelRef = useRef(null);
 
-const [formData, setFormData] = useState(emptyForm);
+  const emptyForm = useCallback(() => ({
+    name:"", category:"", branch:isAdmin?"":userBranch,
+    cost:"", stock:0, minStock:0, price:"", ingredients:[],
+  }), [isAdmin, userBranch]);
 
-const [formBrandId, setFormBrandId] = useState("");
+  const [formData,    setFormData]    = useState(emptyForm);
+  const [formBrandId, setFormBrandId] = useState("");
 
-// 3. Then everything that references brandList/filterBrand
-const inventoryCategories = useMemo(() => {
-  if (filterBrand) {
-    const brand = brandList.find(b => b.id === filterBrand);
-    return brand?.categories || [];
-  }
-  return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-}, [filterBrand, brandList]);
+  // ── Category helpers ────────────────────────────────────────────────────────
+  const inventoryCategories = useMemo(() => {
+    if (filterBrand) {
+      const brand = brandList.find(b => b.id === filterBrand);
+      return brand?.categories || [];
+    }
+    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
+  }, [filterBrand, brandList]);
 
-// 4. formBrand after formData
-const formBrand = useMemo(() => {
-  if (!formData.branch) return null;
-  return brandList.find(b =>
-    (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === formData.branch)
-  );
-}, [formData.branch, brandList]);
+  const formBrand = useMemo(() => {
+    if (!formData.branch) return null;
+    return brandList.find(b =>
+      (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === formData.branch)
+    );
+  }, [formData.branch, brandList]);
 
-// 5. formCategories last
-const [formCategories, setFormCategories] = useState([]);
-useEffect(() => {
-  const cats = formBrand?.categories || inventoryCategories;
-  setFormCategories(cats.length ? cats : []);
-}, [formBrand, inventoryCategories]);
+  const [formCategories, setFormCategories] = useState([]);
+  useEffect(() => {
+    const cats = formBrand?.categories || inventoryCategories;
+    setFormCategories(cats.length ? cats : []);
+  }, [formBrand, inventoryCategories]);
 
   useEffect(() => {
     const fn = e => { if(ingRef.current && !ingRef.current.contains(e.target)) setIngDropOpen(false); };
@@ -430,6 +614,7 @@ useEffect(() => {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
+  // ── Fetch helpers ───────────────────────────────────────────────────────────
   const fetchInventory = useCallback(async (branch) => {
     setLoading(true);
     try {
@@ -451,16 +636,51 @@ useEffect(() => {
     } catch { setStockItems([]); }
   }, [isAdmin, userBranch]);
 
+  const fetchDeleteHistory = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`);
+      const data = await res.json();
+      setDeleteHistory(Array.isArray(data) ? data.map(row => ({
+        id:               row.id,
+        inventory_data:   row.inventory_data,
+        ingredients_data: row.ingredients_data || [],
+        deleted_at:       row.deleted_at,
+        deleted_by:       row.deleted_by,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
+  }, []);
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch inventory activity log:", err); }
+  }, []);
+
+  const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/inventory-activity-log`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ action, item_name:itemName, branch:branchName, performed_by:userName, changes }),
+      });
+    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+  }, [userName]);
+
+  // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isAdmin) { fetchInventory(userBranch); return; }
     fetchInventory(filterBranch||undefined);
   }, [filterBranch, isAdmin, userBranch, fetchInventory]);
 
   useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
+  useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
   useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
 
   const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
 
+  // ── Filtered items ──────────────────────────────────────────────────────────
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventory.filter(i => {
@@ -471,45 +691,53 @@ useEffect(() => {
         if (b) { const names=(b.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
       }
       if (filterCategory && i.category!==filterCategory) return false;
-      if (filterStatus==="low" && i.stock>=i.min_stock) return false;
-      if (filterStatus==="ok"  && i.stock< i.min_stock) return false;
+      if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
+      if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
       return true;
     });
   }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
 
+  const filteredCategories = useMemo(() => {
+    if (filterBrand) {
+      const brand = brandList.find(b => b.id === filterBrand);
+      return brand?.categories || [];
+    }
+    if (filterBranch) {
+      const brand = brandList.find(b =>
+        (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === filterBranch)
+      );
+      return brand?.categories || [];
+    }
+    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
+  }, [filterBrand, filterBranch, brandList]);
 
-const filteredCategories = useMemo(() => {
-  if (filterBrand) {
-    const brand = brandList.find(b => b.id === filterBrand);
-    return brand?.categories || [];
-  }
-  if (filterBranch) {
-    const brand = brandList.find(b =>
-      (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === filterBranch)
-    );
-    return brand?.categories || [];
-  }
-  // No filter — show all categories across all brands
-  return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-}, [filterBrand, filterBranch, brandList]);
-
+  // ── Computed cost from ingredients ──────────────────────────────────────────
   const computedCost = useMemo(() => {
     if (!formData.ingredients || formData.ingredients.length === 0) return 0;
     return formData.ingredients.reduce((total, ing) => {
       const stock = stockItems.find(s => s.id === ing.stock_item_id);
       if (!stock) return total;
-      const costPerUnit = parseFloat(stock.cost_per_unit || 0);
-      const qty = parseFloat(ing.qty_required || 0);
-      return total + (costPerUnit * qty);
+      return total + (parseFloat(stock.cost_per_unit||0) * parseFloat(ing.qty_required||0));
     }, 0);
   }, [formData.ingredients, stockItems]);
 
-  const lowCount   = filteredItems.filter(i => i.stock < i.min_stock).length;
+  useEffect(() => {
+    const cost  = computedCost.toFixed(2);
+    const price = cost > 0 ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2) : "";
+    setFormData(prev => ({ ...prev, cost, price }));
+  }, [computedCost]);
+
+  const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
   const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
 
+  // ── CRUD handlers ───────────────────────────────────────────────────────────
   const handleAddItem = async e => {
     e.preventDefault();
-    const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+    const branch    = isAdmin ? formData.branch : userBranch;
+    const duplicate = findDuplicate(formData.name, branch, inventory);
+    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
+
+    const payload = { ...formData, branch, min_stock:formData.minStock };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -518,25 +746,32 @@ const filteredCategories = useMemo(() => {
       if (d.success) {
         if (formData.ingredients && formData.ingredients.length > 0) {
           await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
+            method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({
               ingredients: formData.ingredients.map(ing => ({
                 ingredient_id: ing.stock_item_id,
-                quantity: ing.qty_required,
-                unit: ing.unit,
+                quantity:      ing.qty_required,
+                unit:          ing.unit,
               }))
             })
           });
         }
-        await refetch(); setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
+        await logActivity("add", formData.name, branch);
+        await refetch();
+        await fetchActivityLog();
+        setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
       } else alert(d.error||"Failed to add item");
     } catch { alert("Failed to add item"); }
   };
 
   const handleEditItem = async e => {
     e.preventDefault();
-    const payload = { ...formData, branch:isAdmin?formData.branch:userBranch, min_stock:formData.minStock };
+    const branch     = isAdmin ? formData.branch : userBranch;
+    const otherItems = inventory.filter(i => i.id !== editingItem.id);
+    const duplicate  = findDuplicate(formData.name, branch, otherItems);
+    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
+
+    const payload = { ...formData, branch, min_stock:formData.minStock };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -544,28 +779,117 @@ const filteredCategories = useMemo(() => {
       const d = await res.json();
       if (d.success) {
         await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
+          method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({
             ingredients: (formData.ingredients||[]).map(ing => ({
-              ingredient_id:  ing.stock_item_id,
-              quantity: ing.qty_required,
-              unit: ing.unit,
+              ingredient_id: ing.stock_item_id,
+              quantity:      ing.qty_required,
+              unit:          ing.unit,
             }))
           })
         });
-        await refetch(); setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
+
+        // Build human-readable changes string
+        const changed = [];
+        if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
+        if (String(editingItem.min_stock) !== String(formData.minStock)) changed.push(`min: ${editingItem.min_stock} → ${formData.minStock}`);
+        if (String(editingItem.price)     !== String(formData.price))    changed.push(`price: ₱${editingItem.price} → ₱${formData.price}`);
+        if (editingItem.category          !== formData.category)         changed.push(`category: ${editingItem.category} → ${formData.category}`);
+        const changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
+
+        await logActivity("edit", formData.name, branch, changesStr);
+        await refetch();
+        await fetchActivityLog();
+        setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
       } else alert(d.error||"Failed to update item");
     } catch { alert("Failed to update item"); }
   };
 
   const handleDeleteItem = async id => {
     try {
+      const item = inventory.find(i => i.id === id);
+
+      // Fetch full ingredient details before deleting
+      let ingredientsData = [];
+      if (item) {
+        try {
+          const ingRes  = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}/ingredients`);
+          const ingData = await ingRes.json();
+          ingredientsData = Array.isArray(ingData) ? ingData.map(ing => ({
+            stock_item_id: ing.ingredient_id,
+            name:          ing.ingredient_name,
+            qty_required:  ing.qty_required,
+            unit:          ing.unit,
+          })) : [];
+        } catch {}
+      }
+
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method:"DELETE" });
       const d   = await res.json();
-      if (d.success) { await refetch(); setConfirmDeleteId(null); }
-      else alert(d.error||"Failed to delete");
+      if (d.success) {
+        if (item) {
+          // Save to delete history with full ingredient data
+          await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({
+              inventory_data:   item,
+              ingredients_data: ingredientsData,
+              deleted_by:       userName,
+            }),
+          });
+          await logActivity("delete", item.name, item.branch);
+        }
+        await refetch();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        setConfirmDeleteId(null);
+      } else alert(d.error || "Failed to delete");
     } catch { alert("Failed to delete"); }
+  };
+
+  const handleRestore = async (entry) => {
+    try {
+      const d    = entry.inventory_data;
+      const ings = entry.ingredients_data || [];
+
+      // Re-create inventory item
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          name:      d.name,
+          category:  d.category,
+          branch:    d.branch,
+          brand:     d.brand,
+          stock:     d.stock,
+          min_stock: d.min_stock,
+          cost:      d.cost,
+          price:     d.price,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        // Re-link all ingredients
+        if (ings.length > 0) {
+          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({
+              ingredients: ings.map(ing => ({
+                ingredient_id: ing.stock_item_id,
+                quantity:      ing.qty_required,
+                unit:          ing.unit,
+              })),
+            }),
+          });
+        }
+        // Remove from delete history
+        await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
+        await logActivity("add", d.name, d.branch, "Restored from delete history");
+        await refetch();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        alert(`"${d.name}" has been restored with all ${ings.length} ingredient(s).`);
+      } else alert(result.error || "Failed to restore");
+    } catch { alert("Failed to restore item"); }
   };
 
   const openEditModal = item => {
@@ -584,22 +908,12 @@ const filteredCategories = useMemo(() => {
     setShowEditModal(true);
   };
 
-  useEffect(() => {
-    const cost = computedCost.toFixed(2);
-    const price =
-      cost > 0
-        ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2)
-        : "";
-    setFormData(prev => ({ ...prev, cost, price }));
-  }, [computedCost]);
-
-    const handleInputChange = e => {
-      let { name, value } = e.target;
-      if (name === "name") {
-        value = value.replace(/\b\w/g, c => c.toUpperCase());
-      }
-      setFormData(p => ({ ...p, [name]: value }));
-    };
+  // ── Input handlers ──────────────────────────────────────────────────────────
+  const handleInputChange = e => {
+    let { name, value } = e.target;
+    if (name === "name") value = value.replace(/\b\w/g, c => c.toUpperCase());
+    setFormData(p => ({ ...p, [name]: value }));
+  };
 
   const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
 
@@ -618,7 +932,7 @@ const filteredCategories = useMemo(() => {
   };
 
   const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
-  const updateIngQty = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
+  const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
 
   const ingFiltered = stockItems.filter(s => {
     const matchesSearch = !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase());
@@ -626,88 +940,93 @@ const filteredCategories = useMemo(() => {
     return matchesSearch && matchesBranch;
   });
 
-  const excelRef = useRef(null);
-
+  // ── Excel import ─────────────────────────────────────────────────────────────
   const importExcel = e => {
     const file = e.target.files[0];
     const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async ev => {
-      const wb    = XLSX.read(ev.target.result, { type: "array" });
+      const wb    = XLSX.read(ev.target.result, { type:"array" });
       const items = [];
       wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
         rows.forEach(row => {
           const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
           if (!name) return;
-          const category = toTitleCase(String(row.category || row.Category || "Other").trim());
-          const cost      = parseFloat(row.cost || row.Cost || 0) || 0;
+          const category  = toTitleCase(String(row.category || row.Category || "Other").trim());
+          const cost      = parseFloat(row.cost  || row.Cost  || 0) || 0;
           const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
           const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
-          const stock     = parseInt(row.stock || row.Stock || 0) || 0;
+          const stock     = parseInt(row.stock     || row.Stock     || 0) || 0;
           const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
           const branch    = String(row.branch || row.Branch || "").trim();
           const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
           const ingredients = rawIng
             ? rawIng.split("|").map(seg => {
                 const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
-                return ingName ? { name: ingName, qty_required: parseFloat(qty) || 1, unit: unit || "" } : null;
+                return ingName ? { name:ingName, qty_required:parseFloat(qty)||1, unit:unit||"" } : null;
               }).filter(Boolean)
             : [];
-          items.push({ name, category, branch: branch || "Unknown", cost, stock, min_stock: minStock, price, ingredients });
+          items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price, ingredients });
         });
       });
 
-      let saved = 0;
+      let currentInventory = [...inventory];
+      let saved = 0, skipped = 0;
+      const skippedNames = [];
+
       for (const item of items) {
+        const combined  = [...currentInventory];
+        const duplicate = findDuplicate(item.name, item.branch, combined);
+        if (duplicate) { skipped++; skippedNames.push(`${item.name} (${item.branch})`); continue; }
+
         try {
           const { ingredients, ...itemData } = item;
           const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(itemData)
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(itemData)
           });
           const d = await res.json();
           if (d.success) {
             saved++;
+            currentInventory.push({ ...itemData, id:d.item.id });
+            await logActivity("import", item.name, item.branch, `stock=${item.stock}, cost=₱${item.cost}`);
             if (ingredients.length > 0) {
               const ingPayload = ingredients.map(ing => {
-                const match = stockItems.find(s =>
-                  s.name.toLowerCase() === ing.name.toLowerCase() && s.branch === itemData.branch
-                );
-                return match
-                  ? { ingredient_id: match.id, quantity: ing.qty_required, unit: ing.unit || match.unit }
-                  : null;
+                const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);
+                return match ? { ingredient_id:match.id, quantity:ing.qty_required, unit:ing.unit||match.unit } : null;
               }).filter(Boolean);
               if (ingPayload.length > 0) {
                 await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ ingredients: ingPayload })
+                  method:"POST", headers:{"Content-Type":"application/json"},
+                  body: JSON.stringify({ ingredients:ingPayload })
                 });
               }
             }
           }
         } catch {}
       }
+
       e.target.value = "";
-      alert(`Parsed ${items.length} row(s). Saved ${saved}.`);
-      refetch();
+      let msg = `Parsed ${items.length} row(s).\n✅ Saved: ${saved}`;
+      if (skipped > 0) msg += `\n⚠️ Skipped ${skipped} duplicate(s):\n• ${skippedNames.join("\n• ")}`;
+      alert(msg);
+      await refetch();
+      await fetchActivityLog();
     };
     reader.readAsArrayBuffer(file);
   };
 
-  // ─── Render helpers (NOT components — called as functions to avoid remount) ──
+  // ── Render helpers ───────────────────────────────────────────────────────────
   const renderIngredientPicker = () => (
     <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
       <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
         <div ref={ingRef} style={{ position:"relative" }}>
-          <input
-            style={invInputSt}
-            value={ingSearch}
+          <input style={invInputSt} value={ingSearch}
             onChange={e=>{setIngSearch(e.target.value);setIngPicked(null);setIngDropOpen(true);}}
             onFocus={()=>setIngDropOpen(true)}
-            placeholder="Search stock ingredient…"
-          />
+            placeholder="Search stock ingredient…"/>
           {ingDropOpen && ingFiltered.length > 0 && (
             <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:500, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.10)", maxHeight:160, overflowY:"auto" }}>
               {ingFiltered.map(s=>(
@@ -723,8 +1042,7 @@ const filteredCategories = useMemo(() => {
             </div>
           )}
         </div>
-        <input type="number" style={invInputSt} value={ingQty} min="0" step="any"
-          onChange={e=>setIngQty(e.target.value)} placeholder="Qty"/>
+        <input type="number" style={invInputSt} value={ingQty} min="0" step="any" onChange={e=>setIngQty(e.target.value)} placeholder="Qty"/>
         <select style={invInputSt} value={ingUnit} onChange={e=>setIngUnit(e.target.value)}>
           <option value="">unit</option>
           {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
@@ -764,16 +1082,9 @@ const filteredCategories = useMemo(() => {
       {isAdmin && (
         <div style={{ marginBottom:13 }}>
           <label style={invLabelSt}>Brand</label>
-          <select
-            value={formBrandId}
-            onChange={e => {
-              setFormBrandId(e.target.value);
-              setFormData(p => ({ ...p, branch:"", category:"" }));
-            }}
-            style={invInputSt}
-          >
+          <select value={formBrandId} onChange={e=>{ setFormBrandId(e.target.value); setFormData(p=>({...p,branch:"",category:""})); }} style={invInputSt}>
             <option value="">Select brand…</option>
-            {brandList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {brandList.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
       )}
@@ -782,12 +1093,9 @@ const filteredCategories = useMemo(() => {
           <label style={invLabelSt}>Branch</label>
           <BranchSearchSelect
             value={formData.branch}
-            onChange={val => setFormData(p => ({ ...p, branch:val, category:"" }))}
+            onChange={val=>setFormData(p=>({...p,branch:val,category:""}))}
             allBranches={formBrandId
-              ? allBranches.filter(b => {
-                  const brand = brandList.find(x => String(x.id) === String(formBrandId));
-                  return brand ? (brand.branches||[]).some(br => (typeof br==="string"?br:br.name) === b.branch) : true;
-                })
+              ? allBranches.filter(b=>{ const brand=brandList.find(x=>String(x.id)===String(formBrandId)); return brand?(brand.branches||[]).some(br=>(typeof br==="string"?br:br.name)===b.branch):true; })
               : allBranches}
           />
         </div>
@@ -801,21 +1109,15 @@ const filteredCategories = useMemo(() => {
         <label style={invLabelSt}>Category</label>
         <CategorySelect
           value={formData.category}
-          onChange={val => setFormData(p => ({...p, category: val}))}
+          onChange={val=>setFormData(p=>({...p,category:val}))}
           categories={formCategories}
-          onAddCategory={cat => setFormCategories(prev => prev.includes(cat) ? prev : [...prev, cat])}
+          onAddCategory={cat=>setFormCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}
         />
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:13 }}>
         <div>
           <label style={invLabelSt}>Product Cost (₱)</label>
-          <input
-            type="number"
-            name="cost"
-            value={formData.cost}
-            readOnly
-            style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}
-          />
+          <input type="number" name="cost" value={formData.cost} readOnly style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}/>
         </div>
         <div>
           <label style={invLabelSt}>Profit Markup (%)</label>
@@ -846,17 +1148,18 @@ const filteredCategories = useMemo(() => {
   const anyFilter = filterBrand||filterBranch||filterCategory||filterStatus||searchQuery;
   const clearAll  = () => { setFilterBrand(null); setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
-      {/* ── Stat cards ──────────────────────────────────────────────────────── */}
+      {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
         {[
           { label:"Showing",    value:filteredItems.length.toLocaleString(), sub:`of ${inventory.length.toLocaleString()} total`, accent:C.green },
-          { label:"Low Stock",  value:lowCount,                              sub:"Needs reorder",   accent:C.warn },
+          { label:"Low Stock",  value:lowCount,                              sub:"Needs reorder",      accent:C.warn },
           { label:"Est. Value", value:fmtPeso(totalValue),                  sub:"Filtered selection", accent:C.green },
-          { label:"Categories", value:filteredCategories.length, sub:"Product types", accent:"#1565c0" },
+          { label:"Categories", value:filteredCategories.length,            sub:"Product types",      accent:"#1565c0" },
         ].map((s,i)=>(
           <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
             <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
@@ -866,7 +1169,7 @@ const filteredCategories = useMemo(() => {
         ))}
       </div>
 
-      {/* ── Filter bar ──────────────────────────────────────────────────────── */}
+      {/* Filter bar */}
       <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
@@ -874,7 +1177,7 @@ const filteredCategories = useMemo(() => {
             <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
             {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
           </div>
-          {isAdmin && <BrandBranchFilter brands={brandList} activeBrand={filterBrand} activeBranch={filterBranch} onChangeBrand={id => { setFilterBrand(id); setFilterBranch(null); setFilterCategory(""); }} onChangeBranch={val => { setFilterBranch(val); setFilterCategory(""); }}/>}
+          {isAdmin && <BrandBranchFilter brands={brandList} activeBrand={filterBrand} activeBranch={filterBranch} onChangeBrand={id=>{setFilterBrand(id);setFilterBranch(null);setFilterCategory("");}} onChangeBranch={val=>{setFilterBranch(val);setFilterCategory("");}}/>}
           <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
             <option value="">All Categories</option>
             {filteredCategories.map(c=><option key={c} value={c}>{c}</option>)}
@@ -885,6 +1188,21 @@ const filteredCategories = useMemo(() => {
             <option value="ok">In Stock</option>
           </select>
           <div style={{ flex:1 }}/>
+
+          {/* ── History buttons ── */}
+          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
+            <HistoryIcon size={13}/> Delete History
+            {deleteHistory.length > 0 && (
+              <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>
+            )}
+          </button>
+          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
+            <ActivityIcon size={13}/> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
+            )}
+          </button>
+
           <label style={{ ...btnSt, cursor:"pointer" }}>
             <FileIcon size={13}/> Import Excel
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
@@ -893,12 +1211,14 @@ const filteredCategories = useMemo(() => {
             const branch = isAdmin ? (filterBranch||"") : userBranch;
             setFormData({...emptyForm(), branch});
             fetchStockItems(branch);
-            setFormBrandId("");  
+            setFormBrandId("");
             setShowAddModal(true);
           }} style={btnPrimarySt}>
             <PlusIcon/> Add New Item
           </button>
         </div>
+
+        {/* Active filter chips */}
         {anyFilter && (
           <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
             <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
@@ -912,7 +1232,7 @@ const filteredCategories = useMemo(() => {
         )}
       </div>
 
-      {/* ── Table ───────────────────────────────────────────────────────────── */}
+      {/* Table card */}
       <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
         <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
           <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}><StoreIcon size={14} color="#fff"/> Menu Inventory</span>
@@ -921,11 +1241,19 @@ const filteredCategories = useMemo(() => {
         {loading ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
         ) : (
-          <InventoryTable items={filteredItems} onEdit={openEditModal} onDelete={handleDeleteItem} confirmDeleteId={confirmDeleteId} setConfirmDeleteId={setConfirmDeleteId} page={page} setPage={setPage}/>
+          <InventoryTable
+            items={filteredItems}
+            onEdit={openEditModal}
+            onDelete={handleDeleteItem}
+            confirmDeleteId={confirmDeleteId}
+            setConfirmDeleteId={setConfirmDeleteId}
+            page={page}
+            setPage={setPage}
+          />
         )}
       </div>
 
-      {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {/* Add / Edit Modal */}
       {(showAddModal || showEditModal) && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
           onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
@@ -939,6 +1267,23 @@ const filteredCategories = useMemo(() => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Delete History Panel */}
+      {showDeleteHistory && (
+        <InventoryDeleteHistoryPanel
+          history={deleteHistory}
+          onRestore={handleRestore}
+          onClose={() => setShowDeleteHistory(false)}
+        />
+      )}
+
+      {/* Activity Log Panel */}
+      {showActivityLog && (
+        <InventoryActivityLogPanel
+          log={activityLog}
+          onClose={() => setShowActivityLog(false)}
+        />
       )}
     </div>
   );
