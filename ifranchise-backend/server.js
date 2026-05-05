@@ -180,7 +180,7 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "<FranchiSync@noreply.franchisync.xyz>",
+      from: `noreply.franchisync.xyz`,
       to: email,
       subject: "Your FranchiSync Login OTP",
       html: `
@@ -454,7 +454,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "no-reply <FranchiSync@noreply.franchisync.xyz>",
+      from: `noreply.franchisync.xyz`,
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -532,7 +532,7 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: " no-reply <FranchiSync@noreply.franchisync.xyz>",
+      from: `noreply.franchisync.xyz`,
       to: email,  
       subject: "Password Reset OTP - FranchiSync",
       html: `
@@ -605,7 +605,7 @@ app.post("/api/send-credentials", async (req, res) => {
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: " no-reply <FranchiSync@noreply.franchisync.xyz>",
+      from: `noreply.franchisync.xyz`,
       to: to,
       subject: "Your Account Credentials",
       html: `
