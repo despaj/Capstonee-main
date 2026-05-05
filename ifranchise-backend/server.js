@@ -767,12 +767,21 @@ app.put("/applications/:id/status", async (req, res) => {
 
 app.delete("/applications/:id", async (req, res) => {
   try {
-    const result = await pool.query(
-      "DELETE FROM applications WHERE id=$1 RETURNING id",
-      [req.params.id]
+    // Fetch full application data first
+    const existing = await pool.query(
+      "SELECT * FROM applications WHERE id=$1", [req.params.id]
     );
-    if (result.rows.length === 0)
+    if (existing.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
+
+    // Save to delete history
+    await pool.query(
+      'INSERT INTO application_delete_history (application_data) VALUES ($1)',
+      [JSON.stringify(existing.rows[0])]
+    );
+
+    // Now delete
+    await pool.query("DELETE FROM applications WHERE id=$1", [req.params.id]);
     res.json({ success: true, message: "Application deleted successfully" });
   } catch (err) {
     console.error("Error deleting application:", err);
@@ -1187,6 +1196,76 @@ app.delete("/inventory/:id", async (req, res) => {
   }
 });
 
+// ─── INVENTORY DELETE HISTORY ─────────────────────────────────
+
+app.get("/inventory-delete-history", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM inventory_delete_history ORDER BY deleted_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /inventory-delete-history error:", err);
+    res.status(500).json({ error: "Failed to fetch inventory delete history" });
+  }
+});
+
+app.post("/inventory-delete-history", async (req, res) => {
+  try {
+    const { inventory_data, ingredients_data, deleted_by } = req.body;
+    await pool.query(
+      `INSERT INTO inventory_delete_history (inventory_data, ingredients_data, deleted_by)
+       VALUES ($1, $2, $3)`,
+      [JSON.stringify(inventory_data), JSON.stringify(ingredients_data || []), deleted_by || "Unknown"]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /inventory-delete-history error:", err);
+    res.status(500).json({ error: "Failed to save inventory delete history" });
+  }
+});
+
+app.delete("/inventory-delete-history/:id", async (req, res) => {
+  try {
+    await pool.query(
+      "DELETE FROM inventory_delete_history WHERE id = $1", [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /inventory-delete-history/:id error:", err);
+    res.status(500).json({ error: "Failed to delete history entry" });
+  }
+});
+
+// ─── INVENTORY ACTIVITY LOG ───────────────────────────────────
+
+app.get("/inventory-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM inventory_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /inventory-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch inventory activity log" });
+  }
+});
+
+app.post("/inventory-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO inventory_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /inventory-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save activity log entry" });
+  }
+});
+
 // ─── INGREDIENTS ─────────────────────────────────────────────
 
 app.get("/ingredients", async (req, res) => {
@@ -1418,6 +1497,77 @@ app.post("/inventory/:id/sell", async (req, res) => {
     res.status(500).json({ error: "Failed to process sale" });
   } finally {
     client.release();
+  }
+});
+
+// ─── INGREDIENT DELETE HISTORY ────────────────────────────────
+
+app.get("/ingredient-delete-history", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM ingredient_delete_history ORDER BY deleted_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredient-delete-history error:", err);
+    res.status(500).json({ error: "Failed to fetch ingredient delete history" });
+  }
+});
+
+app.post("/ingredient-delete-history", async (req, res) => {
+  try {
+    const { ingredient_data, deleted_by } = req.body;
+    await pool.query(
+      "INSERT INTO ingredient_delete_history (ingredient_data, deleted_by) VALUES ($1, $2)",
+      [JSON.stringify(ingredient_data), deleted_by || "Unknown"]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /ingredient-delete-history error:", err);
+    res.status(500).json({ error: "Failed to save ingredient delete history" });
+  }
+});
+
+app.delete("/ingredient-delete-history/:id", async (req, res) => {
+  try {
+    await pool.query(
+      "DELETE FROM ingredient_delete_history WHERE id = $1",
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /ingredient-delete-history/:id error:", err);
+    res.status(500).json({ error: "Failed to delete history entry" });
+  }
+});
+
+// ─── INGREDIENT ACTIVITY LOG ──────────────────────────────────
+
+app.get("/ingredient-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM ingredient_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredient-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch ingredient activity log" });
+  }
+});
+
+app.post("/ingredient-activity-log", async (req, res) => {
+  try {
+    const { action, ingredient_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO ingredient_activity_log 
+         (action, ingredient_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, ingredient_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /ingredient-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save activity log entry" });
   }
 });
 
@@ -2629,6 +2779,141 @@ app.patch("/notifications/read-all", async (req, res) => {
   }
 });
 
+// GET
+app.get('/brand-delete-history', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM brand_delete_history ORDER BY deleted_at DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch brand delete history' });
+  }
+});
+
+// POST
+app.post('/brand-delete-history', async (req, res) => {
+  try {
+    const { type, name, brand_name, data } = req.body;
+    await pool.query(
+      'INSERT INTO brand_delete_history (type, name, brand_name, data) VALUES ($1, $2, $3, $4)',
+      [type, name, brand_name || null, JSON.stringify(data)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save brand delete history' });
+  }
+});
+
+// DELETE
+app.delete('/brand-delete-history/:id', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM brand_delete_history WHERE id = $1',
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete from brand delete history' });
+  }
+});
+
+// GET /delete-history
+app.get('/delete-history', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM users_delete_history ORDER BY deleted_at DESC'
+    );
+    const mapped = result.rows.map(row => ({
+      id: row.id,
+      data: row.user_data,
+      deletedAt: row.deleted_at,
+    }));
+    res.json(mapped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch delete history.' });
+  }
+});
+
+// POST /delete-history
+app.post('/delete-history', async (req, res) => {
+  try {
+    const { user_data } = req.body;
+    await pool.query(
+      'INSERT INTO users_delete_history (user_data) VALUES ($1)',
+      [JSON.stringify(user_data)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save delete history.' });
+  }
+});
+
+// DELETE /delete-history/:id
+app.delete('/delete-history/:id', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM users_delete_history WHERE id = $1',
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete history entry.' });
+  }
+});
+
+// GET /application-delete-history
+app.get('/application-delete-history', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM application_delete_history ORDER BY deleted_at DESC'
+    );
+    const mapped = result.rows.map(row => ({
+      id: row.id,
+      data: row.application_data,
+      deletedAt: row.deleted_at,
+    }));
+    res.json(mapped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch application delete history.' });
+  }
+});
+
+// POST /application-delete-history
+app.post('/application-delete-history', async (req, res) => {
+  try {
+    const { application_data } = req.body;
+    await pool.query(
+      'INSERT INTO application_delete_history (application_data) VALUES ($1)',
+      [JSON.stringify(application_data)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save application delete history.' });
+  }
+});
+
+// DELETE /application-delete-history/:id
+app.delete('/application-delete-history/:id', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM application_delete_history WHERE id = $1',
+      [req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete application history entry.' });
+  }
+});
 // ─── ROOT ─────────────────────────────────────────────────────
 
 app.get("/", (req, res) => {

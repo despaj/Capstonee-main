@@ -1138,7 +1138,25 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
 
   // ── Delete modal & history ──────────────────────────────────────────────
   const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
-  const [deletedHistory, setDeletedHistory] = useState([]);    // [{ type, id, name, brandName?, deletedAt, data }]
+  const [deletedHistory, setDeletedHistory] = useState([]);
+
+const fetchDeleteHistory = async () => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
+    const data = await res.json();
+    const normalized = Array.isArray(data) ? data.map(entry => ({
+      ...entry,
+      brandName: entry.brand_name ?? null,          // ← map snake_case → camelCase
+      deletedAt: entry.deleted_at ?? null,           // ← map snake_case → camelCase
+      data: typeof entry.data === 'string' 
+        ? JSON.parse(entry.data) 
+        : (entry.data ?? {}),
+    })) : [];
+    setDeletedHistory(normalized);
+  } catch (err) { 
+    console.error(err); 
+  }
+};
   const [showHistory,    setShowHistory]    = useState(false);
 
   const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
@@ -1147,7 +1165,7 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
-  useEffect(() => { fetchBrands(); }, []);
+  useEffect(() => { fetchBrands(); fetchDeleteHistory(); }, []);
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -1203,22 +1221,49 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   };
 
   // ── Delete Brand (modal-driven) ────────────────────────────────────────
-  const handleDeleteBrand = async () => {
-    const { id, name } = deleteTarget;
-    const brand = brands.find((b) => b.id === id);
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        setDeletedHistory((prev) => [
-          { type: "brand", id, name, deletedAt: new Date(), data: brand },
-          ...prev,
-        ]);
-        await fetchBrands();
-        setDeleteTarget(null);
-      } else alert(data.error || "Failed to delete brand");
-    } catch { alert("Failed to delete brand"); }
+const handleDeleteBrand = async () => {
+  const { id, name } = deleteTarget;
+  
+  // Get full brand with branches from local state
+  const brand = brands.find((b) => b.id === id);
+  const brandToSave = {
+    name: brand.name,
+    categories: brand.categories || [],
+    contact_email: brand.contact_email || null,
+    contact_phone: brand.contact_phone || null,
+    description: brand.description || null,
+    branches: (brand.branches || []).map(br => ({
+      name: br.name,
+      region: br.region || null,
+      manager: br.manager || null,
+      contact: br.contact || null,
+      address: br.address || null,
+      concept: br.concept || null,
+    })),
   };
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { 
+      method: "DELETE" 
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type: 'brand', 
+          name, 
+          brand_name: null,
+          data: brandToSave,  // ← clean object, no old IDs
+        }),
+      });
+      await fetchBrands();
+      await fetchDeleteHistory();
+      setDeleteTarget(null);
+    } else alert(data.error || "Failed to delete brand");
+  } catch { alert("Failed to delete brand"); }
+};
 
   // ── Add / Edit Branch ──────────────────────────────────────────────────
   const handleAddBranch = async (e) => {
@@ -1255,56 +1300,130 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
 
   // ── Delete Branch (modal-driven) ───────────────────────────────────────
   const handleDeleteBranch = async () => {
-    const { id, name, brandName } = deleteTarget;
-    const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+  const { id, name, brandName } = deleteTarget;
+  const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ 
+    type: 'branch', 
+    name, 
+    brand_name: brandName,  // ← was: brandName as key name (JS shorthand sent it fine but backend destructures brand_name)
+    data: branch 
+  }),
+});
+      await fetchBrands();          // ← was missing
+      await fetchDeleteHistory();
+      setDeleteTarget(null);
+    } else alert(data.error || "Failed to delete branch");
+  } catch { alert("Failed to delete branch"); }
+};
+  // ── Restore ────────────────────────────────────────────────────────────
+const handleRestore = async (entry) => {
+  try {
+    if (entry.type === "brand") {
+      const { branches, ...brandFields } = entry.data;
+      const branchList = Array.isArray(branches) ? branches : [];
+
+      console.log("Restoring brand:", brandFields);
+      console.log("With branches:", branchList);
+
+      // Step 1: re-create the brand
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandFields),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.error || "Failed to restore brand");
+        return;
+      }
+
+      const newBrandId = data.id;
+      console.log("New brand ID:", newBrandId);
+
+      // Step 2: re-create each branch under the new brand
+      for (const br of branchList) {
+        const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
+        console.log("Restoring branch:", branchFields, "under brand_id:", newBrandId);
+
+        const brRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: branchFields.name,
+            region: branchFields.region || null,
+            manager: branchFields.manager || null,
+            contact: branchFields.contact || null,
+            address: branchFields.address || null,
+            concept: branchFields.concept || null,
+            brand_id: newBrandId,
+          }),
+        });
+        const brData = await brRes.json();
+        console.log("Branch restore result:", brData);
+        if (!brData.success) {
+          console.error("Failed to restore branch:", branchFields.name, brData.error);
+        }
+      }
+
+      // Step 3: remove from delete history
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
+        method: 'DELETE',
+      });
+
+      await fetchBrands();
+      await fetchDeleteHistory();
+
+    } else {
+      // Branch restore
+      const parentBrand = brands.find((b) => b.name === entry.brandName);
+
+      if (!parentBrand) {
+        alert(
+          `Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.\n` +
+          `Restore the brand first if it was also deleted.`
+        );
+        return;
+      }
+
+      const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: branchFields.name,
+          region: branchFields.region || null,
+          manager: branchFields.manager || null,
+          contact: branchFields.contact || null,
+          address: branchFields.address || null,
+          concept: branchFields.concept || null,
+          brand_id: parentBrand.id,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
-        setDeletedHistory((prev) => [
-          { type: "branch", id, name, brandName, deletedAt: new Date(), data: branch },
-          ...prev,
-        ]);
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
+          method: 'DELETE',
+        });
         await fetchBrands();
-        setDeleteTarget(null);
-      } else alert(data.error || "Failed to delete branch");
-    } catch { alert("Failed to delete branch"); }
-  };
-
-  // ── Restore ────────────────────────────────────────────────────────────
-  const handleRestore = async (entry) => {
-    try {
-      if (entry.type === "brand") {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(entry.data),
-        });
-        const data = await res.json();
-        if (data.success) {
-          for (const br of entry.data.branches || []) {
-            await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...br, brand_id: data.id }),
-            });
-          }
-          await fetchBrands();
-          setDeletedHistory((prev) => prev.filter((e) => e !== entry));
-        } else alert(data.error || "Failed to restore brand");
+        await fetchDeleteHistory();
       } else {
-        const parentBrand = brands.find((b) => b.name === entry.brandName);
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...entry.data, brand_id: parentBrand?.id }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          await fetchBrands();
-          setDeletedHistory((prev) => prev.filter((e) => e !== entry));
-        } else alert(data.error || "Failed to restore branch");
+        alert(data.error || "Failed to restore branch");
       }
-    } catch { alert("Failed to restore"); }
-  };
-
+    }
+  } catch (err) {
+    console.error("Restore error:", err);
+    alert("Failed to restore: " + err.message);
+  }
+};
   // ── Derived data ───────────────────────────────────────────────────────
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
   const allRegions    = [
@@ -1612,8 +1731,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today   = new Date();
   const fmt8    = (d) => d.toISOString().slice(0, 10);
   const fmtAmt  = (n) => '₱' + Number(n||0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
-  const fmtShort= (n) => { if(n>=1_000_000) return '₱'+(n/1_000_000).toFixed(1)+'M'; if(n>=1_000) return '₱'+(n/1_000).toFixed(0)+'k'; return '₱'+n; };
-
+  const fmtShort= (n) => { if(n>=1_000_000) return '₱'+(n/1_000_000).toFixed(1)+'M'; if(n>=1_000) return '₱'+(n/1_000).toFixed(0)+'k'; return '₱'+Number(n).toFixed(0); };
   const [rangeMode,    setRangeMode]    = useState('preset');
   const [preset,       setPreset]       = useState('month');
   const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
@@ -2789,11 +2907,14 @@ alert(
 // ─────────────────────────────────────────────────────────────────────────────
 // APPLICATIONS — 
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// APPLICATIONS CONTENT — Fixed delete history & restore
+// ─────────────────────────────────────────────────────────────────────────────
+
 function ApplicationsContent({ applications: initialApps }) {
-  const [applications, setApplications] = useState(initialApps);
+  const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
-  const [menuApp, setMenuApp] = useState(null);
   const [alertModal, setAlertModal] = useState(null);
   
    const showAlert = (message, type = "info") =>
@@ -2805,150 +2926,633 @@ function ApplicationsContent({ applications: initialApps }) {
       onClose={() => setAlertModal(null)}
     />
   )}
+  const [menuApp,      setMenuApp]      = useState(null);
+  const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
+  const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
 
-  const handleApprove = async (id) => {
+  // ── Fetch applications ──────────────────────────────────────────────────
+  const fetchApplications = async () => {
     try {
-      await fetch(`/applications/${id}/approve`, { method: "PUT" });
-      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
-    } catch { alert("Failed to approve application."); }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
+      const data = await res.json();
+      setApplications(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch applications:", err);
+    }
   };
 
+  // ── Fetch delete history ────────────────────────────────────────────────
+  // Backend GET /application-delete-history returns rows shaped:
+  //   { id, application_data: {...}, deleted_at }
+  // We map them to: { id, data: {...}, deletedAt }
+  const fetchAppDeleteHistory = async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
+      const data = await res.json();
+      const mapped = Array.isArray(data)
+        ? data.map(row => ({
+            id:        row.id,
+            data:      row.application_data ?? row.data ?? {},
+            deletedAt: row.deleted_at       ?? row.deletedAt,
+          }))
+        : [];
+      setAppDeleteHistory(mapped);
+    } catch (err) {
+      console.error("Failed to fetch application delete history:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+    fetchAppDeleteHistory();
+  }, []);
+
+  // ── Approve ─────────────────────────────────────────────────────────────
+  const handleApprove = async (id) => {
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ status: "approved" }),
+      });
+      setApplications(prev =>
+        prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
+      );
+    } catch {
+      alert("Failed to approve application.");
+    }
+  };
+
+  // ── Delete ──────────────────────────────────────────────────────────────
+  // The backend DELETE /applications/:id already saves to application_delete_history
+  // automatically (see server.js). We just call DELETE and then re-fetch history.
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this application?")) return;
     try {
-      await fetch(`/applications/${id}`, { method: "DELETE" });
-      setApplications(prev => prev.filter(a => a.id !== id));
-    } catch { alert("Failed to delete application."); }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setApplications(prev => prev.filter(a => a.id !== id));
+        // Re-fetch history — the backend saved it automatically on DELETE
+        await fetchAppDeleteHistory();
+      } else {
+        alert(data.error || "Failed to delete application.");
+      }
+    } catch {
+      alert("Failed to delete application.");
+    }
   };
 
+  // ── Restore ─────────────────────────────────────────────────────────────
+  // Backend POST /applications expects camelCase fields (rowToApplication maps them).
+  // The stored application_data is the raw DB row (snake_case).
+  const handleRestoreApplication = async (entry) => {
+    try {
+      const d = entry.data; // raw DB row — snake_case keys
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:             d.name,
+          email:            d.email,
+          phone:            d.phone,
+          franchise:        d.franchise,
+          paymentMode:      d.payment_mode,
+          dob:              d.dob,
+          civilStatus:      d.civil_status,
+          gender:           d.gender,
+          nationality:      d.nationality,
+          address:          d.address,
+          dependents:       d.dependents,
+          spouseName:       d.spouse_name,
+          spouseOccupation: d.spouse_occupation,
+          employmentType:   d.employment_type,
+          yearsEmployer:    d.years_employer,
+          income:           d.income,
+          employerName:     d.employer_name,
+          businessAddress:  d.business_address,
+          position:         d.position,
+          businessNature:   d.business_nature,
+          signature:        d.signature,
+          dateSigned:       d.date_signed,
+        }),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        // Remove from delete history
+        await fetch(
+          `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
+          { method: "DELETE" }
+        );
+        await fetchAppDeleteHistory();
+        await fetchApplications();
+        alert(`"${d.name}" has been restored.`);
+      } else {
+        alert(result.error || "Failed to restore.");
+      }
+    } catch (err) {
+      console.error("Restore error:", err);
+      alert("Failed to restore application.");
+    }
+  };
+
+  // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
     const map = {
-      pending:  { bg:'rgba(245,158,11,0.1)',  color:'#d97706' },
-      approved: { bg:'rgba(16,185,129,0.1)',  color:'#059669' },
-      rejected: { bg:'rgba(239,68,68,0.1)',   color:'#dc2626' },
+      pending:  { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
+      approved: { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
+      rejected: { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
     };
-    const s = map[status] || map['pending'];
-    return <span style={{ background:s.bg, color:s.color, padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>{status?.toUpperCase()}</span>;
+    const s = map[status] || map["pending"];
+    return (
+      <span style={{
+        background: s.bg, color: s.color,
+        padding: "3px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+      }}>
+        {status?.toUpperCase()}
+      </span>
+    );
   };
 
+  // ── Delete History Modal ─────────────────────────────────────────────────
+  const DeleteHistoryModal = () => {
+    if (!showAppDeleteHistory) return null;
+
+    const fmt = (d) =>
+      new Date(d).toLocaleString("en-PH", {
+        month: "short", day: "numeric", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      });
+
+    return (
+      <div
+        onClick={() => setShowAppDeleteHistory(false)}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(13,43,30,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: "#fff", borderRadius: 20, padding: "28px 32px",
+            width: "100%", maxWidth: 680, maxHeight: "80vh",
+            display: "flex", flexDirection: "column",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+            border: "1px solid rgba(0,168,76,0.15)",
+            fontFamily: "Montserrat, sans-serif",
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: 18,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+                Application Delete History
+              </h2>
+              {appDeleteHistory.length > 0 && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: "3px 10px",
+                  borderRadius: 20, background: "#fee2e2", color: "#dc2626",
+                }}>
+                  {appDeleteHistory.length} deleted
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setShowAppDeleteHistory(false)}
+              style={{
+                width: 32, height: 32, borderRadius: "50%",
+                border: "1px solid #b2dfdb", background: "#e0f2f1",
+                cursor: "pointer", color: "#00695c",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* List */}
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {appDeleteHistory.length === 0 ? (
+              <div style={{
+                padding: "40px 0", textAlign: "center",
+                color: "#9ca3af", fontSize: 13, fontStyle: "italic",
+              }}>
+                No deleted applications yet.
+              </div>
+            ) : appDeleteHistory.map((entry, i) => {
+              const app = entry.data || {};
+              return (
+                <div
+                  key={entry.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 0",
+                    borderBottom: i < appDeleteHistory.length - 1
+                      ? "1px solid #f0f8f0" : "none",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontWeight: 700, fontSize: 13, color: "#0d2b1e",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {app.name || "—"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>
+                      {app.email} · {app.franchise}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                      Deleted: {entry.deletedAt ? fmt(entry.deletedAt) : "—"}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleRestoreApplication(entry)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "7px 14px", borderRadius: 9,
+                      border: "1.5px solid #00897b", background: "#e0f2f1",
+                      color: "#00695c", fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                    }}
+                  >
+                    <RotateCcw size={12} /> Restore
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
+      {/* ── Delete History Modal (rendered at root level, NOT inside table) */}
+      <DeleteHistoryModal />
+
+      {/* ── View Application Modal ── */}
       {viewApp && (
-        <div onClick={() => setViewApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'90vh', overflowY:'auto' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
-              <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>Application Details</h2>
-              <button onClick={() => setViewApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
+        <div onClick={() => setViewApp(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 2000, padding: 20,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: C.white, borderRadius: 20, padding: "28px 32px",
+            width: "100%", maxWidth: 500,
+            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+            border: "1px solid rgba(0,168,76,0.15)",
+            maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 22,
+            }}>
+              <h2 style={{
+                fontFamily: "Montserrat,sans-serif", fontSize: 18,
+                fontWeight: 800, color: "#0d2b1e", margin: 0,
+              }}>
+                Application Details
+              </h2>
+              <button onClick={() => setViewApp(null)} style={{
+                width: 32, height: 32, borderRadius: "50%",
+                border: "1px solid #b2dfdb", background: "#e0f2f1",
+                cursor: "pointer", color: "#00695c",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <X size={15} />
+              </button>
             </div>
-            <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>Viewing details for: <strong style={{ color:'#0d2b1e' }}>{viewApp.name}</strong></p>
-            {[['Full Name',viewApp.name],['Email Address',viewApp.email],['Phone Number',viewApp.phone],['Franchise Interest',viewApp.franchise],['Date Applied',viewApp.date],['Status',viewApp.status?.toUpperCase()]].map(([label, val]) => (
-              <div key={label} style={{ marginBottom:14 }}>
+            <p style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20 }}>
+              Viewing details for:{" "}
+              <strong style={{ color: "#0d2b1e" }}>{viewApp.name}</strong>
+            </p>
+            {[
+              ["Full Name",          viewApp.name],
+              ["Email Address",      viewApp.email],
+              ["Phone Number",       viewApp.phone],
+              ["Franchise Interest", viewApp.franchise],
+              ["Date Applied",       viewApp.date],
+              ["Status",             viewApp.status?.toUpperCase()],
+            ].map(([label, val]) => (
+              <div key={label} style={{ marginBottom: 14 }}>
                 <label style={bmLabel}>{label}</label>
-                <div style={{ ...bmInput, background:'#f8fffe', cursor:'default', color:'#0d2b1e', display:'flex', alignItems:'center' }}>{val}</div>
+                <div style={{
+                  ...bmInput, background: "#f8fffe",
+                  cursor: "default", color: "#0d2b1e",
+                  display: "flex", alignItems: "center",
+                }}>
+                  {val}
+                </div>
               </div>
             ))}
             {viewApp.message && (
-              <div style={{ marginBottom:14 }}>
+              <div style={{ marginBottom: 14 }}>
                 <label style={bmLabel}>Message</label>
-                <div style={{ ...bmInput, background:'#f8fffe', minHeight:70, whiteSpace:'pre-wrap', lineHeight:1.6 }}>{viewApp.message}</div>
+                <div style={{
+                  ...bmInput, background: "#f8fffe",
+                  minHeight: 70, whiteSpace: "pre-wrap", lineHeight: 1.6,
+                }}>
+                  {viewApp.message}
+                </div>
               </div>
             )}
-            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:22 }}>
-              <button onClick={() => setViewApp(null)} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Close</button>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 22 }}>
+              <button onClick={() => setViewApp(null)} style={{
+                padding: "9px 22px", borderRadius: 10,
+                border: "1px solid #b2dfdb", background: "#f0fdf5",
+                color: "#5a7a65", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {accountApp && <CreateAccountModal applicant={accountApp} onClose={() => setAccountApp(null)}  onAlert={(msg, type) => showAlert(msg, type)} />}
+      {/* ── Create Account Modal ── */}
+      {accountApp && (
+        <CreateAccountModal
+          applicant={accountApp}
+          onClose={() => setAccountApp(null)}
+        />
+      )}
 
-        {menuApp && (
-        <div onClick={() => setMenuApp(null)} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:420, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', fontFamily:'Montserrat,sans-serif' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-              <h2 style={{ fontSize:17, fontWeight:800, color:'#0d2b1e', margin:0 }}>Actions</h2>
-              <button onClick={() => setMenuApp(null)} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <X size={15}/>
+      {/* ── Actions Menu Modal ── */}
+      {menuApp && (
+        <div onClick={() => setMenuApp(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 2000, padding: 20,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 20, padding: "28px 32px",
+            width: "100%", maxWidth: 420,
+            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+            border: "1px solid rgba(0,168,76,0.15)",
+            fontFamily: "Montserrat, sans-serif",
+          }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 20,
+            }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+                Actions
+              </h2>
+              <button onClick={() => setMenuApp(null)} style={{
+                width: 32, height: 32, borderRadius: "50%",
+                border: "1px solid #b2dfdb", background: "#e0f2f1",
+                cursor: "pointer", color: "#00695c",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <X size={15} />
               </button>
             </div>
-            <p style={{ fontSize:13, color:'#5a7a65', marginBottom:20 }}>
-              Applicant: <strong style={{ color:'#0d2b1e' }}>{menuApp.name}</strong>
+            <p style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20 }}>
+              Applicant:{" "}
+              <strong style={{ color: "#0d2b1e" }}>{menuApp.name}</strong>
             </p>
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                <Eye size={15}/> View Application Details
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 11,
+                  border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+                  color: "#00695c", fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Eye size={15} /> View Application Details
               </button>
               <button
                 onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)' }}>
-                <UserPlus size={15}/> Create Account
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 11, border: "none",
+                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                  color: "#fff", fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                  boxShadow: "0 2px 10px rgba(0,180,90,0.28)",
+                }}
+              >
+                <UserPlus size={15} /> Create Account
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === 'approved'}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:11, border:'none', background:menuApp.status==='approved'?'#e0e0e0':'linear-gradient(135deg,#00c853,#00897b)', color:menuApp.status==='approved'?'#9e9e9e':'#fff', fontSize:13, fontWeight:700, cursor:menuApp.status==='approved'?'not-allowed':'pointer', fontFamily:'inherit', opacity:menuApp.status==='approved'?0.6:1 }}>
-                <Check size={15}/> {menuApp.status === 'approved' ? 'Already Approved' : 'Approve Application'}
+                disabled={menuApp.status === "approved"}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 11, border: "none",
+                  background: menuApp.status === "approved"
+                    ? "#e0e0e0"
+                    : "linear-gradient(135deg,#00c853,#00897b)",
+                  color: menuApp.status === "approved" ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: menuApp.status === "approved" ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: menuApp.status === "approved" ? 0.6 : 1,
+                }}
+              >
+                <Check size={15} />
+                {menuApp.status === "approved" ? "Already Approved" : "Approve Application"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      {/* ── Main content ── */}
+      <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
 
-
-        {/* stat cards */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+        {/* Stat cards */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(4,1fr)",
+          gap: 16, marginBottom: 24,
+        }}>
           {[
-            { label:'Total Applications', value:applications.length,                                           icon:<FileCheck size={20} color="#065f46"/>, bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All time' },
-            { label:'Pending Review',     value:applications.filter(a=>a.status==='pending').length,           icon:<AlertTriangle size={20} color="#92400e"/>, bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Awaiting action' },
-            { label:'Approved',           value:applications.filter(a=>a.status==='approved').length,          icon:<Check size={20} color="#065f46"/>, bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Successful' },
-            { label:'Rejected',           value:applications.filter(a=>a.status==='rejected').length,          icon:<X size={20} color="#7f1d1d"/>, bg:'linear-gradient(135deg,#fee2e2,#fca5a5)', sub:'Not approved' },
+            {
+              label: "Total Applications", value: applications.length,
+              icon: <FileCheck size={20} color="#065f46" />,
+              bg: "linear-gradient(135deg,#d1fae5,#6ee7b7)", sub: "All time",
+            },
+            {
+              label: "Pending Review",
+              value: applications.filter(a => a.status === "pending").length,
+              icon: <AlertTriangle size={20} color="#92400e" />,
+              bg: "linear-gradient(135deg,#fef9c3,#fde68a)", sub: "Awaiting action",
+            },
+            {
+              label: "Approved",
+              value: applications.filter(a => a.status === "approved").length,
+              icon: <Check size={20} color="#065f46" />,
+              bg: "linear-gradient(135deg,#d1fae5,#a7f3d0)", sub: "Successful",
+            },
+            {
+              label: "Rejected",
+              value: applications.filter(a => a.status === "rejected").length,
+              icon: <X size={20} color="#7f1d1d" />,
+              bg: "linear-gradient(135deg,#fee2e2,#fca5a5)", sub: "Not approved",
+            },
           ].map((s, i) => <BmStatCard key={i} {...s} />)}
         </div>
 
-        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Applications List</span>
-            <button style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              Export CSV
-            </button>
+        {/* Table card */}
+        <div style={{
+          background: C.white,
+          border: "1px solid rgba(0,168,76,0.12)",
+          borderRadius: 18,
+          boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+          overflow: "hidden",
+        }}>
+          {/* Table header bar */}
+          <div style={{
+            background: "linear-gradient(135deg,#2E7D32,#00897b)",
+            padding: "16px 22px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
+              Applications List
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {/* Export CSV */}
+              <button style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 16px", borderRadius: 9,
+                border: "1.5px solid rgba(255,255,255,0.4)",
+                background: "rgba(255,255,255,0.12)",
+                color: "#fff", fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                Export CSV
+              </button>
+
+              {/* Delete History button — fixed: moved outside table markup */}
+              <button
+                onClick={() => setShowAppDeleteHistory(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", borderRadius: 9,
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.10)",
+                  color: "#fff", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <History size={13} /> Delete History
+                {appDeleteHistory.length > 0 && (
+                  <span style={{
+                    background: "#dc2626", color: "#fff",
+                    fontSize: 10, fontWeight: 800,
+                    padding: "1px 7px", borderRadius: 20,
+                  }}>
+                    {appDeleteHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:900 }}>
+
+          {/* Table */}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{
+              width: "100%", borderCollapse: "collapse",
+              fontSize: 13, minWidth: 900,
+            }}>
               <thead>
                 <tr>
-                  {['Applicant Name','Email','Phone','Franchise Interest','Date Applied','Status','Actions'].map(h => (
-                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe', whiteSpace:'nowrap' }}>{h}</th>
+                  {[
+                    "Applicant Name", "Email", "Phone",
+                    "Franchise Interest", "Date Applied", "Status", "Actions",
+                  ].map(h => (
+                    <th key={h} style={{
+                      padding: "9px 14px", textAlign: "left",
+                      fontWeight: 800, fontSize: 10.5, color: "#00897b",
+                      letterSpacing: "0.07em", textTransform: "uppercase",
+                      borderBottom: `1px solid ${C.border}`,
+                      background: "#f8fffe", whiteSpace: "nowrap",
+                    }}>
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {applications.map(app => (
-                  <tr key={app.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                    onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{app.name}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.email}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.phone}</td>
-                    <td style={{ padding:'12px 14px', color:'#0d2b1e', fontWeight:600 }}>{app.franchise}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{app.date}</td>
-                    <td style={{ padding:'12px 14px' }}><StatusBadge status={app.status} /></td>
-                    <td style={{ padding:'12px 14px', whiteSpace:'nowrap' }}>
-                      <div style={{ display:'flex', gap:6 }}>
+                {applications.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{
+                      padding: "40px 0", textAlign: "center",
+                      color: "#9ca3af", fontSize: 13, fontStyle: "italic",
+                    }}>
+                      No applications found.
+                    </td>
+                  </tr>
+                ) : applications.map(app => (
+                  <tr
+                    key={app.id}
+                    style={{ borderBottom: `1px solid #f0f8f0` }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f6fef8"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <td style={{ padding: "12px 14px", fontWeight: 700, color: "#0d2b1e" }}>
+                      {app.name}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      {app.email}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      {app.phone}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#0d2b1e", fontWeight: 600 }}>
+                      {app.franchise}
+                    </td>
+                    <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
+                      {app.date}
+                    </td>
+                    <td style={{ padding: "12px 14px" }}>
+                      <StatusBadge status={app.status} />
+                    </td>
+                    <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {/* Actions menu */}
                         <button
                           onClick={() => setMenuApp(app)}
-                          style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}
-                          title="Actions">
-                          <Pencil size={11}/>
+                          style={{
+                            ...smallBtnSt,
+                            border: "1.5px solid #b2dfdb",
+                            background: "#e0f2f1", color: "#00695c",
+                            height: 28, padding: "0 12px",
+                          }}
+                          title="Actions"
+                        >
+                          <Pencil size={11} />
                         </button>
+                        {/* Delete */}
                         <button
                           onClick={() => handleDelete(app.id)}
-                          style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}
-                          title="Delete">
-                          <Trash2 size={11}/>
+                          style={{
+                            ...smallBtnSt,
+                            border: "1.5px solid #fecaca",
+                            background: "#fee2e2", color: "#dc2626",
+                            height: 28, padding: "0 12px",
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 size={11} />
                         </button>
                       </div>
                     </td>
@@ -4104,6 +4708,13 @@ useEffect(() => {
       showAlert("Failed to load users.", "error");
     }
   };
+  const fetchDeleteHistory = async () => {
+  const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
+  const data = await res.json();
+  setDeleteHistory(Array.isArray(data) ? data : []);
+};
+
+useEffect(() => { fetchDeleteHistory(); }, []);
 
   const handleSendCredentials = async (user) => {
     try {
@@ -4227,10 +4838,12 @@ const handleAddUser = async (e) => {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: "DELETE" });
       const data = await response.json();
       if (data.success) {
-        setDeleteHistory((prev) => [
-          { data: user, deletedAt: new Date().toISOString() },
-          ...prev,
-        ]);
+        await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ user_data: user }),
+});
+await fetchDeleteHistory();
         await fetchUsers();
         showAlert(`"${user.name}" has been deleted.`, "success");
       } else {
@@ -4241,6 +4854,7 @@ const handleAddUser = async (e) => {
       showAlert("Failed to delete user.", "error");
     }
   };
+  
 
   const handleRestore = async (entry) => {
     try {
@@ -4250,7 +4864,10 @@ const handleAddUser = async (e) => {
       });
       const data = await response.json();
       if (data.success) {
-        setDeleteHistory((prev) => prev.filter((e) => e !== entry));
+       await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
+  method: "DELETE",
+});
+await fetchDeleteHistory();
         await fetchUsers();
         setShowDeleteHistory(false);
         showAlert(`"${entry.data.name}" has been restored.`, "success");
@@ -5169,6 +5786,7 @@ const emptyIcon =
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOBILE ORDERS
