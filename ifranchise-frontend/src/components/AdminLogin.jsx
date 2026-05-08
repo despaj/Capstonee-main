@@ -83,7 +83,7 @@ useEffect(() => {
       } catch (err) {
         console.error("Error parsing stored user:", err);
         localStorage.removeItem("rememberedUser");
-        localStorage.removeItem("user");        // ← ADD THIS
+        localStorage.removeItem("user");
         sessionStorage.removeItem("user");
       }
     }

@@ -77,159 +77,6 @@ const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill=
 const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
 const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
 const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-const AlertCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-const CheckCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
-const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
-const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
-
-// ─── UI Modal (replaces all alert/confirm) ────────────────────────────────────
-function UIModal({ modal, onClose, onConfirm }) {
-  if (!modal) return null;
-  const { type, title, message, lines, confirmLabel, cancelLabel } = modal;
-
-  const iconMap = {
-    error:   <AlertCircleIcon size={26} color="#dc2626"/>,
-    success: <CheckCircleIcon size={26} color={C.green}/>,
-    info:    <InfoIcon size={26} color="#1d4ed8"/>,
-    confirm: <AlertCircleIcon size={26} color={C.warn}/>,
-  };
-  const headerColorMap = {
-    error:   { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
-    success: { bg:C.greenLt, border:C.greenMid, titleColor:C.greenDk },
-    info:    { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" },
-    confirm: { bg:C.warnBg, border:"#fed7aa", titleColor:"#9a3412" },
-  };
-  const hc = headerColorMap[type] || headerColorMap.info;
-
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}`, display:"flex", alignItems:"flex-start", gap:13 }}>
-          <div style={{ flexShrink:0, marginTop:1 }}>{iconMap[type]}</div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:16, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
-            {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.55, opacity:0.85 }}>{message}</div>}
-          </div>
-          <button onClick={onClose} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:`1px solid ${hc.border}`, background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
-            <XIcon size={13}/>
-          </button>
-        </div>
-
-        {/* Lines (for import summary) */}
-        {lines && lines.length > 0 && (
-          <div style={{ maxHeight:180, overflowY:"auto", padding:"12px 24px", borderBottom:`1px solid ${C.border}` }}>
-            {lines.map((l, i) => (
-              <div key={i} style={{ fontSize:12, color:l.warn ? C.warn : C.muted, padding:"3px 0", display:"flex", alignItems:"flex-start", gap:7 }}>
-                <span style={{ marginTop:1, flexShrink:0, color:l.warn?"#e65100":C.green }}>{l.warn ? "–" : "+"}</span>
-                <span>{l.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Footer */}
-        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          {type === "confirm" && (
-            <button onClick={onClose} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>{cancelLabel || "Cancel"}</button>
-          )}
-          {type === "confirm" ? (
-            <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>{confirmLabel || "Confirm"}</button>
-          ) : (
-            <button onClick={onClose} style={{ ...btnPrimarySt }}>{confirmLabel || "OK"}</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Delete Confirmation Modal ────────────────────────────────────────────────
-function DeleteConfirmModal({ item, onConfirm, onCancel }) {
-  if (!item) return null;
-  return (
-    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
-          <div style={{ flexShrink:0, marginTop:1 }}>
-            <AlertCircleIcon size={26} color="#dc2626"/>
-          </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:16, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
-            <div style={{ fontSize:13, color:C.ink, lineHeight:1.55 }}>
-              Are you sure you want to delete <strong style={{ color:C.ink }}>"{item.name}"</strong>?
-            </div>
-            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:9, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
-              This will move the item to Delete History where it can be restored.
-            </div>
-          </div>
-          <button onClick={onCancel} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
-            <XIcon size={13}/>
-          </button>
-        </div>
-        {/* Item summary */}
-        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:16 }}>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Branch</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.branch}</div>
-          </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Category</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.category}</div>
-          </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Stock</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.stock}</div>
-          </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Price</div>
-            <div style={{ fontWeight:700, color:C.green }}>{fmtPeso(item.price||0)}</div>
-          </div>
-        </div>
-        {/* Footer */}
-        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onCancel} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
-          <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)", display:"inline-flex", alignItems:"center", gap:6 }}>
-            <TrashIcon size={13}/> Delete Item
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Import Loading Modal ─────────────────────────────────────────────────────
-function ImportLoadingModal({ visible, progress }) {
-  if (!visible) return null;
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-      <div style={{ background:C.white, borderRadius:22, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
-        <div style={{ width:64, height:64, borderRadius:"50%", background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px" }}>
-          <UploadIcon size={30} color={C.green}/>
-        </div>
-        <div style={{ fontSize:17, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
-        <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
-
-        {/* Progress bar */}
-        <div style={{ background:C.greenLt, borderRadius:999, height:8, overflow:"hidden", marginBottom:12 }}>
-          <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
-        </div>
-        <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
-        {progress.current > 0 && (
-          <div style={{ fontSize:11, color:C.muted, opacity:0.7 }}>{progress.current} / {progress.total} rows processed</div>
-        )}
-
-        <div style={{ marginTop:18, display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:C.green }}>
-          <LoaderIcon size={16} color={C.green}/>
-          <span style={{ fontSize:12, fontWeight:700 }}>Do not close this window</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Chip ─────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
@@ -405,6 +252,8 @@ function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+
+        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
@@ -418,11 +267,15 @@ function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
             <XIcon size={15}/>
           </button>
         </div>
+
+        {/* Column headers */}
         {history.length > 0 && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
             <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
           </div>
         )}
+
+        {/* Rows */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {history.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
@@ -444,6 +297,7 @@ function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
                     <RestoreIcon/> Restore
                   </button>
                 </div>
+                {/* Ingredient chips */}
                 {ings.length > 0 && (
                   <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:5, paddingLeft:4 }}>
                     <span style={{ fontSize:10, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center" }}>Ingredients:</span>
@@ -493,6 +347,8 @@ function InventoryActivityLogPanel({ log, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+
+        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
@@ -502,6 +358,8 @@ function InventoryActivityLogPanel({ log, onClose }) {
             <XIcon size={15}/>
           </button>
         </div>
+
+        {/* Filters */}
         <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
           <div style={{ position:"relative", flex:"1 1 200px" }}>
             <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
@@ -516,9 +374,13 @@ function InventoryActivityLogPanel({ log, onClose }) {
             <option value="delete">Deleted</option>
           </select>
         </div>
+
+        {/* Column headers */}
         <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
           <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
         </div>
+
+        {/* Rows */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {filtered.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
@@ -541,7 +403,7 @@ function InventoryActivityLogPanel({ log, onClose }) {
 }
 
 // ─── InventoryTable ───────────────────────────────────────────────────────────
-function InventoryTable({ items, onEdit, onDelete, page, setPage }) {
+function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
   const [sort, setSort]             = useState({ col:"name", asc:true });
   const [expandedRows, setExpanded] = useState({});
 
@@ -594,6 +456,7 @@ function InventoryTable({ items, onEdit, onDelete, page, setPage }) {
           <tbody>
             {pageItems.map(item => {
               const low        = Number(item.stock) <= Number(item.min_stock);
+              const isConfirm  = confirmDeleteId === item.id;
               const ingredients= item.ingredients || [];
               const isExpanded = expandedRows[item.id];
               return (
@@ -611,7 +474,7 @@ function InventoryTable({ items, onEdit, onDelete, page, setPage }) {
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
                         {item.stock}
-                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
                       </span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
@@ -631,9 +494,11 @@ function InventoryTable({ items, onEdit, onDelete, page, setPage }) {
                     <td style={{ padding:"10px 12px" }}>
                       <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                         <button onClick={()=>onEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}><EditIcon/> Edit</button>
-                        <button onClick={()=>onDelete(item)} style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", background:C.white }}>
-                          <TrashIcon/> Delete
+                        <button onClick={()=>{ if(isConfirm){onDelete(item.id);setConfirmDeleteId(null);}else setConfirmDeleteId(item.id); }}
+                          style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
+                          <TrashIcon/> {isConfirm?"Confirm?":"Delete"}
                         </button>
+                        {isConfirm && <button onClick={()=>setConfirmDeleteId(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
                       </div>
                     </td>
                   </tr>
@@ -695,19 +560,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [page,            setPage]            = useState(0);
-
-  // ── UI Modal state ──────────────────────────────────────────────────────────
-  const [uiModal,         setUiModal]         = useState(null); // { type, title, message, lines, confirmLabel, cancelLabel, onConfirm }
-  const showModal = useCallback((opts) => setUiModal(opts), []);
-  const closeModal = useCallback(() => setUiModal(null), []);
-
-  // ── Delete confirm modal ─────────────────────────────────────────────────────
-  const [deleteTarget,    setDeleteTarget]    = useState(null); // item object
-
-  // ── Import loading modal ─────────────────────────────────────────────────────
-  const [importLoading,   setImportLoading]   = useState(false);
-  const [importProgress,  setImportProgress]  = useState({ percent:0, label:"Preparing…", current:0, total:0 });
 
   // ── History / log state ─────────────────────────────────────────────────────
   const [deleteHistory,     setDeleteHistory]     = useState([]);
@@ -722,11 +576,11 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [ingPicked,   setIngPicked]   = useState(null);
   const [ingDropOpen, setIngDropOpen] = useState(false);
   const ingRef = useRef(null);
-
-  const emptyForm = useCallback(() => ({
-    name:"", category:"", branch:isAdmin?"":userBranch,
-    cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
-  }), [isAdmin, userBranch]);
+  
+const emptyForm = useCallback(() => ({
+  name:"", category:"", branch:isAdmin?"":userBranch,
+  cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
+}), [isAdmin, userBranch]);
   const excelRef = useRef(null);
 
   const [formData,    setFormData]    = useState(emptyForm);
@@ -876,15 +730,11 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
   const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
 
-  // ── CRUD handlers ───────────────────────────────────────────────────────────
   const handleAddItem = async e => {
     e.preventDefault();
     const branch    = isAdmin ? formData.branch : userBranch;
     const duplicate = findDuplicate(formData.name, branch, inventory);
-    if (duplicate) {
-      showModal({ type:"error", title:"Duplicate Item", message:`"${duplicate.name}" already exists in this branch. Please use a different name.` });
-      return;
-    }
+    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
 
     const payload = { ...formData, branch, min_stock:formData.minStock };
     try {
@@ -909,13 +759,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
         await refetch();
         await fetchActivityLog();
         setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
-        showModal({ type:"success", title:"Item Added", message:`"${formData.name}" has been added to inventory successfully.` });
-      } else {
-        showModal({ type:"error", title:"Failed to Add Item", message: d.error || "An unexpected error occurred." });
-      }
-    } catch {
-      showModal({ type:"error", title:"Connection Error", message:"Failed to add item. Please check your connection and try again." });
-    }
+      } else alert(d.error||"Failed to add item");
+    } catch { alert("Failed to add item"); }
   };
 
   const handleEditItem = async e => {
@@ -923,10 +768,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     const branch     = isAdmin ? formData.branch : userBranch;
     const otherItems = inventory.filter(i => i.id !== editingItem.id);
     const duplicate  = findDuplicate(formData.name, branch, otherItems);
-    if (duplicate) {
-      showModal({ type:"error", title:"Duplicate Item", message:`"${duplicate.name}" already exists in this branch. Please use a different name.` });
-      return;
-    }
+    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
 
     const payload = { ...formData, branch, min_stock:formData.minStock };
     try {
@@ -946,6 +788,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
           })
         });
 
+        // Build human-readable changes string
         const changed = [];
         if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
         if (String(editingItem.min_stock) !== String(formData.minStock)) changed.push(`min: ${editingItem.min_stock} → ${formData.minStock}`);
@@ -957,44 +800,29 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
         await refetch();
         await fetchActivityLog();
         setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
-        showModal({ type:"success", title:"Item Updated", message:`"${formData.name}" has been updated successfully.` });
-      } else {
-        showModal({ type:"error", title:"Failed to Update Item", message: d.error || "An unexpected error occurred." });
-      }
-    } catch {
-      showModal({ type:"error", title:"Connection Error", message:"Failed to update item. Please check your connection and try again." });
-    }
+      } else alert(d.error||"Failed to update item");
+    } catch { alert("Failed to update item"); }
   };
 
-  const handleDeleteItem = async (item) => {
-    setDeleteTarget(item);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    const id = deleteTarget.id;
-    const name = deleteTarget.name;
-    setDeleteTarget(null);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: "DELETE" });
-      const d   = await res.json();
-      if (d.success) {
-        await refetch();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-      } else {
-        showModal({ type:"error", title:"Failed to Delete", message: d.error || "An unexpected error occurred." });
-      }
-    } catch {
-      showModal({ type:"error", title:"Connection Error", message:"Failed to delete item. Please check your connection and try again." });
-    }
-  };
+const handleDeleteItem = async id => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: "DELETE" });
+    const d   = await res.json();
+    if (d.success) {
+      await refetch();
+      await fetchDeleteHistory(); 
+      await fetchActivityLog();
+      setConfirmDeleteId(null);
+    } else alert(d.error || "Failed to delete");
+  } catch { alert("Failed to delete"); }
+};
 
   const handleRestore = async (entry) => {
     try {
       const d    = entry.inventory_data;
       const ings = entry.ingredients_data || [];
 
+      // Re-create inventory item
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
@@ -1010,6 +838,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
       });
       const result = await res.json();
       if (result.success) {
+        // Re-link all ingredients
         if (ings.length > 0) {
           await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
             method:"POST", headers:{"Content-Type":"application/json"},
@@ -1022,18 +851,15 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
             }),
           });
         }
+        // Remove from delete history
         await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
         await logActivity("add", d.name, d.branch, "Restored from delete history");
         await refetch();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        showModal({ type:"success", title:"Item Restored", message:`"${d.name}" has been restored with all ${ings.length} ingredient(s).` });
-      } else {
-        showModal({ type:"error", title:"Restore Failed", message: result.error || "Failed to restore item." });
-      }
-    } catch {
-      showModal({ type:"error", title:"Connection Error", message:"Failed to restore item. Please check your connection and try again." });
-    }
+        alert(`"${d.name}" has been restored with all ${ings.length} ingredient(s).`);
+      } else alert(result.error || "Failed to restore");
+    } catch { alert("Failed to restore item"); }
   };
 
   const openEditModal = item => {
@@ -1064,10 +890,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
 
   const addIngredient = () => {
     if (!ingPicked) return;
-    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) {
-      showModal({ type:"info", title:"Already Added", message:`"${ingPicked.name}" is already in the ingredients list.` });
-      return;
-    }
+    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) { alert("Already added"); return; }
     setFormData(f => ({
       ...f, ingredients:[...(f.ingredients||[]), {
         stock_item_id: ingPicked.id,
@@ -1093,117 +916,74 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     const file = e.target.files[0];
     const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
     if (!file) return;
-
-    setImportLoading(true);
-    setImportProgress({ percent:5, label:"Reading file…", current:0, total:0 });
-
     const reader = new FileReader();
     reader.onload = async ev => {
-      try {
-        setImportProgress({ percent:15, label:"Parsing spreadsheet…", current:0, total:0 });
-        const wb    = XLSX.read(ev.target.result, { type:"array" });
-        const items = [];
-        wb.SheetNames.forEach(sheetName => {
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
-          rows.forEach(row => {
-            const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
-            if (!name) return;
-            const category  = toTitleCase(String(row.category || row.Category || "Other").trim());
-            const cost      = parseFloat(row.cost  || row.Cost  || 0) || 0;
-            const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
-            const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
-            const stock     = parseInt(row.stock     || row.Stock     || 0) || 0;
-            const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
-            const branch    = String(row.branch || row.Branch || "").trim();
-            const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
-            const ingredients = rawIng
-              ? rawIng.split("|").map(seg => {
-                  const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
-                  return ingName ? { name:ingName, qty_required:parseFloat(qty)||1, unit:unit||"" } : null;
-                }).filter(Boolean)
-              : [];
-            items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price, ingredients });
-          });
+      const wb    = XLSX.read(ev.target.result, { type:"array" });
+      const items = [];
+      wb.SheetNames.forEach(sheetName => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
+        rows.forEach(row => {
+          const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
+          if (!name) return;
+          const category  = toTitleCase(String(row.category || row.Category || "Other").trim());
+          const cost      = parseFloat(row.cost  || row.Cost  || 0) || 0;
+          const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
+          const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
+          const stock     = parseInt(row.stock     || row.Stock     || 0) || 0;
+          const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
+          const branch    = String(row.branch || row.Branch || "").trim();
+          const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
+          const ingredients = rawIng
+            ? rawIng.split("|").map(seg => {
+                const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
+                return ingName ? { name:ingName, qty_required:parseFloat(qty)||1, unit:unit||"" } : null;
+              }).filter(Boolean)
+            : [];
+          items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price, ingredients });
         });
+      });
 
-        setImportProgress({ percent:25, label:`Found ${items.length} rows. Importing…`, current:0, total:items.length });
+      let currentInventory = [...inventory];
+      let saved = 0, skipped = 0;
+      const skippedNames = [];
 
-        let currentInventory = [...inventory];
-        let saved = 0, skipped = 0;
-        const skippedNames = [];
+      for (const item of items) {
+        const combined  = [...currentInventory];
+        const duplicate = findDuplicate(item.name, item.branch, combined);
+        if (duplicate) { skipped++; skippedNames.push(`${item.name} (${item.branch})`); continue; }
 
-        for (let idx = 0; idx < items.length; idx++) {
-          const item = items[idx];
-          const pct  = 25 + Math.round(((idx + 1) / items.length) * 65);
-          setImportProgress({
-            percent: pct,
-            label: `Saving "${item.name}"…`,
-            current: idx + 1,
-            total: items.length,
+        try {
+          const { ingredients, ...itemData } = item;
+          const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(itemData)
           });
-
-          const combined  = [...currentInventory];
-          const duplicate = findDuplicate(item.name, item.branch, combined);
-          if (duplicate) { skipped++; skippedNames.push(`${item.name} (${item.branch})`); continue; }
-
-          try {
-            const { ingredients, ...itemData } = item;
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-              method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(itemData)
-            });
-            const d = await res.json();
-            if (d.success) {
-              saved++;
-              currentInventory.push({ ...itemData, id:d.item.id });
-              await logActivity("import", item.name, item.branch, `stock=${item.stock}, cost=₱${item.cost}`);
-              if (ingredients.length > 0) {
-                const ingPayload = ingredients.map(ing => {
-                  const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);
-                  return match ? { ingredient_id:match.id, quantity:ing.qty_required, unit:ing.unit||match.unit } : null;
-                }).filter(Boolean);
-                if (ingPayload.length > 0) {
-                  await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-                    method:"POST", headers:{"Content-Type":"application/json"},
-                    body: JSON.stringify({ ingredients:ingPayload })
-                  });
-                }
+          const d = await res.json();
+          if (d.success) {
+            saved++;
+            currentInventory.push({ ...itemData, id:d.item.id });
+            await logActivity("import", item.name, item.branch, `stock=${item.stock}, cost=₱${item.cost}`);
+            if (ingredients.length > 0) {
+              const ingPayload = ingredients.map(ing => {
+                const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);
+                return match ? { ingredient_id:match.id, quantity:ing.qty_required, unit:ing.unit||match.unit } : null;
+              }).filter(Boolean);
+              if (ingPayload.length > 0) {
+                await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
+                  method:"POST", headers:{"Content-Type":"application/json"},
+                  body: JSON.stringify({ ingredients:ingPayload })
+                });
               }
             }
-          } catch {}
-        }
-
-        setImportProgress({ percent:100, label:"Complete!", current:items.length, total:items.length });
-        await refetch();
-        await fetchActivityLog();
-
-        // Build summary lines
-        const summaryLines = [
-          { text:`${items.length} row(s) parsed from file` },
-          { text:`${saved} item(s) saved successfully` },
-          ...(skipped > 0 ? [
-            { text:`${skipped} duplicate(s) skipped`, warn:true },
-            ...skippedNames.map(n => ({ text:n, warn:true })),
-          ] : []),
-        ];
-
-        setTimeout(() => {
-          setImportLoading(false);
-          e.target.value = "";
-          showModal({
-            type: skipped > 0 ? "info" : "success",
-            title: "Import Complete",
-            message: skipped > 0
-              ? `${saved} item(s) saved. ${skipped} duplicate(s) were skipped.`
-              : `Successfully imported ${saved} item(s) into inventory.`,
-            lines: summaryLines,
-          });
-        }, 400);
-
-      } catch (err) {
-        setImportLoading(false);
-        e.target.value = "";
-        showModal({ type:"error", title:"Import Failed", message:"An error occurred while processing the Excel file. Please check the file format and try again." });
+          }
+        } catch {}
       }
+
+      e.target.value = "";
+      let msg = `Parsed ${items.length} row(s).\n✅ Saved: ${saved}`;
+      if (skipped > 0) msg += `\n⚠️ Skipped ${skipped} duplicate(s):\n• ${skippedNames.join("\n• ")}`;
+      alert(msg);
+      await refetch();
+      await fetchActivityLog();
     };
     reader.readAsArrayBuffer(file);
   };
@@ -1270,61 +1050,62 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
         <label style={invLabelSt}>Item Name</label>
         <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
       </div>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Product Image</label>
-        <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-          <div style={{ flex:1 }}>
-            <input
-              type="text"
-              placeholder="Paste image URL or upload below…"
-              value={formData.image_url || ""}
-              onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
-              style={invInputSt}
-            />
-          </div>
-          <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
-            <FileIcon size={13}/> Upload
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display:"none" }}
-              onChange={async e => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const fd = new FormData();
-                fd.append("image", file);
-                try {
-                  const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
-                    method: "POST",
-                    body: fd,
-                  });
-                  const d = await res.json();
-                  if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
-                  else showModal({ type:"error", title:"Upload Failed", message:"Image upload failed. Please try again." });
-                } catch {
-                  showModal({ type:"error", title:"Upload Failed", message:"Image upload failed. Please check your connection." });
-                }
-              }}
-            />
-          </label>
-        </div>
-        {formData.image_url && (
-          <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
-            <img
-              src={formData.image_url}
-              alt="preview"
-              style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
-              onError={e => e.target.style.display="none"}
-            />
-            <button
-              type="button"
-              onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
-              style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-              <XIcon size={9}/>
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Image Upload */}
+<div style={{ marginBottom:13 }}>
+  <label style={invLabelSt}>Product Image</label>
+  <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+    <div style={{ flex:1 }}>
+      <input
+        type="text"
+        placeholder="Paste image URL or upload below…"
+        value={formData.image_url || ""}
+        onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
+        style={invInputSt}
+      />
+    </div>
+    <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
+      <FileIcon size={13}/> Upload
+      <input
+        type="file"
+        accept="image/*"
+        style={{ display:"none" }}
+        onChange={async e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const fd = new FormData();
+          fd.append("image", file);
+          try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
+              method: "POST",
+              body: fd,
+            });
+            const d = await res.json();
+            if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
+            else alert("Upload failed");
+          } catch { alert("Upload failed"); }
+        }}
+      />
+    </label>
+  </div>
+
+  {/* Preview */}
+  {formData.image_url && (
+    <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
+      <img
+        src={formData.image_url}
+        alt="preview"
+        style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
+        onError={e => e.target.style.display="none"}
+      />
+      <button
+        type="button"
+        onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
+        style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+        <XIcon size={9}/>
+      </button>
+    </div>
+  )}
+</div>
 
       {isAdmin && (
         <div style={{ marginBottom:13 }}>
@@ -1398,10 +1179,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
 
       {/* Stat cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
@@ -1438,6 +1216,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
             <option value="ok">In Stock</option>
           </select>
           <div style={{ flex:1 }}/>
+
+          {/* ── History buttons ── */}
           <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
             <HistoryIcon size={13}/> Delete History
             {deleteHistory.length > 0 && (
@@ -1450,6 +1230,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
               <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
             )}
           </button>
+
           <label style={{ ...btnSt, cursor:"pointer" }}>
             <FileIcon size={13}/> Import Excel
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
@@ -1465,6 +1246,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
           </button>
         </div>
 
+        {/* Active filter chips */}
         {anyFilter && (
           <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
             <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
@@ -1491,6 +1273,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
             items={filteredItems}
             onEdit={openEditModal}
             onDelete={handleDeleteItem}
+            confirmDeleteId={confirmDeleteId}
+            setConfirmDeleteId={setConfirmDeleteId}
             page={page}
             setPage={setPage}
           />
@@ -1512,23 +1296,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
           </div>
         </div>
       )}
-
-      {/* Delete Confirm Modal */}
-      <DeleteConfirmModal
-        item={deleteTarget}
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
-
-      {/* Import Loading Modal */}
-      <ImportLoadingModal visible={importLoading} progress={importProgress}/>
-
-      {/* UI Modal (alerts/errors/success) */}
-      <UIModal
-        modal={uiModal}
-        onClose={closeModal}
-        onConfirm={() => { if (uiModal?.onConfirm) uiModal.onConfirm(); closeModal(); }}
-      />
 
       {/* Delete History Panel */}
       {showDeleteHistory && (

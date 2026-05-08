@@ -259,7 +259,6 @@ export default function FranchiseeDashboard({ onLogout }) {
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
     { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
     { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
-    { id: 'pos',            label: 'POS',             icon: <DollarSign size={20} /> },
     { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
     { id: 'staff',          label: 'Staff Management',icon: <Users size={20} /> },

@@ -5846,6 +5846,8 @@ function MobileOrdersContent() {
   const [confirmModal, setConfirmModal] = useState(null); // { id, nextUiStatus, label }
   const [openDropdown, setOpenDropdown] = useState(null); // order.id with open dropdown
   const [activeTab,    setActiveTab]    = useState("active"); // "active" | "completed"
+  const printRef = useRef(null);
+const [printReceipts, setPrintReceipts] = useState([]);
 
   // ── Close dropdown on outside click ───────────────────────────────────────
   useEffect(() => {
@@ -7166,6 +7168,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
 function POSContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Administrator";
   const userBranch = user?.branch || "";
+    const [filterBrand, setFilterBrand] = React.useState(null);
 
   const brandList = propBrands.length > 0 ? propBrands : [
     { id: "ipharma",     name: "iPharma",      branches: ["Main Branch","Alabang","Makati","Pasay","Paranaque"] },
@@ -7735,12 +7738,18 @@ function POSContent({ user, brands: propBrands = [] }) {
           <div>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                {isAdmin && (
-                  <select value={activeBranch} onChange={e=>setActiveBranch(e.target.value)} style={{ ...invInputSt, width:180 }}>
-                    <option value="">Select Branch…</option>
-                    {allBranches.map(b=><option key={b} value={b}>{b}</option>)}
-                  </select>
-                )}
+  {isAdmin && (
+    <BrandBranchFilter
+      brands={brandList}
+      activeBrand={filterBrand}
+      activeBranch={activeBranch}
+      onChangeBrand={id => {
+        setFilterBrand(id);
+        setActiveBranch("");   // reset branch when brand changes
+      }}
+      onChangeBranch={val => setActiveBranch(val || "")}
+    />
+  )}
                 <div style={{ position:"relative", flex:"1 1 200px" }}>
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   <input type="text" placeholder="Search products…" value={searchProduct} onChange={e=>setSearchProduct(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
@@ -8177,6 +8186,71 @@ function POSContent({ user, brands: propBrands = [] }) {
           processing={retrieveProcessing}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Add this entire block above function POSContent ─────────────────────────
+function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
+  const [brandQ, setBrandQ]   = React.useState("");
+  const [branchQ, setBranchQ] = React.useState("");
+  const [openB, setOpenB]     = React.useState(false);
+  const [openBr, setOpenBr]   = React.useState(false);
+  const brandRef  = React.useRef(null);
+  const branchRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const fn = e => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const selectedBrand    = brands.find(b => b.id === activeBrand);
+  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br=>typeof br==="string"?br:br.name) : [];
+  const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const optSt  = active => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+
+  return (
+    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+      <div ref={brandRef} style={{ position:"relative", minWidth:170 }}>
+        <div onClick={()=>{setOpenB(v=>!v);setBrandQ("");}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{selectedBrand?selectedBrand.name:"All Brands"}</span>
+        </div>
+        {openB && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search brand…" onClick={e=>e.stopPropagation()} style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBrand)} onMouseDown={()=>{onChangeBrand(null);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>All Brands</div>
+            {filteredBrands.map(b=>(
+              <div key={b.id} style={optSt(activeBrand===b.id)} onMouseDown={()=>{onChangeBrand(b.id);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>
+                {b.name} <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches||[]).length} branches</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45 }}>
+        <div onClick={()=>{if(activeBrand){setOpenBr(v=>!v);setBranchQ("");}}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{activeBranch||(activeBrand?"All Branches":"Select brand first")}</span>
+        </div>
+        {openBr && activeBrand && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBranch)} onMouseDown={()=>{onChangeBranch(null);setOpenBr(false);}}>All Branches</div>
+            {filteredBranches.map(br=>(
+              <div key={br} style={optSt(activeBranch===br)} onMouseDown={()=>{onChangeBranch(br);setOpenBr(false);}}>{br}</div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

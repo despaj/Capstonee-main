@@ -387,7 +387,7 @@ export default function FranchiseeDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ textAlign: 'right' }}>
               <div className="fr-user-name">{user?.name}</div>
-              <div className="fr-user-role">Franchisee — {user?.branch}</div>
+              <div className="fr-user-role">Manager — {user?.branch}</div>
             </div>
             <div className="fr-avatar">{(user?.name || 'F')[0]}</div>
           </div>
