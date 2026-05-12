@@ -211,7 +211,7 @@ function Login() {
         </form>
 
         <div className="role-info">
-          <strong>📋 User Roles:</strong>
+          <strong> User Roles:</strong>
           Administrator • Franchisor • Franchisee • Manager • Staff
         </div>
       </div>

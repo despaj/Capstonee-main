@@ -31,6 +31,8 @@ export default function AdminLogin() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpEmail, setOtpEmail] = useState("");
   const otpRefs = useRef([]);
+  const [otpMethod, setOtpMethod] = useState("email"); // email | sms
+const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
 
   // Forgot Password
   const [forgotEmail, setForgotEmail] = useState("");
@@ -272,17 +274,36 @@ export default function AdminLogin() {
       setAuthError(`Invalid credentials. ${rem} attempt${rem !== 1 ? "s" : ""} remaining.`);
     }
   };
+const sendOtpSilent = async (e, method = "email") => {
+  try {
+    const endpoint =
+      method === "sms"
+        ? "/send-login-sms-otp"
+        : "/send-otp-after-login";
 
-  const sendOtpSilent = async (e) => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-after-login`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: e }), credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) setOtpError(data.message || "Failed to send OTP");
-    } catch { setOtpError("Failed to send OTP. Try again."); }
-  };
+    const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: e }),
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setOtpError(data.message || "Failed to send OTP");
+      return;
+    }
+
+    if (method === "sms" && data.maskedPhone) {
+      setMaskedOtpPhone(data.maskedPhone);
+    }
+
+    setOtpMethod(method);
+  } catch {
+    setOtpError("Failed to send OTP. Try again.");
+  }
+};
 
   // ── Login OTP verify ──
   const verifyOtp = async () => {
@@ -525,6 +546,26 @@ export default function AdminLogin() {
       <button className={`btn yellow ${isLocked ? "btn-disabled" : ""}`} onClick={!isLocked ? onVerify : undefined} disabled={!!isLocked}>
         {verifyLabel}
       </button>
+          {/* USE SMS INSTEAD BUTTON */}
+    {otpMethod === "email" && (
+      <button
+        type="button"
+        className="use-sms-btn"
+        onClick={async () => {
+          setOtpError("");
+          setOtp(["", "", "", "", "", ""]);
+
+          await sendOtpSilent(otpEmail, "sms");
+
+          setTimeout(() => {
+            otpRefs.current[0]?.focus();
+          }, 100);
+        }}
+      >
+      
+        Use SMS Instead
+      </button>
+    )}
       <button className="link-resend"
         onClick={async () => {
           if (resendDisabled || isLocked) return;
@@ -599,20 +640,57 @@ export default function AdminLogin() {
         )}
 
         {/* ── LOGIN OTP ── */}
-        {step === "otp" && (
-          <>
-            <h2 style={{ fontSize: "23px", color: "#0a8d1c", fontFamily: "Montserrat", fontWeight: 700, marginTop: 20 }}>Verify OTP</h2>
-            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "#2E7D32" }}>{otpEmail}</strong></p>
-            <OtpEntryBlock
-              otpArr={otp} setOtpArr={setOtp} refs={otpRefs}
-              isLocked={otpIsLocked} lockRemaining={otpLockRemaining}
-              error={otpError} attempts={otpAttempts}
-              onVerify={verifyOtp}
-              resendEndpoint="/send-otp-after-login" resendBody={{ email: otpEmail }}
-              verifyLabel="VERIFY OTP"
-            />
-          </>
-        )}
+{/* ══ LOGIN OTP (email/password flow) ══ */}
+{step === "otp" && (
+  <>
+    <h2
+      style={{
+        fontSize: "23px",
+        color: "#0a8d1c",
+        fontFamily: "Montserrat",
+        fontWeight: 700,
+        marginTop: 20,
+      }}
+    >
+      Verify OTP
+    </h2>
+
+    <p className="step-subtitle">
+      {otpMethod === "email" ? (
+        <>
+          A 6-digit code was sent to:{" "}
+          <strong style={{ color: "#2E7D32" }}>{otpEmail}</strong>
+        </>
+      ) : (
+        <>
+          A 6-digit SMS OTP was sent to:{" "}
+          <strong style={{ color: "#2E7D32" }}>
+            {maskedOtpPhone || "your registered mobile number"}
+          </strong>
+        </>
+      )}
+    </p>
+
+
+    <OtpEntryBlock
+      otpArr={otp}
+      setOtpArr={setOtp}
+      refs={otpRefs}
+      isLocked={otpIsLocked}
+      lockRemaining={otpLockRemaining}
+      error={otpError}
+      attempts={otpAttempts}
+      onVerify={verifyOtp}
+      resendEndpoint={
+        otpMethod === "sms"
+          ? "/send-login-sms-otp"
+          : "/send-otp-after-login"
+      }
+      resendBody={{ email: otpEmail }}
+      verifyLabel="VERIFY OTP"
+    />
+  </>
+)}
 
         {/* ── FORGOT: Level 1 — Choose Method ── */}
         {step === "forgotPassword" && (
@@ -851,6 +929,30 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .pw-check-row { margin-bottom:3px; }
 .pw-check-pass { color:#2E7D32; }
 .pw-check-fail { color:#d32f2f; }
+.use-sms-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:12px;
+  margin-top: 10px;
+  margin-bottom:18px;
+  border:none;
+  border-radius:12px;
+  background:#f0fdf4;
+  color:#2E7D32;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  transition:all .2s ease;
+  border:1px solid #369533;
+}
+
+.use-sms-btn:hover{
+  background:#dcfce7;
+  transform:translateY(-1px);
+}
 
 /* ── Done state ── */
 .done-wrap { display:flex; flex-direction:column; align-items:center; padding:10px 0; }
