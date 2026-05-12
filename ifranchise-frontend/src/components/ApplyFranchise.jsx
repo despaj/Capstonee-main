@@ -1,88 +1,833 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ChevronDown,
-  ChevronLeft,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  User,
-  Briefcase,
-  FileText,
-  ArrowRight,
+  ChevronDown, ChevronLeft, CheckCircle2, AlertCircle, X,
+  User, Briefcase, FileText, ArrowRight, Trash2,
+  Upload, ZoomIn, ZoomOut, Camera, Smartphone, Eye, EyeOff,
+  Shield, MapPin, RotateCcw, AlertTriangle, Info, Lock, IdCard
 } from "lucide-react";
 import logo from "../assets/logo.png";
 import welcome from "../assets/welcomepage.png";
 
+// ─── AUDIT TRAIL ─────────────────────────────────────────────────────────────
+const auditLog = (() => {
+  const logs = [];
+  return {
+    record: (action, data = {}) => {
+      const entry = {
+        id: `AUDIT-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        action,
+        data,
+        sessionId: sessionStorage.getItem("session_id") || (() => {
+          const id = `SES-${Date.now()}`;
+          sessionStorage.setItem("session_id", id);
+          return id;
+        })(),
+      };
+      logs.push(entry);
+      console.info("[AUDIT TRAIL]", entry);
+      return entry;
+    },
+    getAll: () => [...logs],
+  };
+})();
 
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const CONCEPTS = [
+  "Coffee Spot Full Store","iPharma Mart",
+  "Food Caravan","iFuel"
+];
+const CIVIL = ["Single","Married","Widowed","Separated"];
+const SUFFIXES = ["","Jr.","Sr.","II","III","IV","V","MD","PhD","Esq."];
+const PAYMENT_MODES = ["Cash","Bank Transfer","Cheque"];
+const EMPLOYMENT_TYPES = [
+  "Full-time Employee","Part-time Employee","Self-Employed",
+  "Business Owner","Freelancer","Retired","Unemployed",
+];
+const NATIONALITIES = ["Filipino","Others"];
+const VALID_ID_TYPES = [
+  "Philippine Passport","SSS ID","GSIS ID","PhilHealth ID",
+  "Pag-IBIG ID","Driver's License","PRC ID","Voter's ID",
+  "National ID (PhilSys)","Senior Citizen ID","PWD ID","UMID",
+];
 
-// ─── UI Alert Modal ───────────────────────────────────────────────────────────
+// ─── PHILIPPINE ADDRESS DATA (Placeholder — replace with PSGC API) ──────────
+const PH_REGIONS = [
+  "NCR – National Capital Region","CAR – Cordillera Administrative Region",
+  "Region I – Ilocos Region","Region II – Cagayan Valley",
+  "Region III – Central Luzon","Region IV-A – CALABARZON",
+  "Region IV-B – MIMAROPA","Region V – Bicol Region",
+  "Region VI – Western Visayas","Region VII – Central Visayas",
+  "Region VIII – Eastern Visayas","Region IX – Zamboanga Peninsula",
+  "Region X – Northern Mindanao","Region XI – Davao Region",
+  "Region XII – SOCCSKSARGEN","Region XIII – Caraga","BARMM",
+];
+const PH_PROVINCES_BY_REGION = {
+  "NCR – National Capital Region": ["Metro Manila"],
+  "Region IV-A – CALABARZON": ["Batangas","Cavite","Laguna","Quezon","Rizal"],
+  "Region III – Central Luzon": ["Aurora","Bataan","Bulacan","Nueva Ecija","Pampanga","Tarlac","Zambales"],
+};
+const PH_CITIES_BY_PROVINCE = {
+  "Metro Manila": ["Caloocan","Las Piñas","Makati","Malabon","Mandaluyong","Manila","Marikina","Muntinlupa","Navotas","Parañaque","Pasay","Pasig","Pateros","Quezon City","San Juan","Taguig","Valenzuela"],
+  "Rizal": ["Antipolo","Binangonan","Cainta","Cardona","Jala-Jala","Morong","Pililla","Rodriguez","San Mateo","Tanay","Taytay","Teresa"],
+};
+
+const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
 function AlertModal({ open, type, message, onClose, onConfirm }) {
   if (!open) return null;
   const isSuccess = type === "success";
-  const isError = type === "error";
   return (
-    <div style={modal.overlay}>
-      <div style={modal.box}>
-        <div style={{ ...modal.iconWrap, background: isSuccess ? "#e8f5e9" : isError ? "#fdecea" : "#fff8e1" }}>
-          {isSuccess ? (
-            <CheckCircle2 size={38} color="#2E7D32" strokeWidth={2} />
-          ) : (
-            <AlertCircle size={38} color={isError ? "#c62828" : "#e65100"} strokeWidth={2} />
-          )}
+    <div style={S.overlay}>
+      <div style={S.modalBox}>
+        <div style={{ ...S.iconWrap, background: isSuccess ? "#e8f5e9" : "#fdecea" }}>
+          {isSuccess
+            ? <CheckCircle2 size={38} color="#2E7D32" strokeWidth={2} />
+            : <AlertCircle size={38} color="#c62828" strokeWidth={2} />}
         </div>
-        <p style={modal.msg}>{message}</p>
-        <div style={modal.btnRow}>
+        <p style={S.modalMsg}>{message}</p>
+        <div style={S.btnRow}>
           {onConfirm ? (
             <>
-              <button style={{ ...modal.btn, ...modal.btnOutline }} onClick={onClose}>Cancel</button>
-              <button style={{ ...modal.btn, ...modal.btnSolid }} onClick={onConfirm}>Confirm</button>
+              <button style={{ ...S.btn, ...S.btnOutline }} onClick={onClose}>Cancel</button>
+              <button style={{ ...S.btn, ...S.btnSolid }} onClick={onConfirm}>Confirm</button>
             </>
           ) : (
-            <button style={{ ...modal.btn, ...modal.btnSolid }} onClick={onClose}>OK</button>
+            <button style={{ ...S.btn, ...S.btnSolid }} onClick={onClose}>OK</button>
           )}
         </div>
-        <button style={modal.close} onClick={onClose}><X size={18} /></button>
+        <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
       </div>
     </div>
   );
 }
 
-const modal = {
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
-  box: { background: "#fff", borderRadius: 20, padding: "2.5rem 2rem 2rem", width: 360, maxWidth: "90vw", textAlign: "center", position: "relative", boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
-  iconWrap: { width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.2rem" },
-  msg: { fontSize: "1rem", color: "#374151", lineHeight: 1.6, marginBottom: "1.5rem" },
-  btnRow: { display: "flex", gap: 10, justifyContent: "center" },
-  btn: { padding: "0.65rem 2rem", borderRadius: 10, fontSize: "0.95rem", fontWeight: 700, cursor: "pointer", border: "none", fontFamily: "inherit" },
-  btnSolid: { background: "linear-gradient(90deg,#368f3b,#218428)", color: "#fff" },
-  btnOutline: { background: "transparent", color: "#2E7D32", border: "2px solid #2E7D32" },
-  close: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4 },
-};
+// ─── TERMS MODAL ─────────────────────────────────────────────────────────────
+
+function TermsModal({ open, onClose }) {
+  if (!open) return null;
+
+  return (
+    <div style={S.overlay}>
+      <div
+        style={{
+          ...S.modalBox,
+          width: 700,
+          maxWidth: "95vw",
+          textAlign: "left",
+          maxHeight: "85vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              color: "#2E7D32",
+              fontSize: 20,
+              fontWeight: 700,
+            }}
+          >
+            Terms & Conditions
+          </h3>
+
+          <button style={S.closeBtn} onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div
+          style={{
+            overflowY: "auto",
+            flex: 1,
+            paddingRight: 8,
+            fontSize: 13,
+            color: "#374151",
+            lineHeight: 1.9,
+          }}
+        >
+          <p>
+            By completing and submitting this Franchise Application Form,
+            the applicant agrees to the following Terms and Conditions set
+            by <strong>iFranchise Business and Services Corporation</strong>.
+          </p>
+
+          <p>
+            <strong>1. DATA PRIVACY AND CONSENT (RA 10173)</strong>
+            <br />
+            By submitting this application, the applicant voluntarily gives
+            consent to <strong>iFranchise Business and Services Corporation</strong> to
+            <strong> collect, process, store, and manage personal information</strong>
+            in accordance with the
+            <strong> Data Privacy Act of 2012 (Republic Act No. 10173)</strong>.
+            <br />
+            <br />
+            Information collected may be used for
+            <strong>
+              {" "}
+              franchise application processing, identity verification,
+              communication, internal record keeping, fraud prevention,
+              verification, and legal compliance
+            </strong>.
+            <br />
+            <br />
+            The company agrees to implement
+            <strong>
+              {" "}
+              reasonable security measures to protect submitted personal
+              information
+            </strong>
+            against unauthorized access, disclosure, misuse, or loss.
+          </p>
+
+          <p>
+            <strong>2. APPLICANT INFORMATION AND DECLARATION</strong>
+            <br />
+            The applicant confirms that all personal information submitted
+            in the application form is
+            <strong> complete, true, accurate, and updated</strong>,
+            including but not limited to
+            <strong>
+              {" "}
+              full name, date of birth, civil status, gender, nationality,
+              contact details, address, employment information, income details,
+              uploaded IDs, and Letter of Intent
+            </strong>.
+            <br />
+            <br />
+            The applicant understands that any
+            <strong>
+              {" "}
+              false, misleading, incomplete, or fraudulent information
+            </strong>
+            may result in
+            <strong>
+              {" "}
+              rejection, suspension, permanent disqualification, or legal action
+            </strong>.
+          </p>
+
+          <p>
+            <strong>3. ID VERIFICATION AND DOCUMENT AUTHENTICITY</strong>
+            <br />
+            The applicant agrees to upload only
+            <strong>
+              {" "}
+              valid and authentic government-issued identification documents
+            </strong>
+            for verification purposes.
+            <br />
+            <br />
+            The applicant authorizes the company to
+            <strong> verify the authenticity of submitted IDs</strong> and
+            acknowledges that
+            <strong> falsified or tampered IDs are strictly prohibited</strong>.
+          </p>
+
+          <p>
+            <strong>4. OCR AND AUTO-FILLED INFORMATION CONSENT</strong>
+            <br />
+            The applicant acknowledges that the system may use
+            <strong> OCR (Optical Character Recognition) technology</strong>
+            to scan uploaded IDs and automatically populate application fields.
+            <br />
+            <br />
+            The applicant is responsible for
+            <strong>
+              {" "}
+              reviewing and correcting all auto-filled information
+            </strong>
+            before submission.
+          </p>
+
+          <p>
+            <strong>5. FRANCHISE APPLICATION EVALUATION</strong>
+            <br />
+            Submission of this application form does
+            <strong> not guarantee franchise approval</strong>,
+            ownership, or partnership rights.
+            <br />
+            <br />
+            All applications are subject to
+            <strong>
+              {" "}
+              document verification, financial assessment, background checking,
+              business evaluation, and internal approval procedures
+            </strong>.
+            <br />
+            <br />
+            The company reserves the right to
+            <strong>
+              {" "}
+              approve, reject, suspend, or terminate any application
+            </strong>
+            at its sole discretion.
+          </p>
+
+          <p>
+            <strong>6. PAYMENT TERMS</strong>
+            <br />
+            Any
+            <strong>
+              {" "}
+              fees, reservation payments, processing fees, or franchise-related
+              payments
+            </strong>
+            made through the selected payment mode are subject to company policies.
+          </p>
+
+          <p>
+            <strong>7. EMPLOYMENT AND FINANCIAL INFORMATION</strong>
+            <br />
+            The applicant certifies that all
+            <strong>
+              {" "}
+              employment, income, and business information submitted
+            </strong>
+            are accurate and may be used for
+            <strong> financial and application evaluation purposes</strong>.
+          </p>
+
+          <p>
+            <strong>8. LETTER OF INTENT SUBMISSION</strong>
+            <br />
+            The applicant agrees to upload a
+            <strong> valid PDF copy of the required Letter of Intent</strong>.
+            Uploaded documents must be
+            <strong> readable, authentic, and free from malicious content</strong>.
+          </p>
+
+          <p>
+            <strong>9. COMMUNICATION CONSENT</strong>
+            <br />
+            The applicant authorizes the company to contact them through
+            <strong>
+              {" "}
+              mobile number, alternate mobile number, email address,
+              or other communication channels
+            </strong>
+            regarding
+            <strong>
+              {" "}
+              application updates, interviews, payment confirmations,
+              and franchise-related notifications
+            </strong>.
+          </p>
+
+          <p>
+            <strong>10. AUDIT TRAIL AND SECURITY LOGS</strong>
+            <br />
+            All actions performed during the franchise application process
+            may be recorded, including
+            <strong>
+              {" "}
+              timestamps, session identifiers, uploaded files,
+              and system activities
+            </strong>
+            for security and monitoring purposes.
+          </p>
+
+          <p>
+            <strong>11. OTP VERIFICATION</strong>
+            <br />
+            The applicant may receive a
+            <strong> One-Time Password (OTP)</strong>
+            through the registered mobile number for
+            <strong> identity verification and security purposes</strong>.
+          </p>
+
+          <p>
+            <strong>12. INTELLECTUAL PROPERTY AND SYSTEM USAGE</strong>
+            <br />
+            The applicant agrees not to
+            <strong>
+              {" "}
+              attempt unauthorized access, upload malicious files,
+              manipulate records, or misuse the system
+            </strong>.
+          </p>
+
+          <p>
+            <strong>13. LIMITATION OF LIABILITY</strong>
+            <br />
+            The company shall not be held liable for
+            <strong>
+              {" "}
+              delays caused by incomplete submissions, OCR inaccuracies,
+              technical issues, or unauthorized access caused by applicant negligence
+            </strong>.
+          </p>
+
+          <p>
+            <strong>14. GOVERNING LAW</strong>
+            <br />
+            These Terms and Conditions shall be governed by the
+            <strong> laws of the Republic of the Philippines</strong>.
+          </p>
+
+          <p>
+            <strong>15. AMENDMENTS AND MODIFICATIONS</strong>
+            <br />
+            The company reserves the right to
+            <strong>
+              {" "}
+              modify or update these Terms and Conditions at any time
+            </strong>
+            without prior notice.
+          </p>
+
+          <p>
+            <strong>16. APPLICANT AGREEMENT</strong>
+            <br />
+            By checking the agreement checkbox and submitting the application,
+            the applicant confirms that:
+          </p>
+
+          <ul style={{ paddingLeft: 20 }}>
+            <li>
+              They have <strong>read and understood</strong> these Terms and Conditions
+            </li>
+            <li>
+              All submitted information is
+              <strong> accurate and legitimate</strong>
+            </li>
+            <li>
+              They voluntarily <strong>agree to all stated provisions</strong>
+            </li>
+            <li>
+              They consent to
+              <strong>
+                {" "}
+                verification, evaluation, and data processing procedures
+              </strong>
+            </li>
+          </ul>
+
+          <p style={{ color: "#6B7280", fontSize: 12, marginTop: 24 }}>
+            Last Updated: May 12, 2026
+          </p>
+        </div>
+
+        <button
+          style={{
+            ...S.btn,
+            ...S.btnSolid,
+            marginTop: 16,
+            width: "100%",
+          }}
+          onClick={onClose}
+        >
+          I Have Read the Terms
+        </button>
+      </div>
+    </div>
+  );
+}
 
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
-const CONCEPTS = [
-  "Coffee Spot Outdoor Kiosk",
-  "Coffee Spot Full Store",
-  "iPharma Mart",
-  "Food Caravan",
-  "Dodram Luncheon Meat",
-  "Coffee Spot Products",
-  "Kwezen",
-];
-const CIVIL = ["Single", "Married", "Widowed", "Separated"];
-const SUFFIXES = ["", "Jr.", "Sr.", "II", "III", "IV", "V", "MD", "PhD", "Esq."];
-const PAYMENT_MODES = ["Cash", "Bank Transfer", "Check"];
-const EMPLOYMENT_TYPES = [
-  "Full-time Employee", "Part-time Employee", "Self-Employed",
-  "Business Owner", "Freelancer", "Retired", "Unemployed",
-];
-const NATIONALITIES = ["Filipino", "Others"];
 
-// ─── CustomSelect ─────────────────────────────────────────────────────────────
+
+// ─── OTP MODAL ───────────────────────────────────────────────────────────────
+function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [attempts, setAttempts] = useState(0);
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const refs = useRef([]);
+
+  useEffect(() => {
+    if (!open) return;
+    setOtp(["", "", "", "", "", ""]);
+    setAttempts(0);
+    setError("");
+    setCountdown(60);
+    setCanResend(false);
+    auditLog.record("OTP_SENT", { mobile, timestamp: new Date().toISOString() });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || canResend) return;
+    const t = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(t); setCanResend(true); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [open, canResend]);
+
+  const handleInput = (i, val) => {
+    if (!/^\d?$/.test(val)) return;
+    const next = [...otp];
+    next[i] = val;
+    setOtp(next);
+    if (val && i < 5) refs.current[i + 1]?.focus();
+  };
+
+  const handleKey = (i, e) => {
+    if (e.key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
+  };
+
+  const verify = () => {
+    const code = otp.join("");
+    if (code.length < 6) { setError("Please enter the complete 6-digit OTP."); return; }
+    auditLog.record("OTP_ATTEMPT", { attempt: attempts + 1, maskedOtp: "XXXXXX" });
+    if (code === "123456") {
+      auditLog.record("OTP_VERIFIED", { success: true });
+      onVerify(true);
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      auditLog.record("OTP_FAILED", { attempt: newAttempts, remaining: maxAttempts - newAttempts });
+      if (newAttempts >= maxAttempts) {
+        auditLog.record("OTP_MAX_ATTEMPTS_REACHED");
+        setError(`Maximum ${maxAttempts} attempts reached. Please request a new OTP.`);
+        setOtp(["", "", "", "", "", ""]);
+        setCanResend(true);
+      } else {
+        setError(`Incorrect OTP. ${maxAttempts - newAttempts} attempt(s) remaining.`);
+        setOtp(["", "", "", "", "", ""]);
+        refs.current[0]?.focus();
+      }
+    }
+  };
+
+  const resend = () => {
+    setOtp(["", "", "", "", "", ""]);
+    setAttempts(0);
+    setError("");
+    setCountdown(60);
+    setCanResend(false);
+    setSending(true);
+    auditLog.record("OTP_RESENT", { mobile });
+    setTimeout(() => setSending(false), 1000);
+  };
+
+  if (!open) return null;
+  return (
+    <div style={S.overlay}>
+      <div style={{ ...S.modalBox, width: 380 }}>
+        <div style={{ ...S.iconWrap, background: "#e8f5e9" }}>
+          <Smartphone size={38} color="#2E7D32" strokeWidth={2} />
+        </div>
+        <h3 style={{ margin: "0 0 6px", color: "#1a1a1a", fontSize: 18, fontWeight: 700 }}>OTP Verification</h3>
+        <p style={{ margin: "0 0 20px", color: "#6B7280", fontSize: 13, lineHeight: 1.6 }}>
+          A 6-digit code was sent to <strong>{mobile?.replace(/(\d{4})(\d{3})(\d{4})/, "$1-$2-$3")}</strong>.
+          <br /><span style={{ fontSize: 11, color: "#9CA3AF" }}>(For testing: use <strong>123456</strong>)</span>
+        </p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 16 }}>
+          {otp.map((d, i) => (
+            <input
+              key={i}
+              ref={el => refs.current[i] = el}
+              type="text" inputMode="numeric" maxLength={1} value={d}
+              onChange={e => handleInput(i, e.target.value)}
+              onKeyDown={e => handleKey(i, e)}
+              style={{
+                width: 44, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700,
+                borderRadius: 10, border: error ? "2px solid #d32f2f" : "2px solid #c8e6c9",
+                outline: "none", fontFamily: "'Montserrat',sans-serif",
+                background: "#fafafa", color: "#1a1a1a",
+              }}
+            />
+          ))}
+        </div>
+        {error && <p style={{ color: "#d32f2f", fontSize: 12, margin: "0 0 12px", fontWeight: 600 }}>{error}</p>}
+        <button style={{ ...S.btn, ...S.btnSolid, width: "100%", marginBottom: 10 }} onClick={verify}>
+          Verify OTP
+        </button>
+        <p style={{ margin: 0, fontSize: 12, color: "#9CA3AF" }}>
+          {canResend
+            ? <button onClick={resend} disabled={sending} style={{ background: "none", border: "none", color: "#2E7D32", fontWeight: 700, cursor: "pointer", fontSize: 12, padding: 0 }}>{sending ? "Resending…" : "Resend OTP"}</button>
+            : <>Resend in <strong style={{ color: "#2E7D32" }}>{countdown}s</strong></>}
+        </p>
+        <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ID SCANNER MODAL ─────────────────────────────────────────────────────────
+function IdScannerModal({ open, onComplete, onClose }) {
+  const [step, setStep] = useState("type");
+  const [idType, setIdType] = useState("");
+  const [frontImg, setFrontImg] = useState(null);
+  const [backImg, setBackImg] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [ocrResult, setOcrResult] = useState(null);
+  const [idValid, setIdValid] = useState(null);
+  const frontRef = useRef();
+  const backRef = useRef();
+
+  useEffect(() => {
+    if (!open) {
+      setStep("type"); setIdType(""); setFrontImg(null); setBackImg(null);
+      setZoom(1); setOcrResult(null); setIdValid(null);
+    }
+  }, [open]);
+
+  const handleFile = (side, file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (side === "front") setFrontImg(e.target.result);
+      else setBackImg(e.target.result);
+      auditLog.record("ID_IMAGE_UPLOADED", { side, idType, fileName: file.name, size: file.size });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const runOcr = async () => {
+    setStep("processing");
+    auditLog.record("OCR_STARTED", { idType });
+    await new Promise(r => setTimeout(r, 2500));
+    const mock = {
+      lastName: "DELA CRUZ",
+      firstName: "JUAN",
+      middleName: "MASIGASIG",
+      dob: "1990-05-15",
+      address: "123 Rizal St., Brgy. San Jose, Las Piñas City",
+      idNumber: "PLACEHOLDER-ID-001",
+      expiryDate: "2028-05-15",
+      confidence: 0.94,
+    };
+    setOcrResult(mock);
+    auditLog.record("OCR_COMPLETED", { confidence: mock.confidence, idType });
+    await new Promise(r => setTimeout(r, 1000));
+    const isValid = true;
+    setIdValid(isValid);
+    auditLog.record("ID_VALIDATION_RESULT", { isValid, idType });
+    setStep("result");
+  };
+
+  const confirmAndFill = () => {
+    auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
+    onComplete({ ocrResult, idType, idValid, frontImg, backImg });
+    onClose();
+  };
+
+  if (!open) return null;
+
+  const imgStyle = (img) => ({
+    width: "100%", height: 180, objectFit: "contain",
+    background: "#f0f0f0", borderRadius: 10,
+    border: "2px dashed #c8e6c9", cursor: "zoom-in",
+    transform: `scale(${zoom})`, transition: "transform .2s",
+    display: "block",
+  });
+
+  return (
+    <div style={S.overlay}>
+      <div style={{ ...S.modalBox, width: 560, maxWidth: "95vw", textAlign: "left", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#368f3b,#218428)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Shield size={18} color="#fff" />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>ID Verification</h3>
+            <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>OCR-powered identity check</p>
+          </div>
+          <button style={{ ...S.closeBtn, position: "static", marginLeft: "auto" }} onClick={onClose}><X size={18} /></button>
+        </div>
+
+        {/* Progress Steps */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+          {["Select ID","Scan Front","Scan Back","Processing","Result"].map((s, i) => {
+            const stepIdx = ["type","front","back","processing","result"].indexOf(step);
+            return (
+              <div key={s} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= stepIdx ? "linear-gradient(90deg,#368f3b,#218428)" : "#e5e7eb" }} />
+            );
+          })}
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {step === "type" && (
+            <div>
+              <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>Select your Government-Issued ID:</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {VALID_ID_TYPES.map(t => (
+                  <button key={t} onClick={() => setIdType(t)} style={{
+                    padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+                    border: idType === t ? "2px solid #2E7D32" : "1.5px solid #e5e7eb",
+                    background: idType === t ? "#e8f5e9" : "#fafafa",
+                    color: idType === t ? "#2E7D32" : "#374151", cursor: "pointer",
+                    textAlign: "left", transition: "all .15s",
+                  }}>{t}</button>
+                ))}
+              </div>
+              <button disabled={!idType} onClick={() => setStep("front")}
+                style={{ ...S.btn, ...S.btnSolid, width: "100%", marginTop: 16, opacity: idType ? 1 : 0.5 }}>
+                Continue — Scan Front Side <ArrowRight size={14} style={{ marginLeft: 6 }} />
+              </button>
+            </div>
+          )}
+
+          {step === "front" && (
+            <div>
+              <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
+                Scan FRONT side of your <span style={{ color: "#2E7D32" }}>{idType}</span>
+              </p>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
+                Ensure good lighting. All text must be clearly visible. Accepted: JPG, PNG, PDF.
+              </p>
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                {frontImg
+                  ? <img src={frontImg} alt="Front ID" style={imgStyle(frontImg)} />
+                  : <div style={{ ...imgStyle(null), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                      <Camera size={32} color="#9CA3AF" />
+                      <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                    </div>}
+                {frontImg && (
+                  <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+                    <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
+                    <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
+                    <button onClick={() => setZoom(1)} style={S.zoomBtn}><RotateCcw size={14} /></button>
+                  </div>
+                )}
+              </div>
+              <input ref={frontRef} type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+                onChange={e => handleFile("front", e.target.files[0])} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => frontRef.current.click()} style={{ ...S.btn, ...S.btnOutline, flex: 1 }}>
+                  <Upload size={14} style={{ marginRight: 6 }} /> Upload Image
+                </button>
+                <button disabled={!frontImg} onClick={() => setStep("back")}
+                  style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: frontImg ? 1 : 0.5 }}>
+                  Next: Back Side <ArrowRight size={14} style={{ marginLeft: 6 }} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === "back" && (
+            <div>
+              <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
+                Scan BACK side of your <span style={{ color: "#2E7D32" }}>{idType}</span>
+              </p>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
+                Upload the back of your ID. This helps verify authenticity.
+              </p>
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                {backImg
+                  ? <img src={backImg} alt="Back ID" style={imgStyle(backImg)} />
+                  : <div style={{ ...imgStyle(null), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                      <Camera size={32} color="#9CA3AF" />
+                      <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                    </div>}
+                {backImg && (
+                  <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+                    <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
+                    <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
+                    <button onClick={() => setZoom(1)} style={S.zoomBtn}><RotateCcw size={14} /></button>
+                  </div>
+                )}
+              </div>
+              <input ref={backRef} type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+                onChange={e => handleFile("back", e.target.files[0])} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setStep("front")} style={{ ...S.btn, ...S.btnOutline }}>← Back</button>
+                <button onClick={() => backRef.current.click()} style={{ ...S.btn, ...S.btnOutline, flex: 1 }}>
+                  <Upload size={14} style={{ marginRight: 6 }} /> Upload Image
+                </button>
+                <button disabled={!backImg} onClick={runOcr}
+                  style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: backImg ? 1 : 0.5 }}>
+                  Scan ID <Shield size={14} style={{ marginLeft: 6 }} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === "processing" && (
+            <div style={{ textAlign: "center", padding: "32px 0" }}>
+              <div style={{ width: 64, height: 64, border: "5px solid #c8e6c9", borderTop: "5px solid #2E7D32", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
+              <p style={{ fontWeight: 700, fontSize: 16, color: "#2E7D32", margin: "0 0 8px" }}>Processing ID…</p>
+              <p style={{ color: "#6B7280", fontSize: 13, margin: 0 }}>Running OCR and identity validation. Please wait.</p>
+            </div>
+          )}
+
+          {step === "result" && ocrResult && (
+            <div>
+              <div style={{
+                padding: "12px 16px", borderRadius: 10, marginBottom: 16,
+                background: idValid ? "#e8f5e9" : "#fdecea",
+                border: `1.5px solid ${idValid ? "#a5d6a7" : "#ef9a9a"}`,
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                {idValid
+                  ? <CheckCircle2 size={20} color="#2E7D32" />
+                  : <AlertCircle size={20} color="#c62828" />}
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: idValid ? "#1b5e20" : "#b71c1c" }}>
+                    {idValid ? "ID Validated Successfully" : "ID Validation Failed"}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: idValid ? "#388e3c" : "#c62828" }}>
+                    {idValid ? `Confidence: ${(ocrResult.confidence * 100).toFixed(0)}%` : "Please upload a valid, clear government ID."}
+                  </p>
+                </div>
+              </div>
+
+              {idValid && (
+                <>
+                  <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 10px", color: "#374151" }}>Extracted Information (will auto-fill form):</p>
+                  <div style={{ background: "#f9fdf9", border: "1.5px solid #c8e6c9", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+                    {[
+                      ["Last Name", ocrResult.lastName],
+                      ["First Name", ocrResult.firstName],
+                      ["Middle Name", ocrResult.middleName],
+                      ["Date of Birth", ocrResult.dob],
+                      ["Address", ocrResult.address],
+                      ["ID Number", ocrResult.idNumber],
+                      ["Expiry Date", ocrResult.expiryDate],
+                    ].map(([label, val]) => (
+                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6" }}>
+                        <span style={{ color: "#6B7280", width: 110, flexShrink: 0 }}>{label}</span>
+                        <span style={{ fontWeight: 600, color: "#1a1a1a" }}>{val || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", marginBottom: 14 }}>
+                    <Lock size={14} color="#e65100" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "#c62828", margin: 0 }}>
+                      The name registered in this application is NON-TRANSFERABLE and must match the approved franchisee's legal identity.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setStep("type")} style={{ ...S.btn, ...S.btnOutline }}>Rescan ID</button>
+                    <button onClick={confirmAndFill} style={{ ...S.btn, ...S.btnSolid, flex: 1 }}>
+                      Use This Data & Continue <ArrowRight size={14} style={{ marginLeft: 6 }} />
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {!idValid && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setStep("type")} style={{ ...S.btn, ...S.btnSolid, width: "100%" }}>Try Again with a Valid ID</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CUSTOM SELECT ────────────────────────────────────────────────────────────
 function CustomSelect({ value, placeholder, options, onSelect, error, disabled }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -93,46 +838,35 @@ function CustomSelect({ value, placeholder, options, onSelect, error, disabled }
   }, []);
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((p) => !p)}
-        style={{
-          width: "100%", padding: "13px 14px",
-          borderRadius: 12, border: error ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9",
-          fontSize: 14, fontFamily: "'Montserrat', sans-serif",
-          color: value ? "#1a1a1a" : "#9CA3AF",
-          background: "#fafafa",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          cursor: disabled ? "not-allowed" : "pointer",
-          outline: "none", transition: "border-color .2s",
-          boxSizing: "border-box",
-        }}
-      >
+      <button type="button" disabled={disabled} onClick={() => setOpen(p => !p)} style={{
+        width: "100%", padding: "13px 14px", borderRadius: 12,
+        border: error ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9",
+        fontSize: 14, fontFamily: "'Montserrat',sans-serif",
+        color: value ? "#1a1a1a" : "#9CA3AF", background: "#fafafa",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        cursor: disabled ? "not-allowed" : "pointer", outline: "none",
+        transition: "border-color .2s", boxSizing: "border-box",
+      }}>
         <span>{value || placeholder}</span>
         <ChevronDown size={16} color="#6B7280" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
       </button>
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-          background: "#fff", border: "1.5px solid #c8e6c9",
-          borderRadius: 12, zIndex: 200,
-          maxHeight: 220, overflowY: "auto",
+          background: "#fff", border: "1.5px solid #c8e6c9", borderRadius: 12,
+          zIndex: 300, maxHeight: 220, overflowY: "auto",
           boxShadow: "0 8px 32px rgba(33,132,40,0.12)",
         }}>
-          {options.map((o) => (
-            <div
-              key={o || "none"}
-              style={{
-                padding: "11px 14px", cursor: "pointer", fontSize: 14,
-                borderBottom: "1px solid #f3f4f6",
-                fontWeight: o === value ? 700 : 400,
-                color: o === value ? "#2E7D32" : "#1a1a1a",
-              }}
+          {options.map(o => (
+            <div key={o || "none"} style={{
+              padding: "11px 14px", cursor: "pointer", fontSize: 14,
+              borderBottom: "1px solid #f3f4f6",
+              fontWeight: o === value ? 700 : 400,
+              color: o === value ? "#2E7D32" : "#1a1a1a",
+            }}
               onMouseEnter={e => e.currentTarget.style.background = "#f0fdf4"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              onClick={() => { onSelect(o); setOpen(false); }}
-            >
+              onClick={() => { onSelect(o); setOpen(false); }}>
               {o || <span style={{ color: "#9CA3AF" }}>{placeholder}</span>}
             </div>
           ))}
@@ -142,7 +876,7 @@ function CustomSelect({ value, placeholder, options, onSelect, error, disabled }
   );
 }
 
-// ─── Field ────────────────────────────────────────────────────────────────────
+// ─── FIELD ────────────────────────────────────────────────────────────────────
 function Field({ label, required, error, children, half, style: extraStyle }) {
   return (
     <div style={{ flex: half ? "0 0 calc(50% - 0.45rem)" : "1 1 100%", minWidth: half ? 140 : "auto", ...extraStyle }}>
@@ -161,34 +895,51 @@ function Field({ label, required, error, children, half, style: extraStyle }) {
   );
 }
 
-// ─── SectionHeader ────────────────────────────────────────────────────────────
-function SectionHeader({ icon: Icon, title }) {
+function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "0.2rem" }}>
-      <div style={{
-        width: 30, height: 30, borderRadius: 8,
-        background: "linear-gradient(135deg,#368f3b,#218428)",
-        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-      }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#368f3b,#218428)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={15} color="#fff" />
       </div>
-      <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0a8d1c", margin: 0 }}>{title}</h3>
+      <div>
+        <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0a8d1c", margin: 0 }}>{title}</h3>
+        {subtitle && <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>{subtitle}</p>}
+      </div>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function ApplyFranchise() {
   const navigate = useNavigate();
   const [alert, setAlert] = useState({ open: false, type: "", message: "", onConfirm: null });
   const showAlert = (type, message, onConfirm = null) => setAlert({ open: true, type, message, onConfirm });
-  const closeAlert = () => setAlert((p) => ({ ...p, open: false, onConfirm: null }));
+  const closeAlert = () => setAlert(p => ({ ...p, open: false, onConfirm: null }));
 
+  // Modals
+  const [showTerms, setShowTerms] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
+  const [showIdScanner, setShowIdScanner] = useState(false);
+
+  // Form state
   const [concept, setConcept] = useState("");
   const [civilStatus, setCivilStatus] = useState("");
   const [nationality, setNationality] = useState("");
+  const [idVerified, setIdVerified] = useState(false);
+  const [idData, setIdData] = useState(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [letterOfIntent, setLetterOfIntent] = useState(null);
   const [errors, setErrors] = useState({});
   const [progress, setProgress] = useState(0);
+  const loiRef = useRef();
+
+  // Philippine address
+  const [addrRegion, setAddrRegion] = useState("");
+  const [addrProvince, setAddrProvince] = useState("");
+  const [addrCity, setAddrCity] = useState("");
+  const [addrBarangay, setAddrBarangay] = useState("");
+  const [addrStreet, setAddrStreet] = useState("");
 
   const today = new Date().toISOString().split("T")[0];
   const maxDob = (() => {
@@ -198,52 +949,33 @@ export default function ApplyFranchise() {
   const [form, setForm] = useState({
     date: today, paymentMode: "", lastName: "", firstName: "",
     middleInitial: "", suffix: "", dob: "", dependents: "",
-    gender: "", mobile: "", address: "",
-    email: "", spouseName: "", spouseOccupation: "",
-    employmentType: "", yearsEmployer: "", income: "",
-    employerName: "", businessAddress: "", position: "",
+    gender: "", mobile: "", altMobile: "", email: "", spouseName: "",
+    spouseOccupation: "", employmentType: "", yearsEmployer: "",
+    income: "", employerName: "", businessAddress: "", position: "",
     businessNature: "", dateSigned: today, nationalityOther: "",
   });
 
-  const textCap = ["lastName","firstName","spouseName","address", "spouseOccupation","employerName","position","businessNature","nationalityOther"];
-const handleChange = (e) => {
-  let { name, value } = e.target;
+  const textCap = ["lastName","firstName","spouseName","spouseOccupation","employerName","position","businessNature","nationalityOther"];
 
-  // Mobile: numbers only, max 11 digits
-  if (name === "mobile") {
-    value = value.replace(/\D/g, "").slice(0, 11);
-  }
+  const handleChange = (e) => {
+    let { name, value } = e.target;
+    if (name === "mobile" || name === "altMobile") value = value.replace(/\D/g, "").slice(0, 11);
+    if (name === "middleInitial") value = value.replace(/[^a-zA-Z]/g, "").slice(0, 1).toUpperCase();
+    if (textCap.includes(name)) value = capitalize(value);
+    setForm(p => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors(p => ({ ...p, [name]: "" }));
+  };
 
-  // Middle Initial: 1 uppercase letter only
-  if (name === "middleInitial") {
-    value = value.replace(/[^a-zA-Z]/g, "").slice(0, 1).toUpperCase();
-  }
-
-  // Capitalize names & similar fields (every word)
-  if (textCap.includes(name)) {
-    value = capitalize(value);
-  }
-
-  // Address: only first letter uppercase (more natural typing)
-  if (name === "address") {
-    value = value.charAt(0).toUpperCase() + value.slice(1);
-  }
-
-  setForm((p) => ({ ...p, [name]: value }));
-
-  if (errors[name]) {
-    setErrors((p) => ({ ...p, [name]: "" }));
-  }
-};
   const validateField = (name, value) => {
-    const optional = ["spouseName","spouseOccupation","middleInitial","suffix","date","dateSigned","nationalityOther"];
+    const optional = ["spouseName","spouseOccupation","middleInitial","suffix","date","dateSigned","nationalityOther","altMobile"];
     if (optional.includes(name)) {
       if (name === "middleInitial" && value && !/^[A-Za-z]$/.test(value)) return "1 letter only";
+      if (name === "altMobile" && value && !/^09\d{9}$/.test(value)) return "Please enter Philippine number (09**********)";
       return "";
     }
     if (!value) return "This field is required";
     if (name === "email" && !/\S+@\S+\.\S+/.test(value)) return "Invalid email address";
-    if (name === "mobile" && !/^09\d{9}$/.test(value)) return "Enter a valid 11-digit mobile (09xxxxxxxxx)";
+    if (name === "mobile" && !/^09\d{9}$/.test(value)) return "Please enter Philippine number (09**********)";
     if (name === "dob" && new Date(value) > new Date(maxDob)) return "Must be at least 18 years old";
     if (name === "dependents" && (isNaN(value) || Number(value) < 0)) return "Enter a valid number";
     if (name === "yearsEmployer" && (isNaN(value) || Number(value) < 0)) return "Enter valid years";
@@ -253,12 +985,12 @@ const handleChange = (e) => {
 
   const handleBlur = (e) => {
     const { name, value } = e.target;
-    setErrors((p) => ({ ...p, [name]: validateField(name, value) }));
+    setErrors(p => ({ ...p, [name]: validateField(name, value) }));
   };
 
   const validate = () => {
     const e = {};
-    Object.keys(form).filter(k => k !== "nationalityOther").forEach((k) => {
+    Object.keys(form).filter(k => k !== "nationalityOther").forEach(k => {
       const err = validateField(k, form[k]);
       if (err) e[k] = err;
     });
@@ -267,43 +999,88 @@ const handleChange = (e) => {
     if (!nationality) e.nationality = "Please select nationality";
     if (nationality === "Others" && !form.nationalityOther) e.nationalityOther = "Please specify your nationality";
     if (civilStatus === "Single") { delete e.spouseName; delete e.spouseOccupation; }
+    if (!addrRegion) e.addrRegion = "Please select a region";
+    if (!addrCity) e.addrCity = "Please select a city/municipality";
+    if (!addrBarangay) e.addrBarangay = "Please enter a barangay";
+    if (!addrStreet) e.addrStreet = "Please enter a street address";
+    if (!idVerified) e.idVerified = "Please complete ID verification";
+    if (!letterOfIntent) e.letterOfIntent = "Please upload your Letter of Intent";
+    if (!termsAccepted) e.terms = "You must accept the Terms and Conditions";
+    if (!consentAccepted) e.consent = "You must give your data privacy consent";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  useEffect(() => {
-    const fields = ["paymentMode","lastName","firstName","dob","gender","dependents","mobile","email","address","employmentType","yearsEmployer","income","employerName","businessAddress","position","businessNature"];
-    let total = fields.length + 3;
-    let filled = fields.filter((f) => form[f]).length;
-    if (concept) filled++;
-    if (civilStatus) filled++;
-    if (nationality) filled++;
-    if (civilStatus === "Married" || civilStatus === "Widowed") {
-      total += 2;
-      if (form.spouseName) filled++;
-      if (form.spouseOccupation) filled++;
-    }
-    setProgress(Math.round((filled / total) * 100));
-  }, [form, concept, civilStatus, nationality]);
+  const checkDuplicate = async (email, mobile) => {
+    auditLog.record("DUPLICATE_CHECK", { email, mobile });
+    await new Promise(r => setTimeout(r, 300));
+    return false;
+  };
 
-  const steps = [
-    { label: "Basic", pct: 20 },
-    { label: "Personal", pct: 50 },
-    { label: "Employment", pct: 80 },
-    { label: "Done", pct: 100 },
-  ];
+  const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
+    if (!idValid) { showAlert("error", "ID validation failed. Please use a valid government-issued ID."); return; }
+    setIdVerified(true);
+    setIdData({ ocrResult, idType, idValid });
+    auditLog.record("ID_AUTOFILL", { idType });
+    setForm(p => ({
+      ...p,
+      lastName: ocrResult.lastName ? capitalize(ocrResult.lastName) : p.lastName,
+      firstName: ocrResult.firstName ? capitalize(ocrResult.firstName) : p.firstName,
+      middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
+      dob: ocrResult.dob || p.dob,
+      address: ocrResult.address || p.address,
+    }));
+  };
 
-  const submitForm = async (e) => {
+  const handleSubmitClick = async (e) => {
     e.preventDefault();
-    if (!validate()) { showAlert("error", "Please fill in all required fields before submitting."); return; }
+    if (!validate()) {
+      showAlert("error", "Please fill in all required fields and complete all verification steps before submitting.");
+      return;
+    }
+    const isDuplicate = await checkDuplicate(form.email, form.mobile);
+    if (isDuplicate) {
+      auditLog.record("DUPLICATE_DETECTED", { email: form.email, mobile: form.mobile });
+      showAlert("error", "An application with this email or mobile number already exists. Each person may only submit one application.");
+      return;
+    }
+    auditLog.record("FORM_VALIDATED", { email: form.email, concept });
+    setShowOtp(true);
+  };
+
+  const handleOtpVerified = async (success) => {
+    setShowOtp(false);
+    if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
+    auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email, concept });
+
+    const fullAddress = [addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ");
     const resolvedNationality = nationality === "Others" ? form.nationalityOther : nationality;
     const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, form.suffix].filter(Boolean).join(" ");
-    const payload = { name: fullName, email: form.email, phone: form.mobile, franchise: concept, paymentMode: form.paymentMode, dob: form.dob, civilStatus, dependents: form.dependents, gender: form.gender, nationality: resolvedNationality, address: form.address, spouseName: form.spouseName, spouseOccupation: form.spouseOccupation, employmentType: form.employmentType, yearsEmployer: form.yearsEmployer, income: form.income, employerName: form.employerName, businessAddress: form.businessAddress, position: form.position, businessNature: form.businessNature, dateSigned: form.dateSigned };
+
+    const payload = {
+      name: fullName, email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
+      franchise: concept, paymentMode: form.paymentMode, dob: form.dob,
+      civilStatus, dependents: form.dependents, gender: form.gender,
+      nationality: resolvedNationality, address: fullAddress,
+      spouseName: form.spouseName, spouseOccupation: form.spouseOccupation,
+      employmentType: form.employmentType, yearsEmployer: form.yearsEmployer,
+      income: form.income, employerName: form.employerName,
+      businessAddress: form.businessAddress, position: form.position,
+      businessNature: form.businessNature, dateSigned: form.dateSigned,
+      idType: idData?.idType,
+      auditTrail: auditLog.getAll(),
+    };
+
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       if (!res.ok) { showAlert("error", `Server error: ${res.status}`); return; }
       const data = await res.json();
       if (data.success) {
+        auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
         showAlert("success", "Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
       } else {
         showAlert("error", data.error || "Failed to submit. Please try again.");
@@ -312,6 +1089,24 @@ const handleChange = (e) => {
       showAlert("error", "Failed to submit. Please check your connection and try again.");
     }
   };
+
+  // Progress
+  useEffect(() => {
+    const fields = ["paymentMode","lastName","firstName","dob","gender","dependents","mobile","email","employmentType","yearsEmployer","income","employerName","businessAddress","position","businessNature"];
+    let total = fields.length + 7;
+    let filled = fields.filter(f => form[f]).length;
+    if (concept) filled++;
+    if (civilStatus) filled++;
+    if (nationality) filled++;
+    if (addrRegion && addrCity && addrStreet) filled++;
+    if (idVerified) filled++;
+    if (letterOfIntent) filled++;
+    if (termsAccepted && consentAccepted) filled++;
+    if (civilStatus === "Married" || civilStatus === "Widowed") { total += 2; if (form.spouseName) filled++; if (form.spouseOccupation) filled++; }
+    setProgress(Math.round((filled / total) * 100));
+  }, [form, concept, civilStatus, nationality, addrRegion, addrCity, addrStreet, idVerified, letterOfIntent, termsAccepted, consentAccepted]);
+
+  const steps = [{ label: "Basic", pct: 20 }, { label: "Personal", pct: 50 }, { label: "Employment", pct: 80 }, { label: "Done", pct: 100 }];
 
   const inp = (name, placeholder, type = "text", extra = {}) => (
     <input
@@ -322,50 +1117,34 @@ const handleChange = (e) => {
     />
   );
 
+  const availableProvinces = PH_PROVINCES_BY_REGION[addrRegion] || [];
+  const availableCities = PH_CITIES_BY_PROVINCE[addrProvince] || PH_CITIES_BY_PROVINCE[addrRegion] || [];
+
   return (
     <div className="af-page">
-      <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => { alert.onConfirm(); } : null} />
-{/* ── Sticky Progress Nav ── */}
-<div className="af-nav">
-  <div className="af-nav-inner">
+      <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => alert.onConfirm() : null} />
+      <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
+      <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} />
+      <IdScannerModal open={showIdScanner} onComplete={handleIdComplete} onClose={() => setShowIdScanner(false)} />
 
-    {/* Back Button */}
-    <Link to="/" className="af-back-link">
-      <ChevronLeft size={20} strokeWidth={2.5} />
-      <span>Back to Home</span>
-    </Link>
-
-    {/* Centered Progress */}
-    <div className="af-progress">
-      
-      <div className="af-steps">
-        {steps.map((st) => (
-          <span
-            key={st.label}
-            className={`af-step ${progress >= st.pct ? "active" : ""}`}
-          >
-            {st.label}
-          </span>
-        ))}
+      {/* ── Nav ── */}
+      <div className="af-nav">
+        <div className="af-nav-inner">
+          <Link to="/" className="af-back-link">
+            <ChevronLeft size={20} strokeWidth={2.5} /><span>Back to Home</span>
+          </Link>
+          <div className="af-progress">
+            <div className="af-steps">
+              {steps.map(st => (
+                <span key={st.label} className={`af-step ${progress >= st.pct ? "active" : ""}`}>{st.label}</span>
+              ))}
+            </div>
+            <div className="af-bar-bg"><div className="af-bar-fill" style={{ width: `${progress}%` }} /></div>
+            <div className="af-progress-text">{progress}%</div>
+          </div>
+        </div>
       </div>
 
-      <div className="af-bar-bg">
-        <div
-          className="af-bar-fill"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      <div className="af-progress-text">
-        {progress}%
-      </div>
-
-    </div>
-
-  </div>
-</div>
-
-      {/* ── Content ── */}
       <div className="af-content">
         <img src={logo} alt="iFranchise" className="af-logo" />
 
@@ -373,7 +1152,7 @@ const handleChange = (e) => {
           <h2 className="af-title">Franchise Application</h2>
           <p className="af-sub">Complete the form below to begin your entrepreneurial journey</p>
 
-          <form onSubmit={submitForm} style={{ display: "flex", flexDirection: "column", gap: "1.4rem" }}>
+          <form onSubmit={handleSubmitClick} style={{ display: "flex", flexDirection: "column", gap: "1.4rem" }}>
 
             {/* ── Basic Info ── */}
             <div className="af-section">
@@ -385,36 +1164,54 @@ const handleChange = (e) => {
                 <Field label="Payment Mode" required error={errors.paymentMode} half>
                   <CustomSelect value={form.paymentMode} placeholder="Select payment mode" options={PAYMENT_MODES}
                     error={errors.paymentMode}
-                    onSelect={(v) => { setForm((p) => ({ ...p, paymentMode: v })); setErrors((p) => ({ ...p, paymentMode: "" })); }} />
+                    onSelect={v => { setForm(p => ({ ...p, paymentMode: v })); setErrors(p => ({ ...p, paymentMode: "" })); }} />
                 </Field>
               </div>
               <Field label="Chosen Franchise Concept" required error={errors.concept}>
                 <CustomSelect value={concept} placeholder="Select a franchise concept" options={CONCEPTS}
                   error={errors.concept}
-                  onSelect={(v) => { setConcept(v); setErrors((p) => ({ ...p, concept: "" })); if (v === "iPharma Mart") navigate("/apply-pharma"); }} />
+                  onSelect={v => { setConcept(v); setErrors(p => ({ ...p, concept: "" })); if (v === "iPharma Mart") navigate("/apply-pharma"); }} />
               </Field>
+            </div>
+
+            {/* ── ID Verification ── */}
+            <div className="af-section">
+              <SectionHeader icon={Shield} title="ID Verification" />
+
+              {!idVerified ? (
+                <div style={{ textAlign: "center", padding: "20px 0" }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                    <IdCard size={28} color="#2E7D32" />
+                  </div>
+                  <p style={{ fontSize: 13, color: "#374151", marginBottom: 16, fontWeight: 600 }}>Please upload a valid ID</p>
+                  <button type="button" onClick={() => setShowIdScanner(true)} style={{ ...S.btn, ...S.btnSolid, padding: "12px 28px" }}>
+                    <Camera size={16} style={{ marginRight: 8 }} /> Upload ID
+                  </button>
+                  {errors.idVerified && <p style={{ color: "#d32f2f", fontSize: 12, marginTop: 8, fontWeight: 600 }}>{errors.idVerified}</p>}
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#e8f5e9", borderRadius: 10, border: "1.5px solid #a5d6a7" }}>
+                  <CheckCircle2 size={24} color="#2E7D32" />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#1b5e20" }}>ID Verified — {idData?.idType}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#388e3c" }}>Please fill in your personal details</p>
+                  </div>
+                  <button type="button" onClick={() => { setIdVerified(false); setIdData(null); }} style={{ background: "none", border: "none", color: "#9CA3AF", cursor: "pointer", fontSize: 11 }}>Rescan</button>
+                </div>
+              )}
             </div>
 
             {/* ── Applicant Info ── */}
             <div className="af-section">
-              <SectionHeader icon={User} title="Applicant Information" />
-
+              <SectionHeader icon={User} title="Applicant Information" subtitle="Auto-filled from ID scan — verify and complete manually" />
               <div className="af-row">
-                <Field label="Last Name" required error={errors.lastName} style={{ flex: "2 1 150px" }}>
-                  {inp("lastName", "Dela Cruz")}
-                </Field>
-                <Field label="First Name" required error={errors.firstName} style={{ flex: "2 1 150px" }}>
-                  {inp("firstName", "Juan")}
-                </Field>
-                <Field label="M.I." error={errors.middleInitial} style={{ flex: "0 0 72px" }}>
-                  {inp("middleInitial", "M", "text", { maxLength: 1 })}
-                </Field>
+                <Field label="Last Name" required error={errors.lastName} style={{ flex: "2 1 150px" }}>{inp("lastName", "Dela Cruz")}</Field>
+                <Field label="First Name" required error={errors.firstName} style={{ flex: "2 1 150px" }}>{inp("firstName", "Juan")}</Field>
+                <Field label="M.I." error={errors.middleInitial} style={{ flex: "0 0 72px" }}>{inp("middleInitial", "M", "text", { maxLength: 1 })}</Field>
                 <Field label="Suffix" style={{ flex: "0 0 100px" }}>
-                  <CustomSelect value={form.suffix} placeholder="—" options={SUFFIXES}
-                    onSelect={(v) => setForm((p) => ({ ...p, suffix: v }))} />
+                  <CustomSelect value={form.suffix} placeholder="—" options={SUFFIXES} onSelect={v => setForm(p => ({ ...p, suffix: v }))} />
                 </Field>
               </div>
-
               <div className="af-row">
                 <Field label="Date of Birth" required error={errors.dob} half>
                   <input style={{ ...inpStyle, border: errors.dob ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
@@ -424,69 +1221,88 @@ const handleChange = (e) => {
                 <Field label="Civil Status" required error={errors.civilStatus} half>
                   <CustomSelect value={civilStatus} placeholder="Select civil status" options={CIVIL}
                     error={errors.civilStatus}
-                    onSelect={(v) => { setCivilStatus(v); setErrors((p) => ({ ...p, civilStatus: "" })); }} />
+                    onSelect={v => { setCivilStatus(v); setErrors(p => ({ ...p, civilStatus: "" })); }} />
                 </Field>
               </div>
-
               <div className="af-row">
                 <Field label="Gender" required error={errors.gender} half>
                   <select style={{ ...inpStyle, border: errors.gender ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
                     name="gender" value={form.gender} onChange={handleChange} onBlur={handleBlur}>
                     <option value="">Select Gender</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Prefer not to say</option>
+                    <option>Male</option><option>Female</option><option>Prefer not to say</option>
                   </select>
                 </Field>
                 <Field label="Nationality" required error={errors.nationality} half>
                   <CustomSelect value={nationality} placeholder="Select nationality" options={NATIONALITIES}
                     error={errors.nationality}
-                    onSelect={(v) => { setNationality(v); setErrors((p) => ({ ...p, nationality: "", nationalityOther: "" })); if (v !== "Others") setForm((p) => ({ ...p, nationalityOther: "" })); }} />
+                    onSelect={v => { setNationality(v); setErrors(p => ({ ...p, nationality: "", nationalityOther: "" })); if (v !== "Others") setForm(p => ({ ...p, nationalityOther: "" })); }} />
                 </Field>
               </div>
-
               {nationality === "Others" && (
                 <Field label="Please specify nationality" required error={errors.nationalityOther}>
-                  <input
-                    style={{ ...inpStyle, border: errors.nationalityOther ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
-                    name="nationalityOther" placeholder="e.g. American, Chinese, Japanese..."
-                    value={form.nationalityOther} onChange={handleChange} onBlur={handleBlur}
-                  />
+                  <input style={{ ...inpStyle, border: errors.nationalityOther ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                    name="nationalityOther" placeholder="e.g. American, Chinese, Japanese…"
+                    value={form.nationalityOther} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
               )}
-
               <div className="af-row">
-                <Field label="Number of Dependents" required error={errors.dependents} half>
-                  {inp("dependents", "0", "number")}
+                <Field label="Number of Dependents" required error={errors.dependents} half>{inp("dependents", "0", "number")}</Field>
+                <Field label="Mobile Number" required error={errors.mobile} half>{inp("mobile", "09123456789")}</Field>
+              </div>
+              <Field label="Alternate Mobile Number" error={errors.altMobile} half>
+                {inp("altMobile", "09123456789 (optional)")}
+              </Field>
+              <Field label="Email Address" required error={errors.email}>{inp("email", "juandelacruz@email.com", "email")}</Field>
+            </div>
+
+            {/* ── Philippine Address ── */}
+            <div className="af-section">
+              <SectionHeader icon={MapPin} title="Present Address" subtitle="Please enter your Philippine Address" />
+              <Field label="Region" required error={errors.addrRegion}>
+                <CustomSelect value={addrRegion} placeholder="Select Region" options={PH_REGIONS}
+                  error={errors.addrRegion}
+                  onSelect={v => { setAddrRegion(v); setAddrProvince(""); setAddrCity(""); setAddrBarangay(""); setErrors(p => ({ ...p, addrRegion: "" })); }} />
+              </Field>
+              {availableProvinces.length > 0 && (
+                <Field label="Province" error={errors.addrProvince}>
+                  <CustomSelect value={addrProvince} placeholder="Select Province" options={availableProvinces}
+                    onSelect={v => { setAddrProvince(v); setAddrCity(""); }} />
                 </Field>
-                <Field label="Mobile Number" required error={errors.mobile} half>
-                  {inp("mobile", "09123456789")}
+              )}
+              <div className="af-row">
+                <Field label="City / Municipality" required error={errors.addrCity} half>
+                  <CustomSelect
+                    value={addrCity} placeholder="Select City/Municipality"
+                    options={availableCities.length ? availableCities : ["— Select region first —"]}
+                    disabled={!addrRegion}
+                    error={errors.addrCity}
+                    onSelect={v => { setAddrCity(v); setErrors(p => ({ ...p, addrCity: "" })); }} />
+                </Field>
+                <Field label="Barangay" required error={errors.addrBarangay} half>
+                  <input style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                    placeholder="e.g. Brgy. San Jose"
+                    value={addrBarangay} onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }} />
                 </Field>
               </div>
-
-              <Field label="Email Address" required error={errors.email}>
-                {inp("email", "juandelacruz@email.com", "email")}
+              <Field label="House No. / Street / Subdivision" required error={errors.addrStreet}>
+                <input style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                  placeholder="House No., Street, Subdivision"
+                  value={addrStreet} onChange={e => { setAddrStreet(e.target.value); setErrors(p => ({ ...p, addrStreet: "" })); }} />
               </Field>
-
-              <Field label="Present Address" required error={errors.address}>
-                <textarea
-                  style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.address ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
-                  name="address" placeholder="House No., Street, Barangay, City, Province"
-                  value={form.address} onChange={handleChange} onBlur={handleBlur}
-                />
-              </Field>
+              {addrRegion && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 12, color: "#2E7D32" }}>
+                  <MapPin size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{[addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ") || "Address preview will appear here"}</span>
+                </div>
+              )}
             </div>
 
             {/* ── Spouse ── */}
             {(civilStatus === "Married" || civilStatus === "Widowed") && (
               <div className="af-section">
                 <SectionHeader icon={User} title="Spouse Information" />
-                <Field label="Spouse Full Name" error={errors.spouseName}>
-                  {inp("spouseName", "Spouse's Full Name")}
-                </Field>
-                <Field label="Spouse Occupation" error={errors.spouseOccupation}>
-                  {inp("spouseOccupation", "Spouse's Current Occupation")}
-                </Field>
+                <Field label="Spouse Full Name" error={errors.spouseName}>{inp("spouseName", "Spouse's Full Name")}</Field>
+                <Field label="Spouse Occupation" error={errors.spouseOccupation}>{inp("spouseOccupation", "Spouse's Current Occupation")}</Field>
               </div>
             )}
 
@@ -496,15 +1312,11 @@ const handleChange = (e) => {
               <Field label="Employment Type" required error={errors.employmentType}>
                 <CustomSelect value={form.employmentType} placeholder="Select employment type" options={EMPLOYMENT_TYPES}
                   error={errors.employmentType}
-                  onSelect={(v) => { setForm((p) => ({ ...p, employmentType: v })); setErrors((p) => ({ ...p, employmentType: "" })); }} />
+                  onSelect={v => { setForm(p => ({ ...p, employmentType: v })); setErrors(p => ({ ...p, employmentType: "" })); }} />
               </Field>
               <div className="af-row">
-                <Field label="Years with Employer" required error={errors.yearsEmployer} half>
-                  {inp("yearsEmployer", "5", "number")}
-                </Field>
-                <Field label="Monthly Income (₱)" required error={errors.income} half>
-                  {inp("income", "50000", "number")}
-                </Field>
+                <Field label="Years with Employer" required error={errors.yearsEmployer} half>{inp("yearsEmployer", "5", "number")}</Field>
+                <Field label="Monthly Income (₱)" required error={errors.income} half>{inp("income", "50000", "number")}</Field>
               </div>
               <Field label="Business/Company Name (No Acronyms)" required error={errors.employerName}>
                 {inp("employerName", "e.g. iFranchise Business and Services Corporation")}
@@ -513,12 +1325,91 @@ const handleChange = (e) => {
                 {inp("businessAddress", "Complete Business Address")}
               </Field>
               <div className="af-row">
-                <Field label="Position / Job Title" required error={errors.position} half>
-                  {inp("position", "e.g. Manager")}
-                </Field>
-                <Field label="Nature of Business" required error={errors.businessNature} half>
-                  {inp("businessNature", "e.g. Retail, Manufacturing")}
-                </Field>
+                <Field label="Position / Job Title" required error={errors.position} half>{inp("position", "e.g. Manager")}</Field>
+                <Field label="Nature of Business" required error={errors.businessNature} half>{inp("businessNature", "e.g. Retail, Manufacturing")}</Field>
+              </div>
+            </div>
+
+            {/* ── Letter of Intent + ID Attachment ── */}
+            <div className="af-section">
+              <SectionHeader icon={FileText} title="Required Documents" />
+
+              <Field label="Letter of Intent (PDF)" required error={errors.letterOfIntent}>
+                <input ref={loiRef} type="file" accept="application/pdf" style={{ display: "none" }}
+                  onChange={e => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    auditLog.record("LOI_UPLOADED", { fileName: f.name, size: f.size });
+                    setLetterOfIntent(f);
+                    setErrors(p => ({ ...p, letterOfIntent: "" }));
+                  }} />
+                <div
+                  onClick={() => loiRef.current.click()}
+                  style={{
+                    border: errors.letterOfIntent ? "2px dashed #d32f2f" : "2px dashed #c8e6c9",
+                    borderRadius: 12, padding: "20px 16px", textAlign: "center",
+                    cursor: "pointer", background: "#fafafa", transition: "all .2s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f0fdf4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "#fafafa"}
+                >
+                  {letterOfIntent ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+                      <CheckCircle2 size={20} color="#2E7D32" />
+                      <span style={{ fontWeight: 700, color: "#2E7D32", fontSize: 13 }}>{letterOfIntent.name}</span>
+                      <span style={{ color: "#9CA3AF", fontSize: 11 }}>({(letterOfIntent.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload size={24} color="#9CA3AF" style={{ margin: "0 auto 8px" }} />
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#374151" }}>Click to upload Letter of Intent</p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>PDF only — max 10MB</p>
+                    </>
+                  )}
+                </div>
+              </Field>
+
+              {idVerified && (
+                <div style={{ padding: "12px 14px", background: "#f0fdf4", borderRadius: 10, border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center", gap: 10 }}>
+                  <CheckCircle2 size={16} color="#2E7D32" />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1b5e20" }}>Valid ID attached — {idData?.idType} (from OCR scan)</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── Terms & Consent ── */}
+            <div className="af-section">
+              <SectionHeader icon={Shield} title="Terms & Consent" />
+
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={termsAccepted}
+                  onChange={e => { setTermsAccepted(e.target.checked); setErrors(p => ({ ...p, terms: "" })); }}
+                  style={{ marginTop: 2, accentColor: "#2E7D32", width: 16, height: 16, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+                  I have read and agree to the{" "}
+                  <button type="button" onClick={() => setShowTerms(true)} style={{ background: "none", border: "none", color: "#2E7D32", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13, textDecoration: "underline", fontFamily: "inherit" }}>
+                    Terms and Conditions
+                  </button>{" "}
+                  of iFranchise Business and Services Corporation. <span style={{ color: "#EF4444" }}>*</span>
+                </span>
+              </label>
+              {errors.terms && <p style={{ color: "#d32f2f", fontSize: 12, margin: "-4px 0 0", fontWeight: 600 }}>{errors.terms}</p>}
+
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={consentAccepted}
+                  onChange={e => { setConsentAccepted(e.target.checked); setErrors(p => ({ ...p, consent: "" })); }}
+                  style={{ marginTop: 2, accentColor: "#2E7D32", width: 16, height: 16, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+                  I consent to the collection, processing, and use of my personal data in accordance with the <strong>Data Privacy Act of 2012 (RA 10173) stated on no. 1 in Terms and Conditions </strong> for the purpose of evaluating my franchise application. <span style={{ color: "#EF4444" }}>*</span>
+                </span>
+              </label>
+              {errors.consent && <p style={{ color: "#d32f2f", fontSize: 12, margin: "-4px 0 0", fontWeight: 600 }}>{errors.consent}</p>}
+
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082" }}>
+                <Lock size={14} color="#e65100" style={{ flexShrink: 0, marginTop: 1 }} />
+                <span style={{ fontSize: 12, color: "#e65100" }}>
+                  <strong>Non-Transferability Notice:</strong> The franchise registered under this application is strictly personal and non-transferable. The name verified by your government-issued ID will be the sole authorized franchisee.
+                </span>
               </div>
             </div>
 
@@ -526,14 +1417,15 @@ const handleChange = (e) => {
               Submit Application
               <ArrowRight size={18} style={{ marginLeft: 8 }} />
             </button>
-            <p className="af-footer-note">By submitting this form, you agree to our terms and conditions.</p>
+            <p className="af-footer-note">By submitting, you agree to our terms & consent.</p>
           </form>
         </div>
       </div>
 
-      <style>
-      {`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .af-page {
           min-height: 100vh;
@@ -544,311 +1436,95 @@ const handleChange = (e) => {
           padding-top: 90px;
           padding-bottom: 60px;
         }
-/* Header pinned to pinaka taas */
-.af-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 70px;
-  z-index: 100;
-  background: #ffffff;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
 
-  display: flex;
-  align-items: center;
-}
-
-/* Container */
-.af-nav-inner {
-  position: relative;
-  width: 100%;
-}
-
-/* 🔥 Back button at 20% from left */
-.af-back-link {
-  position: absolute;
-  right: 90%;
-  top: 50%;
-  transform: translateY(-50%);
-
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #1b5e20;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-decoration: none;
-}
-
-.af-back-link:hover {
-  opacity: 0.7;
-}
-
-/* 🔥 PERFECT CENTERING */
-.af-progress {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 50%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Steps */
-.af-steps {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.af-step {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #9ca3af;
-}
-
-.af-step.active {
-  color: #2e7d32;
-}
-
-/* Bar background */
-.af-bar-bg {
-  width: 100%;
-  height: 8px;
-  background: #e5e7eb;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-/* Gradient progress */
-.af-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #0d2b1e, #1a4a2e);
-  transition: width 0.4s ease;
-}
-/* Percent */
-.af-progress-text {
-  margin-top: 4px;
-  text-align: right;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #2e7d32;
-}
-        .af-bar-bg { height: 7px; border-radius: 99px; background: #e5e7eb; overflow: hidden; }
-        .af-bar-fill { height: 100%; border-radius: 99px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
-
-        .af-content {
-          max-width: 860px;
-          margin: 0 auto;
-          padding: 0 1.5rem;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
+        .af-nav {
+          position: fixed; top: 0; left: 0; width: 100%;
+          z-index: 100; padding: 14px 24px;
+          background: #ffffff; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
-
-        .af-logo {
-          height: 66px;
-          object-fit: contain;
-          margin-top: 12px;
-          margin-bottom: 18px;
+        .af-nav-inner {
+          display: flex; align-items: center; gap: 20px; padding: 0 24px;
         }
+        .af-back-link {
+          display: flex; align-items: center; gap: 6px; color: #1b5e20;
+          font-weight: 600; font-size: 0.9rem; text-decoration: none;
+          white-space: nowrap; transition: opacity 0.2s;
+        }
+        .af-back-link:hover { opacity: 0.7; }
+        .af-progress { flex: 1; display: flex; flex-direction: column; }
+        .af-steps { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .af-step { font-size: 0.7rem; font-weight: 600; color: #9ca3af; transition: color 0.3s; }
+        .af-step.active { color: #2e7d32; }
+        .af-bar-bg { width: 100%; height: 8px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+        .af-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(135deg,#368f3b,#218428); transition: width 0.4s ease; }
+        .af-progress-text { margin-top: 4px; text-align: right; font-size: 0.75rem; font-weight: 600; color: #2e7d32; }
 
-        /* ── Card — exact AdminLogin card style ── */
+        .af-content { max-width: 860px; margin: 0 auto; padding: 0 1.5rem; display: flex; flex-direction: column; align-items: center; }
+        .af-logo { height: 66px; object-fit: contain; margin-top: 12px; margin-bottom: 18px; }
+
         .af-card {
-          background: rgba(255,255,255,0.96);
-          width: 100%;
-          border-radius: 20px;
-          padding: 36px 30px 30px;
+          background: rgba(255,255,255,0.96); width: 100%;
+          border-radius: 20px; padding: 36px 30px 30px;
           box-shadow: 0 10px 30px rgba(0,0,0,.10);
         }
+        .af-title { font-size: 23px; color: #2E7D32; font-weight: 700; margin: 0 0 4px; text-align: center; }
+        .af-sub { color: #555; font-size: 13px; margin-bottom: 22px; text-align: center; }
 
-        .af-title {
-          font-size: 23px;
-          color: #2E7D32;
-          font-family: 'Montserrat', sans-serif;
-          font-weight: 700;
-          margin: 0 0 4px 0;
-          text-align: center;
-        }
-        .af-sub {
-          color: #555;
-          font-size: 13px;
-          margin-bottom: 22px;
-          text-align: center;
-        }
-
-        /* ── Section panels ── */
         .af-section {
-          background: #f9fdf9;
-          border-radius: 14px;
-          border: 1.5px solid #c8e6c9;
-          padding: 1.3rem 1.3rem 1.1rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.9rem;
+          background: #f9fdf9; border-radius: 14px; border: 1.5px solid #c8e6c9;
+          padding: 1.3rem 1.3rem 1.1rem; display: flex; flex-direction: column; gap: 0.9rem;
         }
-
         .af-row { display: flex; flex-wrap: wrap; gap: 0.9rem; }
 
-        /* ── Inputs — identical to AdminLogin ── */
-        .af-card input[type="text"],
-        .af-card input[type="email"],
-        .af-card input[type="number"],
-        .af-card input[type="date"],
-        .af-card input[type="password"],
-        .af-card textarea,
-        .af-card select {
-          width: 100%;
-          padding: 13px 14px;
-          border-radius: 12px;
-          border: 1.5px solid #c8e6c9;
-          outline: none;
-          font-size: 14px;
-          font-family: 'Montserrat', sans-serif;
-          color: #1a1a1a;
-          background: #fafafa;
-          transition: border-color 0.2s, background 0.2s;
-          box-sizing: border-box;
+        .af-card input[type="text"], .af-card input[type="email"], .af-card input[type="number"],
+        .af-card input[type="date"], .af-card input[type="password"], .af-card textarea, .af-card select {
+          width: 100%; padding: 13px 14px; border-radius: 12px; border: 1.5px solid #c8e6c9;
+          outline: none; font-size: 14px; font-family: 'Montserrat', sans-serif;
+          color: #1a1a1a; background: #fafafa; transition: border-color 0.2s, background 0.2s; box-sizing: border-box;
         }
-        .af-card input:focus,
-        .af-card textarea:focus,
-        .af-card select:focus {
-          border-color: #2E7D32 !important;
-          background: #fff !important;
+        .af-card input:focus, .af-card textarea:focus, .af-card select:focus {
+          border-color: #2E7D32 !important; background: #fff !important;
         }
         .af-card input:disabled {
-          background: #f5f5f5;
-          color: #888;
-          cursor: not-allowed;
-          border-color: #e5e7eb !important;
+          background: #f5f5f5; color: #888; cursor: not-allowed; border-color: #e5e7eb !important;
         }
-          .af-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 100;
-  padding: 14px 24px;
-  background: #ffffff;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
 
-.af-nav-inner {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 24px;
-}
-.af-back-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #1b5e20;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: opacity 0.2s ease;
-}
-
-.af-back-link:hover {
-  opacity: 0.7;
-}
-
-.af-progress {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.af-steps {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.af-step {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #9ca3af;
-  transition: color 0.3s ease;
-}
-
-.af-step.active {
-  color:  linear-gradient(90deg, #368f3b, #218428);
-}
-
-.af-bar-bg {
-  width: 100%;
-  height: 8px;
-  background: #e5e7eb;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.af-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background:  linear-gradient(135deg, #256f29, #1ed834, #147218);
-  transition: width 0.4s ease;
-}
-
-.af-progress-text {
-  margin-top: 4px;
-  text-align: right;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #2e7d32;
-}
-        /* ── Submit button — identical to AdminLogin .btn ── */
         .af-submit-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          padding: 14px;
-          border-radius: 12px;
-          border: none;
-          background: linear-gradient(90deg, #49a94e, #218428);
-          color: #fff;
-          font-weight: bold;
-          cursor: pointer;
-          font-size: 14px;
-          letter-spacing: 0.5px;
-          transition: background 0.2s;
-          font-family: 'Montserrat', sans-serif;
+          display: flex; align-items: center; justify-content: center;
+          width: 100%; padding: 14px; border-radius: 12px; border: none;
+          background: linear-gradient(90deg,#49a94e,#218428); color: #fff;
+          font-weight: bold; cursor: pointer; font-size: 14px; letter-spacing: 0.5px;
+          transition: background 0.2s; font-family: 'Montserrat', sans-serif;
           box-shadow: 0 4px 14px rgba(33,132,40,0.25);
         }
-        .af-submit-btn:hover {
-          background: linear-gradient(90deg, #246627, #2a7e30);
-        }
-
-        .af-footer-note {
-          text-align: center;
-          font-size: 0.82rem;
-          color: #9CA3AF;
-          margin-top: -0.8rem;
-        }
+        .af-submit-btn:hover { background: linear-gradient(90deg,#246627,#2a7e30); }
+        .af-footer-note { text-align: center; font-size: 0.82rem; color: #9CA3AF; margin-top: -0.8rem; }
       `}</style>
     </div>
   );
 }
 
-// ─── Shared inline styles for dynamic border colors ───────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const inpStyle = {
-  width: "100%", padding: "13px 14px",
-  borderRadius: 12, outline: "none",
-  fontSize: 14, fontFamily: "'Montserrat', sans-serif",
-  color: "#1a1a1a", background: "#fafafa",
-  transition: "border-color 0.2s",
-  boxSizing: "border-box",
+  width: "100%", padding: "13px 14px", borderRadius: 12, outline: "none",
+  fontSize: 14, fontFamily: "'Montserrat',sans-serif", color: "#1a1a1a",
+  background: "#fafafa", transition: "border-color 0.2s", boxSizing: "border-box",
 };
 
 const disabledStyle = {
-  ...inpStyle,
-  background: "#f5f5f5", color: "#888",
+  ...inpStyle, background: "#f5f5f5", color: "#888",
   cursor: "not-allowed", border: "1.5px solid #e5e7eb",
+};
+
+const S = {
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
+  modalBox: { background: "#fff", borderRadius: 20, padding: "2.5rem 2rem 2rem", width: 380, maxWidth: "92vw", textAlign: "center", position: "relative", boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
+  iconWrap: { width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.2rem" },
+  modalMsg: { fontSize: "1rem", color: "#374151", lineHeight: 1.6, marginBottom: "1.5rem" },
+  btnRow: { display: "flex", gap: 10, justifyContent: "center" },
+  btn: { padding: "0.65rem 2rem", borderRadius: 10, fontSize: "0.95rem", fontWeight: 700, cursor: "pointer", border: "none", fontFamily: "'Montserrat',sans-serif" },
+  btnSolid: { background: "linear-gradient(90deg,#368f3b,#218428)", color: "#fff" },
+  btnOutline: { background: "transparent", color: "#2E7D32", border: "2px solid #2E7D32" },
+  closeBtn: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4 },
+  zoomBtn: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
 };
