@@ -479,10 +479,8 @@ app.delete("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Nullify references in announcements first
     await pool.query("UPDATE announcements SET created_by=NULL WHERE created_by=$1", [id]);
 
-    // Then delete the user
     await pool.query("DELETE FROM users WHERE id=$1", [id]);
     res.json({ success: true, message: "User deleted" });
   } catch (err) {
@@ -1251,12 +1249,16 @@ app.post("/api/extract-id", async (req, res) => {
   const { frontImage, idType } = req.body;
 
   const base64Data = frontImage.replace(/^data:image\/\w+;base64,/, "");
-  const tempPath   = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
-  fs.writeFileSync(tempPath, Buffer.from(base64Data, "base64"));
+  const buffer = Buffer.from(base64Data, "base64");
 
   try {
     const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
-    const inputSource  = new mindee.PathInput({ inputPath: tempPath });
+
+    // Use BufferInput instead of PathInput — no temp file needed
+    const inputSource = new mindee.BufferInput({
+      buffer,
+      filename: "id.jpg",
+    });
 
     const response = await mindeeClient.enqueueAndGetResult(
       mindee.v2.product.Extraction,
@@ -1264,34 +1266,31 @@ app.post("/api/extract-id", async (req, res) => {
       { modelId: process.env.MINDEE_ID_MODEL_ID }
     );
 
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-
     console.log("Mindee raw ID fields:", JSON.stringify(response.rawHttp.inference.result.fields, null, 2));
 
     const fields = response.rawHttp.inference.result.fields;
 
-    const firstName  = fields?.given_names?.value   || fields?.first_name?.value    || "";
-    const lastName   = fields?.surnames?.value      || "";
-    const middleName = fields?.middle_name?.value   || "";
-    const dob        = fields?.birth_date?.value    || fields?.date_of_birth?.value  || "";
-    const idNumber   = fields?.document_number?.value || fields?.id_number?.value    || "";
-    const expiryDate =  fields?.date_of_expiry?.value  || "";
-    
-    const addrStreet  = fields?.address?.fields?.street?.value      || "";
-    const addrCity    = fields?.address?.fields?.city?.value        || "";
-    const addrState   = fields?.address?.fields?.state?.value       || "";
-    const addrPostal  = fields?.address?.fields?.postal_code?.value || "";
-    const address     = [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", ");
+    const firstName  = fields?.given_names?.value  || fields?.first_name?.value   || "";
+    const lastName   = fields?.surnames?.value     || "";
+    const middleName = fields?.middle_name?.value  || "";
+    const dob        = fields?.birth_date?.value   || fields?.date_of_birth?.value || "";
+    const idNumber   = fields?.document_number?.value || fields?.id_number?.value  || "";
+    const expiryDate = fields?.date_of_expiry?.value  || "";
+
+    const addrStreet = fields?.address?.fields?.street?.value      || "";
+    const addrCity   = fields?.address?.fields?.city?.value        || "";
+    const addrState  = fields?.address?.fields?.state?.value       || "";
+    const addrPostal = fields?.address?.fields?.postal_code?.value || "";
+    const address    = [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", ");
 
     res.json({
       success: true,
-      data: { firstName, lastName, middleName, dob, idNumber, expiryDate, address},
+      data: { firstName, lastName, middleName, dob, idNumber, expiryDate, address },
     });
 
   } catch (err) {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    console.error("Mindee OCR error:", err.message);
-    res.status(500).json({ success: false, error: "Failed to extract ID data" });
+    console.error("Mindee OCR error FULL:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1432,7 +1431,6 @@ app.put("/inventory/:id", async (req, res) => {
 
     const updatedItem = result.rows[0];
 
-    // ✅ Build a before/after diff and log it
     const changes = {};
     const fields = ["name", "category", "branch", "brand", "stock", "min_stock", "cost", "price", "image_url"];
     for (const field of fields) {
@@ -3219,7 +3217,6 @@ app.post('/brand-delete-history', async (req, res) => {
   }
 });
 
-// DELETE
 app.delete('/brand-delete-history/:id', async (req, res) => {
   try {
     await pool.query(
@@ -3233,7 +3230,6 @@ app.delete('/brand-delete-history/:id', async (req, res) => {
   }
 });
 
-// GET /delete-history
 app.get('/delete-history', async (req, res) => {
   try {
     const result = await pool.query(
@@ -3251,7 +3247,6 @@ app.get('/delete-history', async (req, res) => {
   }
 });
 
-// POST /delete-history
 app.post('/delete-history', async (req, res) => {
   try {
     const { user_data } = req.body;
@@ -3266,7 +3261,6 @@ app.post('/delete-history', async (req, res) => {
   }
 });
 
-// DELETE /delete-history/:id
 app.delete('/delete-history/:id', async (req, res) => {
   try {
     await pool.query(
@@ -3280,7 +3274,6 @@ app.delete('/delete-history/:id', async (req, res) => {
   }
 });
 
-// GET /application-delete-history
 app.get('/application-delete-history', async (req, res) => {
   try {
     const result = await pool.query(
@@ -3298,7 +3291,6 @@ app.get('/application-delete-history', async (req, res) => {
   }
 });
 
-// POST /application-delete-history
 app.post('/application-delete-history', async (req, res) => {
   try {
     const { application_data } = req.body;
@@ -3389,9 +3381,8 @@ app.get('/paymongo/link-status/:linkId', async (req, res) => {
       return res.status(400).json({ error: 'Failed to fetch link status' });
 
     const attrs  = data.data.attributes;
-    const status = attrs.status; // 'unpaid' | 'paid'
+    const status = attrs.status;
 
-    // If paid, grab the payment reference from payments array
     const payments   = attrs.payments || [];
     const lastPayment = payments[payments.length - 1];
     const gcashRef    = lastPayment?.attributes?.external_reference_number
@@ -3408,7 +3399,6 @@ app.get('/paymongo/link-status/:linkId', async (req, res) => {
 app.post("/api/verify-id", async (req, res) => {
   const { frontImage, backImage, idType } = req.body;
 
-  // Map your frontend ID type labels to ID Analyzer document type codes
   const ID_TYPE_MAP = {
     "Philippine Passport":    ["PASSPORT"],
     "Driver's License":       ["DRIVER", "DRIVING"],
