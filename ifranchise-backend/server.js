@@ -8,11 +8,17 @@ const cookieParser = require("cookie-parser");
 const multer = require("multer");
 const fs = require("fs");
 const mindee = require("mindee");
+const mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
 const { Resend } = require("resend");
+const path = require("path");
+const os   = require("os");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const app = express();
 const PORT = process.env.PORT || 5001;
+
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 app.use(cookieParser());
 app.use(cors({
@@ -81,7 +87,6 @@ function rowToApplication(row) {
     dependents:       row.dependents,
     spouseName:       row.spouse_name,
     spouseOccupation: row.spouse_occupation,
-    spouseDob:        row.spouse_dob,
     employmentType:   row.employment_type,
     yearsEmployer:    row.years_employer,
     income:           row.income,
@@ -89,20 +94,11 @@ function rowToApplication(row) {
     businessAddress:  row.business_address,
     position:         row.position,
     businessNature:   row.business_nature,
-    telephone:        row.telephone,
-    tin:              row.tin,
-    education:        row.education,
-    involvement:      row.involvement,
-    equity:           row.equity,
-    investment:       row.investment,
-    fundSource:       row.fund_source,
-    otherBusiness:    row.other_business,
-    location:         row.location,
-    familyDepend:     row.family_depend,
-    marketArea:       row.market_area,
-    startDate:        row.start_date,
     signature:        row.signature,
     dateSigned:       row.date_signed,
+    idType:           row.id_type,
+    idImage:          row.id_image,
+    letterOfIntent:   row.letter_of_intent,
     createdAt:        row.created_at,
     updatedAt:        row.updated_at,
   };
@@ -157,7 +153,7 @@ if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
-    console.log(`OTP required for user ${email} on device ${deviceId}`);
+    console.log(`OTP required for user ${email}`);
     res.json({ success: true, skipOtp: false, user: safeUser });
 
   } catch (err) {
@@ -180,7 +176,7 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "OTP <FranchiSync@noreply.franchisync.xyz>",
+      from: "Franchisync <otp@noreply.franchisync.xyz>",
       to: email,
       subject: "Your FranchiSync Login OTP",
       html: `
@@ -202,11 +198,10 @@ app.post("/send-otp-after-login", async (req, res) => {
 
 app.post("/verify-otp-login", async (req, res) => {
   const { email, otp } = req.body;
-  const deviceId = getOrCreateDeviceId(req, res);
 
   try {
     if (!otpStore[email])
-      return res.status(401).json({ message: "No OTP found for this email" });
+      return res.status(401).json({ message: "N o OTP found for this email" });
 
     const storedOtp = otpStore[email];
 
@@ -219,26 +214,22 @@ app.post("/verify-otp-login", async (req, res) => {
       return res.status(401).json({ message: "Invalid OTP" });
 
     delete otpStore[email];
-    console.log(`OTP verified for ${email}`);
 
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     if (user.rows.length === 0)
       return res.status(404).json({ message: "User not found" });
 
-    const userId = user.rows[0].id;
-    const expires = new Date();
-    expires.setDate(expires.getDate() + 30);
+    // No trusted device logic needed — session is managed client-side
+    const safeUser = {
+      id:     user.rows[0].id,
+      name:   user.rows[0].name,
+      email:  user.rows[0].email,
+      role:   user.rows[0].role,
+      branch: user.rows[0].branch,
+      brand:  user.rows[0].brand,
+    };
 
-    await pool.query(
-      `INSERT INTO trusted_devices (user_id, device_id, expires_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, device_id)
-       DO UPDATE SET expires_at = EXCLUDED.expires_at`,
-      [userId, deviceId, expires]
-    );
-
-    console.log(`Device ${deviceId} trusted for user ${userId} for 30 days`);
-    res.json({ success: true, user: user.rows[0] });
+    res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
     res.status(500).json({ message: "OTP verification failed" });
@@ -257,6 +248,13 @@ app.post("/logout", async (req, res) => {
       );
       console.log(`Trust revoked for user ${userId} on device ${deviceId}`);
     }
+
+     res.clearCookie("device_id", {
+      httpOnly: true,
+      sameSite: "lax",
+    });
+
+    res.clearCookie("device_id", { httpOnly: true, sameSite: "lax" });
     res.json({ success: true });
   } catch (err) {
     console.error("Logout error:", err);
@@ -278,6 +276,134 @@ app.post("/auth/verify-password", async (req, res) => {
   } catch (err) {
     console.error("POST /auth/verify-password error:", err);
     res.status(500).json({ error: "Verification failed" });
+  }
+});
+
+app.post("/api/send-otp", async (req, res) => {
+  const { mobile, otp } = req.body;
+
+  let formattedMobile = mobile.replace(/\D/g, ''); 
+  if (formattedMobile.startsWith('0')) {
+    formattedMobile = '63' + formattedMobile.substring(1);
+  }
+
+  try {
+    const response = await fetch("https://dashboard.philsms.com/api/v3/sms/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.PHILSMS_TOKEN.trim()}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: formattedMobile,
+        sender_id: process.env.PHILSMS_SENDER_ID,
+        message: `Your franchise application OTP is ${otp}. Valid for 5 minutes.`,
+      }),
+    });
+
+    const rawText = await response.text(); 
+
+    if (response.ok) {
+      console.log("✅ PhilSMS Success:", rawText);
+      const data = JSON.parse(rawText);
+      return res.json({ success: true, data });
+    } else {
+      console.error(`❌ PhilSMS Error [Status: ${response.status}]:`, rawText);
+      
+      let errorMessage = rawText;
+      try { 
+        const errorJson = JSON.parse(rawText);
+        errorMessage = errorJson.message || rawText;
+      } catch (e) { /* Not JSON */ }
+
+      return res.status(response.status).json({ 
+        success: false, 
+        error: errorMessage 
+      });
+    }
+
+    // Check if the response is actually JSON
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      const data = JSON.parse(rawText);
+      if (response.ok) {
+        return res.json({ success: true, data });
+      } else {
+        return res.status(response.status).json({ success: false, error: data.message });
+      }
+    } else {
+      // If we got HTML, it's likely a 401 Unauthorized or 404 Not Found
+      console.error("PhilSMS returned non-JSON response:", rawText);
+      return res.status(500).json({ success: false, error: "Authentication failed or invalid endpoint." });
+    }
+
+  } catch (err) {
+    console.error("Internal Server Error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+app.post("/send-login-sms-otp", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const result = await pool.query(
+      "SELECT contact_number FROM users WHERE email=$1",
+      [email.trim()]
+    );
+
+    if (result.rows.length === 0)
+      return res.status(404).json({ message: "No account found with this email." });
+
+    if (!result.rows[0].contact_number)
+      return res.status(404).json({ message: "No phone number found for this account." });
+
+    let mobile = result.rows[0].contact_number.toString().replace(/\D/g, "");
+    if (mobile.startsWith("0")) mobile = "63" + mobile.substring(1);
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[email.trim()] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
+
+    const response = await fetch("https://dashboard.philsms.com/api/v3/sms/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.PHILSMS_TOKEN.trim()}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({
+        recipient: mobile,
+        sender_id: process.env.PHILSMS_SENDER_ID,
+        message: `Your iFranchise login OTP is: ${otp}. Valid for 3 minutes. Do not share this with anyone.`,
+      }),
+    });
+
+    const rawText = await response.text();
+    console.log("PhilSMS response:", rawText);
+
+    if (response.ok) {
+      const masked = "*".repeat(mobile.length - 4) + mobile.slice(-4);
+      return res.json({ success: true, maskedPhone: masked });
+    } else {
+      let errorMessage = rawText;
+      try { errorMessage = JSON.parse(rawText).message || rawText; } catch {}
+      return res.status(response.status).json({ success: false, message: errorMessage });
+    }
+
+  } catch (err) {
+    console.error("send-login-sms-otp error:", err);
+    return res.status(500).json({ message: "Failed to send SMS OTP. Please try again." });
+  }
+});
+
+app.post("/get-contact-number", async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await db.query("SELECT contact_number FROM users WHERE email = ?", [email]);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ contact_number: user.contact_number });
+  } catch {
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -328,24 +454,17 @@ app.patch("/users/:id/saved-address", async (req, res) => {
 app.put("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      firstName, lastName, middleInitial,
-      email, age, address, contactNumber, savedAddress, newPassword
-    } = req.body;
-
-    // Combine name fields the way your DB stores it
-    const name = [firstName, middleInitial ? middleInitial + '.' : '', lastName]
-      .filter(Boolean).join(' ').trim();
+    const { name, email, role, branch, password } = req.body;
 
     let query, params;
-    if (newPassword) {
+    if (password) {
       const bcrypt = require('bcrypt');
-      const hashed = await bcrypt.hash(newPassword, 10);
-      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5, saved_address=$6, password=$7 WHERE id=$8 RETURNING *`;
-      params = [name, email, age || null, address || null, contactNumber || null, savedAddress || null, hashed, id];
+      const hashed = await bcrypt.hash(password, 10);
+      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, password=$5 WHERE id=$6 RETURNING *`;
+      params = [name, email, role, branch, hashed, id];
     } else {
-      query = `UPDATE users SET name=$1, email=$2, age=$3, address=$4, contact_number=$5, saved_address=$6 WHERE id=$7 RETURNING *`;
-      params = [name, email, age || null, address || null, contactNumber || null, savedAddress || null, id];
+      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4 WHERE id=$5 RETURNING *`;
+      params = [name, email, role, branch, id];
     }
 
     const result = await pool.query(query, params);
@@ -358,10 +477,17 @@ app.put("/users/:id", async (req, res) => {
 
 app.delete("/users/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM users WHERE id=$1", [req.params.id]);
+    const { id } = req.params;
+
+    // Nullify references in announcements first
+    await pool.query("UPDATE announcements SET created_by=NULL WHERE created_by=$1", [id]);
+
+    // Then delete the user
+    await pool.query("DELETE FROM users WHERE id=$1", [id]);
     res.json({ success: true, message: "User deleted" });
-  } catch {
-    res.status(500).json({ error: "Failed to delete user" });
+  } catch (err) {
+    console.error("DELETE /users/:id error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -454,7 +580,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "OTP <FranchiSync@noreply.franchisync.xyz>",
+      from: "Franchisync <otp@noreply.franchisync.xyz>",
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -532,7 +658,7 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "OTP <FranchiSync@noreply.franchisync.xyz>",
+      from: "Franchisync <otp@noreply.franchisync.xyz>",
       to: email,  
       subject: "Password Reset OTP - FranchiSync",
       html: `
@@ -599,15 +725,15 @@ app.post("/reset-password", async (req, res) => {
 
 // ─── EMAIL / CREDENTIALS ─────────────────────────────────────
 
-app.post("/api/send-credentials", async (req, res) => {
+app.post("/send-credentials", async (req, res) => {
   console.log("send-credentials body:", req.body);
   const { to, name, password } = req.body;
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: "OTP <FranchiSync@noreply.franchisync.xyz>",
+      from: "Franchisync <acc@noreply.franchisync.xyz>",
       to: to,
-      subject: "Your Account Credentials",
+      subject: "Your Franchisync Account Credentials",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Welcome, ${name}!</h2>
@@ -617,6 +743,7 @@ app.post("/api/send-credentials", async (req, res) => {
             <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
           </div>
           <p style="color: #e74c3c;">Please log in and change your password immediately.</p>
+          <p>Log in your account at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
         </div>
       `,
     });
@@ -630,14 +757,28 @@ app.post("/api/send-credentials", async (req, res) => {
 
 // ─── APPLICATIONS ────────────────────────────────────────────
 
-app.get("/applications", async (req, res) => {
+app.post("/check-duplicate", async (req, res) => {
+  const { email, mobile } = req.body;
   try {
     const result = await pool.query(
-      "SELECT * FROM applications ORDER BY created_at DESC"
+      "SELECT id FROM applications WHERE email = $1 OR phone = $2 LIMIT 1",
+      [email, mobile]
     );
-    res.json(result.rows.map(rowToApplication));
+    res.json({ exists: result.rows.length > 0 });
   } catch (err) {
-    console.error("Error fetching applications:", err);
+    console.error("Duplicate check error:", err);
+    res.status(500).json({ exists: false });
+  }
+});
+
+app.get("/applications", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM applications ORDER BY created_at DESC");
+    console.log("First app row:", result.rows[0]); // ← add this
+    const apps = result.rows.map(rowToApplication);
+    res.json(apps);
+  } catch (err) {
+    console.error("Failed to fetch applications:", err);
     res.status(500).json({ error: "Failed to fetch applications" });
   }
 });
@@ -667,14 +808,14 @@ app.post("/applications", async (req, res) => {
         spouse_name, spouse_occupation,
         employment_type, years_employer, income,
         employer_name, business_address, position, business_nature,
-        signature, date_signed
+        signature, date_signed, id_type, id_image, letter_of_intent
       ) VALUES (
         $1,$2,$3,$4,$5,'pending',CURRENT_DATE,
         $6,$7,$8,$9,$10,$11,
         $12,$13,
         $14,$15,$16,
         $17,$18,$19,$20,
-        $21,$22
+        $21,$22,$23,$24,$25
       ) RETURNING *`,
       [
         b.name, b.email, b.phone, b.franchise, b.paymentMode,
@@ -684,11 +825,17 @@ app.post("/applications", async (req, res) => {
         b.employmentType, b.yearsEmployer ? parseInt(b.yearsEmployer) : null,
         b.income ? parseFloat(b.income) : null,
         b.employerName, b.businessAddress, b.position, b.businessNature,
-        b.signature, b.dateSigned || null,
+        b.signature || null, b.dateSigned || null,
+        b.idType || null, b.idImage || null, b.letterOfIntent || null,
       ]
     );
     const app = rowToApplication(result.rows[0]);
-    res.json({ success: true, message: "Application submitted successfully", application: app });
+    res.json({ 
+      success: true, 
+      id: app.id,  // ← add this
+      message: "Application submitted successfully", 
+      application: app 
+    });
   } catch (err) {
     console.error("Error submitting application:", err);
     res.status(500).json({ success: false, error: "Failed to submit application" });
@@ -1097,6 +1244,54 @@ app.delete("/receipts/:id", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete receipt" });
+  }
+});
+
+app.post("/api/extract-id", async (req, res) => {
+  const { frontImage, idType } = req.body;
+
+  const base64Data = frontImage.replace(/^data:image\/\w+;base64,/, "");
+  const tempPath   = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
+  fs.writeFileSync(tempPath, Buffer.from(base64Data, "base64"));
+
+  try {
+    const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
+    const inputSource  = new mindee.PathInput({ inputPath: tempPath });
+
+    const response = await mindeeClient.enqueueAndGetResult(
+      mindee.v2.product.Extraction,
+      inputSource,
+      { modelId: process.env.MINDEE_ID_MODEL_ID }
+    );
+
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
+    console.log("Mindee raw ID fields:", JSON.stringify(response.rawHttp.inference.result.fields, null, 2));
+
+    const fields = response.rawHttp.inference.result.fields;
+
+    const firstName  = fields?.given_names?.value   || fields?.first_name?.value    || "";
+    const lastName   = fields?.surnames?.value      || "";
+    const middleName = fields?.middle_name?.value   || "";
+    const dob        = fields?.birth_date?.value    || fields?.date_of_birth?.value  || "";
+    const idNumber   = fields?.document_number?.value || fields?.id_number?.value    || "";
+    const expiryDate =  fields?.date_of_expiry?.value  || "";
+    
+    const addrStreet  = fields?.address?.fields?.street?.value      || "";
+    const addrCity    = fields?.address?.fields?.city?.value        || "";
+    const addrState   = fields?.address?.fields?.state?.value       || "";
+    const addrPostal  = fields?.address?.fields?.postal_code?.value || "";
+    const address     = [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", ");
+
+    res.json({
+      success: true,
+      data: { firstName, lastName, middleName, dob, idNumber, expiryDate, address},
+    });
+
+  } catch (err) {
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    console.error("Mindee OCR error:", err.message);
+    res.status(500).json({ success: false, error: "Failed to extract ID data" });
   }
 });
 
@@ -3020,7 +3215,6 @@ app.post('/application-delete-history', async (req, res) => {
   }
 });
 
-// DELETE /application-delete-history/:id
 app.delete('/application-delete-history/:id', async (req, res) => {
   try {
     await pool.query(
@@ -3033,8 +3227,171 @@ app.delete('/application-delete-history/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete application history entry.' });
   }
 });
-// ─── ROOT ─────────────────────────────────────────────────────
 
+app.post("/api/verify-id", async (req, res) => {
+  const { frontImage, backImage, idType } = req.body;
+
+  // Map your frontend ID type labels to ID Analyzer document type codes
+  const ID_TYPE_MAP = {
+    "Philippine Passport":    ["PASSPORT"],
+    "Driver's License":       ["DRIVER", "DRIVING"],
+    "SSS ID":                 ["SSS"],
+    "GSIS ID":                ["GSIS"],
+    "PhilHealth ID":          ["PHILHEALTH", "PHIL HEALTH"],
+    "Pag-IBIG ID":            ["PAG-IBIG", "PAGIBIG"],
+    "PRC ID":                 ["PRC"],
+    "Voter's ID":             ["VOTER"],
+    "National ID (PhilSys)":  ["NATIONAL ID", "E-NATIONAL", "PHILSYS"],
+    "Senior Citizen ID":      ["SENIOR"],
+    "PWD ID":                 ["PWD"],
+    "UMID":                   ["UMID"],
+  };
+
+  try {
+    const payload = {
+      document: frontImage.replace(/^data:image\/\w+;base64,/, ""),
+      authenticate: true,
+    };
+
+    if (backImage) {
+      payload.document_back = backImage.replace(/^data:image\/\w+;base64,/, "");
+    }
+
+    const response = await fetch("https://api2.idanalyzer.com/scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.ID_ANALYZER_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    console.log("ID Analyzer raw result:", JSON.stringify(result, null, 2));
+
+    if (!result.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: result.error?.message || "ID verification failed" 
+      });
+    }
+
+    const data = result.data || {};
+    const authScore = result.authentication?.score ?? 1;
+
+    console.log("Full result.data keys:", JSON.stringify(Object.keys(data), null, 2));
+console.log("documentType field:", JSON.stringify(result.data?.documentType, null, 2));
+console.log("documentName field:", JSON.stringify(result.data?.documentName, null, 2));
+console.log("type field:", JSON.stringify(result.data?.type, null, 2));
+
+  const detectedType =
+    result.data?.documentType?.value        ||
+    (Array.isArray(result.data?.documentName)
+      ? result.data.documentName[0]?.value
+      : result.data?.documentName?.value)   ||
+    "";
+
+    const expectedType   = ID_TYPE_MAP[idType] || "";
+    const detectedUpper = detectedType.toUpperCase().trim();
+    const expectedKeywords = ID_TYPE_MAP[idType] || [];
+
+    console.log("Expected ID type keywords:", expectedKeywords);
+    console.log("Detected ID type:", detectedUpper);
+
+    if (!detectedUpper) {
+      return res.json({
+        success: true,
+        data: {
+          firstName: "", lastName: "", middleName: "",
+          dob: "", address: "", idNumber: "", expiryDate: null,
+          isValid: false, confidence: 0,
+          reason: "Could not detect ID type. Please upload a clearer image of your ID.",
+        },
+      });
+    }
+
+    const isCorrectIdType = expectedKeywords.some(keyword =>
+      detectedUpper.includes(keyword.toUpperCase())
+    );
+
+if (!isCorrectIdType) {
+  return res.json({
+    success: true,
+    data: {
+      firstName: "", lastName: "", middleName: "",
+      dob: "", address: "", idNumber: "", expiryDate: null,
+      isValid: false, confidence: 0,
+      reason: `Wrong ID type. You selected "${idType}" but the scanned document appears to be "${detectedType}". Please upload the correct ID.`,
+    },
+  });
+}
+
+    console.log("Expected ID type:", expectedKeywords);
+    console.log("Detected ID type:", detectedUpper);
+    console.log("ID type match:", isCorrectIdType);
+
+    if (!isCorrectIdType) {
+      return res.json({
+        success: true,
+        data: {
+          firstName:  "",
+          lastName:   "",
+          middleName: "",
+          dob:        "",
+          address:    "",
+          idNumber:   "",
+          expiryDate: null,
+          isValid:    false,
+          confidence: 0,
+          reason:     `Wrong ID type. You selected "${idType}" but the scanned ID appears to be a "${detectedType}". Please upload the correct ID.`,
+        },
+      });
+    }
+
+    // ── Auth Score Check ─────────────────────────────────────────────────
+    if (authScore < 0.5) {
+      return res.json({
+        success: true,
+        data: {
+          firstName:  data.firstName?.value  || "",
+          lastName:   data.lastName?.value   || "",
+          middleName: data.middleName?.value || "",
+          dob:        data.dob?.value        || "",
+          address:    data.address1?.value   || "",
+          idNumber:   data.documentNumber?.value || "",
+          expiryDate: data.expiry?.value     || null,
+          isValid:    false,
+          confidence: authScore,
+          reason:     "ID failed authenticity check. Please upload a clear, valid government-issued ID.",
+        },
+      });
+    }
+
+    // ── All checks passed ────────────────────────────────────────────────
+    res.json({
+      success: true,
+      data: {
+        firstName:  data.firstName?.value  || "",
+        lastName:   data.lastName?.value   || "",
+        middleName: data.middleName?.value || "",
+        dob:        data.dob?.value        || "",
+        address:    data.address1?.value   || "",
+        idNumber:   data.documentNumber?.value || "",
+        expiryDate: data.expiry?.value     || null,
+        isValid:    true,
+        confidence: authScore,
+        reason:     "ID verified successfully",
+      },
+    });
+
+  } catch (err) {
+    console.error("ID Analyzer error:", err);
+    res.status(500).json({ success: false, error: "Failed to verify ID" });
+  }
+});
+
+
+// ─── ROOT ─────────────────────────────────────────────────────
 app.get("/", (req, res) => {
   res.send("Franchise Backend with Per-Device Per-User Trust is Running");
 });

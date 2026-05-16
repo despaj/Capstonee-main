@@ -224,7 +224,7 @@ const getUserFromStorage = () => {
 export default function FranchiseeDashboard({ onLogout }) {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
-    return localStorage.getItem('fr_activeModule') || 'dashboard';
+    return sessionStorage.getItem('fr_activeModule') || 'dashboard';
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -234,8 +234,8 @@ export default function FranchiseeDashboard({ onLogout }) {
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
-  localStorage.setItem('fr_activeModule', activeModule);
-}, [activeModule]);
+    sessionStorage.setItem('fr_activeModule', activeModule);
+  }, [activeModule]);
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL}/transactions`)
@@ -252,6 +252,7 @@ export default function FranchiseeDashboard({ onLogout }) {
     localStorage.removeItem('user');
     localStorage.removeItem('rememberedUser');
     localStorage.removeItem('fr_activeModule');
+    sessionStorage.removeItem('fr_activeModule');
     onLogout();
   };
 
@@ -1744,7 +1745,6 @@ function FrReportsContent({ user, transactions = [] }){
 useEffect(() => {
   const fetchSavedReports = async () => {
     try {
-      // Fetch both saved snapshots and current live reports
       const [savedRes, liveRes] = await Promise.all([
         fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
         fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
@@ -1753,7 +1753,6 @@ useEffect(() => {
       const savedData = await savedRes.json();
       const liveData = await liveRes.json();
 
-      // Build a map of current live statuses by report id
       const liveStatusMap = {};
       liveData.forEach(r => { liveStatusMap[r.id] = r.status; });
 
@@ -1772,7 +1771,6 @@ useEffect(() => {
           period: snapshot.period || '—',
           content: snapshot.content || '',
           saved: true,
-          // Use live status, fall back to snapshot status
           status: liveStatusMap[item.reportId] ?? snapshot.status,
         };
       }).filter(r => r.status !== 'submitted' && r.status !== 'deleted');
@@ -1891,11 +1889,18 @@ useEffect(() => {
           itemMap[item.name].revenue += item.subtotal || 0;
         });
       });
-      const topItems = Object.entries(itemMap)
+
+      // ── CHANGE 1: top 10 instead of top 5, formatted as a numbered list ──
+      const topItemsList = Object.entries(itemMap)
         .sort((a, b) => b[1].revenue - a[1].revenue)
-        .slice(0, 5)
-        .map(([name, d]) => `${name} (qty: ${d.qty}, revenue: ₱${d.revenue.toFixed(2)})`)
-        .join(', ');
+        .slice(0, 10)
+        .map(([name, d], i) =>
+          `  ${i + 1}. ${name} (qty: ${d.qty}, revenue: PHP ${d.revenue.toFixed(2)})`
+        )
+        .join('\n');
+
+      const topItems = topItemsList || '  No item-level data available';
+      // ─────────────────────────────────────────────────────────────────────
 
          const dailyMap = {};
       filtered.forEach(tx => {
@@ -1908,13 +1913,13 @@ useEffect(() => {
       const fmtP = n => 'PHP ' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 
       const prompt = `
-      CRITICAL FORMATTING RULE: Use only standard ASCII characters. 
-      - Write currency as "PHP" followed by the amount (e.g. PHP 2,406.20) — never use the peso sign symbol.
-      - Use "to" instead of arrows (e.g. "2026-04-30 to 2026-05-03").
-      - Use only straight apostrophes and quotes. No smart/curly quotes.
-      - No special unicode symbols of any kind.
+      CRITICAL RULES — READ BEFORE WRITING ANYTHING:
+      1. You MUST write ALL seven sections (I through VII) in full. Do not stop early. Do not skip any section. Sections VI (Strategic Recommendations) and VII (Conclusion) are REQUIRED — the report is incomplete without them.
+      2. Keep each section concise (2–4 sentences or 4–6 items max) so you have enough space to finish all seven sections.
+      3. Use only standard ASCII characters. Write currency as "PHP" (e.g. PHP 2,406.20) — never use the peso sign. Use straight quotes only. No unicode symbols.
+      4. Do not use markdown symbols like ** or ##. Plain text only.
 
-      You are a senior business analyst preparing an official franchise performance report for executive review. Generate a comprehensive, formally structured sales report using ONLY the data provided below. Do not fabricate or estimate any figures not listed.
+      You are a senior business analyst writing an official franchise performance report. Use ONLY the verified data below. Do not fabricate figures.
 
       REPORT METADATA
       ---------------
@@ -1931,12 +1936,11 @@ useEffect(() => {
       Gross Profit        : ${totalCost > 0 ? fmtP(totalProfit) : 'Not provided'}
       Peak Sales Day      : ${peakDay ? `${peakDay[0]} — ${fmtP(peakDay[1])}` : 'N/A'}
       Lowest Sales Day    : ${lowestDay ? `${lowestDay[0]} — ${fmtP(lowestDay[1])}` : 'N/A'}
-      Top-Selling Items   : ${topItems || 'No item-level data available'}
+      Top-Selling Items (Top 10 by revenue):
+${topItems}
       Payment Breakdown   : ${Object.entries(paymentBreakdown).map(([k, v]) => `${k}: ${fmtP(v)}`).join(' | ') || 'N/A'}
 
-      FORMAT REQUIREMENTS
-      -------------------
-      Use the exact structure below. Maintain formal business language throughout. Use proper headers, aligned spacing, and numbered sections. Do not use markdown symbols like ** or ##. Write in plain text suitable for a PDF document.
+      OUTPUT FORMAT — write the report exactly as shown below. Replace each [...] with real content.
 
       ═══════════════════════════════════════════════════════════════
               FRANCHISE SALES & PERFORMANCE REPORT
@@ -1947,31 +1951,31 @@ useEffect(() => {
 
       I. EXECUTIVE SUMMARY
       ────────────────────
-      [2–3 paragraph formal overview of overall performance. Mention total revenue, transaction volume, and general assessment. Use complete professional sentences. Do NOT use bullet points here.]
+      [2–3 sentences: total revenue, transaction count, general performance assessment.]
 
       II. SALES PERFORMANCE OVERVIEW
       ───────────────────────────────
-      [Discuss transaction volume, average order value, peak and lowest sales days. Analyze trends and what they indicate about customer behavior. Formal paragraph format.]
+      [2–3 sentences: transaction volume, average order value, peak day, lowest day, and what these indicate.]
 
       III. REVENUE & PROFITABILITY ANALYSIS
       ──────────────────────────────────────
-      [Present revenue figures formally. If cost data is available, analyze gross profit margin. If not, note the limitation professionally. Include observations about revenue distribution across the period.]
+      [2–3 sentences: revenue figures, gross profit margin if cost data available, otherwise note the limitation.]
 
       IV. TOP-SELLING PRODUCTS
       ─────────────────────────
-      [Discuss the top items by revenue and quantity. Identify patterns, bestsellers, and any notable gaps. Use formal analytical language.]
+      [List all 10 products with rank, name, qty, and revenue. Follow with 1–2 sentences on patterns or bestsellers.]
 
       V. PAYMENT METHOD ANALYSIS
       ───────────────────────────
-      [Break down revenue by payment method. Note the dominant method, compare proportions, and recommend any adjustments to payment infrastructure or promotions.]
+      [2–3 sentences: dominant payment method, proportions, and one recommendation on payment infrastructure.]
 
       VI. STRATEGIC RECOMMENDATIONS
       ──────────────────────────────
-      [Provide 4–6 numbered, specific, actionable recommendations based strictly on the data above. Each recommendation should cite the data point that supports it. Written in formal directive language.]
+      [Exactly 5 numbered recommendations. Each must cite the specific data point that supports it. 1 sentence each.]
 
       VII. CONCLUSION
       ───────────────
-      [One formal closing paragraph summarizing key takeaways and affirming the branch's performance outlook.]
+      [2–3 sentences: key takeaways and performance outlook for the branch.]
 
       ═══════════════════════════════════════════════════════════════
         This report was automatically generated based on verified
@@ -1984,6 +1988,7 @@ useEffect(() => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          max_tokens: 4000,
           messages: [{ role: 'user', content: prompt }]
         }),
       });
@@ -1992,18 +1997,17 @@ useEffect(() => {
       const reportText = data.content?.[0]?.text || 'Failed to generate report.'; 
       const sanitizeReport = (text) => {
       return text
-        .replace(/₱/g, 'PHP ')        // peso sign -> PHP
-        .replace(/±/g, 'PHP ')        // malformed peso sign
-        .replace(/→/g, 'to')          // arrow
-        .replace(/!'/g, 'to')         // corrupted arrow
+        .replace(/₱/g, 'PHP ')
+        .replace(/±/g, 'PHP ')
+        .replace(/→/g, 'to')
+        .replace(/!'/g, 'to')
         .replace(/[^\x00-\x7F]/g, c => {
-          // Replace any remaining non-ASCII with closest ASCII equivalent
           const map = {
-            '\u2019': "'", '\u2018': "'",   // smart quotes
-            '\u201C': '"', '\u201D': '"',   // smart double quotes
-            '\u2013': '-', '\u2014': '--',  // em/en dash
-            '\u2026': '...',               // ellipsis
-            '\u00b1': '+/-',               // plus-minus
+            '\u2019': "'", '\u2018': "'",
+            '\u201C': '"', '\u201D': '"',
+            '\u2013': '-', '\u2014': '--',
+            '\u2026': '...',
+            '\u00b1': '+/-',
             '\u00b2': '2', '\u00b3': '3',
           };
           return map[c] || '';
@@ -2033,7 +2037,7 @@ useEffect(() => {
         localId: `new-${Date.now()}`,
         generatedDate: new Date().toLocaleString('en-PH'),
         period: `${dateFrom} → ${dateTo}`,
-        content: reportText,  // ← use reportText here too
+        content: reportText,
       };
 
       setReports(prev => {
@@ -2083,7 +2087,6 @@ const deleteReport = async report => {
 
 const retrieveReport = async report => {
   if (!report.id) {
-    // Local-only report, just move back to generated
     setReports(prev => [{
       ...report,
       deletedAt: undefined,
@@ -2101,7 +2104,6 @@ const retrieveReport = async report => {
     if (!res.ok) throw new Error('Retrieve failed');
     const data = await res.json();
 
-    // Move back to generated reports
     setReports(prev => [{
       id: data.report.id,
       localId: `retrieved-${Date.now()}`,
@@ -2156,10 +2158,8 @@ const retrieveReport = async report => {
       y += 4;
     };
 
-    // ── Cover header block ──────────────────────────────────────────
     y = margin;
 
-    // Dark header bar
     doc.setFillColor(13, 43, 30);
     doc.rect(0, 0, pageW, 38, 'F');
 
@@ -2182,20 +2182,16 @@ const retrieveReport = async report => {
     y = 46;
 
     const cleanContent = report.content
-  // ASCII-safe currency and symbols
   .replace(/₱/g, 'PHP ')
   .replace(/±/g, 'PHP ')
   .replace(/→/g, 'to')
   .replace(/!'/g, 'to')
-  // Smart quotes and dashes
   .replace(/[\u2018\u2019]/g, "'")
   .replace(/[\u201C\u201D]/g, '"')
   .replace(/\u2013/g, '-')
   .replace(/\u2014/g, '--')
   .replace(/\u2026/g, '...')
-  // Box-drawing characters
   .replace(/[═─━]+/g, '')
-  // Strip embedded duplicate headers
   .replace(/^.*FRANCHISE SALES.*$/gm, '')
   .replace(/^.*Branch:.*Period:.*$/gm, '')
   .replace(/^.*Date Prepared:.*$/gm, '')
@@ -2206,7 +2202,6 @@ const retrieveReport = async report => {
   .replace(/\n{3,}/g, '\n\n')
   .trim();
 
-    const sectionRegex = /^(I{1,3}V?|VI{0,3}|VII)\.\s+(.+)$/m;
     const lines = cleanContent.split('\n');
 
     lines.forEach(line => {
@@ -2216,7 +2211,6 @@ const retrieveReport = async report => {
       if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
         checkY(14);
         y += 4;
-        // Green accent bar
         doc.setFillColor(0, 137, 123);
         doc.rect(margin, y - 4, 3, 9, 'F');
         doc.setFontSize(11);
@@ -2226,7 +2220,6 @@ const retrieveReport = async report => {
         y += 8;
         writeDivider([0, 137, 123]);
       }
-      // Numbered recommendation  e.g. "1. Do something"
       else if (/^\d+\.\s+/.test(trimmed)) {
         checkY(8);
         const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
@@ -2243,14 +2236,12 @@ const retrieveReport = async report => {
           y += 5.5;
         });
       }
-      // Normal paragraph text
       else {
         writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
         y += 1;
       }
     });
 
-    // ── Footer on every page ────────────────────────────────────────
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
@@ -2306,7 +2297,6 @@ const submitReport = async report => {
     if (!res.ok) throw new Error('Submit failed');
     const data = await res.json();
 
-    // Move to submitted reports
     setSubmittedReports(prev => [{
       id: report.id,
       localId: report.localId,
@@ -2643,7 +2633,7 @@ const submitReport = async report => {
                   return (
                     <tr key={r.id || r.localId || i}>
                       <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
-                        {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}  {/* ← ADD */}
+                        {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
                       </td>
                       <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
                         {r.deletedAt}
@@ -2691,6 +2681,39 @@ const submitReport = async report => {
   );
 }
 
+const StaffForm = ({ onSubmit, isEdit, form, handleInputChange, closeModal, showPwRules, pwErrors }) => (
+  <form onSubmit={onSubmit}>
+    <div className="v-form-group">
+      <label className="v-form-label">Full Name</label>
+      <input type="text" name="name" className="v-form-input" value={form.name} onChange={handleInputChange} required />
+    </div>
+    <div className="v-form-group">
+      <label className="v-form-label">Email Address</label>
+      <input type="email" name="email" className="v-form-input" value={form.email} onChange={handleInputChange} required />
+    </div>
+    <div className="v-form-group">
+      <label className="v-form-label">Role</label>
+      <select name="role" className="v-form-select" value={form.role} onChange={handleInputChange}>
+        <option value="Staff">Staff</option>
+        <option value="Manager">Manager</option>
+      </select>
+    </div>
+    <div className="v-form-group">
+      <label className="v-form-label">Branch</label>
+      <input type="text" className="v-form-input" value={form.branch} disabled />
+    </div>
+    <div className="v-form-group">
+      <label className="v-form-label">{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</label>
+      <input type="password" name="password" className="v-form-input" value={form.password} onChange={handleInputChange} required={!isEdit} placeholder={isEdit ? 'Leave blank to keep current' : 'Enter secure password'} />
+      {showPwRules && <VPwBox errors={pwErrors} />}
+    </div>
+    <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+      <button type="button" className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={closeModal}>Cancel</button>
+      <button type="submit" className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{isEdit ? 'Save Changes' : 'Create Account'}</button>
+    </div>
+  </form>
+);
+
 function FrStaffManagementContent({ user }) {
   const franchiseeBranch = (user?.branch || '').trim();
   const [staff, setStaff] = useState([]);
@@ -2734,16 +2757,26 @@ function FrStaffManagementContent({ user }) {
     } catch { alert('Failed to add staff'); }
   };
 
-  const handleEdit = async e => {
-    e.preventDefault();
-    if (form.password && !validatePw(form.password).valid) { alert('Password does not meet requirements.'); return; }
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, email: form.email, role: form.role, branch: franchiseeBranch, ...(form.password && { password: form.password }) }) });
-      const d = await res.json();
-      if (d.success) { await fetchStaff(); setShowEditModal(false); setEditingStaff(null); setForm(emptyForm); setShowPwRules(false); }
-      else alert(d.error || 'Failed to update');
-    } catch { alert('Failed to update'); }
-  };
+const handleEdit = async e => {
+  e.preventDefault();
+  if (form.password && !validatePw(form.password).valid) { alert('Password does not meet requirements.'); return; }
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingStaff.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: form.name, 
+        email: form.email,
+        role: form.role,
+        email: form.email,
+        ...(form.password && { newPassword: form.password }), // backend expects newPassword not password
+      }),
+    });
+    const d = await res.json();
+    if (d.success) { await fetchStaff(); setShowEditModal(false); setEditingStaff(null); setForm(emptyForm); setShowPwRules(false); }
+    else alert(d.error || 'Failed to update');
+  } catch { alert('Failed to update'); }
+};
 
   const handleDelete = async id => {
     if (confirmDel !== id) { setConfirmDel(id); return; }
@@ -2756,39 +2789,6 @@ function FrStaffManagementContent({ user }) {
   };
 
   const closeModal = () => { setShowAddModal(false); setShowEditModal(false); setForm(emptyForm); setShowPwRules(false); setPwErrors([]); };
-
-  const StaffForm = ({ onSubmit, isEdit }) => (
-    <form onSubmit={onSubmit}>
-      <div className="v-form-group">
-        <label className="v-form-label">Full Name</label>
-        <input type="text" name="name" className="v-form-input" value={form.name} onChange={handleInputChange} required />
-      </div>
-      <div className="v-form-group">
-        <label className="v-form-label">Email Address</label>
-        <input type="email" name="email" className="v-form-input" value={form.email} onChange={handleInputChange} required />
-      </div>
-      <div className="v-form-group">
-        <label className="v-form-label">Role</label>
-        <select name="role" className="v-form-select" value={form.role} onChange={handleInputChange}>
-          <option value="Staff">Staff</option>
-          <option value="Manager">Manager</option>
-        </select>
-      </div>
-      <div className="v-form-group">
-        <label className="v-form-label">Branch</label>
-        <input type="text" className="v-form-input" value={franchiseeBranch} disabled />
-      </div>
-      <div className="v-form-group">
-        <label className="v-form-label">{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</label>
-        <input type="password" name="password" className="v-form-input" value={form.password} onChange={handleInputChange} required={!isEdit} placeholder={isEdit ? 'Leave blank to keep current' : 'Enter secure password'} />
-        {showPwRules && <VPwBox errors={pwErrors} />}
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-        <button type="button" className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={closeModal}>Cancel</button>
-        <button type="submit" className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{isEdit ? 'Save Changes' : 'Create Account'}</button>
-      </div>
-    </form>
-  );
 
   return (
     <>
@@ -2852,7 +2852,7 @@ function FrStaffManagementContent({ user }) {
           <div className="v-modal" onClick={e => e.stopPropagation()}>
             <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Create Staff Account</h2>
             <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Add a new staff or manager to your branch.</p>
-            <StaffForm onSubmit={handleAdd} isEdit={false} />
+           <StaffForm onSubmit={handleAdd} isEdit={false} form={form} handleInputChange={handleInputChange} closeModal={closeModal} showPwRules={showPwRules} pwErrors={pwErrors} />
           </div>
         </div>
       )}
@@ -2861,7 +2861,7 @@ function FrStaffManagementContent({ user }) {
           <div className="v-modal" onClick={e => e.stopPropagation()}>
             <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Edit Staff Account</h2>
             <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Update details for {editingStaff?.name}.</p>
-            <StaffForm onSubmit={handleEdit} isEdit={true} />
+            <StaffForm onSubmit={handleEdit} isEdit={true} form={form} handleInputChange={handleInputChange} closeModal={closeModal} showPwRules={showPwRules} pwErrors={pwErrors} />
           </div>
         </div>
       )}

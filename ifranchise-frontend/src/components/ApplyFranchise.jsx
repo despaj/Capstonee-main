@@ -53,27 +53,6 @@ const VALID_ID_TYPES = [
   "National ID (PhilSys)","Senior Citizen ID","PWD ID","UMID",
 ];
 
-// ─── PHILIPPINE ADDRESS DATA (Placeholder — replace with PSGC API) ──────────
-const PH_REGIONS = [
-  "NCR – National Capital Region","CAR – Cordillera Administrative Region",
-  "Region I – Ilocos Region","Region II – Cagayan Valley",
-  "Region III – Central Luzon","Region IV-A – CALABARZON",
-  "Region IV-B – MIMAROPA","Region V – Bicol Region",
-  "Region VI – Western Visayas","Region VII – Central Visayas",
-  "Region VIII – Eastern Visayas","Region IX – Zamboanga Peninsula",
-  "Region X – Northern Mindanao","Region XI – Davao Region",
-  "Region XII – SOCCSKSARGEN","Region XIII – Caraga","BARMM",
-];
-const PH_PROVINCES_BY_REGION = {
-  "NCR – National Capital Region": ["Metro Manila"],
-  "Region IV-A – CALABARZON": ["Batangas","Cavite","Laguna","Quezon","Rizal"],
-  "Region III – Central Luzon": ["Aurora","Bataan","Bulacan","Nueva Ecija","Pampanga","Tarlac","Zambales"],
-};
-const PH_CITIES_BY_PROVINCE = {
-  "Metro Manila": ["Caloocan","Las Piñas","Makati","Malabon","Mandaluyong","Manila","Marikina","Muntinlupa","Navotas","Parañaque","Pasay","Pasig","Pateros","Quezon City","San Juan","Taguig","Valenzuela"],
-  "Rizal": ["Antipolo","Binangonan","Cainta","Cardona","Jala-Jala","Morong","Pililla","Rodriguez","San Mateo","Tanay","Taytay","Teresa"],
-};
-
 const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
 // ─── MODAL ────────────────────────────────────────────────────────────────────
@@ -435,12 +414,8 @@ function TermsModal({ open, onClose }) {
   );
 }
 
-
-
-
-
 // ─── OTP MODAL ───────────────────────────────────────────────────────────────
-function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
+function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOtp, onResend }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState("");
@@ -486,7 +461,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
     const code = otp.join("");
     if (code.length < 6) { setError("Please enter the complete 6-digit OTP."); return; }
     auditLog.record("OTP_ATTEMPT", { attempt: attempts + 1, maskedOtp: "XXXXXX" });
-    if (code === "123456") {
+    if (code === expectedOtp) {
       auditLog.record("OTP_VERIFIED", { success: true });
       onVerify(true);
     } else {
@@ -506,7 +481,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
     }
   };
 
-  const resend = () => {
+  const resend = async () => {
     setOtp(["", "", "", "", "", ""]);
     setAttempts(0);
     setError("");
@@ -515,6 +490,14 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
     setSending(true);
     auditLog.record("OTP_RESENT", { mobile });
     setTimeout(() => setSending(false), 1000);
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile, otp: newOtp }),
+    });
+    onResend(newOtp);
   };
 
   if (!open) return null;
@@ -527,7 +510,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
         <h3 style={{ margin: "0 0 6px", color: "#1a1a1a", fontSize: 18, fontWeight: 700 }}>OTP Verification</h3>
         <p style={{ margin: "0 0 20px", color: "#6B7280", fontSize: 13, lineHeight: 1.6 }}>
           A 6-digit code was sent to <strong>{mobile?.replace(/(\d{4})(\d{3})(\d{4})/, "$1-$2-$3")}</strong>.
-          <br /><span style={{ fontSize: 11, color: "#9CA3AF" }}>(For testing: use <strong>123456</strong>)</span>
+          <br />
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 16 }}>
           {otp.map((d, i) => (
@@ -591,34 +574,103 @@ function IdScannerModal({ open, onComplete, onClose }) {
     reader.readAsDataURL(file);
   };
 
-  const runOcr = async () => {
-    setStep("processing");
-    auditLog.record("OCR_STARTED", { idType });
-    await new Promise(r => setTimeout(r, 2500));
-    const mock = {
-      lastName: "DELA CRUZ",
-      firstName: "JUAN",
-      middleName: "MASIGASIG",
-      dob: "1990-05-15",
-      address: "123 Rizal St., Brgy. San Jose, Las Piñas City",
-      idNumber: "PLACEHOLDER-ID-001",
-      expiryDate: "2028-05-15",
-      confidence: 0.94,
+const runOcr = async () => {
+  setStep("processing");
+  auditLog.record("OCR_STARTED", { idType });
+
+  try {
+    // ── Step 1: Validate ID with ID Analyzer ──────────────────────────
+    const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frontImage: frontImg, backImage: backImg, idType }),
+    });
+
+    const verifyResult = await verifyRes.json();
+
+    if (!verifyResult.success || !verifyResult.data.isValid) {
+      setOcrResult({ reason: verifyResult.data?.reason || verifyResult.error });
+      setIdValid(false);
+      setStep("result");
+      return;
+    }
+
+    // ── Step 2: Extract data with Mindee ─────────────────────────────
+    const extractRes = await fetch(`${process.env.REACT_APP_API_URL}/api/extract-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frontImage: frontImg, idType }),
+    });
+
+    const extractResult = await extractRes.json();
+
+    if (!extractResult.success) {
+      // Validation passed but extraction failed — still allow with empty fields
+      setOcrResult({
+        ...verifyResult.data,
+        firstName:  "",
+        lastName:   "",
+        middleName: "",
+        dob:        "",
+        address:    "",
+        idNumber:   "",
+        expiryDate: null,
+        reason:     "ID verified but could not extract data. Please fill in manually.",
+      });
+      setIdValid(true);
+      setStep("result");
+      return;
+    }
+
+    // ── Step 3: Merge both results ────────────────────────────────────
+    const merged = {
+      ...verifyResult.data,
+      ...extractResult.data,
+      isValid:    true,
+      confidence: verifyResult.data.confidence,
+      reason:     "ID verified and data extracted successfully",
     };
-    setOcrResult(mock);
-    auditLog.record("OCR_COMPLETED", { confidence: mock.confidence, idType });
-    await new Promise(r => setTimeout(r, 1000));
-    const isValid = true;
-    setIdValid(isValid);
-    auditLog.record("ID_VALIDATION_RESULT", { isValid, idType });
+
+    setOcrResult(merged);
+    auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
+    setIdValid(true);
     setStep("result");
+
+  } catch (err) {
+    console.error("OCR error:", err);
+    auditLog.record("OCR_ERROR", { error: err.message });
+    setOcrResult({ reason: "Something went wrong. Please try again." });
+    setIdValid(false);
+    setStep("result");
+  }
+};
+
+const confirmAndFill = () => {
+  auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
+  
+  const formatDob = (raw) => {
+    if (!raw) return "";
+    // Mindee sometimes returns DD/MM/YYYY — normalize to YYYY-MM-DD for input[type=date]
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const [dd, mm, yyyy] = raw.split("/");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return raw;
   };
 
-  const confirmAndFill = () => {
-    auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
-    onComplete({ ocrResult, idType, idValid, frontImg, backImg });
-    onClose();
-  };
+  onComplete({
+    ocrResult: {
+      ...ocrResult,
+      dob: formatDob(ocrResult?.dob),
+    },
+    idType,
+    idValid,
+    frontImg,
+    backImg,
+  });
+  onClose();
+};
 
   if (!open) return null;
 
@@ -815,8 +867,22 @@ function IdScannerModal({ open, onComplete, onClose }) {
               )}
 
               {!idValid && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setStep("type")} style={{ ...S.btn, ...S.btnSolid, width: "100%" }}>Try Again with a Valid ID</button>
+                <div>
+                  {ocrResult?.reason && (
+                    <p style={{ 
+                      fontSize: 13, color: "#c62828", fontWeight: 600, 
+                      marginBottom: 12, padding: "10px 14px", 
+                      background: "#fdecea", borderRadius: 8 
+                    }}>
+                      Reason: {ocrResult.reason}
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setStep("type")} 
+                      style={{ ...S.btn, ...S.btnSolid, width: "100%" }}>
+                      Try Again with a Valid ID
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -934,12 +1000,25 @@ export default function ApplyFranchise() {
   const [progress, setProgress] = useState(0);
   const loiRef = useRef();
 
-  // Philippine address
-  const [addrRegion, setAddrRegion] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("");
+
+  const [addrRegion,   setAddrRegion]   = useState("");
   const [addrProvince, setAddrProvince] = useState("");
-  const [addrCity, setAddrCity] = useState("");
+  const [addrCity,     setAddrCity]     = useState("");
   const [addrBarangay, setAddrBarangay] = useState("");
-  const [addrStreet, setAddrStreet] = useState("");
+  const [addrStreet,   setAddrStreet]   = useState("");
+
+  const [regions,    setRegions]    = useState([]);
+  const [provinces,  setProvinces]  = useState([]);
+  const [cities,     setCities]     = useState([]);
+  const [barangays,  setBarangays]  = useState([]);
+
+  const [loadingRegions,   setLoadingRegions]   = useState(false);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCities,    setLoadingCities]    = useState(false);
+  const [loadingBarangays, setLoadingBarangays] = useState(false);
+
+const PSGC = "https://psgc.gitlab.io/api";
 
   const today = new Date().toISOString().split("T")[0];
   const maxDob = (() => {
@@ -999,10 +1078,11 @@ export default function ApplyFranchise() {
     if (!nationality) e.nationality = "Please select nationality";
     if (nationality === "Others" && !form.nationalityOther) e.nationalityOther = "Please specify your nationality";
     if (civilStatus === "Single") { delete e.spouseName; delete e.spouseOccupation; }
-    if (!addrRegion) e.addrRegion = "Please select a region";
-    if (!addrCity) e.addrCity = "Please select a city/municipality";
-    if (!addrBarangay) e.addrBarangay = "Please enter a barangay";
-    if (!addrStreet) e.addrStreet = "Please enter a street address";
+    if (!addrRegion)   e.addrRegion   = "Please select a region";
+    if (provinces.length > 0 && !addrProvince) e.addrProvince = "Please select a province";
+    if (!addrCity)     e.addrCity     = "Please select a city/municipality";
+    if (!addrBarangay) e.addrBarangay = "Please select a barangay";
+    if (!addrStreet)   e.addrStreet   = "Please enter a street address";
     if (!idVerified) e.idVerified = "Please complete ID verification";
     if (!letterOfIntent) e.letterOfIntent = "Please upload your Letter of Intent";
     if (!termsAccepted) e.terms = "You must accept the Terms and Conditions";
@@ -1011,26 +1091,22 @@ export default function ApplyFranchise() {
     return Object.keys(e).length === 0;
   };
 
-  const checkDuplicate = async (email, mobile) => {
-    auditLog.record("DUPLICATE_CHECK", { email, mobile });
-    await new Promise(r => setTimeout(r, 300));
-    return false;
-  };
-
-  const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
-    if (!idValid) { showAlert("error", "ID validation failed. Please use a valid government-issued ID."); return; }
-    setIdVerified(true);
-    setIdData({ ocrResult, idType, idValid });
-    auditLog.record("ID_AUTOFILL", { idType });
-    setForm(p => ({
-      ...p,
-      lastName: ocrResult.lastName ? capitalize(ocrResult.lastName) : p.lastName,
-      firstName: ocrResult.firstName ? capitalize(ocrResult.firstName) : p.firstName,
-      middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
-      dob: ocrResult.dob || p.dob,
-      address: ocrResult.address || p.address,
-    }));
-  };
+const checkDuplicate = async (email, mobile) => {
+  auditLog.record("DUPLICATE_CHECK", { email, mobile });
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/check-duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, mobile }),
+    });
+    const data = await res.json();
+     console.log("Duplicate check response:", data);
+    return data.exists; // true if duplicate found
+  } catch (err) {
+     console.error("Duplicate check error:", err);
+    return false; // if check fails, allow submission
+  }
+};
 
   const handleSubmitClick = async (e) => {
     e.preventDefault();
@@ -1044,32 +1120,109 @@ export default function ApplyFranchise() {
       showAlert("error", "An application with this email or mobile number already exists. Each person may only submit one application.");
       return;
     }
+
     auditLog.record("FORM_VALIDATED", { email: form.email, concept });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otp);
+
+    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile: form.mobile, otp }),
+    });
+
     setShowOtp(true);
   };
+
+const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
+  if (!idValid) {
+    showAlert("error", ocrResult?.reason || "ID validation failed. Please use a valid government-issued ID.");
+    return;
+  }
+
+  setIdVerified(true);
+  setIdData({ ocrResult, idType, idValid, frontImg }); // ← add frontImg here
+
+  auditLog.record("ID_AUTOFILL", { idType });
+
+  setForm(p => ({
+    ...p,
+    lastName:      ocrResult.lastName   ? capitalize(ocrResult.lastName)  : p.lastName,
+    firstName:     ocrResult.firstName  ? capitalize(ocrResult.firstName) : p.firstName,
+    middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
+    dob:           ocrResult.dob        || p.dob,
+  }));
+
+  if (ocrResult.address) setAddrStreet(ocrResult.address);
+
+  showAlert("success", "ID verified! Fields have been auto-filled. Please review and complete the remaining fields.");
+};
+
+
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
 
   const handleOtpVerified = async (success) => {
     setShowOtp(false);
     if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
     auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email, concept });
+    console.log("idData:", JSON.stringify(idData, null, 2));
 
-    const fullAddress = [addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ");
+    const fullAddress = [
+      addrStreet,
+      getBarangayName(),
+      getCityName(),
+      getProvinceName(),
+      getRegionName(),
+    ].filter(Boolean).join(", ");
     const resolvedNationality = nationality === "Others" ? form.nationalityOther : nationality;
     const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, form.suffix].filter(Boolean).join(" ");
 
+    let letterOfIntentBase64 = null;
+    if (letterOfIntent) {
+      letterOfIntentBase64 = await fileToBase64(letterOfIntent);
+    }
+
     const payload = {
-      name: fullName, email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
-      franchise: concept, paymentMode: form.paymentMode, dob: form.dob,
-      civilStatus, dependents: form.dependents, gender: form.gender,
-      nationality: resolvedNationality, address: fullAddress,
-      spouseName: form.spouseName, spouseOccupation: form.spouseOccupation,
-      employmentType: form.employmentType, yearsEmployer: form.yearsEmployer,
-      income: form.income, employerName: form.employerName,
-      businessAddress: form.businessAddress, position: form.position,
-      businessNature: form.businessNature, dateSigned: form.dateSigned,
-      idType: idData?.idType,
-      auditTrail: auditLog.getAll(),
+      name:             fullName,
+      email:            form.email,
+      phone:            form.mobile,
+      altPhone:         form.altMobile || null,
+      franchise:        concept,
+      paymentMode:      form.paymentMode,
+      dob:              form.dob,
+      civilStatus,
+      dependents:       form.dependents,
+      gender:           form.gender,
+      nationality:      resolvedNationality,
+      address:          fullAddress,
+      spouseName:       form.spouseName       || null,
+      spouseOccupation: form.spouseOccupation || null,
+      employmentType:   form.employmentType,
+      yearsEmployer:    form.yearsEmployer,
+      income:           form.income,
+      employerName:     form.employerName,
+      businessAddress:  form.businessAddress,
+      position:         form.position,
+      businessNature:   form.businessNature,
+      dateSigned:       form.dateSigned,
+      // ID verification fields
+      idType:  idData?.idType   || null,
+      idImage: idData?.frontImg || null, 
+      // Letter of intent
+      letterOfIntent:   letterOfIntentBase64,
+      auditTrail:       auditLog.getAll(),
     };
+
+     console.log("Payload being sent:", {
+    ...payload,
+    idImage: payload.idImage ? "base64_present" : null,
+    letterOfIntent: payload.letterOfIntent ? "base64_present" : null,
+  });
 
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
@@ -1090,7 +1243,96 @@ export default function ApplyFranchise() {
     }
   };
 
-  // Progress
+  // Fetch regions on mount
+useEffect(() => {
+  const fetchRegions = async () => {
+    setLoadingRegions(true);
+    try {
+      const res  = await fetch(`${PSGC}/regions/`);
+      const data = await res.json();
+      setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+    } catch (err) {
+      console.error("Failed to fetch regions:", err);
+    } finally {
+      setLoadingRegions(false);
+    }
+  };
+  fetchRegions();
+}, []);
+
+// Fetch provinces when region changes
+useEffect(() => {
+  if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
+  const fetchProvinces = async () => {
+    setLoadingProvinces(true);
+    setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
+    setCities([]); setBarangays([]);
+    try {
+      const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
+      const data = await res.json();
+      // Some regions (like NCR) have no provinces — fetch cities directly
+      if (!Array.isArray(data) || data.length === 0) {
+        const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
+        const citData = await citRes.json();
+        setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
+        setProvinces([]);
+      } else {
+        setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    } catch (err) {
+      console.error("Failed to fetch provinces:", err);
+    } finally {
+      setLoadingProvinces(false);
+    }
+  };
+  fetchProvinces();
+}, [addrRegion]);
+
+// Fetch cities when province changes
+useEffect(() => {
+  if (!addrProvince) { setCities([]); setBarangays([]); return; }
+  const fetchCities = async () => {
+    setLoadingCities(true);
+    setAddrCity(""); setAddrBarangay("");
+    setBarangays([]);
+    try {
+      const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
+      const data = await res.json();
+      setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+    } catch (err) {
+      console.error("Failed to fetch cities:", err);
+    } finally {
+      setLoadingCities(false);
+    }
+  };
+  fetchCities();
+}, [addrProvince]);
+
+// Fetch barangays when city changes
+useEffect(() => {
+  if (!addrCity) { setBarangays([]); return; }
+  const fetchBarangays = async () => {
+    setLoadingBarangays(true);
+    setAddrBarangay("");
+    try {
+      const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
+      const data = await res.json();
+      setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+    } catch (err) {
+      console.error("Failed to fetch barangays:", err);
+    } finally {
+      setLoadingBarangays(false);
+    }
+  };
+  fetchBarangays();
+}, [addrCity]);
+
+// Helper to get name from code
+const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name   || "";
+const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
+const getCityName     = () => cities.find(c => c.code === addrCity)?.name       || "";
+const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
+
   useEffect(() => {
     const fields = ["paymentMode","lastName","firstName","dob","gender","dependents","mobile","email","employmentType","yearsEmployer","income","employerName","businessAddress","position","businessNature"];
     let total = fields.length + 7;
@@ -1117,14 +1359,11 @@ export default function ApplyFranchise() {
     />
   );
 
-  const availableProvinces = PH_PROVINCES_BY_REGION[addrRegion] || [];
-  const availableCities = PH_CITIES_BY_PROVINCE[addrProvince] || PH_CITIES_BY_PROVINCE[addrRegion] || [];
-
   return (
     <div className="af-page">
       <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => alert.onConfirm() : null} />
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
-      <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} />
+      <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} expectedOtp={generatedOtp} onResend={(newOtp) => setGeneratedOtp(newOtp)} />
       <IdScannerModal open={showIdScanner} onComplete={handleIdComplete} onClose={() => setShowIdScanner(false)} />
 
       {/* ── Nav ── */}
@@ -1257,42 +1496,86 @@ export default function ApplyFranchise() {
 
             {/* ── Philippine Address ── */}
             <div className="af-section">
-              <SectionHeader icon={MapPin} title="Present Address" subtitle="Please enter your Philippine Address" />
+              <SectionHeader icon={MapPin} title="Present Address" subtitle="Powered by PSGC — Official Philippine address data" />
+
+              {/* Region */}
               <Field label="Region" required error={errors.addrRegion}>
-                <CustomSelect value={addrRegion} placeholder="Select Region" options={PH_REGIONS}
-                  error={errors.addrRegion}
-                  onSelect={v => { setAddrRegion(v); setAddrProvince(""); setAddrCity(""); setAddrBarangay(""); setErrors(p => ({ ...p, addrRegion: "" })); }} />
+                <select
+                  style={{ ...inpStyle, border: errors.addrRegion ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                  value={addrRegion}
+                  onChange={e => { setAddrRegion(e.target.value); setErrors(p => ({ ...p, addrRegion: "" })); }}
+                  disabled={loadingRegions}
+                >
+                  <option value="">{loadingRegions ? "Loading regions..." : "Select Region"}</option>
+                  {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
+                </select>
               </Field>
-              {availableProvinces.length > 0 && (
-                <Field label="Province" error={errors.addrProvince}>
-                  <CustomSelect value={addrProvince} placeholder="Select Province" options={availableProvinces}
-                    onSelect={v => { setAddrProvince(v); setAddrCity(""); }} />
+
+              {/* Province — hidden for regions with no provinces (e.g. NCR) */}
+              {provinces.length > 0 && (
+                <Field label="Province" required error={errors.addrProvince}>
+                  <select
+                    style={{ ...inpStyle, border: errors.addrProvince ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                    value={addrProvince}
+                    onChange={e => { setAddrProvince(e.target.value); setErrors(p => ({ ...p, addrProvince: "" })); }}
+                    disabled={loadingProvinces || !addrRegion}
+                  >
+                    <option value="">{loadingProvinces ? "Loading provinces..." : "Select Province"}</option>
+                    {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
+                  </select>
                 </Field>
               )}
+
+              {/* City / Municipality */}
               <div className="af-row">
                 <Field label="City / Municipality" required error={errors.addrCity} half>
-                  <CustomSelect
-                    value={addrCity} placeholder="Select City/Municipality"
-                    options={availableCities.length ? availableCities : ["— Select region first —"]}
-                    disabled={!addrRegion}
-                    error={errors.addrCity}
-                    onSelect={v => { setAddrCity(v); setErrors(p => ({ ...p, addrCity: "" })); }} />
+                  <select
+                    style={{ ...inpStyle, border: errors.addrCity ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                    value={addrCity}
+                    onChange={e => { setAddrCity(e.target.value); setErrors(p => ({ ...p, addrCity: "" })); }}
+                    disabled={loadingCities || (!addrRegion)}
+                  >
+                    <option value="">
+                      {loadingCities ? "Loading cities..." : !addrRegion ? "Select region first" : "Select City/Municipality"}
+                    </option>
+                    {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
                 </Field>
+
+                {/* Barangay */}
                 <Field label="Barangay" required error={errors.addrBarangay} half>
-                  <input style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
-                    placeholder="e.g. Brgy. San Jose"
-                    value={addrBarangay} onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }} />
+                  <select
+                    style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                    value={addrBarangay}
+                    onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }}
+                    disabled={loadingBarangays || !addrCity}
+                  >
+                    <option value="">
+                      {loadingBarangays ? "Loading barangays..." : !addrCity ? "Select city first" : "Select Barangay"}
+                    </option>
+                    {barangays.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+                  </select>
                 </Field>
               </div>
+
+              {/* Street */}
               <Field label="House No. / Street / Subdivision" required error={errors.addrStreet}>
-                <input style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
+                <input
+                  style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #c8e6c9" }}
                   placeholder="House No., Street, Subdivision"
-                  value={addrStreet} onChange={e => { setAddrStreet(e.target.value); setErrors(p => ({ ...p, addrStreet: "" })); }} />
+                  value={addrStreet}
+                  onChange={e => { setAddrStreet(e.target.value); setErrors(p => ({ ...p, addrStreet: "" })); }}
+                />
               </Field>
+
+              {/* Address preview */}
               {addrRegion && (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: "#f0fdf4", borderRadius: 8, fontSize: 12, color: "#2E7D32" }}>
                   <MapPin size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>{[addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ") || "Address preview will appear here"}</span>
+                  <span>
+                    {[addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()]
+                      .filter(Boolean).join(", ") || "Address preview will appear here"}
+                  </span>
                 </div>
               )}
             </div>

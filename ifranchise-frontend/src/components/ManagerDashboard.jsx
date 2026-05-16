@@ -212,7 +212,9 @@ const ReadOnlyBanner = ({ message = 'View only — contact your admin to make ch
 
 export default function FranchiseeDashboard() {
   const navigate = useNavigate();
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState(() => {
+    return sessionStorage.getItem('fr_activeModule') || 'dashboard';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [transactions, setTransactions] = useState([]);
@@ -224,6 +226,10 @@ export default function FranchiseeDashboard() {
     return null;
   };
   const [user, setUser] = useState(getUserFromStorage);
+
+  useEffect(() => {
+    sessionStorage.setItem('fr_activeModule', activeModule);
+  }, [activeModule]);
 
   useEffect(() => {
     const currentUser = getUserFromStorage();
@@ -245,6 +251,7 @@ export default function FranchiseeDashboard() {
   const confirmLogout = () => { 
     localStorage.removeItem('user');
     localStorage.removeItem('rememberedUser');
+    sessionStorage.removeItem('fr_activeModule'); 
     window.location.href = '/admin-login';
   };
 

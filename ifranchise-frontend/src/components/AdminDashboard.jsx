@@ -15,7 +15,7 @@ import {
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar,Pin,  Megaphone, BarChart, RefreshCw, Eye, Clock, Info, Download,History, RotateCcw, UserPlus, CheckCircle,
-  ChevronRight, Lock, Unlock 
+  ChevronRight, Lock, Unlock, CheckCircle2,
 } from 'lucide-react';
 
 // ─── Design tokens (kept from original + Franchisee palette) ─────────────────
@@ -150,8 +150,8 @@ const bmActionBtn = (variant = "default") => ({
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
-      return localStorage.getItem('fr_activeModule') || 'dashboard';
-    });
+    return sessionStorage.getItem('fr_activeModule') || 'dashboard';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
   const [showViewApplicationModal, setShowViewApplicationModal] = useState(false);
@@ -163,6 +163,7 @@ export default function AdminDashboard() {
   const confirmLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('rememberedUser');
+    sessionStorage.removeItem('fr_activeModule');
     window.location.href = '/admin-login';
   };
   const [transactions, setTransactions] = useState([]);
@@ -173,8 +174,8 @@ export default function AdminDashboard() {
     return null;
   };
 
-    useEffect(() => {
-    localStorage.setItem('fr_activeModule', activeModule);
+  useEffect(() => {
+    sessionStorage.setItem('fr_activeModule', activeModule);
   }, [activeModule]);
 
   useEffect(() => {
@@ -259,7 +260,7 @@ export default function AdminDashboard() {
     { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} />,  section: 'main' },
     { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />,section: 'main' },
     { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
-    { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} />,    section: 'main' },
+    // { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} />,    section: 'main' },
     { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} />,   section: 'main' },
     { id: 'users',          label: 'User Management',       icon: <Users size={20} />,       section: 'main' },
     { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,   section: 'main' },
@@ -1146,8 +1147,8 @@ const fetchDeleteHistory = async () => {
     const data = await res.json();
     const normalized = Array.isArray(data) ? data.map(entry => ({
       ...entry,
-      brandName: entry.brand_name ?? null,          // ← map snake_case → camelCase
-      deletedAt: entry.deleted_at ?? null,           // ← map snake_case → camelCase
+      brandName: entry.brand_name ?? null,
+      deletedAt: entry.deleted_at ?? null,
       data: typeof entry.data === 'string' 
         ? JSON.parse(entry.data) 
         : (entry.data ?? {}),
@@ -1560,7 +1561,7 @@ const handleRestore = async (entry) => {
             >
               <Plus size={14} /> Add Branch
             </button>
-            <button
+            {/* <button
               onClick={() => { setBrandForm(emptyBrand); setShowAddBrandModal(true); }}
               style={{
                 display: "flex", alignItems: "center", gap: 7,
@@ -1572,7 +1573,7 @@ const handleRestore = async (entry) => {
               }}
             >
               <Plus size={15} /> Add Brand
-            </button>
+            </button> */}
           </div>
         </div>
 
@@ -2917,20 +2918,13 @@ function ApplicationsContent({ applications: initialApps }) {
   const [accountApp,   setAccountApp]   = useState(null);
   const [alertModal, setAlertModal] = useState(null);
   
-   const showAlert = (message, type = "info") =>
-    setAlertModal({ message, type });
-  {alertModal && (
-    <AlertModal
-      message={alertModal.message}
-      type={alertModal.type}
-      onClose={() => setAlertModal(null)}
-    />
-  )}
-  const [menuApp,      setMenuApp]      = useState(null);
+  const showAlert = (message, type = "info") =>
+  setAlertModal({ message, type });
+
+  const [menuApp, setMenuApp] = useState(null);
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
 
-  // ── Fetch applications ──────────────────────────────────────────────────
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
@@ -2941,10 +2935,6 @@ function ApplicationsContent({ applications: initialApps }) {
     }
   };
 
-  // ── Fetch delete history ────────────────────────────────────────────────
-  // Backend GET /application-delete-history returns rows shaped:
-  //   { id, application_data: {...}, deleted_at }
-  // We map them to: { id, data: {...}, deletedAt }
   const fetchAppDeleteHistory = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
@@ -3204,7 +3194,9 @@ function ApplicationsContent({ applications: initialApps }) {
       <DeleteHistoryModal />
 
       {/* ── View Application Modal ── */}
-      {viewApp && (
+      {viewApp && ( 
+         <>
+    {console.log("viewApp:", JSON.stringify(viewApp, null, 2))}
         <div onClick={() => setViewApp(null)} style={{
           position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -3212,19 +3204,15 @@ function ApplicationsContent({ applications: initialApps }) {
         }}>
           <div onClick={e => e.stopPropagation()} style={{
             background: C.white, borderRadius: 20, padding: "28px 32px",
-            width: "100%", maxWidth: 500,
+            width: "100%", maxWidth: 680,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
             maxHeight: "90vh", overflowY: "auto",
+            fontFamily: "Montserrat, sans-serif",
           }}>
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", marginBottom: 22,
-            }}>
-              <h2 style={{
-                fontFamily: "Montserrat,sans-serif", fontSize: 18,
-                fontWeight: 800, color: "#0d2b1e", margin: 0,
-              }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h2 style={{ fontFamily: "Montserrat,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
                 Application Details
               </h2>
               <button onClick={() => setViewApp(null)} style={{
@@ -3236,41 +3224,175 @@ function ApplicationsContent({ applications: initialApps }) {
                 <X size={15} />
               </button>
             </div>
-            <p style={{ fontSize: 13, color: "#5a7a65", marginBottom: 20 }}>
-              Viewing details for:{" "}
-              <strong style={{ color: "#0d2b1e" }}>{viewApp.name}</strong>
-            </p>
-            {[
-              ["Full Name",          viewApp.name],
-              ["Email Address",      viewApp.email],
-              ["Phone Number",       viewApp.phone],
-              ["Franchise Interest", viewApp.franchise],
-              ["Date Applied",       viewApp.date],
-              ["Status",             viewApp.status?.toUpperCase()],
-            ].map(([label, val]) => (
-              <div key={label} style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>{label}</label>
-                <div style={{
-                  ...bmInput, background: "#f8fffe",
-                  cursor: "default", color: "#0d2b1e",
-                  display: "flex", alignItems: "center",
-                }}>
-                  {val}
+
+            {/* Status + Meta */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: "#f0fdf5", borderRadius: 10, border: "1px solid #b2dfdb", flexWrap: "wrap" }}>
+              <StatusBadge status={viewApp.status} />
+              <span style={{ fontSize: 12, color: "#5a7a65" }}>
+                Date Applied: <strong>
+                  {viewApp.date 
+                    ? new Date(viewApp.date).toLocaleDateString("en-PH", { 
+                        year: "numeric", month: "short", day: "numeric",
+                        timeZone: "Asia/Manila"
+                      }) 
+                    : "—"}
+                </strong>
+              </span>
+              {viewApp.idType && (
+                <span style={{ fontSize: 12, color: "#5a7a65", marginLeft: "auto" }}>
+                  ID Used: <strong>{viewApp.idType}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* Section Helper */}
+            {(() => {
+              const Section = ({ title, children }) => (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 800, color: "#00897b", letterSpacing: "0.1em",
+                    textTransform: "uppercase", marginBottom: 10, paddingBottom: 6,
+                    borderBottom: "1.5px solid #e0f2f1",
+                  }}>{title}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+                    {children}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {viewApp.message && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>Message</label>
-                <div style={{
-                  ...bmInput, background: "#f8fffe",
-                  minHeight: 70, whiteSpace: "pre-wrap", lineHeight: 1.6,
-                }}>
-                  {viewApp.message}
+              );
+
+              const Field = ({ label, value, full }) => (
+                <div style={{ gridColumn: full ? "1 / -1" : "auto" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{label}</div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600, color: value ? "#0d2b1e" : "#9ca3af",
+                    padding: "7px 10px", background: "#f8fffe", borderRadius: 8,
+                    border: "1px solid #e0f2f1", fontStyle: value ? "normal" : "italic",
+                  }}>
+                    {value || "—"}
+                  </div>
                 </div>
+              );
+
+             const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : null;
+
+              return (
+                <>
+                <Section title="Basic Information">
+                  <Field label="Full Name"          value={viewApp.name}              full />
+                  <Field label="Email Address"      value={viewApp.email} />
+                  <Field label="Phone Number"       value={viewApp.phone} />
+                  <Field label="Franchise Interest" value={viewApp.franchise} />
+                  <Field label="Payment Mode"       value={viewApp.paymentMode} /> 
+                  <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+                </Section>
+
+                <Section title="Personal Information">
+                  <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+                  <Field label="Civil Status"       value={viewApp.civilStatus} /> 
+                  <Field label="Gender"             value={viewApp.gender} />
+                  <Field label="Nationality"        value={viewApp.nationality} />
+                  <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+                  <Field label="ID Type Used"       value={viewApp.idType} />   
+                  <Field label="Address"            value={viewApp.address}             full />
+                </Section>
+
+                {(viewApp.spouseName || viewApp.spouseOccupation) && ( 
+                  <Section title="Spouse Information">
+                    <Field label="Spouse Name"       value={viewApp.spouseName} /> 
+                    <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+                  </Section>
+                )}
+
+                <Section title="Employment Information">
+                  <Field label="Employment Type"    value={viewApp.employmentType} /> 
+                  <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
+                  <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
+                  <Field label="Position"           value={viewApp.position} />
+                  <Field label="Company Name"       value={viewApp.employerName}        full /> 
+                  <Field label="Business Address"   value={viewApp.businessAddress}     full />
+                  <Field label="Nature of Business" value={viewApp.businessNature} />
+                </Section>
+                  
+                    <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 800, color: "#00897b",
+                letterSpacing: "0.1em", textTransform: "uppercase",
+                marginBottom: 10, paddingBottom: 6,
+                borderBottom: "1.5px solid #e0f2f1",
+              }}>Required Documents</div>
+
+              {/* Letter of Intent */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Letter of Intent (PDF)</div>
+                {viewApp.letterOfIntent ? (
+                   <button
+                      onClick={() => {
+                        let base64 = viewApp.letterOfIntent;
+                        
+                        // Strip the data URL prefix if present
+                        if (base64.includes(",")) {
+                          base64 = base64.split(",")[1];
+                        }
+                        
+                        const byteCharacters = atob(base64);
+                        const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: "application/pdf" });
+                        const url = URL.createObjectURL(blob);
+                        window.open(url, "_blank");
+                      }}
+                       style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "10px 14px", borderRadius: 8,
+                          border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+                          color: "#00695c", fontSize: 13, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "inherit", width: "fit-content",
+                        }}
+                    >
+                    <FileText size={15} /> View Letter of Intent
+                      </button>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                    No Letter of Intent uploaded
+                  </div>
+                )}
               </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 22 }}>
+
+              {/* ID Attachment */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
+                {viewApp.idImage ? (
+                  <img
+                    src={viewApp.idImage}
+                    alt="Government ID"
+                    style={{
+                      maxWidth: "100%", maxHeight: 200,
+                      borderRadius: 10, border: "1.5px solid #b2dfdb",
+                      objectFit: "contain", background: "#f8fffe",
+                    }}
+                  />
+                ) : viewApp.idType ? (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "10px 14px", borderRadius: 8,
+                    border: "1.5px solid #a5d6a7", background: "#e8f5e9",
+                    fontSize: 13, fontWeight: 600, color: "#1b5e20",
+                  }}>
+                    <CheckCircle2 size={15} color="#2E7D32" />
+                    ID Verified — {viewApp.idType}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                    No ID attached
+                  </div>
+                )}
+              </div>
+            </div>
+                </>
+              );
+            })()}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
               <button onClick={() => setViewApp(null)} style={{
                 padding: "9px 22px", borderRadius: 10,
                 border: "1px solid #b2dfdb", background: "#f0fdf5",
@@ -3282,13 +3404,14 @@ function ApplicationsContent({ applications: initialApps }) {
             </div>
           </div>
         </div>
+         </>
       )}
 
-      {/* ── Create Account Modal ── */}
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
           onClose={() => setAccountApp(null)}
+          onAlert={(message, type) => setAlertModal({ message, type })}
         />
       )}
 
@@ -3521,7 +3644,7 @@ function ApplicationsContent({ applications: initialApps }) {
                       {app.franchise}
                     </td>
                     <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
-                      {app.date}
+                       {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <StatusBadge status={app.status} />
@@ -4420,11 +4543,12 @@ function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
 // USER DELETE HISTORY PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
-  const fmt = (d) =>
-    new Date(d).toLocaleString("en-PH", {
-      month: "short", day: "numeric", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
+ const fmt = (d) =>
+  new Date(d).toLocaleString("en-PH", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+    timeZone: "Asia/Manila",
+  });
 
   return (
     <div
@@ -4595,7 +4719,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             <label style={bmLabel}>Role</label>
             <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
               <option value="">Select Role</option>
-              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r}>{r}</option>)}
+              {['Administrator','Franchisee'].map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
             <div style={{ marginBottom:14 }}>
@@ -4625,14 +4749,15 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
                 {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
               </select>
             </div>
+          {isEdit ? (
           <div style={{ marginBottom:14 }}>
             <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span>{isEdit ? 'New Password (leave blank to keep)' : 'Password'}</span>
+              <span>New Password (leave blank to keep)</span>
               <button type="button" onClick={handleGeneratePassword} style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Generate</button>
             </label>
             <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
               <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
-                placeholder={isEdit?"Leave blank to keep current":""} required={!isEdit}
+                placeholder="Leave blank to keep current"
                 style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
               <button type="button" onClick={() => setShowPassword(v=>!v)}
                 style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
@@ -4641,6 +4766,11 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             </div>
             {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
           </div>
+          ) : (
+          <div style={{ marginBottom:14 }}>
+            <p style={{ fontSize:11, color:C.muted, margin:0 }}>A temporary password will be auto-generated and emailed to the user upon account creation.</p>
+          </div>
+          )}
           <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
             <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
             <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
@@ -4751,14 +4881,15 @@ useEffect(() => { fetchDeleteHistory(); }, []);
 
 const handleAddUser = async (e) => {
   e.preventDefault();
-  const passwordCheck = validatePasswordStrength(formData.password);
+  const tempPassword = generateTempPassword();
+  const passwordCheck = validatePasswordStrength(tempPassword);
   if (!passwordCheck.isValid) {
     showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
     return;
   }
 
   const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const payload = { ...formData, brand: selectedBrand?.name || "" };
+  const payload = { ...formData, password: tempPassword, brand: selectedBrand?.name || "" };
 
   try {
     const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
@@ -4772,7 +4903,7 @@ const handleAddUser = async (e) => {
         body: JSON.stringify({
           to: formData.email,
           name: formData.name,
-          password: formData.password,  // still plaintext before resetForm() clears it
+          password: tempPassword,
         }),
       });
 
@@ -5044,24 +5175,10 @@ const filteredUsers = users.filter(u => {
       </div>
 
       {/* Modals */}
-      {showAddModal  && <UserModal 
-      key="add" title="Add New User" 
-      onSubmit={handleAddUser}  
-      onClose={() => {setShowAddModal(false); resetForm(); }}  
-      isEdit={false} formData={formData}
-      handleInputChange={handleInputChange}
-      selectedBrandId={selectedBrandId}
-      setSelectedBrandId={setSelectedBrandId}
-      setFormData={setFormData} 
-      brands={brands}
-      branches={branches}
-      brandsLoading={brandsLoading}
-      showPassword={showPassword}
-      setShowPassword={setShowPassword}
-      showPasswordValidation={showPasswordValidation}
-      passwordErrors={passwordErrors}
-      handleGeneratePassword={handleGeneratePassword}
-      pwChange={pwChange}
+      {showAddModal  && <CreateAccountModal
+    applicant={null}
+    onClose={() => { setShowAddModal(false); resetForm(); }}
+    onAlert={(message, type) => setAlertModal({ message, type })}
     />}
       {showEditModal && (
       <UserModal
@@ -6965,15 +7082,23 @@ function ProfileContent({ user }) {
 // CREATE ACCOUNT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function generateTempPassword(length = 10) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghjkmnpqrstuvwxyz",
+    "23456789",
+    "!@#$",
+  ];
+  const chars = groups.join("");
+  const password = [
+    ...groups.map(group => group[Math.floor(Math.random() * group.length)]),
+    ...Array.from({ length: Math.max(length - groups.length, 0) }, () => chars[Math.floor(Math.random() * chars.length)]),
+  ];
+  return password.sort(() => Math.random() - 0.5).join("");
 }
 
 function CreateAccountModal({ applicant, onClose, onAlert }) {
-  const [tempPassword, setTempPassword] = useState(generateTempPassword());
-  const [showPassword, setShowPassword] = useState(false);
+  const [tempPassword] = useState(generateTempPassword());
   const [sending, setSending] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState([]);
 
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState("");
@@ -7004,39 +7129,6 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
     setBranches(brand?.branches || []);
   }, [selectedBrandId, brands]);
 
-  const validatePasswordStrength = (password) => {
-    const errors = [];
-    if (password.length < 8) errors.push("minLength");
-    if (!/[A-Z]/.test(password)) errors.push("uppercase");
-    if (!/[a-z]/.test(password)) errors.push("lowercase");
-    if (!/\d/.test(password))    errors.push("number");
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
-    return errors;
-  };
-
-  const PasswordValidation = ({ errors }) => (
-    <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
-      <div style={{ marginBottom:6, fontWeight:700, color:'#0d2b1e', fontSize:11, textTransform:'uppercase', letterSpacing:'0.06em' }}>Password must contain:</div>
-      {[['minLength','At least 8 characters'],['uppercase','Uppercase letter (A-Z)'],['lowercase','Lowercase letter (a-z)'],['number','Number (0-9)'],['specialChar','Special character (!@#$%^&*...)']].map(([key,text]) => (
-        <div key={key} style={{ color:errors.includes(key)?'#dc2626':'#059669', marginBottom:3, fontSize:12, display:'flex', alignItems:'center', gap:6, fontWeight:600 }}>
-          <span>{errors.includes(key)?'✗':'✓'}</span> {text}
-        </div>
-      ))}
-    </div>
-  );
-
-  const handlePasswordChange = (e) => {
-    const v = e.target.value;
-    setTempPassword(v);
-    setPasswordErrors(validatePasswordStrength(v));
-  };
-
-  const handleRegenerate = () => {
-    const generated = generateTempPassword();
-    setTempPassword(generated);
-    setPasswordErrors([]);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
@@ -7064,7 +7156,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to: email, name, password: tempPassword }),
       });
-     onAlert(`Account created and credentials sent to ${email}!`, "success");
+      onAlert(`Account created and credentials sent to ${email}!`, "success");
       onClose();
     } catch (err) {
       onAlert("Something went wrong. Please try again.", "error");
@@ -7092,7 +7184,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
             <label style={bmLabel}>Role</label>
             <select name="role" required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
               <option value="">Select Role</option>
-              {['Administrator','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+              {['Administrator','Franchisee'].map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
@@ -7126,26 +7218,12 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
                     : "Select Branch"}
               </option>
               {branches.map(br => (
-                <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option> 
+                <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>
               ))}
             </select>
           </div>
           <div style={{ marginBottom:14 }}>
-            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span>Temporary Password</span>
-              <button type="button" onClick={handleRegenerate}
-                style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Regenerate</button>
-            </label>
-            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
-              <input type={showPassword?"text":"password"} value={tempPassword} onChange={handlePasswordChange} required
-                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }}/>
-              <button type="button" onClick={() => setShowPassword(v=>!v)}
-                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
-                {showPassword?"Hide":"Show"}
-              </button>
-            </div>
-            <PasswordValidation errors={passwordErrors}/>
-            <p style={{ fontSize:11, color:C.muted, marginTop:6 }}>This password will be emailed to the applicant automatically.</p>
+            <p style={{ fontSize:11, color:C.muted, margin:0 }}>A temporary password will be auto-generated and emailed to the applicant upon account creation.</p>
           </div>
           <div style={{ display:'flex', gap:10, marginTop:22 }}>
             <button type="button" onClick={onClose}
@@ -7738,18 +7816,18 @@ function POSContent({ user, brands: propBrands = [] }) {
           <div>
             <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
               <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-  {isAdmin && (
-    <BrandBranchFilter
-      brands={brandList}
-      activeBrand={filterBrand}
-      activeBranch={activeBranch}
-      onChangeBrand={id => {
-        setFilterBrand(id);
-        setActiveBranch("");   // reset branch when brand changes
-      }}
-      onChangeBranch={val => setActiveBranch(val || "")}
-    />
-  )}
+                {isAdmin && (
+                  <BrandBranchFilter
+                    brands={brandList}
+                    activeBrand={filterBrand}
+                    activeBranch={activeBranch}
+                    onChangeBrand={id => {
+                      setFilterBrand(id);
+                      setActiveBranch("");
+                    }}
+                    onChangeBranch={val => setActiveBranch(val || "")}
+                  />
+                )}
                 <div style={{ position:"relative", flex:"1 1 200px" }}>
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                   <input type="text" placeholder="Search products…" value={searchProduct} onChange={e=>setSearchProduct(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>

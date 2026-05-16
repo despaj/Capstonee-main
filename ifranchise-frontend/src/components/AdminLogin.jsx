@@ -9,6 +9,97 @@ import FranchisorDashboard from "./FranchisorDashboard";
 import ManagerDashboard from "./ManagerDashboard";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
+const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod,
+  // pass these as props since they're no longer in scope:
+  handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
+}) => {
+  
+    const hasFocused = useRef(false);
+
+    useEffect(() => {
+  if (!hasFocused.current) {
+    hasFocused.current = true;
+    setTimeout(() => refs.current[0]?.focus(), 300);
+  }
+}, []);
+
+    return (
+      <>
+        {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
+        {error && !isLocked && <p className="error general">{error}</p>}
+        {!isLocked && attempts > 0 && (
+          <p className="otp-attempts-left">{OTP_MAX_ATTEMPTS - attempts} attempt{OTP_MAX_ATTEMPTS - attempts !== 1 ? "s" : ""} remaining</p>
+        )}
+        <div className="otp-box-wrap">
+          {otpArr.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => (refs.current[i] = el)}
+              className={`otp-box ${isLocked ? "otp-box-locked" : ""}`}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleOtpChange(i, e.target.value, otpArr, setOtpArr, refs)}
+              onKeyDown={(e) => handleOtpKeyDown(i, e, otpArr, setOtpArr, refs)}
+              onPaste={(e) => handleOtpPaste(e, setOtpArr, refs)}
+              onClick={() => refs.current[i]?.focus()}
+              disabled={!!isLocked}
+            />
+          ))}
+        </div>
+        <button className={`btn yellow ${isLocked ? "btn-disabled" : ""}`}
+          onClick={!isLocked ? onVerify : undefined}
+          disabled={!!isLocked || !!loading}>
+          {loading === loadingKey
+            ? <><span className="sms-spinner" /> Verifying...</>
+            : verifyLabel}
+        </button>
+
+
+      {showSmsSwitch && (
+        <button type="button" className="use-sms-btn" onClick={onSwitchMethod} disabled={loading === "sms"}>
+          {loading === "sms"
+            ? <><span className="sms-spinner" /> {showSmsSwitch === "sms" ? "Sending SMS..." : "Sending Email..."}</>
+            : showSmsSwitch === "sms" ? "Use SMS Instead" : "Use Email Instead"}
+        </button>
+      )}
+
+        <button
+          className="link-resend"
+          disabled={resendDisabled || !!isLocked || loading === resendKey}
+          onClick={async () => {
+            if (resendDisabled || isLocked) return;
+            setResendDisabled(true);
+            setResendTimer(30);
+            setLoading(resendKey);
+            try {
+              const res = await fetch(`${process.env.REACT_APP_API_URL}${resendEndpoint}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(resendBody),
+                credentials: "include",
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.message);
+              setTimeout(() => refs.current[0]?.focus(), 150);
+            } catch {
+              setResendDisabled(false);
+            } finally {
+              setLoading("");
+            }
+          }}
+        >
+          {loading === resendKey
+            ? <><span className="sms-spinner" /> Sending...</>
+            : resendDisabled
+            ? `Resend OTP in ${resendTimer}s`
+            : "Resend OTP"}
+        </button>
+        
+      </>
+    );
+  };
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -16,15 +107,8 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState("");
 
-  // Steps:
-  //  login
-  //  otp               — login OTP verify
-  //  forgotPassword    — choose email or sms (level 1)
-  //  forgotEmailOtp    — OTP sent to email, user enters it
-  //  forgotSmsOtp      — OTP sent to SMS, user enters it
-  //  forgotReset       — shared level 2: set new password
-  //  resetDone
   const [step, setStep] = useState("login");
 
   // Login OTP
@@ -32,7 +116,7 @@ export default function AdminLogin() {
   const [otpEmail, setOtpEmail] = useState("");
   const otpRefs = useRef([]);
   const [otpMethod, setOtpMethod] = useState("email"); // email | sms
-const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
+  const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
 
   // Forgot Password
   const [forgotEmail, setForgotEmail] = useState("");
@@ -90,18 +174,18 @@ const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
 
   // ── Session check ──
   useEffect(() => {
-    const storedUser =
-      localStorage.getItem("rememberedUser") ||
-      localStorage.getItem("user") ||
-      sessionStorage.getItem("user");
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
-        if (user && user.role) { setLoggedIn(true); setUserRole(user.role); }
+        if (user && user.role && user.sessionExpiry && Date.now() < user.sessionExpiry) {
+          setLoggedIn(true); 
+          setUserRole(user.role);
+        } else {
+          localStorage.removeItem("user");
+        }
       } catch {
-        localStorage.removeItem("rememberedUser");
         localStorage.removeItem("user");
-        sessionStorage.removeItem("user");
       }
     }
     setIsCheckingSession(false);
@@ -195,8 +279,11 @@ const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
   // ── OTP input handlers ──
   const handleOtpChange = (index, value, arr, setArr, refs) => {
     if (!/^\d*$/.test(value)) return;
-    const n = [...arr]; n[index] = value.slice(-1); setArr(n);
-    if (value && index < 5) refs.current[index + 1]?.focus();
+    const digit = value.slice(-1);
+    const n = [...arr]; 
+    n[index] = value.slice(-1); 
+    setArr(n);
+    if (digit && index < 5) refs.current[index + 1]?.focus(); 
   };
   const handleOtpKeyDown = (index, e, arr, setArr, refs) => {
     if (e.key === "Backspace" && !arr[index] && index > 0) refs.current[index - 1]?.focus();
@@ -228,6 +315,8 @@ const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
     if (!email) newErrors.email = "Email is required";
     if (!password) newErrors.password = "Password is required";
     if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+     
+    setLoading("login");
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
         method: "POST", headers: { "Content-Type": "application/json", "X-Client": "web" },
@@ -239,20 +328,16 @@ const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
         setLoginAttempts(0);
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
-        if (data.skipOtp && rememberMe) {
-          localStorage.setItem("rememberedUser", JSON.stringify({ ...data.user, rememberExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000 }));
-          setLoggedIn(true); setUserRole(data.user.role);
-        } else if (data.skipOtp) {
-          localStorage.setItem("user", JSON.stringify(data.user));
-          setLoggedIn(true); setUserRole(data.user.role);
-        } else {
-          setOtpEmail(email.trim());
-          sessionStorage.setItem("tempUser", JSON.stringify(data.user));
-          await sendOtpSilent(email.trim());
-          setStep("otp");
-        }
+        // Always go to OTP — no skipOtp logic
+        setOtpEmail(email.trim());
+        sessionStorage.setItem("tempUser", JSON.stringify(data.user));
+        await sendOtpSilent(email.trim());
+        setStep("otp");
       }
-    } catch { setAuthError("Connection error. Please try again."); }
+    } catch { setAuthError("Connection error. Please try again."); 
+     } finally {
+    setLoading("");
+     }
   };
 
   const incrementAttempts = () => {
@@ -274,12 +359,12 @@ const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
       setAuthError(`Invalid credentials. ${rem} attempt${rem !== 1 ? "s" : ""} remaining.`);
     }
   };
-const sendOtpSilent = async (e, method = "email") => {
-  try {
-    const endpoint =
-      method === "sms"
-        ? "/send-login-sms-otp"
-        : "/send-otp-after-login";
+  const sendOtpSilent = async (e, method = "email") => {
+    try {
+      const endpoint =
+        method === "sms"
+          ? "/send-login-sms-otp"
+          : "/send-otp-after-login";
 
     const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
       method: "POST",
@@ -305,45 +390,52 @@ const sendOtpSilent = async (e, method = "email") => {
   }
 };
 
-  // ── Login OTP verify ──
-  const verifyOtp = async () => {
-    setOtpError("");
-    if (otpLockedUntil && Date.now() < otpLockedUntil) { setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`); return; }
-    const val = otp.join("");
-    if (val.length !== 6) { setOtpError("Please enter a valid 6-digit OTP"); return; }
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: otpEmail.trim(), otp: val }), credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const n = otpAttempts + 1; setOtpAttempts(n);
-        if (n >= OTP_MAX_ATTEMPTS) {
-          setOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
-          setOtpError("Maximum OTP attempts reached. You are locked out for 2 hours.");
-        } else {
-          setOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
-        }
-        return;
-      }
-      setOtpAttempts(0); setOtpLockedUntil(null);
-      const user = data.user;
-      if (rememberMe) {
-        localStorage.setItem("rememberedUser", JSON.stringify({ ...user, rememberExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000 }));
+const verifyOtp = async () => {
+  setOtpError("");
+  if (otpLockedUntil && Date.now() < otpLockedUntil) {
+    setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`);
+    return;
+  }
+  const val = otp.join("");
+  if (val.length !== 6) { setOtpError("Please enter a valid 6-digit OTP"); return; }
+
+  setLoading("otp");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: otpEmail.trim(), otp: val }), credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const n = otpAttempts + 1; setOtpAttempts(n);
+      if (n >= OTP_MAX_ATTEMPTS) {
+        setOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+        setOtpError("Maximum OTP attempts reached. You are locked out for 2 hours.");
       } else {
-        localStorage.setItem("user", JSON.stringify(user));
+        setOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
       }
-      sessionStorage.removeItem("tempUser");
-      setLoggedIn(true); setUserRole(user.role);
-    } catch { setOtpError("OTP verification failed"); }
-  };
+      return;
+    }
+    setOtpAttempts(0); setOtpLockedUntil(null);
+    const user = data.user;
+
+    localStorage.setItem("user", JSON.stringify({
+      ...user,
+      sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000
+    }));
+
+    sessionStorage.removeItem("tempUser");
+    setLoggedIn(true); setUserRole(user.role);
+  } catch { setOtpError("OTP verification failed"); 
+   } finally { setLoading(""); }
+};
 
   // ── Open Forgot Password: pre-fetch phone then show choice ──
   const handleForgotPasswordOpen = async () => {
     setChoiceError("");
     setForgotEmail(email.trim());
-    setMaskedPhone("");
+     setMaskedPhone("your registered number"); 
+       setStep("forgotPassword");
     if (email.trim()) {
       setIsFetchingPhone(true);
       try {
@@ -359,15 +451,19 @@ const sendOtpSilent = async (e, method = "email") => {
       } catch { /* no phone found — SMS option will be disabled */ }
       finally { setIsFetchingPhone(false); }
     }
+    setChoiceError("");
+    setForgotEmail(email.trim());
+    setMaskedPhone("your registered number");  
     setStep("forgotPassword");
   };
 
-  // ── Choose Email: auto-send OTP ──
   const handleChooseEmail = async () => {
     setChoiceError("");
     if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
       setChoiceError(`You are currently locked out. Try again in ${forgotOtpLockRemaining}.`); return;
     }
+    
+    setLoading("choiceEmail");
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/send-forgot-password-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -381,17 +477,18 @@ const sendOtpSilent = async (e, method = "email") => {
       setResendDisabled(false);
       setStep("forgotEmailOtp");
     } catch { setChoiceError("Failed to send OTP. Please try again."); }
+    finally { setLoading(""); }
   };
 
-  // ── Choose SMS: auto-send OTP ──
   const handleChooseSms = async () => {
     setChoiceError("");
-    if (!maskedPhone) { setChoiceError("No phone number found for this account."); return; }
     if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
       setChoiceError(`You are currently locked out. Try again in ${forgotOtpLockRemaining}.`); return;
     }
+
+    setLoading("choiceSms");
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-sms-otp`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-login-sms-otp`, { // ← change this
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail.trim() }), credentials: "include",
       });
@@ -403,44 +500,81 @@ const sendOtpSilent = async (e, method = "email") => {
       setResendDisabled(false);
       setStep("forgotSmsOtp");
     } catch { setChoiceError("Failed to send SMS OTP. Please try again."); }
+    finally { setLoading(""); }
   };
+  
+const verifyForgotEmailOtp = async () => {
+  setForgotOtpError("");
+  if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
+    setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
+  }
+  const val = forgotOtp.join("");
+  if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
 
-  // ── Verify forgot OTP (shared, email or sms) ──
-  const verifyForgotOtp = async () => {
-    setForgotOtpError("");
-    if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
-      setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
-    }
-    const val = forgotOtp.join("");
-    if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
-    const endpoint = forgotOtpMethod === "sms" ? "/verify-sms-otp" : "/verify-forgot-otp";
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const n = forgotOtpAttempts + 1; setForgotOtpAttempts(n);
-        if (n >= OTP_MAX_ATTEMPTS) {
-          setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
-          setForgotOtpError("Maximum OTP attempts reached. Locked out for 2 hours.");
-        } else {
-          setForgotOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
-        }
-        return;
+  setLoading("forgotOtp");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const n = forgotOtpAttempts + 1; setForgotOtpAttempts(n);
+      if (n >= OTP_MAX_ATTEMPTS) {
+        setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+        setForgotOtpError("Maximum OTP attempts reached. Locked out for 2 hours.");
+      } else {
+        setForgotOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
       }
-      setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
-      setResetError(""); setNewPassword(""); setConfirmPassword("");
-      setShowPasswordValidation(false); setPasswordErrors([]);
-      setStep("forgotReset");
-    } catch { setForgotOtpError("Verification failed. Please try again."); }
-  };
+      return;
+    }
+    setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
+    setResetError(""); setNewPassword(""); setConfirmPassword("");
+    setShowPasswordValidation(false); setPasswordErrors([]);
+    setStep("forgotReset");
+  } catch { setForgotOtpError("Verification failed. Please try again."); }
+  finally { setLoading(""); }
+};
+
+const verifyForgotSmsOtp = async () => {
+  setForgotOtpError("");
+  if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
+    setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
+  }
+  const val = forgotOtp.join("");
+  if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
+
+  setLoading("forgotOtp");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-sms-otp`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const n = forgotOtpAttempts + 1; setForgotOtpAttempts(n);
+      if (n >= OTP_MAX_ATTEMPTS) {
+        setForgotOtpLockedUntil(Date.now() + OTP_LOCKOUT_DURATION);
+        setForgotOtpError("Maximum OTP attempts reached. Locked out for 2 hours.");
+      } else {
+        setForgotOtpError(`Invalid OTP. ${OTP_MAX_ATTEMPTS - n} attempt(s) remaining.`);
+      }
+      return;
+    }
+    setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
+    setResetError(""); setNewPassword(""); setConfirmPassword("");
+    setShowPasswordValidation(false); setPasswordErrors([]);
+    setStep("forgotReset");
+  } catch { setForgotOtpError("Verification failed. Please try again."); }
+  finally { setLoading(""); }
+};
 
   // ── Reset Password ──
   const resetPassword = async () => {
     setResetError("");
     if (!newPassword) { setResetError("Please enter a new password"); return; }
+
+    setLoading("reset"); 
     const check = validatePasswordStrength(newPassword);
     if (!check.isValid) {
       const msgs = { minLength: " at least 8 characters", uppercase: " at least 1 uppercase letter", lowercase: " at least 1 lowercase letter", number: " at least 1 number", specialChar: " at least 1 special character" };
@@ -448,6 +582,7 @@ const sendOtpSilent = async (e, method = "email") => {
     }
     if (newPassword === password) { setResetError("New password must be different from your current password"); return; }
     if (newPassword !== confirmPassword) { setResetError("Passwords do not match"); return; }
+    setLoading("reset");
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -455,19 +590,27 @@ const sendOtpSilent = async (e, method = "email") => {
         credentials: "include",
       });
       const data = await res.json();
+      console.log("API response:", data);
       if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
       setStep("resetDone");
     } catch { setResetError("Failed to reset password. Please try again."); }
+    finally { setLoading(""); }
   };
 
   // ── Logout ──
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
-    try { await fetch(`${process.env.REACT_APP_API_URL}/logout`, { method: "POST", credentials: "include" }); } catch {}
-    localStorage.removeItem("rememberedUser"); localStorage.removeItem("user");
-    sessionStorage.removeItem("user"); sessionStorage.removeItem("tempUser");
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+        method: "POST", credentials: "include"
+      });
+    } catch {}
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
     setLoggedIn(false); setUserRole(null); setStep("login");
-    setEmail(""); setPassword(""); setOtp(["", "", "", "", "", ""]); setOtpEmail("");
+    setEmail(""); setPassword(""); setOtp(["","","","","",""]); setOtpEmail("");
   };
 
   // ── Step progress index ──
@@ -479,7 +622,8 @@ const sendOtpSilent = async (e, method = "email") => {
     return -1;
   };
 
-  if (isCheckingSession) return <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
+  if (isCheckingSession) return 
+    <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
 
   if (loggedIn && userRole) {
     switch (userRole) {
@@ -524,69 +668,44 @@ const sendOtpSilent = async (e, method = "email") => {
     </div>
   );
 
-  // Reusable OTP entry + resend block
-  const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE" }) => (
-    <>
-      {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
-      {error && !isLocked && <p className="error general">{error}</p>}
-      {!isLocked && attempts > 0 && (
-        <p className="otp-attempts-left">{OTP_MAX_ATTEMPTS - attempts} attempt{OTP_MAX_ATTEMPTS - attempts !== 1 ? "s" : ""} remaining</p>
-      )}
-      <div className="otp-box-wrap">
-        {otpArr.map((digit, i) => (
-          <input key={i} ref={(el) => (refs.current[i] = el)}
-            className={`otp-box ${isLocked ? "otp-box-locked" : ""}`}
-            type="text" inputMode="numeric" maxLength={1} value={digit}
-            onChange={(e) => handleOtpChange(i, e.target.value, otpArr, setOtpArr, refs)}
-            onKeyDown={(e) => handleOtpKeyDown(i, e, otpArr, setOtpArr, refs)}
-            onPaste={(e) => handleOtpPaste(e, setOtpArr, refs)}
-            disabled={!!isLocked} />
-        ))}
-      </div>
-      <button className={`btn yellow ${isLocked ? "btn-disabled" : ""}`} onClick={!isLocked ? onVerify : undefined} disabled={!!isLocked}>
-        {verifyLabel}
-      </button>
-          {/* USE SMS INSTEAD BUTTON */}
-    {otpMethod === "email" && (
-      <button
-        type="button"
-        className="use-sms-btn"
-        onClick={async () => {
-          setOtpError("");
-          setOtp(["", "", "", "", "", ""]);
-
-          await sendOtpSilent(otpEmail, "sms");
-
-          setTimeout(() => {
-            otpRefs.current[0]?.focus();
-          }, 100);
-        }}
-      >
-      
-        Use SMS Instead
-      </button>
-    )}
-      <button className="link-resend"
-        onClick={async () => {
-          if (resendDisabled || isLocked) return;
-          setResendDisabled(true); setResendTimer(30);
-          try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}${resendEndpoint}`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(resendBody), credentials: "include",
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message);
-          } catch { setResendDisabled(false); }
-        }}
-        disabled={resendDisabled || !!isLocked}>
-        {resendDisabled ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
-      </button>
-    </>
-  );
-
   return (
     <div className="page">
+
+        {loading === "sms" && (
+        <>
+          <style>{`
+            @keyframes spin {
+              0%   { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            <div style={{
+              background: "#fff", borderRadius: 20, padding: "40px 48px",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", minWidth: 260,
+            }}>
+              <div style={{
+                width: 56, height: 56,
+                border: "5px solid #c8e6c9",
+                borderTop: "5px solid #2E7D32",
+                borderRadius: "50%",
+                animation: "spin 0.9s linear infinite",
+              }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#2E7D32" }}>
+                Sending SMS OTP...
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#888" }}>
+                Please wait a moment
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
       <img src={logo} alt="logo" className="logo" />
       <div className="card">
 
@@ -635,63 +754,80 @@ const sendOtpSilent = async (e, method = "email") => {
                 <span className="remember-text">Remember me for 30 days</span>
               </label>
             </div>
-            <button className="btn" onClick={login}>LOGIN</button>
+            <button className="btn" onClick={login} disabled={loading === "login"}>
+              {loading === "login" ? <><span className="sms-spinner" /> Logging in...</> : "LOGIN"}
+            </button>
           </>
         )}
 
-        {/* ── LOGIN OTP ── */}
-{/* ══ LOGIN OTP (email/password flow) ══ */}
-{step === "otp" && (
-  <>
-    <h2
-      style={{
-        fontSize: "23px",
-        color: "#0a8d1c",
-        fontFamily: "Montserrat",
-        fontWeight: 700,
-        marginTop: 20,
-      }}
-    >
-      Verify OTP
-    </h2>
-
-    <p className="step-subtitle">
-      {otpMethod === "email" ? (
+        {/* ── LOGIN OTP ── */} 
+      {step === "otp" && (
         <>
-          A 6-digit code was sent to:{" "}
-          <strong style={{ color: "#2E7D32" }}>{otpEmail}</strong>
-        </>
-      ) : (
-        <>
-          A 6-digit SMS OTP was sent to:{" "}
-          <strong style={{ color: "#2E7D32" }}>
-            {maskedOtpPhone || "your registered mobile number"}
-          </strong>
-        </>
-      )}
-    </p>
+          <h2
+            style={{
+              fontSize: "23px",
+              color: "#0a8d1c",
+              fontFamily: "Montserrat",
+              fontWeight: 700,
+              marginTop: 20,
+            }}
+          >
+            Verify OTP
+          </h2>
 
-
-    <OtpEntryBlock
-      otpArr={otp}
-      setOtpArr={setOtp}
-      refs={otpRefs}
-      isLocked={otpIsLocked}
-      lockRemaining={otpLockRemaining}
-      error={otpError}
-      attempts={otpAttempts}
-      onVerify={verifyOtp}
-      resendEndpoint={
-        otpMethod === "sms"
-          ? "/send-login-sms-otp"
-          : "/send-otp-after-login"
-      }
-      resendBody={{ email: otpEmail }}
-      verifyLabel="VERIFY OTP"
-    />
-  </>
-)}
-
+          <p className="step-subtitle">
+            {otpMethod === "email" ? (
+              <>
+                A 6-digit code was sent to:{" "}
+                <strong style={{ color: "#2E7D32" }}>{otpEmail}</strong>
+              </>
+            ) : (
+              <>
+                A 6-digit SMS OTP was sent to:{" "}
+                <strong style={{ color: "#2E7D32" }}>
+                  {maskedOtpPhone || "your registered mobile number"}
+                </strong>
+              </>
+            )}
+          </p>
+            <OtpEntryBlock
+              otpArr={otp}
+              setOtpArr={setOtp}
+              refs={otpRefs}
+              isLocked={otpIsLocked}
+              lockRemaining={otpLockRemaining}
+              error={otpError}
+              attempts={otpAttempts}
+              onVerify={verifyOtp}
+              resendEndpoint={
+                otpMethod === "sms"
+                  ? "/send-login-sms-otp"
+                  : "/send-otp-after-login"
+              }
+              resendBody={{ email: otpEmail }}
+              verifyLabel="VERIFY OTP"
+              loading={loading} loadingKey="otp" resendKey="resend" 
+               handleOtpChange={handleOtpChange}
+              handleOtpKeyDown={handleOtpKeyDown}
+              handleOtpPaste={handleOtpPaste}
+              setResendDisabled={setResendDisabled}
+              setResendTimer={setResendTimer}
+              setLoading={setLoading}
+              resendDisabled={resendDisabled}
+              resendTimer={resendTimer}
+              OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
+            />
+            {loading === "sms" &&(
+            <div className="sms-loading-overlay">
+              <div className="sms-loading-box">
+                <div className="sms-spinner-large" />
+                <p className="sms-loading-text">Sending SMS OTP...</p>
+                <p className="sms-loading-sub">Please wait a moment</p>
+              </div>
+            </div>
+            )}
+          </>
+        )}
         {/* ── FORGOT: Level 1 — Choose Method ── */}
         {step === "forgotPassword" && (
           <>
@@ -709,21 +845,23 @@ const sendOtpSilent = async (e, method = "email") => {
             <button
               className={`method-btn ${forgotOtpIsLocked ? "btn-disabled" : ""}`}
               onClick={!forgotOtpIsLocked ? handleChooseEmail : undefined}
-              disabled={!!forgotOtpIsLocked}>
-              <div className="method-btn-title">Send via Email</div>
+              disabled={!!forgotOtpIsLocked || !!loading}>
+              <div className="method-btn-title">
+                {loading === "choiceEmail" ? <><span className="sms-spinner" /> Sending...</> : "Send via Email"}
+              </div>
               <div className="method-btn-sub">{forgotEmail || "your registered email"}</div>
             </button>
 
-            <button
-              className={`method-btn ${!maskedPhone || forgotOtpIsLocked ? "btn-disabled" : ""}`}
-              onClick={!forgotOtpIsLocked && maskedPhone ? handleChooseSms : undefined}
-              disabled={!maskedPhone || !!forgotOtpIsLocked}
-              style={{ marginTop: 12 }}>
-              <div className="method-btn-title">Send via SMS</div>
-              <div className="method-btn-sub">
-                {isFetchingPhone ? "Loading..." : maskedPhone ? maskedPhone : "No phone number on file"}
-              </div>
-            </button>
+          <button
+            className={`method-btn ${forgotOtpIsLocked || loading ? "btn-disabled" : ""}`}
+            onClick={!forgotOtpIsLocked && !loading ? handleChooseSms : undefined}
+            disabled={!!forgotOtpIsLocked || !!loading}
+            style={{ marginTop: 12 }}>
+            <div className="method-btn-title">
+              {loading === "choiceSms" ? <><span className="sms-spinner" /> Sending...</> : "Send via SMS"}
+            </div>
+            <div className="method-btn-sub">your registered number</div>
+          </button>
           </>
         )}
 
@@ -737,8 +875,18 @@ const sendOtpSilent = async (e, method = "email") => {
               otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
               isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
               error={forgotOtpError} attempts={forgotOtpAttempts}
-              onVerify={verifyForgotOtp}
+              onVerify={verifyForgotEmailOtp} 
               resendEndpoint="/send-forgot-password-otp" resendBody={{ email: forgotEmail }}
+              loading={loading} loadingKey="forgotOtp" resendKey="resend" 
+               handleOtpChange={handleOtpChange}
+              handleOtpKeyDown={handleOtpKeyDown}
+              handleOtpPaste={handleOtpPaste}
+              setResendDisabled={setResendDisabled}
+              setResendTimer={setResendTimer}
+              setLoading={setLoading}
+              resendDisabled={resendDisabled}
+              resendTimer={resendTimer}
+              OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
             />
           </>
         )}
@@ -753,8 +901,20 @@ const sendOtpSilent = async (e, method = "email") => {
               otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
               isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
               error={forgotOtpError} attempts={forgotOtpAttempts}
-              onVerify={verifyForgotOtp}
-              resendEndpoint="/send-sms-otp" resendBody={{ email: forgotEmail }}
+              onVerify={verifyForgotSmsOtp}  
+              resendEndpoint="/send-sms-otp" 
+              resendBody={{ email: forgotEmail }}
+              showSmsSwitch="email"
+              loading={loading} loadingKey="forgotOtp" resendKey="resend"
+              handleOtpChange={handleOtpChange}
+              handleOtpKeyDown={handleOtpKeyDown}
+              handleOtpPaste={handleOtpPaste}
+              setResendDisabled={setResendDisabled}
+              setResendTimer={setResendTimer}
+              setLoading={setLoading}
+              resendDisabled={resendDisabled}
+              resendTimer={resendTimer}
+              OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
             />
           </>
         )}
@@ -812,7 +972,9 @@ const sendOtpSilent = async (e, method = "email") => {
               </div>
             </div>
 
-            <button className="btn yellow" onClick={resetPassword}>RESET PASSWORD</button>
+            <button className="btn yellow" onClick={resetPassword} disabled={loading === "reset"}>
+              {loading === "reset" ? <><span className="sms-spinner" /> Resetting...</> : "RESET PASSWORD"}
+            </button>
           </>
         )}
 
@@ -947,6 +1109,59 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   cursor:pointer;
   transition:all .2s ease;
   border:1px solid #369533;
+}
+
+/* ── SMS Loading Overlay ── */
+.sms-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.92);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.sms-loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.sms-loading-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2E7D32;
+  margin: 0;
+}
+
+.sms-loading-sub {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+
+.sms-spinner-large {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #c8e6c9;
+  border-top: 5px solid #2E7D32;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.sms-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top: 2px solid #2E7D32;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .use-sms-btn:hover{

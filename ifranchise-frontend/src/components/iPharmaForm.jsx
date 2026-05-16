@@ -124,7 +124,7 @@ function TermsModal({ open, onClose }) {
 }
 
 // ─── OTP MODAL ────────────────────────────────────────────────────────────────
-function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
+function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOtp, onResend }) {
   const [otp, setOtp] = useState(["","","","","",""]);
   const [attempts, setAttempts] = useState(0);
   const [error, setError] = useState("");
@@ -156,7 +156,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
     const code = otp.join("");
     if (code.length < 6) { setError("Please enter the complete 6-digit OTP."); return; }
     auditLog.record("OTP_ATTEMPT", { attempt: attempts + 1 });
-    if (code === "123456") { auditLog.record("OTP_VERIFIED"); onVerify(true); }
+    if (code === expectedOtp) { auditLog.record("OTP_VERIFIED"); onVerify(true); }
     else {
       const n = attempts + 1; setAttempts(n);
       auditLog.record("OTP_FAILED", { attempt: n });
@@ -166,10 +166,23 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
     }
   };
 
-  const resend = () => {
-    setOtp(["","","","","",""]); setAttempts(0); setError(""); setCountdown(60); setCanResend(false);
-    setSending(true); auditLog.record("OTP_RESENT", { mobile });
+  const resend = async () => {
+    setOtp(["", "", "", "", "", ""]);
+    setAttempts(0);
+    setError("");
+    setCountdown(60);
+    setCanResend(false);
+    setSending(true);
+    auditLog.record("OTP_RESENT", { mobile });
     setTimeout(() => setSending(false), 1000);
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile, otp: newOtp }),
+    });
+    onResend(newOtp);
   };
 
   if (!open) return null;
@@ -180,7 +193,7 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3 }) {
         <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>OTP Verification</h3>
         <p style={{ margin: "0 0 20px", color: "#6B7280", fontSize: 13, lineHeight: 1.6 }}>
           A 6-digit code was sent to <strong>{mobile?.replace(/(\d{4})(\d{3})(\d{4})/, "$1-$2-$3")}</strong>.
-          <br /><span style={{ fontSize: 11, color: "#9CA3AF" }}>(Testing: use <strong>123456</strong>)</span>
+          <br />
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 16 }}>
           {otp.map((d, i) => (
@@ -225,16 +238,84 @@ function IdScannerModal({ open, onComplete, onClose }) {
     reader.readAsDataURL(file);
   };
 
-  const runOcr = async () => {
-    setStep("processing"); auditLog.record("OCR_STARTED", { idType });
-    await new Promise(r => setTimeout(r, 2500));
-    const mock = { lastName: "DELA CRUZ", firstName: "JUAN", middleName: "MASIGASIG", dob: "1990-05-15", address: "123 Rizal St., Brgy. San Jose, Las Piñas City", idNumber: "PLACEHOLDER-ID-001", expiryDate: "2028-05-15", confidence: 0.94 };
-    setOcrResult(mock); auditLog.record("OCR_COMPLETED", { confidence: mock.confidence });
-    await new Promise(r => setTimeout(r, 800));
-    setIdValid(true); auditLog.record("ID_VALIDATED", { idType }); setStep("result");
+const runOcr = async () => {
+  setStep("processing");
+  auditLog.record("OCR_STARTED", { idType });
+
+  try {
+    const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frontImage: frontImg, backImage: backImg, idType }),
+    });
+    const verifyResult = await verifyRes.json();
+
+    if (!verifyResult.success || !verifyResult.data.isValid) {
+      setOcrResult({ reason: verifyResult.data?.reason || verifyResult.error });
+      setIdValid(false);
+      setStep("result");
+      return;
+    }
+
+    const extractRes = await fetch(`${process.env.REACT_APP_API_URL}/api/extract-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frontImage: frontImg, idType }),
+    });
+    const extractResult = await extractRes.json();
+
+    if (!extractResult.success) {
+      setOcrResult({
+        ...verifyResult.data,
+        firstName: "", lastName: "", middleName: "",
+        dob: "", address: "", idNumber: "", expiryDate: null,
+        reason: "ID verified but could not extract data. Please fill in manually.",
+      });
+      setIdValid(true);
+      setStep("result");
+      return;
+    }
+
+    const merged = {
+      ...verifyResult.data,
+      ...extractResult.data,
+      isValid: true,
+      confidence: verifyResult.data.confidence,
+      reason: "ID verified and data extracted successfully",
+    };
+    setOcrResult(merged);
+    auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
+    setIdValid(true);
+    setStep("result");
+
+  } catch (err) {
+    console.error("OCR error:", err);
+    auditLog.record("OCR_ERROR", { error: err.message });
+    setOcrResult({ reason: "Something went wrong. Please try again." });
+    setIdValid(false);
+    setStep("result");
+  }
+};
+
+  const confirmAndFill = () => {
+  auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
+
+  const formatDob = (raw) => {
+    if (!raw) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+      const [dd, mm, yyyy] = raw.split("/");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return raw;
   };
 
-  const confirmAndFill = () => { auditLog.record("ID_DATA_ACCEPTED", { idType }); onComplete({ ocrResult, idType, idValid: true, frontImg, backImg }); onClose(); };
+  onComplete({
+    ocrResult: { ...ocrResult, dob: formatDob(ocrResult?.dob) },
+    idType, idValid, frontImg, backImg,
+  });
+  onClose();
+};
 
   if (!open) return null;
   const imgStyle = () => ({ width: "100%", height: 170, objectFit: "contain", background: "#f9f9f9", borderRadius: 10, border: "2px dashed #fed7aa", transform: `scale(${zoom})`, transition: "transform .2s", display: "block" });
@@ -405,6 +486,8 @@ export default function IPharmaForm() {
   const [errors, setErrors] = useState({});
   const [progress, setProgress] = useState(0);
 
+  const [generatedOtp, setGeneratedOtp] = useState("");
+
   // Modals
   const [alert, setAlert] = useState({ open: false, type: "", message: "", onConfirm: null });
   const showAlert = (type, message, onConfirm = null) => setAlert({ open: true, type, message, onConfirm });
@@ -492,17 +575,27 @@ export default function IPharmaForm() {
   const availableCities = PH_CITIES_BY_PROVINCE[addrProvince] || PH_CITIES_BY_PROVINCE[addrRegion] || [];
 
   // ID complete handler
-  const handleIdComplete = ({ ocrResult, idType }) => {
-    setIdVerified(true);
-    setIdData({ ocrResult, idType });
-    setForm(p => ({
-      ...p,
-      lastName: ocrResult.lastName ? capitalize(ocrResult.lastName) : p.lastName,
-      firstName: ocrResult.firstName ? capitalize(ocrResult.firstName) : p.firstName,
-      middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
-      dob: ocrResult.dob || p.dob,
-    }));
-  };
+const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
+  if (!idValid) {
+    showAlert("error", ocrResult?.reason || "ID validation failed. Please use a valid government-issued ID.");
+    return;
+  }
+
+  setIdVerified(true);
+  setIdData({ ocrResult, idType, idValid, frontImg });
+
+  auditLog.record("ID_AUTOFILL", { idType });
+
+  setForm(p => ({
+    ...p,
+    lastName:      ocrResult.lastName   ? capitalize(ocrResult.lastName)  : p.lastName,
+    firstName:     ocrResult.firstName  ? capitalize(ocrResult.firstName) : p.firstName,
+    middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
+    dob:           ocrResult.dob        || p.dob,
+  }));
+
+  showAlert("success", "ID verified! Fields have been auto-filled. Please review and complete the remaining fields.");
+};
 
   // Progress
   useEffect(() => {
@@ -561,6 +654,13 @@ export default function IPharmaForm() {
       return;
     }
     auditLog.record("FORM_VALIDATED", { email: form.email });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otp);
+    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mobile: form.mobile, otp }),
+    });
     setShowOtp(true);
   };
 
@@ -614,7 +714,7 @@ export default function IPharmaForm() {
 
       <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => alert.onConfirm() : null} />
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
-      <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} />
+      <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} expectedOtp={generatedOtp} onResend={(newOtp) => setGeneratedOtp(newOtp)} />
       <IdScannerModal open={showIdScanner} onComplete={handleIdComplete} onClose={() => setShowIdScanner(false)} />
 
       {/* ── Nav ── */}
