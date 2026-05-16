@@ -2695,6 +2695,104 @@ app.post('/ai/report', async (req, res) => {
   }
 });
 
+app.post('/ai/dashboard-analysis', async (req, res) => {
+  try {
+    const { transactions, brands, preset, filterLabel } = req.body;
+
+    // Aggregate the data before sending to Groq
+    const branchTotals = {};
+    const dayTotals    = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
+    const dayNames     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    let totalRevenue   = 0;
+    let totalCogs      = 0;
+
+    (transactions || []).forEach(tx => {
+      const branch = tx.branch || 'Unknown';
+      const total  = parseFloat(tx.total  || 0);
+      const cogs   = parseFloat(tx.cogs   || 0);
+      const day    = dayNames[new Date(tx.created_at).getDay()];
+
+      branchTotals[branch] = (branchTotals[branch] || 0) + total;
+      dayTotals[day]       = (dayTotals[day]       || 0) + total;
+      totalRevenue        += total;
+      totalCogs           += cogs;
+    });
+
+    const txCount   = transactions?.length || 0;
+    const avgOrder  = txCount > 0 ? totalRevenue / txCount : 0;
+    const profit    = totalRevenue - totalCogs;
+    const profitPct = totalRevenue > 0
+      ? ((profit / totalRevenue) * 100).toFixed(1)
+      : '0';
+
+    // Sort branches and days for the prompt
+    const topBranches = Object.entries(branchTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, rev]) => `${name}: ₱${rev.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`)
+      .join('\n  ');
+
+    const dayBreakdown = Object.entries(dayTotals)
+      .map(([d, v]) => `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`)
+      .join(', ');
+
+    const prompt = `
+You are a franchise business analyst for a Filipino quick-service restaurant and pharmacy franchise system called iFranchise (brands include Coffee Spot and iPharma Mart).
+
+Analyze this sales data (period: ${preset || 'this month'}, scope: ${filterLabel || 'All Brands & Branches'}) and return a JSON object — nothing else, no markdown.
+
+DATA:
+- Total revenue: ₱${totalRevenue.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+- Total profit: ₱${profit.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${profitPct}% margin)
+- Total COGS: ₱${totalCogs.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+- Transactions: ${txCount}, avg order: ₱${avgOrder.toFixed(0)}
+- Revenue by branch:
+  ${topBranches || 'No branch data'}
+- Revenue by day of week: ${dayBreakdown}
+
+Return ONLY this JSON (no extra text):
+{
+  "projectedRevenue": <number, 7-day forecast in PHP based on current weekly run rate>,
+  "projectedChange": <number, % change vs prior period, positive or negative>,
+  "peakDay": "<string, predicted busiest day>",
+  "slowestDay": "<string, predicted slowest day>",
+  "slowestDayDropPct": <number, % below average for slowest day>,
+  "confidence": <number, 0-100, based on how many transactions and how spread the data is>,
+  "summary": "<2-3 sentence narrative analysis of overall performance, mention specific branches and numbers>",
+  "recommendations": [
+    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation with peso estimates where possible>" },
+    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation>" },
+    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation>" }
+  ]
+}
+`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.3,
+      }),
+    });
+
+    const data   = await response.json();
+    const raw    = data.choices?.[0]?.message?.content || '{}';
+    const clean  = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    res.json({ success: true, analysis: parsed });
+  } catch (err) {
+    console.error('AI dashboard analysis error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/reports/:id", async (req, res) => {
   try {
     const report = await fetchReportWithComments(req.params.id);
@@ -3031,6 +3129,85 @@ app.delete('/application-delete-history/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete application history entry.' });
+  }
+});
+
+// ─── PAYMONGO — Create GCash payment link ────────────────────────────────────
+app.post('/paymongo/create-gcash', async (req, res) => {
+  try {
+    const { amount, description, orderId } = req.body;
+
+    // PayMongo expects amount in centavos (multiply by 100)
+    const amountCentavos = Math.round(parseFloat(amount) * 100);
+
+    if (amountCentavos < 10000) // minimum ₱100
+      return res.status(400).json({ error: 'Minimum GCash payment via PayMongo is ₱100.' });
+
+    const auth = Buffer.from(process.env.PAYMONGO_SECRET_KEY + ':').toString('base64');
+
+    const response = await fetch('https://api.paymongo.com/v1/links', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Basic ${auth}`,
+      },
+      body: JSON.stringify({
+        data: {
+          attributes: {
+            amount:      amountCentavos,
+            description: description || `POS Order #${orderId}`,
+            remarks:     `Order #${orderId}`,
+          },
+        },
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('PayMongo error:', data);
+      return res.status(400).json({ error: data.errors?.[0]?.detail || 'PayMongo error' });
+    }
+
+    const link       = data.data;
+    const checkoutUrl = link.attributes.checkout_url;
+    const referenceNo = link.attributes.reference_number;
+    const linkId      = link.id;
+
+    res.json({ success: true, checkoutUrl, referenceNo, linkId });
+  } catch (err) {
+    console.error('PayMongo create-gcash error:', err);
+    res.status(500).json({ error: 'Failed to create payment link' });
+  }
+});
+
+// ─── PAYMONGO — Poll payment link status ─────────────────────────────────────
+app.get('/paymongo/link-status/:linkId', async (req, res) => {
+  try {
+    const auth = Buffer.from(process.env.PAYMONGO_SECRET_KEY + ':').toString('base64');
+
+    const response = await fetch(`https://api.paymongo.com/v1/links/${req.params.linkId}`, {
+      headers: { 'Authorization': `Basic ${auth}` },
+    });
+
+    const data = await response.json();
+    if (!response.ok)
+      return res.status(400).json({ error: 'Failed to fetch link status' });
+
+    const attrs  = data.data.attributes;
+    const status = attrs.status; // 'unpaid' | 'paid'
+
+    // If paid, grab the payment reference from payments array
+    const payments   = attrs.payments || [];
+    const lastPayment = payments[payments.length - 1];
+    const gcashRef    = lastPayment?.attributes?.external_reference_number
+                     || lastPayment?.id
+                     || null;
+
+    res.json({ success: true, status, gcashRef, amount: attrs.amount / 100 });
+  } catch (err) {
+    console.error('PayMongo link-status error:', err);
+    res.status(500).json({ error: 'Failed to check payment status' });
   }
 });
 // ─── ROOT ─────────────────────────────────────────────────────
