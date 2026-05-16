@@ -481,6 +481,7 @@ app.delete("/users/:id", async (req, res) => {
 
     await pool.query("UPDATE announcements SET created_by=NULL WHERE created_by=$1", [id]);
 
+    // Then delete the user
     await pool.query("DELETE FROM users WHERE id=$1", [id]);
     res.json({ success: true, message: "User deleted" });
   } catch (err) {
@@ -1249,16 +1250,12 @@ app.post("/api/extract-id", async (req, res) => {
   const { frontImage, idType } = req.body;
 
   const base64Data = frontImage.replace(/^data:image\/\w+;base64,/, "");
-  const buffer = Buffer.from(base64Data, "base64");
+  const tempPath   = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
+  fs.writeFileSync(tempPath, Buffer.from(base64Data, "base64"));
 
   try {
     const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
-
-    // Use BufferInput instead of PathInput — no temp file needed
-    const inputSource = new mindee.BufferInput({
-      buffer,
-      filename: "id.jpg",
-    });
+    const inputSource  = new mindee.PathInput({ inputPath: tempPath });
 
     const response = await mindeeClient.enqueueAndGetResult(
       mindee.v2.product.Extraction,
@@ -1266,31 +1263,34 @@ app.post("/api/extract-id", async (req, res) => {
       { modelId: process.env.MINDEE_ID_MODEL_ID }
     );
 
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
     console.log("Mindee raw ID fields:", JSON.stringify(response.rawHttp.inference.result.fields, null, 2));
 
     const fields = response.rawHttp.inference.result.fields;
 
-    const firstName  = fields?.given_names?.value  || fields?.first_name?.value   || "";
-    const lastName   = fields?.surnames?.value     || "";
-    const middleName = fields?.middle_name?.value  || "";
-    const dob        = fields?.birth_date?.value   || fields?.date_of_birth?.value || "";
-    const idNumber   = fields?.document_number?.value || fields?.id_number?.value  || "";
-    const expiryDate = fields?.date_of_expiry?.value  || "";
-
-    const addrStreet = fields?.address?.fields?.street?.value      || "";
-    const addrCity   = fields?.address?.fields?.city?.value        || "";
-    const addrState  = fields?.address?.fields?.state?.value       || "";
-    const addrPostal = fields?.address?.fields?.postal_code?.value || "";
-    const address    = [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", ");
+    const firstName  = fields?.given_names?.value   || fields?.first_name?.value    || "";
+    const lastName   = fields?.surnames?.value      || "";
+    const middleName = fields?.middle_name?.value   || "";
+    const dob        = fields?.birth_date?.value    || fields?.date_of_birth?.value  || "";
+    const idNumber   = fields?.document_number?.value || fields?.id_number?.value    || "";
+    const expiryDate =  fields?.date_of_expiry?.value  || "";
+    
+    const addrStreet  = fields?.address?.fields?.street?.value      || "";
+    const addrCity    = fields?.address?.fields?.city?.value        || "";
+    const addrState   = fields?.address?.fields?.state?.value       || "";
+    const addrPostal  = fields?.address?.fields?.postal_code?.value || "";
+    const address     = [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", ");
 
     res.json({
       success: true,
-      data: { firstName, lastName, middleName, dob, idNumber, expiryDate, address },
+      data: { firstName, lastName, middleName, dob, idNumber, expiryDate, address},
     });
 
   } catch (err) {
-    console.error("Mindee OCR error FULL:", err);
-    res.status(500).json({ success: false, error: err.message });
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    console.error("Mindee OCR error:", err.message);
+    res.status(500).json({ success: false, error: "Failed to extract ID data" });
   }
 });
 

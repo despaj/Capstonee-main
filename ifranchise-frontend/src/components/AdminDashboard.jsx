@@ -3223,6 +3223,7 @@ function ApplicationsContent({ applications: initialApps }) {
   const [menuApp, setMenuApp] = useState(null);
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
+  const [role, setRole] = useState("franchisee"); 
 
   const fetchApplications = async () => {
     try {
@@ -3271,10 +3272,6 @@ function ApplicationsContent({ applications: initialApps }) {
       alert("Failed to approve application.");
     }
   };
-
-  // ── Delete ──────────────────────────────────────────────────────────────
-  // The backend DELETE /applications/:id already saves to application_delete_history
-  // automatically (see server.js). We just call DELETE and then re-fetch history.
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this application?")) return;
     try {
@@ -3294,9 +3291,6 @@ function ApplicationsContent({ applications: initialApps }) {
     }
   };
 
-  // ── Restore ─────────────────────────────────────────────────────────────
-  // Backend POST /applications expects camelCase fields (rowToApplication maps them).
-  // The stored application_data is the raw DB row (snake_case).
   const handleRestoreApplication = async (entry) => {
     try {
       const d = entry.data; // raw DB row — snake_case keys
@@ -3709,6 +3703,8 @@ function ApplicationsContent({ applications: initialApps }) {
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
+          defaultRole="franchisee"
+          roles={['Franchisee']}    
           onClose={() => setAccountApp(null)}
           onAlert={(message, type) => setAlertModal({ message, type })}
         />
@@ -5081,453 +5077,454 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     </div>
   );
 
-function UsersContent() {
-  const [users,        setUsers]        = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal,setShowEditModal]= useState(false);
-  const [editingUser,  setEditingUser]  = useState(null);
-  const [formData,     setFormData]     = useState({ name:'', email:'', role:'', branch:'', password:'' });
-  const [showPasswordValidation, setShowPasswordValidation] = useState(false);
-  const [passwordErrors,         setPasswordErrors]         = useState([]);
-  const [showPassword,           setShowPassword]           = useState(false);
-  const [brands,         setBrands]         = useState([]);
-  const [selectedBrandId,setSelectedBrandId] = useState("");
-  const [branches,       setBranches]       = useState([]);
-  const [brandsLoading,  setBrandsLoading]  = useState(true);
-  const [filterRole,   setFilterRole]   = useState('all');
-  const [filterBrandF, setFilterBrandF] = useState('all');
-  const [filterBranchF,setFilterBranchF]= useState('all');
-  const [searchQuery,  setSearchQuery]  = useState('');
+  function UsersContent() {
+    const [users,        setUsers]        = useState([]);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal,setShowEditModal]= useState(false);
+    const [editingUser,  setEditingUser]  = useState(null);
+    const [formData,     setFormData]     = useState({ name:'', email:'', role:'', branch:'', password:'' });
+    const [showPasswordValidation, setShowPasswordValidation] = useState(false);
+    const [passwordErrors,         setPasswordErrors]         = useState([]);
+    const [showPassword,           setShowPassword]           = useState(false);
+    const [brands,         setBrands]         = useState([]);
+    const [selectedBrandId,setSelectedBrandId] = useState("");
+    const [branches,       setBranches]       = useState([]);
+    const [brandsLoading,  setBrandsLoading]  = useState(true);
+    const [filterRole,   setFilterRole]   = useState('all');
+    const [filterBrandF, setFilterBrandF] = useState('all');
+    const [filterBranchF,setFilterBranchF]= useState('all');
+    const [searchQuery,  setSearchQuery]  = useState('');
 
-  const [deleteTarget,      setDeleteTarget]      = useState(null); 
-  const [deleteHistory,     setDeleteHistory]     = useState([]); 
-  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [alertModal,        setAlertModal]        = useState(null);  
+    const [deleteTarget,      setDeleteTarget]      = useState(null); 
+    const [deleteHistory,     setDeleteHistory]     = useState([]); 
+    const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+    const [alertModal,        setAlertModal]        = useState(null);  
 
-  const showAlert = (message, type = "info") => setAlertModal({ message, type });
+    const showAlert = (message, type = "info") => setAlertModal({ message, type });
 
-  useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => { fetchUsers(); }, []);
+
+    useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+        const data = await res.json();
+        setBrands(Array.isArray(data) ? data : []);
+      } catch (err) { console.error("Failed to fetch brands:", err); }
+      finally { setBrandsLoading(false); }
+    };
+    fetchBrands();
+  }, []);
 
   useEffect(() => {
-  const fetchBrands = async () => {
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-      const data = await res.json();
-      setBrands(Array.isArray(data) ? data : []);
-    } catch (err) { console.error("Failed to fetch brands:", err); }
-    finally { setBrandsLoading(false); }
-  };
-  fetchBrands();
-}, []);
+    if (!selectedBrandId) { setBranches([]); return; }
+    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
+    setBranches(brand?.branches || []);
+  }, [selectedBrandId, brands]);
 
-useEffect(() => {
-  if (!selectedBrandId) { setBranches([]); return; }
-  const brand = brands.find(b => String(b.id) === String(selectedBrandId));
-  setBranches(brand?.branches || []);
-}, [selectedBrandId, brands]);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
-      const data = await response.json();
-       console.log("users from API:", data);
-      setUsers(data);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      showAlert("Failed to load users.", "error");
-    }
-  };
-  const fetchDeleteHistory = async () => {
-  const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
-  const data = await res.json();
-  setDeleteHistory(Array.isArray(data) ? data : []);
-};
-
-useEffect(() => { fetchDeleteHistory(); }, []);
-
-  const handleSendCredentials = async (user) => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: user.email,
-          name: user.name,
-          password: "—",  // placeholder; see note below
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        showAlert(`Credentials sent to ${user.email}!`, "success");
-      } else {
-        showAlert(data.error || "Failed to send credentials.", "error");
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
+        const data = await response.json();
+        console.log("users from API:", data);
+        setUsers(data);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        showAlert("Failed to load users.", "error");
       }
-    } catch (error) {
-      console.error("Error sending credentials:", error);
-      showAlert("Failed to send credentials.", "error");
-    }
+    };
+    const fetchDeleteHistory = async () => {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
+    const data = await res.json();
+    setDeleteHistory(Array.isArray(data) ? data : []);
   };
 
-  const validatePasswordStrength = (password) => {
-    const errors = [];
-    if (password.length < 8) errors.push("minLength");
-    if (!/[A-Z]/.test(password)) errors.push("uppercase");
-    if (!/[a-z]/.test(password)) errors.push("lowercase");
-    if (!/\d/.test(password))    errors.push("number");
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
-    return { isValid: errors.length === 0, errors };
-  };
+  useEffect(() => { fetchDeleteHistory(); }, []);
 
-const handleAddUser = async (e) => {
-  e.preventDefault();
-  const tempPassword = generateTempPassword();
-  const passwordCheck = validatePasswordStrength(tempPassword);
-  if (!passwordCheck.isValid) {
-    showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
-    return;
-  }
+    const handleSendCredentials = async (user) => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: user.email,
+            name: user.name,
+            password: "—",  // placeholder; see note below
+          }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          showAlert(`Credentials sent to ${user.email}!`, "success");
+        } else {
+          showAlert(data.error || "Failed to send credentials.", "error");
+        }
+      } catch (error) {
+        console.error("Error sending credentials:", error);
+        showAlert("Failed to send credentials.", "error");
+      }
+    };
 
-  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const payload = { ...formData, password: tempPassword, brand: selectedBrand?.name || "" };
+    const validatePasswordStrength = (password) => {
+      const errors = [];
+      if (password.length < 8) errors.push("minLength");
+      if (!/[A-Z]/.test(password)) errors.push("uppercase");
+      if (!/[a-z]/.test(password)) errors.push("lowercase");
+      if (!/\d/.test(password))    errors.push("number");
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
+      return { isValid: errors.length === 0, errors };
+    };
 
-  try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: formData.email,
-          name: formData.name,
-          password: tempPassword,
-        }),
-      });
-
-      await fetchUsers();
-      setShowAddModal(false);
-      resetForm();
-      showAlert("User added & credentials sent!", "success");
-    } else {
-      showAlert(data.error || "Failed to add user.", "error");
-    }
-  } catch (error) {
-    console.error("Error adding user:", error);
-    showAlert("Failed to add user.", "error");
-  }
-};
-
-  const handleEditUser = async (e) => {
-  e.preventDefault();
-
-  if (formData.password) { // ← this guard is missing in your current code
-    const passwordCheck = validatePasswordStrength(formData.password);
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    const tempPassword = generateTempPassword();
+    const passwordCheck = validatePasswordStrength(tempPassword);
     if (!passwordCheck.isValid) {
       showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
       return;
     }
-  }
 
-  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const payload = {
-    ...formData,
-    brand: selectedBrand?.name || formData.brand || "",
-  };
+    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+    const payload = { ...formData, password: tempPassword, brand: selectedBrand?.name || "" };
 
-  try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (data.success) {
-      await fetchUsers();
-      setShowEditModal(false);
-      setEditingUser(null);
-      resetForm();
-      showAlert("User updated successfully!", "success");
-    } else {
-      showAlert(data.error || "Failed to update user.", "error");
-    }
-  } catch (error) {
-    console.error("Error updating user:", error);
-    showAlert("Failed to update user.", "error");
-  }
-};
-
-  // Step 1: open confirm modal
-  const handleDeleteUser = (user) => setDeleteTarget(user);
-
-  // Step 2: confirmed — call API, push to history
-  const confirmDelete = async () => {
-    const user = deleteTarget;
-    setDeleteTarget(null);
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: "DELETE" });
-      const data = await response.json();
-      if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ user_data: user }),
-});
-await fetchDeleteHistory();
-        await fetchUsers();
-        showAlert(`"${user.name}" has been deleted.`, "success");
-      } else {
-        showAlert(data.error || "Failed to delete user.", "error");
-      }
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      showAlert("Failed to delete user.", "error");
-    }
-  };
-  
-
-  const handleRestore = async (entry) => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...entry.data, password: entry.data.password || "" }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (data.success) {
-       await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
-  method: "DELETE",
-});
-await fetchDeleteHistory();
+        await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: formData.email,
+            name: formData.name,
+            password: tempPassword,
+          }),
+        });
+
         await fetchUsers();
-        setShowDeleteHistory(false);
-        showAlert(`"${entry.data.name}" has been restored.`, "success");
+        setShowAddModal(false);
+        resetForm();
+        showAlert("User added & credentials sent!", "success");
       } else {
-        showAlert(data.error || "Failed to restore user.", "error");
+        showAlert(data.error || "Failed to add user.", "error");
       }
     } catch (error) {
-      console.error("Error restoring user:", error);
-      showAlert("Failed to restore user.", "error");
+      console.error("Error adding user:", error);
+      showAlert("Failed to add user.", "error");
     }
   };
 
-  const openEditModal = (user) => {
-    setEditingUser(user);
-    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
-    const ownerBrand = brands.find(b =>       // ← add from here
-      (b.branches || []).some(br => (br.name ?? br) === user.branch)
-    );
-    setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : "");  // ← to here
-    setShowEditModal(true);
-    setShowPassword(false);
-  };
-  const resetForm = () => {
-    setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
-    setShowPasswordValidation(false);
-    setPasswordErrors([]);
-    setShowPassword(false);
-    setSelectedBrandId("");
-    setBranches([]);
-  };
-  const handleInputChange = (e) => {
-      const { name, value } = e.target;
-      const formatted = name === "name"
-        ? value.replace(/\b\w/g, c => c.toUpperCase())
-        : value;
-      setFormData(prev => ({ ...prev, [name]: formatted }));
+    const handleEditUser = async (e) => {
+    e.preventDefault();
+
+    if (formData.password) { // ← this guard is missing in your current code
+      const passwordCheck = validatePasswordStrength(formData.password);
+      if (!passwordCheck.isValid) {
+        showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+        return;
+      }
+    }
+
+    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+    const payload = {
+      ...formData,
+      brand: selectedBrand?.name || formData.brand || "",
     };
 
-  const handleGeneratePassword = () => {
-    const generated = generateTempPassword();
-    setFormData(prev => ({ ...prev, password: generated }));
-    setShowPasswordValidation(true);
-    setPasswordErrors([]);
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchUsers();
+        setShowEditModal(false);
+        setEditingUser(null);
+        resetForm();
+        showAlert("User updated successfully!", "success");
+      } else {
+        showAlert(data.error || "Failed to update user.", "error");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+      showAlert("Failed to update user.", "error");
+    }
   };
 
-  const filterBrandBranches = filterBrandF === 'all' ? [] :
-  (brands.find(b => String(b.id) === String(filterBrandF))?.branches || []);
+    // Step 1: open confirm modal
+    const handleDeleteUser = (user) => setDeleteTarget(user);
 
-const filteredUsers = users.filter(u => {
-  const q = searchQuery.toLowerCase();
-  if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
-  if (filterRole   !== 'all' && u.role   !== filterRole)   return false;
-  if (filterBrandF !== 'all' && u.brand  !== brands.find(b => String(b.id) === String(filterBrandF))?.name) return false;
-  if (filterBranchF !== 'all' && u.branch !== filterBranchF) return false;
-  return true;
-});
+    // Step 2: confirmed — call API, push to history
+    const confirmDelete = async () => {
+      const user = deleteTarget;
+      setDeleteTarget(null);
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: "DELETE" });
+        const data = await response.json();
+        if (data.success) {
+          await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_data: user }),
+  });
+  await fetchDeleteHistory();
+          await fetchUsers();
+          showAlert(`"${user.name}" has been deleted.`, "success");
+        } else {
+          showAlert(data.error || "Failed to delete user.", "error");
+        }
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        showAlert("Failed to delete user.", "error");
+      }
+    };
+    
 
-  const pwChange = (e) => {
-    handleInputChange(e);
-    const v = e.target.value;
-    if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
-    else   { setShowPasswordValidation(false); setPasswordErrors([]); }
-  };
+    const handleRestore = async (entry) => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...entry.data, password: entry.data.password || "" }),
+        });
+        const data = await response.json();
+        if (data.success) {
+        await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
+    method: "DELETE",
+  });
+  await fetchDeleteHistory();
+          await fetchUsers();
+          setShowDeleteHistory(false);
+          showAlert(`"${entry.data.name}" has been restored.`, "success");
+        } else {
+          showAlert(data.error || "Failed to restore user.", "error");
+        }
+      } catch (error) {
+        console.error("Error restoring user:", error);
+        showAlert("Failed to restore user.", "error");
+      }
+    };
 
-  return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
- 
+    const openEditModal = (user) => {
+      setEditingUser(user);
+      setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
+      const ownerBrand = brands.find(b =>       // ← add from here
+        (b.branches || []).some(br => (br.name ?? br) === user.branch)
+      );
+      setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : "");  // ← to here
+      setShowEditModal(true);
+      setShowPassword(false);
+    };
+    const resetForm = () => {
+      setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
+      setShowPasswordValidation(false);
+      setPasswordErrors([]);
+      setShowPassword(false);
+      setSelectedBrandId("");
+      setBranches([]);
+    };
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        const formatted = name === "name"
+          ? value.replace(/\b\w/g, c => c.toUpperCase())
+          : value;
+        setFormData(prev => ({ ...prev, [name]: formatted }));
+      };
 
-      {/* Stat Cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
-        {[
-          { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
-          { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
-          { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
-          { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
-        ].map((s, i) => <BmStatCard key={i} {...s} />)}
-      </div>
+    const handleGeneratePassword = () => {
+      const generated = generateTempPassword();
+      setFormData(prev => ({ ...prev, password: generated }));
+      setShowPasswordValidation(true);
+      setPasswordErrors([]);
+    };
 
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-  <div style={{ position:'relative' }}>
-    <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
-    <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-      style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
+    const filterBrandBranches = filterBrandF === 'all' ? [] :
+    (brands.find(b => String(b.id) === String(filterBrandF))?.branches || []);
+
+  const filteredUsers = users.filter(u => {
+    const q = searchQuery.toLowerCase();
+    if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
+    if (filterRole   !== 'all' && u.role   !== filterRole)   return false;
+    if (filterBrandF !== 'all' && u.brand  !== brands.find(b => String(b.id) === String(filterBrandF))?.name) return false;
+    if (filterBranchF !== 'all' && u.branch !== filterBranchF) return false;
+    return true;
+  });
+
+    const pwChange = (e) => {
+      handleInputChange(e);
+      const v = e.target.value;
+      if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
+      else   { setShowPasswordValidation(false); setPasswordErrors([]); }
+    };
+
+    return (
+      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+  
+
+        {/* Stat Cards */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+          {[
+            { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
+            { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+            { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
+            { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
+          ].map((s, i) => <BmStatCard key={i} {...s} />)}
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
+    <div style={{ position:'relative' }}>
+      <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
+      <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+        style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
+    </div>
+    <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+      <option value="all">All Roles</option>
+      {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+    </select>
+    <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
+      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
+      <option value="all">All Brands</option>
+      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+    </select>
+    <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
+      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+      <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
+      {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+    </select>
+    {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
+      <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
+        style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+        Clear filters
+      </button>
+    )}
   </div>
-  <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-    <option value="all">All Roles</option>
-    {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
-  </select>
-  <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
-    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-    <option value="all">All Brands</option>
-    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-  </select>
-  <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
-    style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
-    <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
-    {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-  </select>
-  {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
-    <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
-      style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-      Clear filters
-    </button>
-  )}
-</div>
 
-      {/* Table card */}
-      <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-        <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
-          <div style={{ display:'flex', gap:8 }}>
-            {/* Delete History button */}
-            <button
-              onClick={() => setShowDeleteHistory(true)}
-              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
-            >
-              <History size={13}/> Delete History
-              {deleteHistory.length > 0 && (
-                <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
-                  {deleteHistory.length}
-                </span>
-              )}
-            </button>
-            <button onClick={() => setShowAddModal(true)}
-              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              <Plus size={14}/> Add New User
-            </button>
+        {/* Table card */}
+        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
+            <div style={{ display:'flex', gap:8 }}>
+              {/* Delete History button */}
+              <button
+                onClick={() => setShowDeleteHistory(true)}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+              >
+                <History size={13}/> Delete History
+                {deleteHistory.length > 0 && (
+                  <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
+                    {deleteHistory.length}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setShowAddModal(true)}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <Plus size={14}/> Add New User
+              </button>
+            </div>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr>
+                  {['Name','Email','Role','Brand', 'Branch','Status','Actions'].map(h => (
+                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map(user => (
+                  <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                    onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
+                    <td style={{ padding:'12px 14px' }}>
+                      <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
+                    </td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
+                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
+                    <td style={{ padding:'12px 14px' }}>
+                      <span style={{ background:'rgba(16,185,129,0.1)', color:'#059669', padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
+                        {user.status ? user.status.toUpperCase() : 'ACTIVE'}
+                      </span>
+                    </td>
+                    <td style={{ padding:'12px 14px' }}>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
+                          <Pencil size={11}/>
+                        </button>
+                    
+
+                        <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+                          <Trash2 size={11}/>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-            <thead>
-              <tr>
-                {['Name','Email','Role','Brand', 'Branch','Status','Actions'].map(h => (
-                  <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map(user => (
-                <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                  onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                  onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                  <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
-                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
-                  </td>
-                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
-                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <span style={{ background:'rgba(16,185,129,0.1)', color:'#059669', padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
-                      {user.status ? user.status.toUpperCase() : 'ACTIVE'}
-                    </span>
-                  </td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <div style={{ display:'flex', gap:6 }}>
-                      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
-                        <Pencil size={11}/>
-                      </button>
-                  
 
-                      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
-                        <Trash2 size={11}/>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* Modals */}
+        {showAddModal  && <CreateAccountModal
+          applicant={null}
+          roles={['Administrator','Franchisee']}
+          onClose={() => { setShowAddModal(false); resetForm(); }}
+          onAlert={(message, type) => setAlertModal({ message, type })}
+      />}
+        {showEditModal && (
+        <UserModal
+          key="edit"
+          title="Edit User"
+          onSubmit={handleEditUser}
+          onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
+          isEdit={true}
+          formData={formData}
+          setFormData={setFormData}
+          handleInputChange={handleInputChange}
+          selectedBrandId={selectedBrandId}
+          setSelectedBrandId={setSelectedBrandId}
+          brands={brands}
+          branches={branches}
+          brandsLoading={brandsLoading}
+          showPassword={showPassword}
+          setShowPassword={setShowPassword}
+          showPasswordValidation={showPasswordValidation}
+          passwordErrors={passwordErrors}
+          handleGeneratePassword={handleGeneratePassword}
+          pwChange={pwChange}
+        />
+      )}
+        {deleteTarget && (
+          <UserDeleteConfirmModal
+            user={deleteTarget}
+            onConfirm={confirmDelete}
+            onClose={() => setDeleteTarget(null)}
+          />
+        )}
+
+        {showDeleteHistory && (
+          <UserDeleteHistoryPanel
+            history={deleteHistory}
+            onRestore={handleRestore}
+            onClose={() => setShowDeleteHistory(false)}
+          />
+        )}
+
+        {alertModal && (
+          <AlertModal
+            message={alertModal.message}
+            type={alertModal.type}
+            onClose={() => setAlertModal(null)}
+          />
+        )}
       </div>
-
-      {/* Modals */}
-      {showAddModal  && <CreateAccountModal
-    applicant={null}
-    onClose={() => { setShowAddModal(false); resetForm(); }}
-    onAlert={(message, type) => setAlertModal({ message, type })}
-    />}
-      {showEditModal && (
-      <UserModal
-        key="edit"
-        title="Edit User"
-        onSubmit={handleEditUser}
-        onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
-        isEdit={true}
-        formData={formData}
-        setFormData={setFormData}
-        handleInputChange={handleInputChange}
-        selectedBrandId={selectedBrandId}
-        setSelectedBrandId={setSelectedBrandId}
-        brands={brands}
-        branches={branches}
-        brandsLoading={brandsLoading}
-        showPassword={showPassword}
-        setShowPassword={setShowPassword}
-        showPasswordValidation={showPasswordValidation}
-        passwordErrors={passwordErrors}
-        handleGeneratePassword={handleGeneratePassword}
-        pwChange={pwChange}
-      />
-    )}
-      {deleteTarget && (
-        <UserDeleteConfirmModal
-          user={deleteTarget}
-          onConfirm={confirmDelete}
-          onClose={() => setDeleteTarget(null)}
-        />
-      )}
-
-      {showDeleteHistory && (
-        <UserDeleteHistoryPanel
-          history={deleteHistory}
-          onRestore={handleRestore}
-          onClose={() => setShowDeleteHistory(false)}
-        />
-      )}
-
-      {alertModal && (
-        <AlertModal
-          message={alertModal.message}
-          type={alertModal.type}
-          onClose={() => setAlertModal(null)}
-        />
-      )}
-    </div>
-  );
-}
+    );
+  }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOUNCEMENT — 
@@ -7395,7 +7392,7 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert }) {
+function CreateAccountModal({ applicant, onClose, onAlert, defaultRole = "", roles = ['Administrator','Franchisee'] }){
   const [tempPassword] = useState(generateTempPassword());
   const [sending, setSending] = useState(false);
 
@@ -7403,7 +7400,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
   const [selectedBrandId, setSelectedBrandId] = useState("");
   const [branches, setBranches] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
-
+ 
   useEffect(() => {
     const fetchBrands = async () => {
       try {
@@ -7479,13 +7476,19 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
               <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop:4 }}/>
             </div>
           ))}
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Role</label>
-            <select name="role" required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-              <option value="">Select Role</option>
-              {['Administrator','Franchisee'].map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
+<div style={{ marginBottom:14 }}>
+  <label style={bmLabel}>Role</label>
+  <select
+    name="role"
+    required
+    defaultValue={defaultRole}
+    disabled={roles.length === 1}   // lock it if only one option
+    style={{ ...bmInput, marginTop:4, appearance:'none', cursor: roles.length === 1 ? 'not-allowed' : 'pointer', opacity: roles.length === 1 ? 0.7 : 1 }}
+  >
+    {!defaultRole && <option value="">Select Role</option>}
+    {roles.map(r => <option key={r} value={r}>{r}</option>)}
+  </select>
+</div>
           <div style={{ marginBottom:14 }}>
             <label style={bmLabel}>Brand</label>
             <select
