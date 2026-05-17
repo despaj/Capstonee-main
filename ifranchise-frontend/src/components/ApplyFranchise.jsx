@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronDown, ChevronLeft, CheckCircle2, AlertCircle, X,
-  User, Briefcase, FileText, ArrowRight, Trash2,
+  User, Briefcase, FileText, ArrowRight, Trash2, Pencil,
   Upload, ZoomIn, ZoomOut, Camera, Smartphone, Eye, EyeOff,
   Shield, MapPin, RotateCcw, AlertTriangle, Info, Lock, IdCard
 } from "lucide-react";
@@ -555,13 +555,26 @@ function IdScannerModal({ open, onComplete, onClose }) {
   const [idValid, setIdValid] = useState(null);
   const frontRef = useRef();
   const backRef = useRef();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedOcr, setEditedOcr] = useState({});
+  const [frontZoom, setFrontZoom] = useState(1);
+  const [backZoom, setBackZoom] = useState(1);
+  const [frontRotation, setFrontRotation] = useState(0);
+const [backRotation, setBackRotation] = useState(0);
 
   useEffect(() => {
-    if (!open) {
-      setStep("type"); setIdType(""); setFrontImg(null); setBackImg(null);
-      setZoom(1); setOcrResult(null); setIdValid(null);
-    }
-  }, [open]);
+  if (!open) {
+    setStep("type"); setIdType("");
+    setFrontZoom(1); 
+    setBackZoom(1); 
+    setFrontRotation(0); 
+    setBackRotation(0);
+    setOcrResult(null); 
+    setIdValid(null);
+    setIsEditing(false); 
+    setEditedOcr({});
+  }
+}, [open]);
 
   const handleFile = (side, file) => {
     if (!file) return;
@@ -632,6 +645,14 @@ const runOcr = async () => {
     };
 
     setOcrResult(merged);
+  setEditedOcr({
+    lastName:   (merged.lastName   || "").toUpperCase(),
+    firstName:  (merged.firstName  || "").toUpperCase(),
+    middleName: (merged.middleName || "").toUpperCase(),
+    dob:        merged.dob        || "",
+    idNumber:   (merged.idNumber   || "").toUpperCase(),
+    expiryDate: merged.expiryDate || "",
+  });
     auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
     setIdValid(true);
     setStep("result");
@@ -658,12 +679,13 @@ const confirmAndFill = () => {
     return raw;
   };
 
-  const { address, ...ocrWithoutAddress } = ocrResult;
+  const merged = { ...ocrResult, ...editedOcr }; // editedOcr wins
+  const { address, ...mergedWithoutAddress } = merged; // destructure from merged
 
   onComplete({ 
     ocrResult: {
-      ...ocrWithoutAddress,
-      dob: formatDob(ocrResult?.dob),
+      ...mergedWithoutAddress,              // ← now uses edited values
+      dob: formatDob(merged.dob),           // ← also uses edited dob
     },
     idType,
     idValid,
@@ -675,13 +697,14 @@ const confirmAndFill = () => {
 
   if (!open) return null;
 
-  const imgStyle = (img) => ({
-    width: "100%", height: 180, objectFit: "contain",
-    background: "#f0f0f0", borderRadius: 10,
-    border: "2px dashed #c8e6c9", cursor: "zoom-in",
-    transform: `scale(${zoom})`, transition: "transform .2s",
-    display: "block",
-  });
+const imgStyle = (zoom, rotation) => ({
+  width: "100%", height: 180, objectFit: "contain",
+  background: "#f0f0f0", borderRadius: 10,
+  border: "2px dashed #c8e6c9", cursor: "zoom-in",
+  transform: `scale(${zoom}) rotate(${rotation}deg)`,
+  transition: "transform .2s",
+  display: "block",
+});
 
   return (
     <div style={S.overlay}>
@@ -737,18 +760,24 @@ const confirmAndFill = () => {
               <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
                 Ensure good lighting. All text must be clearly visible. Accepted: JPG, PNG, PDF.
               </p>
-              <div style={{ position: "relative", marginBottom: 12 }}>
-                {frontImg
-                  ? <img src={frontImg} alt="Front ID" style={imgStyle(frontImg)} />
-                  : <div style={{ ...imgStyle(null), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
-                      <Camera size={32} color="#9CA3AF" />
-                      <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
-                    </div>}
+             <div style={{ position: "relative", marginBottom: 12 }}>
+                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: "2px dashed #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {frontImg
+                    ? <img src={frontImg} alt="Front ID" style={{
+                        maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+                        transform: `scale(${frontZoom}) rotate(${frontRotation}deg)`,
+                        transition: "transform .2s",
+                      }} />
+                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                        <Camera size={32} color="#9CA3AF" />
+                        <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                      </div>}
+                </div>
                 {frontImg && (
                   <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-                    <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
-                    <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
-                    <button onClick={() => setZoom(1)} style={S.zoomBtn}><RotateCcw size={14} /></button>
+                    <button onClick={() => setFrontZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
+                    <button onClick={() => setFrontZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
+                    <button onClick={() => setFrontRotation(r => r - 90)} style={S.zoomBtn}><RotateCcw size={14} /></button>
                   </div>
                 )}
               </div>
@@ -775,17 +804,23 @@ const confirmAndFill = () => {
                 Upload the back of your ID. This helps verify authenticity.
               </p>
               <div style={{ position: "relative", marginBottom: 12 }}>
-                {backImg
-                  ? <img src={backImg} alt="Back ID" style={imgStyle(backImg)} />
-                  : <div style={{ ...imgStyle(null), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
-                      <Camera size={32} color="#9CA3AF" />
-                      <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
-                    </div>}
+                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: "2px dashed #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {backImg
+                    ? <img src={backImg} alt="Back ID" style={{
+                        maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
+                        transform: `scale(${backZoom}) rotate(${backRotation}deg)`,
+                        transition: "transform .2s",
+                      }} />
+                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                        <Camera size={32} color="#9CA3AF" />
+                        <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                      </div>}
+                </div>
                 {backImg && (
                   <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-                    <button onClick={() => setZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
-                    <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
-                    <button onClick={() => setZoom(1)} style={S.zoomBtn}><RotateCcw size={14} /></button>
+                    <button onClick={() => setBackZoom(z => Math.min(z + 0.25, 3))} style={S.zoomBtn}><ZoomIn size={14} /></button>
+                    <button onClick={() => setBackZoom(z => Math.max(z - 0.25, 0.5))} style={S.zoomBtn}><ZoomOut size={14} /></button>
+                    <button onClick={() => setBackRotation(r => r - 90)} style={S.zoomBtn}><RotateCcw size={14} /></button>
                   </div>
                 )}
               </div>
@@ -835,19 +870,41 @@ const confirmAndFill = () => {
 
               {idValid && (
                 <>
-                  <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 10px", color: "#374151" }}>Extracted Information (will auto-fill form):</p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 10px" }}>
+                    <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: "#374151" }}>Extracted Information (will auto-fill form):</p>
+                    <button
+                      onClick={() => {
+                        if (isEditing) {
+                          setOcrResult(prev => ({ ...prev, ...editedOcr })); // persist edits
+                        }
+                        setIsEditing(e => !e);
+                      }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: isEditing ? "#2E7D32" : "#6B7280", padding: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600 }}
+                    >
+                      <Pencil size={14} />
+                      {isEditing ? "Done" : "Edit"}
+                    </button>
+                  </div>
                   <div style={{ background: "#f9fdf9", border: "1.5px solid #c8e6c9", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
                     {[
-                      ["Last Name", ocrResult.lastName],
-                      ["First Name", ocrResult.firstName],
-                      ["Middle Name", ocrResult.middleName],
-                      ["Date of Birth", ocrResult.dob],
-                      ["ID Number", ocrResult.idNumber],
-                      ["Expiry Date", ocrResult.expiryDate],
-                    ].map(([label, val]) => (
-                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6" }}>
+                      ["Last Name",   "lastName"],
+                      ["First Name",  "firstName"],
+                      ["Middle Name", "middleName"],
+                      ["Date of Birth", "dob"],
+                      ["ID Number",   "idNumber"],
+                      ["Expiry Date", "expiryDate"],
+                    ].map(([label, field]) => (
+                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6", alignItems: "center" }}>
                         <span style={{ color: "#6B7280", width: 110, flexShrink: 0 }}>{label}</span>
-                        <span style={{ fontWeight: 600, color: "#1a1a1a" }}>{val || "—"}</span>
+                        {isEditing ? (
+                          <input
+                            value={editedOcr[field] || ""}
+                            onChange={e => setEditedOcr(p => ({ ...p, [field]: e.target.value.toUpperCase() }))}
+                            style={{ flex: 1, border: "1.5px solid #c8e6c9", borderRadius: 8, padding: "4px 8px", fontSize: 13, fontFamily: "inherit", outline: "none" }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600, color: "#1a1a1a" }}>{editedOcr[field] || ocrResult[field] || "—"}</span>
+                        )}
                       </div>
                     ))}
                   </div>

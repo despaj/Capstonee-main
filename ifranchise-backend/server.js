@@ -69,40 +69,51 @@ function getOrCreateDeviceId(req, res) {
   return deviceId;
 }
 
-function rowToApplication(row) {
-  return {
-    id:               row.id,
-    name:             row.name,
-    email:            row.email,
-    phone:            row.phone,
-    franchise:        row.franchise,
-    paymentMode:      row.payment_mode,
-    status:           row.status,
-    date:             row.date,
-    dob:              row.dob,
-    civilStatus:      row.civil_status,
-    gender:           row.gender,
-    nationality:      row.nationality,
-    address:          row.address,
-    dependents:       row.dependents,
-    spouseName:       row.spouse_name,
-    spouseOccupation: row.spouse_occupation,
-    employmentType:   row.employment_type,
-    yearsEmployer:    row.years_employer,
-    income:           row.income,
-    employerName:     row.employer_name,
-    businessAddress:  row.business_address,
-    position:         row.position,
-    businessNature:   row.business_nature,
-    signature:        row.signature,
-    dateSigned:       row.date_signed,
-    idType:           row.id_type,
-    idImage:          row.id_image,
-    letterOfIntent:   row.letter_of_intent,
-    createdAt:        row.created_at,
-    updatedAt:        row.updated_at,
-  };
-}
+const rowToApplication = (row) => ({
+  id:               row.id,
+  name:             row.name,
+  email:            row.email,
+  phone:            row.phone,
+  franchise:        row.franchise,
+  status:           row.status,
+  date:             row.date,
+  address:          row.address,
+  dob:              row.dob,
+  civilStatus:      row.civil_status,
+  spouseName:       row.spouse_name,
+  spouseOccupation: row.spouse_occupation,
+  spouseDob:        row.spouse_dob,
+  dependents:       row.dependents,
+  telephone:        row.telephone,
+  tin:              row.tin,
+  education:        row.education ? (typeof row.education === "string" ? JSON.parse(row.education) : row.education) : [],
+  // iPharma-specific
+  involvement:      row.involvement,
+  equity:           row.equity,
+  investment:       row.investment,
+  fundSource:       row.fund_source,
+  otherBusiness:    row.other_business,
+  location:         row.location,
+  familyDepend:     row.family_depend,
+  marketArea:       row.market_area,
+  startDate:        row.start_date,
+  dateSigned:       row.date_signed,
+  // Regular application fields
+  paymentMode:      row.payment_mode,
+  gender:           row.gender,
+  nationality:      row.nationality,
+  employmentType:   row.employment_type,
+  yearsEmployer:    row.years_employer,
+  income:           row.income,
+  employerName:     row.employer_name,
+  businessAddress:  row.business_address,
+  position:         row.position,
+  businessNature:   row.business_nature,
+  // Documents
+  idType:           row.id_type,
+  idImage:          row.id_image,
+  letterOfIntent:   row.letter_of_intent,
+});
 
 // ─── AUTH ───────────────────────────────────────────────────
 
@@ -780,12 +791,16 @@ app.get("/applications", async (req, res) => {
         'ip-' || id::text AS id,
         name, email, phone, 'iPharma Mart' AS franchise,
         status, date, address, dob, civil_status,
-        spouse_name, spouse_occupation, dependents,
+        spouse_name, spouse_occupation, spouse_dob, dependents,
+        telephone, tin, education,
+        involvement, equity, investment, fund_source,
+        other_business, location, family_depend, market_area, start_date,
+        date_signed,
         NULL AS payment_mode, NULL AS gender, NULL AS nationality,
         NULL AS employment_type, NULL AS years_employer, NULL AS income,
         NULL AS employer_name, NULL AS business_address,
         NULL AS position, NULL AS business_nature,
-        NULL AS id_type, NULL AS id_image, NULL AS letter_of_intent,
+        id_type, id_image, letter_of_intent,
         created_at
       FROM ipharma_applications
 
@@ -795,7 +810,11 @@ app.get("/applications", async (req, res) => {
         id::text AS id,
         name, email, phone, franchise,
         status, date, address, dob, civil_status,
-        spouse_name, spouse_occupation, dependents,
+        spouse_name, spouse_occupation, NULL AS spouse_dob, dependents,
+        NULL AS telephone, NULL AS tin, NULL AS education,
+        NULL AS involvement, NULL AS equity, NULL AS investment, NULL AS fund_source,
+        NULL AS other_business, NULL AS location, NULL AS family_depend, NULL AS market_area, NULL AS start_date,
+        date_signed,
         payment_mode, gender, nationality,
         employment_type, years_employer, income,
         employer_name, business_address,
@@ -883,30 +902,33 @@ app.post("/ipharma-applications", async (req, res) => {
         address, dob, civil_status, spouse_name, spouse_occupation, spouse_dob,
         dependents, tin, education, involvement, equity, investment, fund_source,
         other_business, location, family_depend, market_area, start_date,
-        signature, date_signed
+        signature, date_signed, id_type, id_image, letter_of_intent
       ) VALUES (
         $1,$2,$3,$4,'pending',$5,
         $6,$7,$8,$9,$10,$11,
         $12,$13,$14,$15,$16,$17,$18,
         $19,$20,$21,$22,$23,
-        $24,$25
+        $24,$25,$26,$27, $28
       ) RETURNING *`,
       [
-        b.name, b.email, b.phone, b.telephone || null,
-        b.date || new Date().toISOString().split("T")[0],
-        b.address,
-        b.dob || null, b.maritalStatus, b.spouseName || null,
-        b.spouseOccupation || null, b.spouseDob || null,
-        b.dependents ? parseInt(b.dependents) : null,
-        b.tin || null,
-        b.education ? JSON.stringify(b.education) : null,
-        b.involvement || null, b.equity || null,
-        b.investment ? parseFloat(b.investment) : null,
-        b.fundSource || null,
-        b.otherBusiness || null, b.location || null,
-        b.familyDepend || null, b.marketArea || null,
-        b.startDate || null,
-        b.signature || null, b.dateSigned || null,
+        b.name, b.email, b.phone, b.telephone || null,        // $1-$4
+        b.date || new Date().toISOString().split("T")[0],     // $5
+        b.address,                                            // $6
+        b.dob || null, b.maritalStatus, b.spouseName || null, // $7-$9
+        b.spouseOccupation || null, b.spouseDob || null,      // $10-$11
+        b.dependents ? parseInt(b.dependents) : null,         // $12
+        b.tin || null,                                        // $13
+        b.education ? JSON.stringify(b.education) : null,     // $14
+        b.involvement || null, b.equity || null,            
+        b.investment ? parseFloat(b.investment) : null,  
+        b.fundSource || null,                          
+        b.otherBusiness || null, b.location || null,    
+        b.familyDepend || null, b.marketArea || null,    
+        b.startDate || null,                                
+        b.signature || null, b.dateSigned || null,        
+        b.idType || null,                                 
+        b.idImage || null,      
+        b.letterOfIntent || null,
       ]
     );
 
@@ -947,6 +969,7 @@ app.put("/applications/:id/status", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update application status" });
   }
 });
+
 app.delete("/applications/:id", async (req, res) => {
   try {
     const rawId = req.params.id;
@@ -3433,18 +3456,18 @@ app.post("/api/verify-id", async (req, res) => {
   const { frontImage, backImage, idType } = req.body;
 
   const ID_TYPE_MAP = {
-    "Philippine Passport":    ["PASSPORT"],
-    "Driver's License":       ["DRIVER", "DRIVING"],
-    "SSS ID":                 ["SSS"],
-    "GSIS ID":                ["GSIS"],
-    "PhilHealth ID":          ["PHILHEALTH", "PHIL HEALTH"],
-    "Pag-IBIG ID":            ["PAG-IBIG", "PAGIBIG"],
-    "PRC ID":                 ["PRC"],
-    "Voter's ID":             ["VOTER"],
-    "National ID (PhilSys)":  ["NATIONAL ID", "E-NATIONAL", "PHILSYS"],
-    "Senior Citizen ID":      ["SENIOR"],
-    "PWD ID":                 ["PWD"],
-    "UMID":                   ["UMID"],
+    "Philippine Passport":   ["PASSPORT", "REPUBLIKA NG PILIPINAS", "REPUBLIC OF THE PHILIPPINES", "PASAPORTE"],
+    "Driver's License":      ["DRIVER'S LICENSE", "DRIVING LICENSE", "LAND TRANSPORTATION OFFICE", "LTO"],
+    "SSS ID":                ["SOCIAL SECURITY SYSTEM", "SOCIAL SECURITY CARD", "SSS"],
+    "GSIS ID":               ["GOVERNMENT SERVICE INSURANCE", "GSIS"],
+    "PhilHealth ID":         ["PHILHEALTH", "PHILIPPINE HEALTH INSURANCE"],
+    "Pag-IBIG ID":           ["PAG-IBIG", "PAGIBIG", "HOME DEVELOPMENT MUTUAL FUND", "HDMF"],
+    "PRC ID":                ["PROFESSIONAL REGULATION COMMISSION", "PRC"],
+    "Voter's ID":            ["COMMISSION ON ELECTIONS", "COMELEC", "VOTER"],
+    "National ID (PhilSys)": ["PHILSYS", "PHILIPPINE IDENTIFICATION SYSTEM", "NATIONAL ID"],
+    "Senior Citizen ID":     ["SENIOR CITIZEN", "OFFICE FOR SENIOR CITIZENS"],
+    "PWD ID":                ["PERSON WITH DISABILITY", "PWD"],
+    "UMID":                  ["UMID", "UNIFIED MULTI-PURPOSE ID"],
   };
 
   try {
@@ -3467,94 +3490,66 @@ app.post("/api/verify-id", async (req, res) => {
     });
 
     const result = await response.json();
-    console.log("ID Analyzer raw result:", JSON.stringify(result, null, 2));
 
     if (!result.success) {
-      return res.status(400).json({ 
-        success: false, 
-        error: result.error?.message || "ID verification failed" 
+      return res.status(400).json({
+        success: false,
+        error: result.error?.message || "ID verification failed",
       });
     }
 
     const data = result.data || {};
     const authScore = result.authentication?.score ?? 1;
 
-  const detectedType =
-    result.data?.documentType?.value        ||
-    (Array.isArray(result.data?.documentName)
-      ? result.data.documentName[0]?.value
-      : result.data?.documentName?.value)   ||
-    "";
+    // ── Extract all raw OCR text from the response ───────────────────
+    const ocrText = [
+      result.data?.ocrResult,
+      result.data?.ocrText,
+      result.fullText,
+      result.rawText,
+      // also pull every string value from data fields as fallback
+      ...Object.values(data).map(v =>
+        Array.isArray(v) ? v.map(i => i?.value || "").join(" ") : v?.value || ""
+      ),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toUpperCase();
 
-    const expectedType   = ID_TYPE_MAP[idType] || "";
-    const detectedUpper = detectedType.toUpperCase().trim();
+    console.log("OCR Text extracted:", ocrText);
+
+    // ── Match OCR text against selected ID type keywords ─────────────
     const expectedKeywords = ID_TYPE_MAP[idType] || [];
+    const isCorrectIdType = expectedKeywords.some(keyword =>
+      ocrText.includes(keyword.toUpperCase())
+    );
 
-    console.log("Expected ID type keywords:", expectedKeywords);
-    console.log("Detected ID type:", detectedUpper);
+    console.log("ID type match:", isCorrectIdType, "| Selected:", idType);
 
-    if (!detectedUpper) {
+    if (!isCorrectIdType) {
       return res.json({
         success: true,
         data: {
           firstName: "", lastName: "", middleName: "",
           dob: "", address: "", idNumber: "", expiryDate: null,
           isValid: false, confidence: 0,
-          reason: "Could not detect ID type. Please upload a clearer image of your ID.",
+          reason: `Wrong ID type. You selected "${idType}" but the scanned document does not match. Please upload the correct ID.`,
         },
       });
     }
 
-    const isCorrectIdType = expectedKeywords.some(keyword =>
-      detectedUpper.includes(keyword.toUpperCase())
-    );
-
-if (!isCorrectIdType) {
-  return res.json({
-    success: true,
-    data: {
-      firstName: "", lastName: "", middleName: "",
-      dob: "", address: "", idNumber: "", expiryDate: null,
-      isValid: false, confidence: 0,
-      reason: `Wrong ID type. You selected "${idType}" but the scanned document appears to be "${detectedType}". Please upload the correct ID.`,
-    },
-  });
-}
-
-    console.log("Expected ID type:", expectedKeywords);
-    console.log("Detected ID type:", detectedUpper);
-    console.log("ID type match:", isCorrectIdType);
-
-    if (!isCorrectIdType) {
-      return res.json({
-        success: true,
-        data: {
-          firstName:  "",
-          lastName:   "",
-          middleName: "",
-          dob:        "",
-          address:    "",
-          idNumber:   "",
-          expiryDate: null,
-          isValid:    false,
-          confidence: 0,
-          reason:     `Wrong ID type. You selected "${idType}" but the scanned ID appears to be a "${detectedType}". Please upload the correct ID.`,
-        },
-      });
-    }
-
-    // ── Auth Score Check ─────────────────────────────────────────────────
+    // ── Auth score check ─────────────────────────────────────────────
     if (authScore < 0.5) {
       return res.json({
         success: true,
         data: {
-          firstName:  data.firstName?.value  || "",
-          lastName:   data.lastName?.value   || "",
-          middleName: data.middleName?.value || "",
-          dob:        data.dob?.value        || "",
-          address:    data.address1?.value   || "",
+          firstName:  data.firstName?.value      || "",
+          lastName:   data.lastName?.value       || "",
+          middleName: data.middleName?.value     || "",
+          dob:        data.dob?.value            || "",
+          address:    data.address1?.value       || "",
           idNumber:   data.documentNumber?.value || "",
-          expiryDate: data.expiry?.value     || null,
+          expiryDate: data.expiry?.value         || null,
           isValid:    false,
           confidence: authScore,
           reason:     "ID failed authenticity check. Please upload a clear, valid government-issued ID.",
@@ -3562,17 +3557,17 @@ if (!isCorrectIdType) {
       });
     }
 
-    // ── All checks passed ────────────────────────────────────────────────
+    // ── All checks passed ────────────────────────────────────────────
     res.json({
       success: true,
       data: {
-        firstName:  data.firstName?.value  || "",
-        lastName:   data.lastName?.value   || "",
-        middleName: data.middleName?.value || "",
-        dob:        data.dob?.value        || "",
-        address:    data.address1?.value   || "",
+        firstName:  data.firstName?.value      || "",
+        lastName:   data.lastName?.value       || "",
+        middleName: data.middleName?.value     || "",
+        dob:        data.dob?.value            || "",
+        address:    data.address1?.value       || "",
         idNumber:   data.documentNumber?.value || "",
-        expiryDate: data.expiry?.value     || null,
+        expiryDate: data.expiry?.value         || null,
         isValid:    true,
         confidence: authScore,
         reason:     "ID verified successfully",

@@ -756,44 +756,66 @@ const checkDuplicate = async (email, mobile) => {
     }
     setShowOtp(true);
 
-handleOtpVerified(true);
   };
 
-  const handleOtpVerified = async (success) => {
-    setShowOtp(false);
-    if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
-    auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email });
-    const fullAddress = [addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()].filter(Boolean).join(", ");
-    const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, suffix].filter(Boolean).join(" ");
-    const payload = {
-      name: fullName, suffix, maritalStatus,
-      email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
-      telephone: form.telephone, dob: form.dob, address: fullAddress,
-      spouseName: form.spouseName, spouseOccupation: form.spouseOccupation, spouseDob: form.spouseDob,
-      dependents: form.dependents, tin: form.tin,
-      education: educList,
-      involvement: form.involvement, equity: form.equity, investment: form.investment,
-      fundSource: form.fundSource, otherBusiness: form.otherBusiness, location: form.location,
-      familyDepend: form.familyDepend, marketArea: form.marketArea, startDate: form.startDate,
-      idType: idData?.idType, dateSigned: form.dateSigned,
-      auditTrail: auditLog.getAll(),
-    };
+const handleOtpVerified = async (success) => {
+  setShowOtp(false);
+  if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
+  auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email });
+
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  let letterOfIntentBase64 = null;
+  if (letterOfIntent) {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ipharma-applications`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-      });
-      if (!res.ok) { showAlert("error", `Server error: ${res.status}`); return; }
-      const data = await res.json();
-      if (data.success) {
-        auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
-        showAlert("success", "iPharma Mart Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
-      } else {
-        showAlert("error", data.error || "Failed to submit. Please try again.");
-      }
+      letterOfIntentBase64 = await toBase64(letterOfIntent);
     } catch {
-      showAlert("error", "Failed to submit. Please check your connection and try again.");
+      showAlert("error", "Failed to process Letter of Intent. Please try again.");
+      return;
     }
+  }
+
+  const fullAddress = [addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()].filter(Boolean).join(", ");
+  const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, suffix].filter(Boolean).join(" ");
+
+  const payload = {
+    name: fullName, suffix, maritalStatus,
+    email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
+    telephone: form.telephone, dob: form.dob, address: fullAddress,
+    spouseName: form.spouseName, spouseOccupation: form.spouseOccupation, spouseDob: form.spouseDob,
+    dependents: form.dependents, tin: form.tin,
+    education: educList,
+    involvement: form.involvement, equity: form.equity, investment: form.investment,
+    fundSource: form.fundSource, otherBusiness: form.otherBusiness, location: form.location,
+    familyDepend: form.familyDepend, marketArea: form.marketArea, startDate: form.startDate,
+    idType:         idData?.idType        || null,
+    letterOfIntent: letterOfIntentBase64  || null,  // ← now properly base64
+    idImage:        idData?.frontImg      || null,
+    dateSigned: form.dateSigned,
+    auditTrail: auditLog.getAll(),
   };
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ipharma-applications`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) { showAlert("error", `Server error: ${res.status}`); return; }
+    const data = await res.json();
+    if (data.success) {
+      auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
+      showAlert("success", "iPharma Mart Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
+    } else {
+      showAlert("error", data.error || "Failed to submit. Please try again.");
+    }
+  } catch {
+    showAlert("error", "Failed to submit. Please check your connection and try again.");
+  }
+};
 
   const steps = [{ label: "Personal", pct: 33 }, { label: "Business", pct: 66 }, { label: "Done", pct: 100 }];
 

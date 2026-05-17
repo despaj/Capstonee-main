@@ -3570,41 +3570,101 @@ function ApplicationsContent({ applications: initialApps }) {
 
               return (
                 <>
-                <Section title="Basic Information">
-                  <Field label="Full Name"          value={viewApp.name}              full />
-                  <Field label="Email Address"      value={viewApp.email} />
-                  <Field label="Phone Number"       value={viewApp.phone} />
-                  <Field label="Franchise Interest" value={viewApp.franchise} />
-                  <Field label="Payment Mode"       value={viewApp.paymentMode} /> 
-                  <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
-                </Section>
+{viewApp.franchise === "iPharma Mart" ? (
+  // ── iPharma-specific view ──
+  <>
+    <Section title="Basic Information">
+      <Field label="Full Name"          value={viewApp.name}              full />
+      <Field label="Email Address"      value={viewApp.email} />
+      <Field label="Phone Number"       value={viewApp.phone} />
+      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+    </Section>
 
-                <Section title="Personal Information">
-                  <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
-                  <Field label="Civil Status"       value={viewApp.civilStatus} /> 
-                  <Field label="Gender"             value={viewApp.gender} />
-                  <Field label="Nationality"        value={viewApp.nationality} />
-                  <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
-                  <Field label="ID Type Used"       value={viewApp.idType} />   
-                  <Field label="Address"            value={viewApp.address}             full />
-                </Section>
+    <Section title="Personal Information">
+      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+      <Field label="Marital Status"     value={viewApp.maritalStatus || viewApp.civil_status} />
+      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+      <Field label="TIN"                value={viewApp.tin} />
+      <Field label="ID Type Used"       value={viewApp.idType} />
+      <Field label="Address"            value={viewApp.address}           full />
+    </Section>
 
-                {(viewApp.spouseName || viewApp.spouseOccupation) && ( 
-                  <Section title="Spouse Information">
-                    <Field label="Spouse Name"       value={viewApp.spouseName} /> 
-                    <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
-                  </Section>
-                )}
+    {(viewApp.spouseName || viewApp.spouseOccupation) && (
+      <Section title="Spouse Information">
+        <Field label="Spouse Name"       value={viewApp.spouseName} />
+        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+        <Field label="Spouse Date of Birth" value={fmtDate(viewApp.spouseDob)} />
+      </Section>
+    )}
 
-                <Section title="Employment Information">
-                  <Field label="Employment Type"    value={viewApp.employmentType} /> 
-                  <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
-                  <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
-                  <Field label="Position"           value={viewApp.position} />
-                  <Field label="Company Name"       value={viewApp.employerName}        full /> 
-                  <Field label="Business Address"   value={viewApp.businessAddress}     full />
-                  <Field label="Nature of Business" value={viewApp.businessNature} />
-                </Section>
+    {viewApp.education?.length > 0 && (
+      <Section title="Educational Background">
+        {viewApp.education.map((e, i) => (
+          <React.Fragment key={i}>
+            <Field label={`Degree #${i+1}`}  value={e.degree} />
+            <Field label="School"            value={e.school} />
+            <Field label="Course"            value={e.course} />
+            <Field label="Year Graduated"    value={e.yearGrad?.toString()} />
+          </React.Fragment>
+        ))}
+      </Section>
+    )}
+
+    <Section title="Business Interest">
+      <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
+      <Field label="Equity Owned (%)"       value={viewApp.equity} />
+      <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
+      <Field label="Source of Funds"        value={viewApp.fundSource} />
+      <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
+      <Field label="Preferred Location"     value={viewApp.location}       full />
+    </Section>
+
+    <Section title="Declaration">
+      <Field label="Family Dependence"      value={viewApp.familyDepend}   full />
+      <Field label="Market Area"            value={viewApp.marketArea}     full />
+      <Field label="Target Start Date"      value={fmtDate(viewApp.startDate)} />
+    </Section>
+  </>
+) : (
+  // ── Regular franchise view (existing fields) ──
+  <>
+    <Section title="Basic Information">
+      <Field label="Full Name"          value={viewApp.name}              full />
+      <Field label="Email Address"      value={viewApp.email} />
+      <Field label="Phone Number"       value={viewApp.phone} />
+      <Field label="Franchise Interest" value={viewApp.franchise} />
+      <Field label="Payment Mode"       value={viewApp.paymentMode} />
+      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+    </Section>
+
+    <Section title="Personal Information">
+      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+      <Field label="Civil Status"       value={viewApp.civilStatus} />
+      <Field label="Gender"             value={viewApp.gender} />
+      <Field label="Nationality"        value={viewApp.nationality} />
+      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+      <Field label="ID Type Used"       value={viewApp.idType} />
+      <Field label="Address"            value={viewApp.address}           full />
+    </Section>
+
+    {(viewApp.spouseName || viewApp.spouseOccupation) && (
+      <Section title="Spouse Information">
+        <Field label="Spouse Name"       value={viewApp.spouseName} />
+        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+      </Section>
+    )}
+
+    <Section title="Employment Information">
+      <Field label="Employment Type"    value={viewApp.employmentType} />
+      <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
+      <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
+      <Field label="Position"           value={viewApp.position} />
+      <Field label="Company Name"       value={viewApp.employerName}      full />
+      <Field label="Business Address"   value={viewApp.businessAddress}   full />
+      <Field label="Nature of Business" value={viewApp.businessNature} />
+    </Section>
+  </>
+)}
                   
                     <div style={{ marginBottom: 20 }}>
               <div style={{
