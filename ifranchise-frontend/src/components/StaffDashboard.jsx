@@ -1273,7 +1273,11 @@ export default function StaffDashboard() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const getUserFromStorage = () => {
-    const s = localStorage.getItem('user');
+    const s = 
+    localStorage.getItem('user') ||
+    localStorage.getItem('rememberedUser') ||
+    sessionStorage.getItem('user'); 
+
     if (s) return JSON.parse(s);
     navigate('/admin-login');
     return null;
@@ -1287,7 +1291,29 @@ export default function StaffDashboard() {
     else setUser(u);
   }, []);
 
-  const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
+   const confirmLogout = async () => {
+  try {
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const userId = stored ? JSON.parse(stored)?.id : null;
+
+    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("fr_activeModule");
+    setShowLogoutModal(false);
+    window.location.href = "/admin-login";
+  }
+};
   if (!user) return null;
 
   return (

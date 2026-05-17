@@ -160,19 +160,41 @@ export default function AdminDashboard() {
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
   const handleLogout = () => setShowLogoutModal(true);
-  const confirmLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('rememberedUser');
-    sessionStorage.removeItem('fr_activeModule');
-    window.location.href = '/admin-login';
-  };
   const [transactions, setTransactions] = useState([]);
 
   const getUserFromStorage = () => {
-    const userString = localStorage.getItem('user');
+    const userString = 
+    localStorage.getItem('user') ||
+    localStorage.getItem('rememberedUser') ||
+    sessionStorage.getItem('user'); 
+
     if (userString) return JSON.parse(userString);
     return null;
   };
+
+  const confirmLogout = async () => {
+  try {
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const userId = stored ? JSON.parse(stored)?.id : null;
+
+    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("fr_activeModule");
+    setShowLogoutModal(false);
+    window.location.href = "/admin-login";
+  }
+};
 
   useEffect(() => {
     sessionStorage.setItem('fr_activeModule', activeModule);
@@ -3225,6 +3247,10 @@ function ApplicationsContent({ applications: initialApps }) {
   const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
   const [role, setRole] = useState("franchisee"); 
 
+  const [filterStatus,    setFilterStatus]    = useState("all");
+  const [filterFranchise, setFilterFranchise] = useState("all");
+  const [searchQuery,     setSearchQuery]     = useState("");
+
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
@@ -3234,6 +3260,16 @@ function ApplicationsContent({ applications: initialApps }) {
       console.error("Failed to fetch applications:", err);
     }
   };
+
+  const filteredApps = applications.filter(app => {
+  const q = searchQuery.toLowerCase();
+  if (q && !app.name?.toLowerCase().includes(q) &&
+           !app.email?.toLowerCase().includes(q) &&
+           !app.phone?.toLowerCase().includes(q)) return false;
+  if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
+  if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
+  return true;
+});
 
   const fetchAppDeleteHistory = async () => {
     try {
@@ -3889,6 +3925,63 @@ function ApplicationsContent({ applications: initialApps }) {
           ].map((s, i) => <BmStatCard key={i} {...s} />)}
         </div>
 
+        {/* Filter bar */}
+        <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+            {/* Search */}
+            <div style={{ position:"relative" }}>
+              <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+              <input
+                type="text"
+                placeholder="Search name, email, phone…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ padding:"9px 12px 9px 30px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
+              />
+              {searchQuery && (
+                <div onClick={() => setSearchQuery("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5a7a65" }}>
+                  <X size={12}/>
+                </div>
+              )}
+            </div>
+
+            {/* Status */}
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+              style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+
+            {/* Franchise Interest */}
+            <select value={filterFranchise} onChange={e => setFilterFranchise(e.target.value)}
+              style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+              <option value="all">All Franchises</option>
+              <option value="Food Caravan">Food Caravan</option>
+              <option value="Coffee Spot">Coffee Spot</option>
+              <option value="iPharma Mart">iPharma Mart</option>
+              <option value="iFuel">iFuel</option>
+            </select>
+
+            {/* Clear */}
+            {(searchQuery || filterStatus !== "all" || filterFranchise !== "all") && (
+              <button
+                onClick={() => { setSearchQuery(""); setFilterStatus("all"); setFilterFranchise("all"); }}
+                style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                Clear filters
+              </button>
+            )}
+
+            {/* Result count pushed right */}
+            <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
+              {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
+            </span>
+
+          </div>
+        </div>
+
         {/* Table card */}
         <div style={{
           background: C.white,
@@ -3944,6 +4037,7 @@ function ApplicationsContent({ applications: initialApps }) {
               </button>
             </div>
           </div>
+          
 
           {/* Table */}
           <div style={{ overflowX: "auto" }}>
@@ -3979,7 +4073,7 @@ function ApplicationsContent({ applications: initialApps }) {
                       No applications found.
                     </td>
                   </tr>
-                ) : applications.map(app => (
+                ) : filteredApps.map(app => (
                   <tr
                     key={app.id}
                     style={{ borderBottom: `1px solid #f0f8f0` }}
@@ -4049,11 +4143,18 @@ function ApplicationsContent({ applications: initialApps }) {
 
 const REPORT_STATUS = {
   pending:  { label:"Pending",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  reviewed: { label:"Reviewed", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
   approved: { label:"Approved", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
 };
 
 const API = process.env.REACT_APP_API_URL || "";
+
+function Chip({ label, color, bg, onRemove }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
+      {label} <X size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
+    </span>
+  );
+}
 
 function ReportsContent() {
   const [reports,      setReports]      = useState([]);
@@ -4066,14 +4167,14 @@ function ReportsContent() {
   // modal states
   const [viewReport,    setViewReport]    = useState(null);
   const [approveReport, setApproveReport] = useState(null);
-  const [commentReport, setCommentReport] = useState(null); 
-  const [commentText,   setCommentText]   = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
+  const [filterBrand,  setFilterBrand]  = useState(null); // brand id (object ref)
+  const [filterBranch, setFilterBranch] = useState(null);
 
   // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
@@ -4116,7 +4217,6 @@ function ReportsContent() {
   const syncModals = (updated) => {
     setViewReport    (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
     setApproveReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
-    setCommentReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
   };
 
   const patchReport = (updated) => {
@@ -4126,6 +4226,17 @@ function ReportsContent() {
       return next;
     });
   };
+
+  const brandList = useMemo(() => {
+  const map = {};
+  reports.forEach(r => {
+    if (!map[r.brand]) map[r.brand] = { id: r.brand, name: r.brand, branches: [] };
+    if (!map[r.brand].branches.includes(r.branch)) {
+      map[r.brand].branches.push(r.branch);
+    }
+  });
+  return Object.values(map);
+}, [reports]);
 
   // ── Approve ───────────────────────
   const handleApprove = async (id) => {
@@ -4143,55 +4254,6 @@ function ReportsContent() {
     }
   };
 
-  // ── Add comment ─────────────────────────────────────────────────
-  const handleAddComment = async (id) => {
-    if (!commentText.trim()) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`${API}/reports/${id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ text: commentText.trim(), author:"Admin" }),
-      });
-      if (!res.ok) throw new Error();
-      const newComment = await res.json();
-      // Append comment locally without re-fetching entire list
-      setReports(prev => {
-        const next = prev.map(r =>
-          r.id === id ? { ...r, comments:[...(r.comments||[]), newComment] } : r
-        );
-        syncModals(next);
-        return next;
-      });
-      setCommentText("");
-    } catch {
-      alert("Failed to add comment. Please try again.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ── Delete comment ──────────────────────────────────────────────
-  const handleDeleteComment = async (reportId, commentId) => {
-    try {
-      const res = await fetch(`${API}/reports/${reportId}/comments/${commentId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error();
-      setReports(prev => {
-        const next = prev.map(r =>
-          r.id === reportId
-            ? { ...r, comments: (r.comments||[]).filter(c => c.id !== commentId) }
-            : r
-        );
-        syncModals(next);
-        return next;
-      });
-    } catch {
-      alert("Failed to delete comment.");
-    }
-  };
-
   // ── Export CSV ──────────────────────────────────────────────────
   const handleExport = (brand) => {
     const params = new URLSearchParams();
@@ -4200,27 +4262,33 @@ function ReportsContent() {
     window.open(`${API}/reports/export?${params}`, "_blank");
   };
 
-  // ── Derived data ────────────────────────────────────────────────
-  const allBrands = [...new Set(reports.map(r => r.brand))];
+  const allBrands = useMemo(() => {
+    return [...new Set(
+      reports
+        .filter(r => !filterBrand  || r.brand  === filterBrand)
+        .filter(r => !filterBranch || r.branch === filterBranch)
+        .map(r => r.brand)
+    )];
+  }, [reports, filterBrand, filterBranch]);
 
-  const getBrandBranches = (brand) =>
-    [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
+    const getBrandBranches = (brand) =>
+      [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
 
-  const getBrandReports = (brand) => {
-    const branchFilter = brandBranchFilter[brand] || "all";
-    return reports.filter(r => {
-      if (r.brand !== brand) return false;
-      if (branchFilter !== "all" && r.branch !== branchFilter) return false;
-      // status + search are already filtered server-side, but keep client guard:
-      if (filterStatus !== "all" && r.status !== filterStatus) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!String(r.id).toLowerCase().includes(q) &&
-            !r.submittedBy.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-  };
+    const getBrandReports = (brand) => {
+      const branchFilter = brandBranchFilter[brand] || "all";
+      return reports.filter(r => {
+        if (r.brand !== brand) return false;
+        if (branchFilter !== "all" && r.branch !== branchFilter) return false;
+        if (filterBranch && r.branch !== filterBranch) return false; // ← new
+        if (filterStatus !== "all" && r.status !== filterStatus) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          if (!String(r.id).toLowerCase().includes(q) &&
+              !r.submittedBy.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      });
+    };
 
   const counts = {
     total:    reports.length,
@@ -4334,11 +4402,6 @@ const generatePdfDoc = (report) => {
         label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor: "#00695c",
         disabled: report.status === "approved",
         onClick:() => { setApproveReport(report); setOpenDropdown(null); },
-      },
-      {
-        label:"Comment", icon:<MessageCircle size={13}/>, color:"#1e40af", bg:"#dbeafe", border:"#93c5fd",
-        badge: report.comments?.length || 0,
-        onClick:() => { setCommentReport(report); setOpenDropdown(null); },
       },
     ];
     return (
@@ -4503,7 +4566,6 @@ const generatePdfDoc = (report) => {
             </div>
           </div>
 
-          {/* Inline PDF iframe preview */}
           {pdfPreviewUrl && (
             <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
               <div style={{
@@ -4539,28 +4601,24 @@ const generatePdfDoc = (report) => {
             </div>
           )}
 
-          {viewReport.comments?.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>
-                Comments ({viewReport.comments.length})
-              </div>
-              {viewReport.comments.slice(-2).map((c, i) => (
-                <div key={c.id || i} style={{ padding: "9px 12px", background: "#f0fdf5", borderRadius: 10, border: "1px solid #d1eedd", marginBottom: 6, fontSize: 12, color: "#0d2b1e" }}>
-                  <span style={{ fontWeight: 700, color: "#00897b" }}>{c.author}</span>
-                  <span style={{ color: "#5a7a65", marginLeft: 8, fontSize: 11 }}>{fmtDate(c.postedAt)}</span>
-                  <div style={{ marginTop: 4 }}>{c.text}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <StatusBadge status={viewReport.status}/>
+            <div style={{ display: "flex", gap: 8 }}>
+              {/* ← ADD Approve here, only show if not already approved */}
+              {viewReport.status !== "approved" && (
+                <button
+                  onClick={() => handleApprove(viewReport.id)}
+                  disabled={actionLoading}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve
+                </button>
+              )}
             <button
               onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
               style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
               Close
             </button>
+            </div>
           </div>
         </ModalShell>
       )}
@@ -4614,47 +4672,7 @@ const generatePdfDoc = (report) => {
           </div>
         </ModalShell>
       )}
-
-      {/* COMMENT modal */}
-      {commentReport && (
-        <ModalShell title={`Comments — #${commentReport.id}`} subtitle={commentReport.brand + " · " + commentReport.branch} icon={<MessageCircle size={16} color="#fff"/>} onClose={() => setCommentReport(null)} maxWidth={480}>
-          <div style={{ minHeight:180, maxHeight:260, overflowY:"auto", marginBottom:16, display:"flex", flexDirection:"column", gap:8 }}>
-            {!commentReport.comments?.length ? (
-              <div style={{ padding:"32px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No comments yet.</div>
-            ) : commentReport.comments.map((c, i) => (
-              <div key={c.id || i} style={{ padding:"10px 13px", background:c.author==="Admin"?"#f0fdf5":"#f8fffe", borderRadius:11, border:`1px solid ${c.author==="Admin"?"#d1eedd":"#e0f2f1"}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontWeight:800, fontSize:12, color:"#00897b" }}>{c.author}</span>
-                    <span style={{ fontSize:10.5, color:"#5a7a65" }}>{fmtDate(c.postedAt)}</span>
-                  </div>
-                  {c.id && (
-                    <button onClick={() => handleDeleteComment(commentReport.id, c.id)}
-                      style={{ background:"none", border:"none", cursor:"pointer", color:"#d1d5db", padding:2, display:"flex", alignItems:"center" }}
-                      onMouseEnter={e => e.currentTarget.style.color="#ef4444"}
-                      onMouseLeave={e => e.currentTarget.style.color="#d1d5db"}>
-                      <Trash2 size={11}/>
-                    </button>
-                  )}
-                </div>
-                <div style={{ fontSize:13, color:"#0d2b1e" }}>{c.text}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-            <textarea value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." rows={2}
-              onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleAddComment(commentReport.id);} }}
-              style={{ ...bmInput, flex:1, resize:"none", lineHeight:1.6 }}/>
-            <button onClick={() => handleAddComment(commentReport.id)} disabled={!commentText.trim() || actionLoading}
-              style={{ display:"flex", alignItems:"center", justifyContent:"center", width:40, height:40, borderRadius:10, border:"none", background:commentText.trim()?"linear-gradient(135deg,#2E7D32,#00897b)":"#e0e0e0", color:commentText.trim()?"#fff":"#9e9e9e", cursor:commentText.trim()?"pointer":"not-allowed", flexShrink:0 }}>
-              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={16}/>}
-            </button>
-          </div>
-          <div style={{ fontSize:11, color:"#5a7a65", marginTop:6 }}>Enter to send · Shift+Enter for new line</div>
-        </ModalShell>
-      )}
-
-      {/* Stat cards */}
+      
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
         <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
         <BmStatCard label="Pending"       value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e"/>} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting review"  />
@@ -4662,31 +4680,64 @@ const generatePdfDoc = (report) => {
         <BmStatCard label="Approved"      value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
       </div>
 
-      {/* Global filters */}
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", marginBottom:20 }}>
-        <div style={{ position:"relative" }}>
-          <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
-          <input type="text" placeholder="Search ID or submitter..." value={search} onChange={e => setSearch(e.target.value)}
-            style={{ ...bmInput, paddingLeft:30, width:220, height:34 }}/>
+<div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+  <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+    {/* Search */}
+    <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+      <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+      <input type="text" placeholder="Search ID or submitter..." value={search} onChange={e => setSearch(e.target.value)}
+        style={{ ...bmInput, paddingLeft:30, height:36, width:"100%" }}/>
+      {search && (
+        <div onClick={() => setSearch("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5a7a65" }}>
+          <X size={12}/>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <span style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65" }}>Status</span>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            style={{ ...bmInput, width:"auto", height:34, paddingRight:12, appearance:"none", cursor:"pointer" }}>
-            <option value="all">All</option>
-            {Object.entries(REPORT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
-        {/* Global export button */}
-        <button onClick={() => handleExport(null)}
-          style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-          <Download size={13}/> Export CSV
-        </button>
-        <button onClick={fetchReports}
-          style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-          <RefreshCw size={13}/> Refresh
-        </button>
-      </div>
+      )}
+    </div>
+
+    {/* Status */}
+    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+      style={{ ...bmInput, height:36, width:"auto", appearance:"none", cursor:"pointer" }}>
+      <option value="all">All Statuses</option>
+      {Object.entries(REPORT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+    </select>
+
+    {/* Brand + Branch (the fancy component) */}
+    <BrandBranchFilter
+      brands={brandList}
+      activeBrand={filterBrand}
+      activeBranch={filterBranch}
+      onChangeBrand={id  => { setFilterBrand(id);  setFilterBranch(null); }}
+      onChangeBranch={val => setFilterBranch(val)}
+    />
+
+    {/* Export + Refresh pushed right */}
+    <button onClick={() => handleExport(filterBrand || null)}
+      style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      <Download size={13}/> Export CSV
+    </button>
+    <button onClick={fetchReports}
+      style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      <RefreshCw size={13}/> Refresh
+    </button>
+  </div>
+
+  {/* Active filter chips — mirrors inventory pattern */}
+  {(search || filterStatus !== "all" || filterBrand || filterBranch) && (
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:"1px solid #d1eedd", flexWrap:"wrap" }}>
+      <span style={{ fontSize:11, color:"#5a7a65", fontWeight:600 }}>Active:</span>
+      {search       && <Chip label={`"${search}"`}        color="#3949ab" bg="#e8eaf6" onRemove={() => setSearch("")}/>}
+      {filterStatus !== "all" && <Chip label={REPORT_STATUS[filterStatus]?.label} color="#00695c" bg="#e0f2f1" onRemove={() => setFilterStatus("all")}/>}
+      {filterBrand && !filterBranch && <Chip label={brandList.find(b => b.id === filterBrand)?.name} color="#00695c" bg="#e8f5e9" onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
+      {filterBranch && <Chip label={filterBranch} color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
+      <button
+        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterBrand(null); setFilterBranch(null); }}
+        style={{ height:24, padding:"0 10px", borderRadius:7, border:"1px solid #d1eedd", background:"#fff", color:"#5a7a65", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>
+        Clear all
+      </button>
+    </div>
+  )}
+</div>
 
       {/* One BmSection per brand */}
       {allBrands.length === 0 ? (
@@ -5432,34 +5483,53 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           ].map((s, i) => <BmStatCard key={i} {...s} />)}
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-    <div style={{ position:'relative' }}>
-      <Search size={14} color="#5a7a65" style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)' }}/>
-      <input type="text" placeholder="Search name or email…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-        style={{ padding:'9px 12px 9px 32px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, color:'#0d2b1e', background:'#f0fdf5', fontFamily:'inherit', outline:'none', width:240 }}/>
-    </div>
-    <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-      <option value="all">All Roles</option>
-      {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
-    </select>
-    <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
-      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background:'#f0fdf5', fontFamily:'inherit', outline:'none', cursor:'pointer' }}>
-      <option value="all">All Brands</option>
-      {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-    </select>
-    <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
-      style={{ padding:'9px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:'inherit', outline:'none', cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
-      <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
-      {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-    </select>
-    {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
-      <button onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
-        style={{ padding:'9px 14px', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#fff', color:'#5a7a65', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-        Clear filters
-      </button>
-    )}
-  </div>
+       <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+          {/* Search */}
+          <div style={{ position:"relative" }}>
+            <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+            <input
+              type="text"
+              placeholder="Search name or email…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ padding:"9px 12px 9px 32px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
+            />
+          </div>
+
+          {/* Role */}
+          <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            <option value="all">All Roles</option>
+            {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+
+          {/* Brand */}
+          <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            <option value="all">All Brands</option>
+            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+
+          {/* Branch */}
+          <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
+            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:"inherit", outline:"none", cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+            <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
+            {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+          </select>
+
+          {/* Clear */}
+          {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
+            <button
+              onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
+              style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              Clear filters
+            </button>
+          )}
+
+        </div>
+      </div>
 
         {/* Table card */}
         <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>

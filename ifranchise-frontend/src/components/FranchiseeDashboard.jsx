@@ -211,7 +211,11 @@ const ReadOnlyBanner = ({ message = 'View only — contact your admin to make ch
   
 const getUserFromStorage = () => {
   try {
-    const userString = localStorage.getItem('user') || localStorage.getItem('rememberedUser');
+    const userString = 
+    localStorage.getItem('user') || 
+    localStorage.getItem('rememberedUser') ||
+    sessionStorage.getItem('user'); 
+    
     if (!userString || userString === 'undefined' || userString === 'null') return null;
     const parsed = JSON.parse(userString);
     if (!parsed || typeof parsed !== 'object' || !parsed.name) return null;
@@ -248,22 +252,40 @@ export default function FranchiseeDashboard({ onLogout }) {
   }, []);
 
   const handleLogout = () => setShowLogoutModal(true);
-  const confirmLogout = () => { 
-    localStorage.removeItem('user');
-    localStorage.removeItem('rememberedUser');
-    localStorage.removeItem('fr_activeModule');
-    sessionStorage.removeItem('fr_activeModule');
-    onLogout();
-  };
+
+  const confirmLogout = async () => {
+  try {
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const userId = stored ? JSON.parse(stored)?.id : null;
+
+    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("fr_activeModule");
+    setShowLogoutModal(false);
+    window.location.href = "/admin-login";
+  }
+};
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
     { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
     { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
-    { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
+    // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
     { id: 'staff',          label: 'Staff Management',icon: <Users size={20} /> },
     { id: 'communication',  label: 'Announcement',   icon: <MessageCircle size={20} /> },
+
     { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
     { id: 'logout',         label: 'Logout',          icon: <LogOut size={20} />, action: handleLogout },
   ];
@@ -358,7 +380,7 @@ export default function FranchiseeDashboard({ onLogout }) {
         )}
         <nav className="fr-nav">
           {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
-          {navigation.slice(0, 8).map(item => (
+          {navigation.slice(0, 6).map(item => (
             <div
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? 'active' : ''}`}
@@ -371,7 +393,7 @@ export default function FranchiseeDashboard({ onLogout }) {
             </div>
           ))}
           {!sidebarCollapsed && <div className="fr-nav-section" style={{ marginTop: 8 }}>Account</div>}
-          {navigation.slice(8).map(item => (
+          {navigation.slice(6).map(item => (
             <div
               key={item.id}
               className={`fr-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
@@ -1742,6 +1764,15 @@ function FrReportsContent({ user, transactions = [] }){
   const [retrieving, setRetrieving] = useState(null);
   const [viewSubmittedId, setViewSubmittedId] = useState(null);
 
+  const PAGE_SIZE = 5;
+  const [genPage,  setGenPage]  = useState(0);
+  const [subPage,  setSubPage]  = useState(0);
+  const [delPage,  setDelPage]  = useState(0);
+  
+  useEffect(() => { setGenPage(0); }, [reports]);
+  useEffect(() => { setSubPage(0); }, [submittedReports]);
+  useEffect(() => { setDelPage(0); }, [deletedReports]);
+
 useEffect(() => {
   const fetchSavedReports = async () => {
     try {
@@ -1822,6 +1853,10 @@ useEffect(() => {
     }
   };
   if (branch) fetchHistory();
+
+  const onFocus = () => { if (branch) fetchHistory(); };
+  window.addEventListener('focus', onFocus);
+  return () => window.removeEventListener('focus', onFocus);
 }, [branch]);
 
 useEffect(() => {
@@ -2182,25 +2217,25 @@ const retrieveReport = async report => {
     y = 46;
 
     const cleanContent = report.content
-  .replace(/₱/g, 'PHP ')
-  .replace(/±/g, 'PHP ')
-  .replace(/→/g, 'to')
-  .replace(/!'/g, 'to')
-  .replace(/[\u2018\u2019]/g, "'")
-  .replace(/[\u201C\u201D]/g, '"')
-  .replace(/\u2013/g, '-')
-  .replace(/\u2014/g, '--')
-  .replace(/\u2026/g, '...')
-  .replace(/[═─━]+/g, '')
-  .replace(/^.*FRANCHISE SALES.*$/gm, '')
-  .replace(/^.*Branch:.*Period:.*$/gm, '')
-  .replace(/^.*Date Prepared:.*$/gm, '')
-  .replace(/^.*This report was automatically.*$/gm, '')
-  .replace(/^.*transaction data for.*$/gm, '')
-  .replace(/^.*report generation date.*$/gm, '')
-  .replace(/[^\x00-\x7F]/g, '')
-  .replace(/\n{3,}/g, '\n\n')
-  .trim();
+      .replace(/₱/g, 'PHP ')
+      .replace(/±/g, 'PHP ')
+      .replace(/→/g, 'to')
+      .replace(/!'/g, 'to')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u2013/g, '-')
+      .replace(/\u2014/g, '--')
+      .replace(/\u2026/g, '...')
+      .replace(/[═─━]+/g, '')
+      .replace(/^.*FRANCHISE SALES.*$/gm, '')
+      .replace(/^.*Branch:.*Period:.*$/gm, '')
+      .replace(/^.*Date Prepared:.*$/gm, '')
+      .replace(/^.*This report was automatically.*$/gm, '')
+      .replace(/^.*transaction data for.*$/gm, '')
+      .replace(/^.*report generation date.*$/gm, '')
+      .replace(/[^\x00-\x7F]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
     const lines = cleanContent.split('\n');
 
@@ -2316,6 +2351,25 @@ const submitReport = async report => {
   setSubmitting(null);
 };
 
+
+  const Paginator = ({ total, page, setPage }) => {
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
+      <span style={{ fontSize: 12, color: '#5a7a65' }}>
+        Showing <strong>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)}</strong> of <strong>{total}</strong>
+      </span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button onClick={() => setPage(0)} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>«</button>
+        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>‹</button>
+        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}>›</button>
+        <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}>»</button>
+      </div>
+    </div>
+  );
+};
+
   return (
     <div style={{ fontFamily: "'Poppins', sans-serif" }}>
     <div className="v-stat-grid">
@@ -2418,7 +2472,7 @@ const submitReport = async report => {
                 <tr><th>Report #</th><th>Generated</th><th>Period</th><th>Actions</th></tr>
               </thead>
             <tbody>
-              {reports.map(r => (
+              {reports.slice(genPage * PAGE_SIZE, (genPage + 1) * PAGE_SIZE).map(r => (
                 <React.Fragment key={r.localId}>
                   <tr>
                     <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
@@ -2494,6 +2548,8 @@ const submitReport = async report => {
               ))}
             </tbody>
             </table>
+              
+              <Paginator total={reports.length} page={genPage} setPage={setGenPage} />
           </div>
         )}
       </div>
@@ -2521,7 +2577,7 @@ const submitReport = async report => {
               </tr>
             </thead>
             <tbody>
-              {submittedReports.map(h => (
+              {submittedReports.slice(subPage * PAGE_SIZE, (subPage + 1) * PAGE_SIZE).map(h => (
                 <React.Fragment key={h.id}>
                   <tr>
                     <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
@@ -2536,16 +2592,26 @@ const submitReport = async report => {
                     <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
                       {h.generatedDate || '—'}
                     </td>
-                    <td>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                        background: '#dbeafe', color: '#1e40af',
-                      }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
-                        Submitted
-                      </span>
-                    </td>
+<td>
+  {(() => {
+    const s = (h.status || 'submitted').toLowerCase();
+    const cfg = {
+      approved: { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Approved' },
+      submitted: { bg: '#dbeafe', color: '#1e40af', dot: '#3b82f6', label: 'Submitted' },
+    };
+    const { bg, color, dot, label } = cfg[s] || cfg.submitted;
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+        background: bg, color,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, display: 'inline-block' }} />
+        {label}
+      </span>
+    );
+  })()}
+</td>
                     <td>
                       <button
                         className="v-btn v-btn-ghost v-btn-sm"
@@ -2596,6 +2662,8 @@ const submitReport = async report => {
               ))}
             </tbody>
           </table>
+
+          <Paginator total={submittedReports.length} page={subPage} setPage={setSubPage} />
         </div>
       )}
     </div>
@@ -2624,7 +2692,7 @@ const submitReport = async report => {
                 </tr>
               </thead>
               <tbody>
-                {deletedReports.map((r, i) => {
+                {deletedReports.slice(delPage * PAGE_SIZE, (delPage + 1) * PAGE_SIZE).map((r, i) => {
                   const daysLeft = r.expiresAt
                     ? Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
                     : null;
@@ -2674,8 +2742,9 @@ const submitReport = async report => {
                 })}
               </tbody>
             </table>
+              <Paginator total={deletedReports.length} page={delPage} setPage={setDelPage} />
           </div>
-        )}
+      )}
       </div>
     </div>
   );

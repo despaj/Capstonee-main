@@ -9,7 +9,7 @@ import FranchisorDashboard from "./FranchisorDashboard";
 import ManagerDashboard from "./ManagerDashboard";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
-  const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod,
+  const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
     // pass these as props since they're no longer in scope:
     handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
   }) => {
@@ -56,14 +56,7 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
             : verifyLabel}
         </button>
 
-
-      {showSmsSwitch && (
-        <button type="button" className="use-sms-btn" onClick={onSwitchMethod} disabled={loading === "sms"}>
-          {loading === "sms"
-            ? <><span className="sms-spinner" /> {showSmsSwitch === "sms" ? "Sending SMS..." : "Sending Email..."}</>
-            : showSmsSwitch === "sms" ? "Use SMS Instead" : "Use Email Instead"}
-        </button>
-      )}
+        {extraButton}
 
         <button
           className="link-resend"
@@ -174,22 +167,27 @@ export default function AdminLogin() {
 
   // ── Session check ──
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser);
-        if (user && user.role && user.sessionExpiry && Date.now() < user.sessionExpiry) {
-          setLoggedIn(true); 
-          setUserRole(user.role);
-        } else {
-          localStorage.removeItem("user");
-        }
-      } catch {
+  // ✅ Check localStorage first (Remember Me), then sessionStorage (tab session)
+  const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+
+  if (stored) {
+    try {
+      const user = JSON.parse(stored);
+      if (user && user.role && user.sessionExpiry && Date.now() < user.sessionExpiry) {
+        setLoggedIn(true);
+        setUserRole(user.role);
+      } else {
+        // Expired — clear both
         localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
       }
+    } catch {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
     }
-    setIsCheckingSession(false);
-  }, []);
+  }
+  setIsCheckingSession(false);
+}, []);
 
   // ── Login lockout from storage ──
   useEffect(() => {
@@ -328,7 +326,6 @@ export default function AdminLogin() {
         setLoginAttempts(0);
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
-        // Always go to OTP — no skipOtp logic
         setOtpEmail(email.trim());
         sessionStorage.setItem("tempUser", JSON.stringify(data.user));
         await sendOtpSilent(email.trim());
@@ -406,6 +403,7 @@ const verifyOtp = async () => {
       body: JSON.stringify({ email: otpEmail.trim(), otp: val }), credentials: "include",
     });
     const data = await res.json();
+
     if (!res.ok) {
       const n = otpAttempts + 1; setOtpAttempts(n);
       if (n >= OTP_MAX_ATTEMPTS) {
@@ -416,16 +414,26 @@ const verifyOtp = async () => {
       }
       return;
     }
+
     setOtpAttempts(0); setOtpLockedUntil(null);
     const user = data.user;
 
+     if (rememberMe) {
     localStorage.setItem("user", JSON.stringify({
       ...user,
-      sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000
+      sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
     }));
+  } else {
+    // sessionStorage clears automatically when browser/tab closes
+    sessionStorage.setItem("user", JSON.stringify({
+      ...user,
+      sessionExpiry: Date.now() + 24 * 60 * 60 * 1000 // safety cap: 24hrs
+    }));
+  }
 
     sessionStorage.removeItem("tempUser");
-    setLoggedIn(true); setUserRole(user.role);
+    setLoggedIn(true); 
+    setUserRole(user.role);
   } catch { setOtpError("OTP verification failed"); 
    } finally { setLoading(""); }
 };
@@ -536,6 +544,42 @@ const verifyForgotEmailOtp = async () => {
   finally { setLoading(""); }
 };
 
+const handleSwitchToSmsOtp = async () => {
+  setOtpError("");
+
+  if (otpLockedUntil && Date.now() < otpLockedUntil) {
+    setOtpError(`You are currently locked out. Try again in ${otpLockRemaining}.`);
+    return;
+  }
+
+  setLoading("sms");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/send-login-sms-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: otpEmail.trim() }),
+      credentials: "include",
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setOtpError(data.message || "Failed to send SMS OTP");
+      return;
+    }
+
+    if (data.maskedPhone) setMaskedOtpPhone(data.maskedPhone);
+    setOtpMethod("sms");
+    setOtp(["", "", "", "", "", ""]);
+    setOtpError("");
+    setResendDisabled(true);
+    setResendTimer(30);
+  } catch {
+    setOtpError("Failed to send SMS OTP. Please try again.");
+  } finally {
+    setLoading("");
+  }
+};
+
 const verifyForgotSmsOtp = async () => {
   setForgotOtpError("");
   if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
@@ -600,9 +644,16 @@ const verifyForgotSmsOtp = async () => {
   // ── Logout ──
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
+
+    const storedUser = localStorage.getItem("user");
+    const userId = storedUser ? JSON.parse(storedUser)?.id : null;
+
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST", credentials: "include"
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),   
+        credentials: "include"
       });
     } catch {}
     localStorage.removeItem("user");
@@ -816,7 +867,21 @@ const verifyForgotSmsOtp = async () => {
               resendDisabled={resendDisabled}
               resendTimer={resendTimer}
               OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
+               extraButton={
+    otpMethod === "email" ? (
+      <button
+        type="button"
+        className="switch-method-link"
+        onClick={handleSwitchToSmsOtp}
+        disabled={!!loading}
+      >
+        Use SMS instead
+      </button>
+    ) : null
+  }
             />
+        
+
             {loading === "sms" &&(
             <div className="sms-loading-overlay">
               <div className="sms-loading-box">
@@ -904,7 +969,6 @@ const verifyForgotSmsOtp = async () => {
               onVerify={verifyForgotSmsOtp}  
               resendEndpoint="/send-sms-otp" 
               resendBody={{ email: forgotEmail }}
-              showSmsSwitch="email"
               loading={loading} loadingKey="forgotOtp" resendKey="resend"
               handleOtpChange={handleOtpChange}
               handleOtpKeyDown={handleOtpKeyDown}
@@ -1083,6 +1147,35 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .otp-box:not(:placeholder-shown) { border-color:#43a047; }
 .otp-box-locked { opacity:0.45; pointer-events:none; }
 
+.switch-method-link {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:12px;
+  margin-top: 10px;
+  margin-bottom:18px;
+  border:none;
+  border-radius:12px;
+  background:#f0fdf4;
+  color:#2E7D32;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  transition:all .2s ease;
+  border:1px solid #369533;
+}
+.switch-method-link:hover{
+  background:#dcfce7;
+  transform:translateY(-1px);
+}
+
+.switch-method-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .otp-attempts-left { font-size:12px; color:#e65100; margin:-10px 0 12px; font-weight:600; text-align:center; }
 
 /* ── Password Checklist ── */
@@ -1091,6 +1184,7 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .pw-check-row { margin-bottom:3px; }
 .pw-check-pass { color:#2E7D32; }
 .pw-check-fail { color:#d32f2f; }
+
 .use-sms-btn{
   width:100%;
   display:flex;

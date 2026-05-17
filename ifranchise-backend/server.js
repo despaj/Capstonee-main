@@ -36,12 +36,23 @@ const pool = new Pool({
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: 8,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on("error", (err) => {
+  console.error("Unexpected pool error:", err);
 });
 
 setInterval(async () => {
-  await pool.query(`DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`);
-  console.log('Cleaned up expired reports');
+  try {
+    await pool.query(`DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`);
+    console.log('Cleaned up expired reports');
+  } catch (err) {
+    console.error('Cleanup error:', err.message);
+  }
 }, 24 * 60 * 60 * 1000);
 
 const otpStore = {};
@@ -118,32 +129,22 @@ const rowToApplication = (row) => ({
 // ─── AUTH ───────────────────────────────────────────────────
 
 app.post("/login", async (req, res) => {
-    console.log("ALL HEADERS:", JSON.stringify(req.headers));
-  console.log("x-client header:", req.headers["x-client"]);
   const { email, password } = req.body;
-  const deviceId = getOrCreateDeviceId(req, res);
 
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
-    console.log("User found:", user.rows.length);
-    console.log("Email received:", JSON.stringify(email));
-
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    console.log("DB password:", JSON.stringify(user.rows[0].password));
-    console.log("Input password:", JSON.stringify(password));
-    console.log("Match:", password === user.rows[0].password);
-
     const validPass = password === user.rows[0].password;
-if (!validPass)
-  return res.status(401).json({ message: "Invalid credentials" });
+    if (!validPass)
+      return res.status(401).json({ message: "Invalid credentials" });
 
-// Block Administrator accounts from mobile (no X-Client: web header)
-const isWeb = req.headers["x-client"] === "web";
-const mobileBlockedRoles = ["Administrator", "Staff"];
-if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
-  return res.status(403).json({ message: "Invalid credentials" });
+    const isWeb = req.headers["x-client"] === "web";
+    const mobileBlockedRoles = ["Administrator", "Staff"];
+    if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
+      return res.status(403).json({ message: "Invalid credentials" });
+
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
@@ -153,19 +154,7 @@ if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       brand:  user.rows[0].brand,
     };
 
-    const device = await pool.query(
-      `SELECT * FROM trusted_devices
-       WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
-      [deviceId, user.rows[0].id]
-    );
-
-    if (device.rows.length > 0) {
-      console.log(`Trusted device for user ${email} — skipping OTP`);
-      return res.json({ success: true, skipOtp: true, user: safeUser });
-    }
-
-    console.log(`OTP required for user ${email}`);
-    res.json({ success: true, skipOtp: false, user: safeUser });
+    return res.json({ success: true, skipOtp: false, user: safeUser });
 
   } catch (err) {
     console.error(err);
@@ -230,7 +219,6 @@ app.post("/verify-otp-login", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(404).json({ message: "User not found" });
 
-    // No trusted device logic needed — session is managed client-side
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
@@ -240,7 +228,7 @@ app.post("/verify-otp-login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    res.json({ success: true, user: safeUser });
+    res.json({ success: true, user: safeUser, sessionVerified: true });
   } catch (err) {
     console.error("OTP verification error:", err);
     res.status(500).json({ message: "OTP verification failed" });
@@ -410,10 +398,14 @@ app.post("/send-login-sms-otp", async (req, res) => {
 app.post("/get-contact-number", async (req, res) => {
   const { email } = req.body;
   try {
-    const user = await db.query("SELECT contact_number FROM users WHERE email = ?", [email]);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ contact_number: user.contact_number });
-  } catch {
+    const result = await pool.query(
+      "SELECT contact_number FROM users WHERE email = $1", [email]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ message: "User not found" });
+    res.json({ contact_number: result.rows[0].contact_number });
+  } catch (err) {
+    console.error("GET /get-contact-number error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -911,14 +903,14 @@ app.post("/ipharma-applications", async (req, res) => {
         $24,$25,$26,$27, $28
       ) RETURNING *`,
       [
-        b.name, b.email, b.phone, b.telephone || null,        // $1-$4
-        b.date || new Date().toISOString().split("T")[0],     // $5
-        b.address,                                            // $6
-        b.dob || null, b.maritalStatus, b.spouseName || null, // $7-$9
-        b.spouseOccupation || null, b.spouseDob || null,      // $10-$11
-        b.dependents ? parseInt(b.dependents) : null,         // $12
-        b.tin || null,                                        // $13
-        b.education ? JSON.stringify(b.education) : null,     // $14
+        b.name, b.email, b.phone, b.telephone || null,       
+        b.date || new Date().toISOString().split("T")[0],  
+        b.address,                                          
+        b.dob || null, b.maritalStatus, b.spouseName || null,
+        b.spouseOccupation || null, b.spouseDob || null,
+        b.dependents ? parseInt(b.dependents) : null,    
+        b.tin || null,               
+        b.education ? JSON.stringify(b.education) : null,
         b.involvement || null, b.equity || null,            
         b.investment ? parseFloat(b.investment) : null,  
         b.fundSource || null,                          
@@ -1378,19 +1370,32 @@ app.get("/inventory", async (req, res) => {
       ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
       : await pool.query("SELECT * FROM inventory ORDER BY name");
 
-    const items = await Promise.all(result.rows.map(async item => {
-      const ings = await pool.query(
-        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock
-         FROM product_ingredients pi
-         JOIN ingredients i ON i.id = pi.ingredient_id
-         WHERE pi.inventory_id = $1`,
-        [item.id]
-      );
-      return { ...item, ingredients: ings.rows };
+    if (result.rows.length === 0) return res.json([]);
+
+    const ids = result.rows.map(r => r.id);
+    const ings = await pool.query(
+      `SELECT pi.inventory_id, pi.quantity AS qty_required, pi.unit, 
+              i.id, i.name, i.stock
+       FROM product_ingredients pi
+       JOIN ingredients i ON i.id = pi.ingredient_id
+       WHERE pi.inventory_id = ANY($1)`,
+      [ids]
+    );
+
+    const ingMap = {};
+    ings.rows.forEach(ing => {
+      if (!ingMap[ing.inventory_id]) ingMap[ing.inventory_id] = [];
+      ingMap[ing.inventory_id].push(ing);
+    });
+
+    const items = result.rows.map(item => ({
+      ...item,
+      ingredients: ingMap[item.id] || [],
     }));
 
     res.json(items);
   } catch (err) {
+    console.error("GET /inventory error:", err);
     res.status(500).json({ error: "Failed to fetch inventory" });
   }
 });
@@ -2200,15 +2205,14 @@ app.post("/announcements", async (req, res) => {
 try {
   const announcementId = result.rows[0].id;
   const allUsers = await pool.query("SELECT id FROM users");
+  const userIds = allUsers.rows.map(u => u.id);
 
-  await Promise.all(allUsers.rows.map(u =>
-    pool.query(
-      `INSERT INTO notifications (user_id, type, title, body, reference_id)
-      VALUES ($1, 'announcement', $2, $3, $4)
-      ON CONFLICT DO NOTHING`,
-      [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
-    )
-  ));
+  await pool.query(
+  `INSERT INTO notifications (user_id, type, title, body, reference_id)
+   SELECT unnest($1::int[]), 'announcement', $2, $3, $4
+   ON CONFLICT DO NOTHING`,
+  [userIds, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
+  );
   const tokens = await pool.query('SELECT push_token FROM users WHERE push_token IS NOT NULL');
   await Promise.all(tokens.rows.map(r =>
     sendPushNotification(r.push_token, 'New Announcement', title)
@@ -2732,7 +2736,9 @@ app.get('/reports/history', async (req, res) => {
               submitted_at AS "generatedDate", expires_at as "expiresAt",
               status, remark
        FROM reports
-       WHERE branch = $1 AND status = 'submitted' AND expires_at > NOW()
+       WHERE branch = $1 
+         AND status IN ('submitted', 'approved', 'returned')
+         AND expires_at > NOW()
        ORDER BY submitted_at DESC`,
       [branch]
     );
@@ -3579,6 +3585,11 @@ app.post("/api/verify-id", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to verify ID" });
   }
 });
+
+
+// setInterval(() => {
+//   console.log(`Pool: total=${pool.totalCount} idle=${pool.idleCount} waiting=${pool.waitingCount}`);
+// }, 10000);
 
 // ─── ROOT ─────────────────────────────────────────────────────
 app.get("/", (req, res) => {

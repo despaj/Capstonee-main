@@ -221,7 +221,11 @@ export default function FranchiseeDashboard() {
   const [brands, setBrands] = useState([]);
 
   const getUserFromStorage = () => {
-    const userString = localStorage.getItem('user');
+    const userString =
+    localStorage.getItem('user') ||
+    localStorage.getItem('rememberedUser') ||
+    sessionStorage.getItem('user'); 
+    
     if (userString) return JSON.parse(userString);
     return null;
   };
@@ -248,19 +252,36 @@ export default function FranchiseeDashboard() {
   }, []);
 
   const handleLogout = () => setShowLogoutModal(true);
-  const confirmLogout = () => { 
-    localStorage.removeItem('user');
-    localStorage.removeItem('rememberedUser');
-    sessionStorage.removeItem('fr_activeModule'); 
-    window.location.href = '/admin-login';
-  };
 
+  const confirmLogout = async () => {
+  try {
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const userId = stored ? JSON.parse(stored)?.id : null;
+
+    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("fr_activeModule");
+    setShowLogoutModal(false);
+    window.location.href = "/admin-login";
+  }
+};
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
    { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
 { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
     { id: 'pos',            label: 'POS',             icon: <DollarSign size={20} /> },
-    { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
+    // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
     { id: 'communication',  label: 'Announcement',   icon: <MessageCircle size={20} /> },
     { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
