@@ -201,16 +201,16 @@ export default function AdminDashboard() {
   }, [activeModule]);
 
   useEffect(() => {
-    fetch(`http://localhost:5001/dashboard/stats?preset=${preset}`)
+    fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?preset=${preset}`)
       .then(res => res.json()).then(data => setStats(data)).catch(err => console.error(err));
   }, [preset]);
 
   useEffect(() => {
-    fetch("http://localhost:5001/transactions")
+    fetch(`${process.env.REACT_APP_API_URL}/transactions`)
       .then(res => res.json()).then(data => setTransactions(data))
       .catch(err => console.error("Failed to fetch transactions", err));
   }, []);
-
+  
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
@@ -1534,68 +1534,52 @@ const handleRestore = async (entry) => {
         </div>
 
         {/* ── Toolbar ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-          <div style={{ position: "relative" }}>
-            <Search size={14} color="#5a7a65" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)" }} />
-            <input
-              type="text"
-              placeholder="Search brands or branches..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bm-input"
-              style={{ paddingLeft: 32, width: 260 }}
-            />
-          </div>
-          <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} className="bm-select" style={{ width: 180 }}>
-            <option value="all">All Brands</option>
-            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-          <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} className="bm-select" style={{ width: 180 }}>
-            <option value="all">All Regions</option>
-            {allRegions.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+        <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-            {/* Delete History button */}
-            <button
-              onClick={() => setShowHistory(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 7,
-                padding: "10px 18px", borderRadius: 11,
-                border: "1.5px solid #dc2626", background: "#fff",
-                color: "#dc2626", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              <History size={14} />
-              Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
-            </button>
+            {/* Search */}
+            <div style={{ position:"relative" }}>
+              <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+              <input
+                type="text"
+                placeholder="Search brands or branches..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bm-input"
+                style={{ paddingLeft:32, width:260 }}
+              />
+            </div>
 
-            <button
-              onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 7,
-                padding: "10px 18px", borderRadius: 11,
-                border: "1.5px solid #00897b", background: "#fff",
-                color: "#00897b", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              <Plus size={14} /> Add Branch
-            </button>
-            {/* <button
-              onClick={() => { setBrandForm(emptyBrand); setShowAddBrandModal(true); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 7,
-                padding: "10px 22px", borderRadius: 11, border: "none",
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
-                color: "#fff", fontSize: 13, fontWeight: 800,
-                cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
-              }}
-            >
-              <Plus size={15} /> Add Brand
-            </button> */}
+            {/* Brand filter */}
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
+              <option value="all">All Brands</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+
+            {/* Region filter */}
+            <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
+              <option value="all">All Regions</option>
+              {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            {/* Right-side actions */}
+            <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
+              <button
+                onClick={() => setShowHistory(true)}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+              >
+                <History size={14}/>
+                Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
+              </button>
+
+              <button
+                onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+              >
+                <Plus size={14}/> Add Branch
+              </button>
+            </div>
+
           </div>
         </div>
 
