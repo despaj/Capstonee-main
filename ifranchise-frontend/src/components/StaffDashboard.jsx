@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, ShoppingCart, AlertTriangle, Check, X, Printer, CreditCard, Smartphone, Wallet, Banknote, QrCode } from 'lucide-react';
+import {
+  LogOut, Search, ShoppingCart, AlertTriangle, Check, X,
+  Printer, CreditCard, QrCode, Banknote, RefreshCw,
+} from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -8,23 +11,20 @@ import { LogOut, Search, ShoppingCart, AlertTriangle, Check, X, Printer, CreditC
 const fmtPeso = (n) =>
   '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtDate = () => {
-  const now = new Date();
-  return now.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
-};
+const fmtDate = () =>
+  new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const fmtTime = () => {
-  const now = new Date();
-  return now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
+const fmtTime = () =>
+  new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 const generateReceiptNo = () => 'OR-' + Date.now().toString().slice(-8);
 const generateTxnId     = () => 'TXN-' + Math.random().toString(36).toUpperCase().slice(2, 10);
 
-const VAT_RATE = 0.12;
+const VAT_RATE        = 0.12;
+const MANAGER_PASSWORD = 'Admin123'; // same as admin POS
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CUSTOM MODAL — replaces all browser alert/confirm
+// CUSTOM MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function Modal({ show, title, message, type = 'info', onConfirm, onCancel, confirmText = 'OK', cancelText = 'Cancel', showCancel = false }) {
   if (!show) return null;
@@ -35,8 +35,10 @@ function Modal({ show, title, message, type = 'info', onConfirm, onCancel, confi
     warning: { bg: '#fef9c3', icon: '#d97706', border: '#fde68a' },
   };
   const c = colors[type] || colors.info;
-  const icons = { info: <Check size={22} />, error: <X size={22} />, success: <Check size={22} />, warning: <AlertTriangle size={22} /> };
-
+  const icons = {
+    info: <Check size={22} />, error: <X size={22} />,
+    success: <Check size={22} />, warning: <AlertTriangle size={22} />,
+  };
   return (
     <div onClick={showCancel ? onCancel : onConfirm}
       style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
@@ -65,186 +67,177 @@ function Modal({ show, title, message, type = 'info', onConfirm, onCancel, confi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GCASH QR MODAL
+// PAYMONGO GCASH MODAL  — identical to admin POS
 // ─────────────────────────────────────────────────────────────────────────────
-function GCashQRModal({ show, amount, onClose, branchName }) {
-  if (!show) return null;
-  // Placeholder QR — in production swap with real QR image URL
-  return (
-    <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5000, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 20, padding: '32px 28px', maxWidth: 380, width: '100%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.2)', border: '1px solid rgba(0,168,76,0.15)' }}>
-        <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 16, color: '#0d2b1e', marginBottom: 4 }}>Scan QR to Pay</div>
-        <div style={{ fontSize: 12, color: '#5a7a65', marginBottom: 18 }}>GCash / Maya — present QR to customer</div>
+function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
+  const [step,      setStep]      = React.useState('loading');
+  const [qrUrl,     setQrUrl]     = React.useState('');
+  const [linkId,    setLinkId]    = React.useState('');
+  const [refNo,     setRefNo]     = React.useState('');
+  const [gcashRef,  setGcashRef]  = React.useState('');
+  const [errorMsg,  setErrorMsg]  = React.useState('');
+  const [countdown, setCountdown] = React.useState(180);
+  const pollRef  = React.useRef(null);
+  const timerRef = React.useRef(null);
 
-        <div style={{ background: '#f0fdf5', border: '2px dashed #b2dfdb', borderRadius: 16, padding: 20, marginBottom: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          {/* QR placeholder box */}
-          <div style={{ width: 180, height: 180, background: '#e0f2f1', border: '2px solid #b2dfdb', borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <QrCode size={64} color="#00897b" />
-            <div style={{ fontSize: 11, color: '#5a7a65', fontWeight: 600 }}>QR Code</div>
-            <div style={{ fontSize: 10, color: '#94a3b8' }}>franchise.ordering@gmail.com</div>
-          </div>
-          <div style={{ fontSize: 12, color: '#5a7a65' }}>Scan with GCash, Maya, or any e-wallet</div>
-        </div>
+  React.useEffect(() => {
+    const create = async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/create-gcash`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: totalAmt, description: 'iFranchise POS Payment', orderId: Date.now() }),
+        });
+        const data = await res.json();
+        if (!data.success) { setErrorMsg(data.error || 'Failed to create payment link.'); setStep('error'); return; }
+        const qr = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.checkoutUrl)}`;
+        setQrUrl(qr);
+        setLinkId(data.linkId);
+        setRefNo(data.referenceNo);
+        setStep('ready');
+        startPolling(data.linkId);
+        startCountdown();
+      } catch { setErrorMsg('Could not reach payment server.'); setStep('error'); }
+    };
+    create();
+    return () => { clearInterval(pollRef.current); clearInterval(timerRef.current); };
+  }, []);
 
-        <div style={{ background: 'linear-gradient(135deg,#d1fae5,#e0f2f1)', borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
-          <div style={{ fontSize: 11, color: '#5a7a65', marginBottom: 4 }}>Amount to Pay</div>
-          <div style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 26, fontWeight: 800, color: '#00897b' }}>{fmtPeso(amount)}</div>
-          <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>{branchName}</div>
-        </div>
-
-        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 18, lineHeight: 1.6 }}>
-          After customer scans and pays, enter their GCash or Maya reference number in the Reference Number field below, then press Charge.
-        </div>
-
-        <button onClick={onClose}
-          style={{ width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RECEIPT COMPONENT (print-ready, B&W)
-// ─────────────────────────────────────────────────────────────────────────────
-function Receipt({ receipt }) {
-  if (!receipt) return null;
-  const colW = { item: '44%', qty: '10%', price: '18%', total: '18%' };
-  return (
-    <div className="receipt-body" style={{ fontFamily: 'Courier New, monospace', fontSize: 11, color: '#000', background: '#fff', width: '100%' }}>
-      <style>{`
-        @media print {
-          .receipt-body { font-size: 10px !important; }
+  const startPolling = (id) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          clearInterval(pollRef.current);
+          clearInterval(timerRef.current);
+          setGcashRef(data.gcashRef || refNo);
+          setStep('paid');
+          setTimeout(() => onConfirm(data.gcashRef || refNo), 1500);
         }
-      `}</style>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <div style={{ fontWeight: 700, fontSize: 13 }}>iFranchise Business and Services Corporation</div>
-        <div style={{ fontWeight: 600, fontSize: 12 }}>FranchiSync</div>
-        <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.6 }}>
-          Main Office:<br />
-          Blk 113 Bldg. Connecticut St., Greenhills<br />
-          San Juan City, Philippines<br />
-          Contact No.: 09271820495<br />
-          Email: franchise.ordering@gmail.com
-        </div>
-        <div style={{ marginTop: 6, fontSize: 10, lineHeight: 1.6 }}>
-          VAT Registered TIN: _______________<br />
-          Permit No.: _______________<br />
-          Serial No.: _______________
-        </div>
-      </div>
+      } catch {}
+    }, 3000);
+  };
 
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
+  const startCountdown = () => {
+    timerRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(timerRef.current);
+          clearInterval(pollRef.current);
+          setStep('error');
+          setErrorMsg('Payment window expired. Please try again.');
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  };
 
-      <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 12, marginBottom: 6 }}>SALES INVOICE</div>
+  const handleRetry = () => {
+    clearInterval(pollRef.current);
+    clearInterval(timerRef.current);
+    setStep('loading');
+    setCountdown(180);
+    setErrorMsg('');
+  };
 
-      {/* Transaction info */}
-      <div style={{ fontSize: 10, lineHeight: 1.8 }}>
-        <div><b>Receipt No.:</b> {receipt.receiptNo}</div>
-        <div><b>Transaction ID:</b> {receipt.txnId}</div>
-        <div><b>Date:</b> {receipt.date}</div>
-        <div><b>Time:</b> {receipt.time}</div>
-        <div><b>Cashier:</b> {receipt.cashier}</div>
-        <div><b>Branch:</b> {receipt.branch}</div>
-        <div><b>Terminal No.:</b> 001</div>
-      </div>
+  const fmtCountdown = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-      <div style={{ borderTop: '1px solid #000', margin: '6px 0' }} />
-
-      {/* Column headers */}
-      <div style={{ display: 'flex', fontWeight: 700, fontSize: 10 }}>
-        <span style={{ width: colW.item }}>ITEM</span>
-        <span style={{ width: colW.qty, textAlign: 'right' }}>QTY</span>
-        <span style={{ width: colW.price, textAlign: 'right' }}>PRICE</span>
-        <span style={{ width: colW.total, textAlign: 'right' }}>TOTAL</span>
-      </div>
-      <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
-
-      {/* Items */}
-      {(receipt.items || []).map((item, i) => (
-        <div key={i} style={{ display: 'flex', fontSize: 10, lineHeight: 1.6 }}>
-          <span style={{ width: colW.item, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-          <span style={{ width: colW.qty, textAlign: 'right' }}>{item.qty}</span>
-          <span style={{ width: colW.price, textAlign: 'right' }}>₱{Number(item.price).toFixed(2)}</span>
-          <span style={{ width: colW.total, textAlign: 'right' }}>₱{Number(item.subtotal).toFixed(2)}</span>
-        </div>
-      ))}
-
-      <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
-
-      {/* Totals */}
-      <div style={{ fontSize: 10, lineHeight: 1.8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>SUBTOTAL</span><span>₱{Number(receipt.subtotal).toFixed(2)}</span>
-        </div>
-        {receipt.vat_enabled && (
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>VAT 12%</span><span>₱{Number(receipt.vat_amt || 0).toFixed(2)}</span>
-          </div>
-        )}
-        {receipt.discount_pct > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>DISCOUNT ({receipt.discount_label || receipt.discount_pct + '%'})</span>
-            <span>-₱{Number(receipt.discount_amt || 0).toFixed(2)}</span>
-          </div>
-        )}
-      </div>
-      <div style={{ borderTop: '1px solid #000', margin: '3px 0' }} />
-
-      <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.9 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>TOTAL</span><span>₱{Number(receipt.total).toFixed(2)}</span>
-        </div>
-        {receipt.payment_method === 'Cash' && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>CASH</span><span>₱{Number(receipt.cash_received).toFixed(2)}</span>
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20, backdropFilter: 'blur(6px)' }}>
+      <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.3)', fontFamily: "'Montserrat',sans-serif", animation: 'gcashSlideUp .25s cubic-bezier(.22,1,.36,1)' }}>
+        <style>{`
+          @keyframes gcashSlideUp { from{opacity:0;transform:translateY(28px) scale(0.97);} to{opacity:1;transform:translateY(0) scale(1);} }
+          @keyframes paidPop { 0%{transform:scale(0.8);opacity:0;} 70%{transform:scale(1.1);} 100%{transform:scale(1);opacity:1;} }
+          @keyframes scanLine { 0%{top:0;} 100%{top:196px;} }
+        `}</style>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#007acc,#0057a8)', padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 17, color: '#007acc' }}>G</div>
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#fff' }}>GCash via PayMongo</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+                {step === 'loading' && 'Generating payment link…'}
+                {step === 'ready'   && `Waiting for payment · ${fmtCountdown(countdown)}`}
+                {step === 'paid'    && 'Payment confirmed ✓'}
+                {step === 'error'   && 'Payment failed'}
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>CHANGE</span><span>₱{Number(receipt.change_due).toFixed(2)}</span>
+          </div>
+          <button onClick={onCancel} style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>×</button>
+        </div>
+        {/* Amount bar */}
+        <div style={{ background: '#f0f7ff', padding: '12px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Amount</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#0057a8' }}>{fmtPHP(totalAmt)}</div>
+        </div>
+        {/* Body */}
+        <div style={{ padding: '22px 24px 24px', textAlign: 'center' }}>
+          {step === 'loading' && (
+            <div style={{ padding: '32px 0' }}>
+              <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite', marginBottom: 12 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              <div style={{ fontSize: 14, color: '#5a7a65', fontWeight: 600 }}>Creating payment link…</div>
             </div>
-          </>
-        )}
-      </div>
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-
-      {/* Payment details */}
-      <div style={{ fontSize: 10, lineHeight: 1.8 }}>
-        <div><b>Payment Method:</b> {receipt.payment_method}</div>
-        {receipt.reference_no && <div><b>Reference Number:</b> {receipt.reference_no}</div>}
-        <div style={{ marginTop: 4 }}><b>Payment Status:</b> PAID</div>
-        <div style={{ marginTop: 2 }}><b>Processed By:</b> FranchiSync</div>
-        <div style={{ marginTop: 2 }}><b>Approval Status:</b> Verified</div>
-      </div>
-
-      <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
-
-      <div style={{ fontSize: 10, textAlign: 'center', lineHeight: 1.7 }}>
-        THIS SERVES AS YOUR SALES INVOICE.<br />
-        Please keep this invoice for future reference.<br />
-        All franchise payments are subject to verification<br />
-        and approval by iFranchise Business and<br />
-        Services Corporation.<br /><br />
-        For support concerns, contact:<br />
-        franchise.ordering@gmail.com<br />
-        (+63) 9271820495
+          )}
+          {(step === 'ready') && qrUrl && (
+            <>
+              <div style={{ fontSize: 13, color: '#374151', fontWeight: 600, marginBottom: 14 }}>Ask the customer to scan this QR code with their GCash app</div>
+              <div style={{ width: 200, height: 200, margin: '0 auto 14px', border: '3px solid #007acc', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+                <img src={qrUrl} alt="PayMongo GCash QR" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,transparent,#007acc,transparent)', animation: 'scanLine 2s linear infinite' }} />
+              </div>
+              {refNo && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>Ref # <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{refNo}</strong></div>}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: countdown < 30 ? '#fee2e2' : '#f0f7ff', border: `1px solid ${countdown < 30 ? '#fecaca' : '#bfdbfe'}`, borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: countdown < 30 ? '#dc2626' : '#1e40af', marginBottom: 16 }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                Expires in {fmtCountdown(countdown)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 12, color: '#5a7a65' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation: 'spin 1.2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                Waiting for payment confirmation…
+              </div>
+              <button onClick={onCancel} style={{ marginTop: 14, width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #d1d5db', background: '#f9fafb', color: '#6b7280', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel payment</button>
+            </>
+          )}
+          {step === 'paid' && (
+            <div style={{ padding: '24px 0', animation: 'paidPop .4s ease' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#059669,#047857)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 20px rgba(5,150,105,0.4)' }}>
+                <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              </div>
+              <div style={{ fontWeight: 900, fontSize: 18, color: '#0d2b1e', marginBottom: 6 }}>Payment Received!</div>
+              <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 10 }}>{fmtPHP(totalAmt)} via GCash</div>
+              {gcashRef && <div style={{ background: '#f0fdf5', border: '1px solid #d1eedd', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, color: '#00695c', fontFamily: 'monospace', letterSpacing: '0.05em' }}>Ref: {gcashRef}</div>}
+              <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>Processing transaction…</div>
+            </div>
+          )}
+          {step === 'error' && (
+            <div style={{ padding: '24px 0' }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: '#0d2b1e', marginBottom: 6 }}>Payment Failed</div>
+              <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 20 }}>{errorMsg}</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={onCancel} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #d1d5db', background: '#f9fafb', color: '#6b7280', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={handleRetry} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#007acc,#0057a8)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Try Again</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RECEIPT PRINT MODAL — side-by-side 2 copies
+// RECEIPT PRINT — Legal landscape 2-copy (identical to admin POS)
 // ─────────────────────────────────────────────────────────────────────────────
 function ReceiptModal({ show, receipt, onClose, onNewSale }) {
   if (!show || !receipt) return null;
 
   const handlePrint = () => {
-    // Open preview window at Legal landscape width (~357mm = 1357px at 96dpi)
     const printWin = window.open('', '_blank', 'width=1360,height=860,resizable=yes');
 
     const copyHTML = (label) => `
@@ -300,10 +293,15 @@ function ReceiptModal({ show, receipt, onClose, onNewSale }) {
           <div class="row"><span>CASH</span><span>P${Number(receipt.cash_received).toFixed(2)}</span></div>
           <div class="row"><span>CHANGE</span><span>P${Number(receipt.change_due).toFixed(2)}</span></div>
         ` : ''}
+        ${receipt.is_split ? `
+          <div class="row"><span>GCASH</span><span>P${Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
+          ${receipt.gcash_ref ? `<div class="row"><span>GCash Ref</span><span>${receipt.gcash_ref}</span></div>` : ''}
+          <div class="row"><span>CASH</span><span>P${Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
+        ` : ''}
         <div class="divider-dash"></div>
         <div class="header">
           <div><b>Payment Method:</b> ${receipt.payment_method}</div>
-          ${receipt.reference_no ? `<div><b>Reference Number:</b> ${receipt.reference_no}</div>` : ''}
+          ${receipt.gcash_ref && !receipt.is_split ? `<div><b>GCash Ref #:</b> ${receipt.gcash_ref}</div>` : ''}
           <div><b>Payment Status:</b> PAID</div>
           <div><b>Processed By:</b> FranchiSync</div>
           <div><b>Approval Status:</b> Verified</div>
@@ -370,29 +368,60 @@ function ReceiptModal({ show, receipt, onClose, onNewSale }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20, overflowY: 'auto' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 580, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', border: '1px solid rgba(0,168,76,0.15)', overflow: 'hidden' }}>
-
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', border: '1px solid rgba(0,168,76,0.15)', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#fff' }}>Sales Invoice</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>{receipt.receiptNo} — {receipt.date}</div>
           </div>
-          <button onClick={onClose}
-            style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={14} />
           </button>
         </div>
-
-        {/* Receipt preview */}
-        <div style={{ padding: '20px 24px', maxHeight: '55vh', overflowY: 'auto', background: '#f8fffe' }}>
-          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '16px 18px' }}>
-            <Receipt receipt={receipt} />
+        {/* Preview */}
+        <div style={{ padding: '18px 22px', background: '#f8fffe', maxHeight: '50vh', overflowY: 'auto' }}>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '14px 16px', fontFamily: 'Courier New, monospace', fontSize: 11 }}>
+            <div style={{ textAlign: 'center', marginBottom: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>iFranchise Business and Services Corporation</div>
+              <div style={{ fontWeight: 600, fontSize: 11 }}>FranchiSync — {receipt.branch}</div>
+              <div style={{ marginTop: 4, fontSize: 10, color: '#5a7a65' }}>Receipt: {receipt.receiptNo} · {receipt.date} {receipt.time}</div>
+              <div style={{ fontSize: 10, color: '#5a7a65' }}>Cashier: {receipt.cashier}</div>
+            </div>
+            <div style={{ borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '8px 0', margin: '8px 0' }}>
+              {(receipt.items || []).map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                  <span>{item.name} ×{item.qty}</span>
+                  <span style={{ fontWeight: 700 }}>₱{Number(item.subtotal).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span>Subtotal</span><span>₱{Number(receipt.subtotal).toFixed(2)}</span></div>
+              {receipt.discount_pct > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, color: '#d97706' }}><span>Discount ({receipt.discount_pct}%)</span><span>−₱{Number(receipt.discount_amt || 0).toFixed(2)}</span></div>}
+              {receipt.vat_enabled && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, color: '#2563eb' }}><span>VAT 12%</span><span>+₱{Number(receipt.vat_amt || 0).toFixed(2)}</span></div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13, borderTop: '1px solid #ccc', paddingTop: 5, marginBottom: 5 }}><span>TOTAL</span><span style={{ color: '#00897b' }}>₱{Number(receipt.total).toFixed(2)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>Payment</span><span style={{ fontWeight: 700 }}>{receipt.payment_method}</span></div>
+              {receipt.is_split && (
+                <div style={{ background: '#f0fdf5', borderRadius: 6, padding: '6px 8px', margin: '4px 0', fontSize: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>GCash</span><span>₱{Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
+                  {receipt.gcash_ref && <div style={{ color: '#00695c', fontFamily: 'monospace' }}>Ref: {receipt.gcash_ref}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span>₱{Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
+                </div>
+              )}
+              {receipt.payment_method === 'Cash' && !receipt.is_split && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>Cash Received</span><span>₱{Number(receipt.cash_received).toFixed(2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontWeight: 800, color: '#00897b' }}>₱{Number(receipt.change_due).toFixed(2)}</span></div>
+                </>
+              )}
+              {receipt.gcash_ref && !receipt.is_split && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>GCash Ref #</span><span style={{ fontFamily: 'monospace' }}>{receipt.gcash_ref}</span></div>}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 10, fontSize: 10, color: '#5a7a65' }}>Thank you for your purchase! 🎉</div>
           </div>
         </div>
-
         {/* Actions */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #e0f2f1', display: 'flex', gap: 10 }}>
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #e0f2f1', display: 'flex', gap: 10 }}>
           <button onClick={handlePrint}
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Printer size={14} /> Print 2 Copies
@@ -408,36 +437,30 @@ function ReceiptModal({ show, receipt, onClose, onNewSale }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VOID MODAL — requires branch manager password
+// VOID MODAL
 // ─────────────────────────────────────────────────────────────────────────────
-function VoidModal({ show, tx, onClose, onConfirm, branchManagerPassword }) {
-  const [pw, setPw] = useState('');
+function VoidModal({ show, tx, onClose, onConfirm }) {
+  const [pw,  setPw]  = useState('');
   const [err, setErr] = useState('');
 
   const handleConfirm = () => {
     if (!pw) { setErr('Please enter the manager password.'); return; }
-    if (pw !== branchManagerPassword) { setErr('Incorrect manager password.'); return; }
-    onConfirm(tx);
-    setPw('');
-    setErr('');
+    if (pw !== MANAGER_PASSWORD) { setErr('Incorrect manager password.'); return; }
+    onConfirm(tx); setPw(''); setErr('');
   };
-
   const handleClose = () => { setPw(''); setErr(''); onClose(); };
-
   if (!show) return null;
+
   return (
     <div onClick={handleClose}
       style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', border: '1px solid rgba(0,168,76,0.15)', overflow: 'hidden' }}>
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         <div style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#fff' }}>Void Transaction</div>
-          <button onClick={handleClose}
-            style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={14} />
-          </button>
+          <button onClick={handleClose} style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
-        <div style={{ padding: '24px' }}>
+        <div style={{ padding: 24 }}>
           {tx && (
             <div style={{ padding: '12px 14px', background: '#fff3e0', borderRadius: 10, border: '1px solid #ffcc80', marginBottom: 18, fontSize: 13 }}>
               <div style={{ fontWeight: 700, color: '#0d2b1e' }}>#{tx.id} — {fmtPeso(tx.total)}</div>
@@ -445,25 +468,14 @@ function VoidModal({ show, tx, onClose, onConfirm, branchManagerPassword }) {
             </div>
           )}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Branch Manager Password</label>
-            <input
-              type="password"
-              value={pw}
-              onChange={e => { setPw(e.target.value); setErr(''); }}
-              placeholder="Enter manager password to authorize"
-              style={{ width: '100%', padding: '10px 13px', borderRadius: 10, border: `1.5px solid ${err ? '#fca5a5' : '#b2dfdb'}`, background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-            />
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Manager Password</label>
+            <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(''); }} onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }} placeholder="Enter manager password to authorize"
+              style={{ width: '100%', padding: '10px 13px', borderRadius: 10, border: `1.5px solid ${err ? '#fca5a5' : '#b2dfdb'}`, background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
             {err && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 5, fontWeight: 600 }}>{err}</div>}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleClose}
-              style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cancel
-            </button>
-            <button onClick={handleConfirm}
-              style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Void Transaction
-            </button>
+            <button onClick={handleClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={handleConfirm} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Void Transaction</button>
           </div>
         </div>
       </div>
@@ -472,11 +484,12 @@ function VoidModal({ show, tx, onClose, onConfirm, branchManagerPassword }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POS CONTENT
+// POS CONTENT  — staff-fixed branch, all admin features included
 // ─────────────────────────────────────────────────────────────────────────────
 export function POSContent({ user }) {
   const userBranch = (user?.branch || '').trim();
 
+  // ── State ─────────────────────────────────────────────────────────────────
   const [menuItems,     setMenuItems]     = useState([]);
   const [cart,          setCart]          = useState([]);
   const [transactions,  setTransactions]  = useState([]);
@@ -489,58 +502,50 @@ export function POSContent({ user }) {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [cashReceived,  setCashReceived]  = useState('');
   const [discountPct,   setDiscountPct]   = useState(0);
-  const [discountLabel, setDiscountLabel] = useState('');
+  const [discountType,  setDiscountType]  = useState('None');
   const [vatEnabled,    setVatEnabled]    = useState(false);
   const [processing,    setProcessing]    = useState(false);
   const [txPage,        setTxPage]        = useState(0);
   const [noteInput,     setNoteInput]     = useState('');
-  const [referenceNo,   setReferenceNo]   = useState('');
 
-  // Manager password for void
-  const [branchManagerPw, setBranchManagerPw] = useState('');
+  // Split payment
+  const [isSplitPayment,  setIsSplitPayment]  = useState(false);
+  const [splitGcashAmt,   setSplitGcashAmt]   = useState('');
+  const [splitCashAmt,    setSplitCashAmt]     = useState('');
+  const [splitGcashPaid,  setSplitGcashPaid]   = useState(false);
+  const [splitGcashRef,   setSplitGcashRef]    = useState('');
 
-  // Other discount fields
-  const [otherRefLast4, setOtherRefLast4] = useState('');
-  const [otherDiscPct,  setOtherDiscPct]  = useState('');
+  // GCash / PayMongo
+  const [showGCashModal,  setShowGCashModal]  = useState(false);
+  const [gcashRefNumber,  setGcashRefNumber]  = useState('');
+  const [gcashPaymentAmt, setGcashPaymentAmt] = useState(0);
+
+  // Discount auth
+  const [showDiscountAuth,   setShowDiscountAuth]   = useState(false);
+  const [pendingDiscount,    setPendingDiscount]     = useState(null);
+  const [discountAuthInput,  setDiscountAuthInput]   = useState('');
+  const [discountAuthErr,    setDiscountAuthErr]     = useState('');
+  const [customDiscountInput,setCustomDiscountInput] = useState('');
 
   // Modals
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastReceipt,      setLastReceipt]      = useState(null);
   const [showVoidModal,    setShowVoidModal]     = useState(false);
   const [voidTarget,       setVoidTarget]        = useState(null);
-  const [showGCashQR,      setShowGCashQR]       = useState(false);
-  const [modal,            setModal]             = useState({ show: false, title: '', message: '', type: 'info', onConfirm: null });
+  const [modal,            setModal]             = useState({ show: false });
 
   const TX_PAGE_SIZE = 20;
-  const searchRef = useRef(null);
 
-  const showModal = (title, message, type = 'info', onConfirm = null, showCancel = false) => {
-    setModal({ show: true, title, message, type, onConfirm, showCancel });
-  };
-
+  const showAlert = (title, message, type = 'info') =>
+    setModal({ show: true, title, message, type, onConfirm: null });
   const closeModal = () => setModal(m => ({ ...m, show: false }));
 
-  // Fetch manager password for void auth
-  useEffect(() => {
-    const fetchManagerPw = async () => {
-      try {
-        const res = await fetch(
-          `${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(userBranch)}&role=Manager`
-        );
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0 && data[0].password) {
-          setBranchManagerPw(data[0].password);
-        }
-      } catch { /* silent */ }
-    };
-    if (userBranch) fetchManagerPw();
-  }, [userBranch]);
-
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchProducts = useCallback(async () => {
     if (!userBranch) return;
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`);
-      const d = await res.json();
+      const d   = await res.json();
       setMenuItems(Array.isArray(d) ? d : []);
     } catch { setMenuItems([]); }
   }, [userBranch]);
@@ -550,16 +555,17 @@ export function POSContent({ user }) {
     setLoadingTx(true);
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`);
-      const d = await res.json();
+      const d   = await res.json();
       setTransactions(Array.isArray(d) ? d : []);
     } catch { setTransactions([]); }
     finally { setLoadingTx(false); }
   }, [userBranch]);
 
-  useEffect(() => { if (userBranch) fetchProducts(); },     [fetchProducts]);
-  useEffect(() => { if (userBranch) fetchTransactions(); }, [fetchTransactions]);
+  useEffect(() => { fetchProducts(); },     [fetchProducts]);
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
   useEffect(() => { setTxPage(0); }, [txSearch, txDateFrom, txDateTo]);
 
+  // ── Products ──────────────────────────────────────────────────────────────
   const allProducts = useMemo(() => {
     const q = searchProduct.toLowerCase();
     return menuItems
@@ -567,6 +573,7 @@ export function POSContent({ user }) {
       .filter(p => !q || p.displayName.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q));
   }, [menuItems, searchProduct]);
 
+  // ── Cart ──────────────────────────────────────────────────────────────────
   const addToCart = (product) => {
     setCart(prev => {
       const existing = prev.find(c => c.id === product.id);
@@ -574,76 +581,101 @@ export function POSContent({ user }) {
       return [...prev, { ...product, qty: 1 }];
     });
   };
-
-  const updateQty = (id, delta) => setCart(prev =>
-    prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0)
-  );
-
+  const updateQty    = (id, delta) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0));
   const removeFromCart = (id) => setCart(prev => prev.filter(c => c.id !== id));
-
-  const clearCart = () => {
-    setCart([]); setCashReceived(''); setDiscountPct(0); setDiscountLabel('');
-    setNoteInput(''); setReferenceNo(''); setOtherRefLast4(''); setOtherDiscPct('');
+  const clearCart    = () => {
+    setCart([]); setCashReceived(''); setDiscountPct(0); setDiscountType('None');
+    setNoteInput(''); setGcashRefNumber(''); setGcashPaymentAmt(0);
+    setIsSplitPayment(false); setSplitGcashAmt(''); setSplitCashAmt('');
+    setSplitGcashPaid(false); setSplitGcashRef('');
+    setShowDiscountAuth(false); setPendingDiscount(null);
+    setDiscountAuthInput(''); setCustomDiscountInput('');
   };
 
-  // Discount helpers
-  const applyPwdSenior = () => {
-    setDiscountPct(20);
-    setDiscountLabel('PWD/SENIOR 20%');
-  };
-
-  const applyOtherDiscount = () => {
-    const pct = parseFloat(otherDiscPct);
-    if (!otherRefLast4 || otherRefLast4.length !== 4) {
-      showModal('Invalid Reference', 'Please enter the last 4 digits of the reference number.', 'error');
+  // ── Discount auth ─────────────────────────────────────────────────────────
+  const confirmDiscountAuth = () => {
+    if (discountAuthInput !== MANAGER_PASSWORD) {
+      setDiscountAuthErr('Incorrect manager password.');
       return;
     }
-    if (isNaN(pct) || pct <= 0 || pct > 100) {
-      showModal('Invalid Discount', 'Please enter a valid discount percentage (1–100).', 'error');
-      return;
+    if (pendingDiscount.label === 'Others') {
+      const pct = parseFloat(customDiscountInput);
+      if (!pct || pct <= 0 || pct > 100) {
+        setDiscountAuthErr('Enter a valid discount % (1–100).');
+        return;
+      }
+      setDiscountPct(pct);
+      setDiscountType('Others');
+    } else {
+      setDiscountPct(pendingDiscount.pct);
+      setDiscountType(pendingDiscount.label);
     }
-    setDiscountPct(pct);
-    setDiscountLabel(`Discount ${pct}% (Ref: ...${otherRefLast4})`);
-    setReferenceNo(otherRefLast4);
+    setShowDiscountAuth(false);
+    setDiscountAuthInput('');
+    setDiscountAuthErr('');
+    setCustomDiscountInput('');
+    setPendingDiscount(null);
   };
 
-  const removeDiscount = () => {
-    setDiscountPct(0); setDiscountLabel(''); setOtherRefLast4(''); setOtherDiscPct('');
-  };
-
-  // Totals
-  const subtotal      = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
-  const discountAmt   = subtotal * (discountPct / 100);
-  const discounted    = subtotal - discountAmt;
-  const vatAmt        = vatEnabled ? discounted * VAT_RATE : 0;
-  const totalAmt      = discounted + vatAmt;
-  const changeDue     = paymentMethod === 'Cash' ? Math.max(0, parseFloat(cashReceived || 0) - totalAmt) : 0;
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const subtotal    = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
+  const discountAmt = subtotal * (discountPct / 100);
+  const discounted  = subtotal - discountAmt;
+  const vatAmt      = vatEnabled ? discounted * VAT_RATE : 0;
+  const totalAmt    = discounted + vatAmt;
+  const changeDue   = paymentMethod === 'Cash' ? Math.max(0, parseFloat(cashReceived || 0) - totalAmt) : 0;
   const cashShortfall = paymentMethod === 'Cash' && cashReceived !== ''
     ? parseFloat(cashReceived || 0) - totalAmt : 0;
 
+  // ── Process sale ──────────────────────────────────────────────────────────
   const processSale = async () => {
-    if (cart.length === 0) { showModal('Empty Cart', 'Please add at least one item to the cart.', 'warning'); return; }
-    if (paymentMethod === 'Cash' && parseFloat(cashReceived || 0) < totalAmt) {
-      showModal('Insufficient Cash', 'Cash received is less than the total amount.', 'error'); return;
-    }
-    if (['E-Wallet', 'Bank Transfer / Card'].includes(paymentMethod) && !referenceNo) {
-      showModal('Reference Required', 'Please enter the payment reference number.', 'warning'); return;
+    if (cart.length === 0) { showAlert('Empty Cart', 'Please add at least one item.', 'warning'); return; }
+
+    if (isSplitPayment) {
+      const gcash = parseFloat(splitGcashAmt) || 0;
+      const cash  = parseFloat(splitCashAmt)  || 0;
+      if (Math.abs((gcash + cash) - totalAmt) > 0.01) {
+        showAlert('Split Amounts Mismatch', `GCash + Cash must equal ${fmtPeso(totalAmt)}.`, 'error');
+        return;
+      }
+      if (gcash > 0 && !splitGcashPaid) {
+        showAlert('GCash Pending', 'Please complete the GCash payment first.', 'warning');
+        return;
+      }
+    } else {
+      if (paymentMethod === 'Cash' && parseFloat(cashReceived || 0) < totalAmt) {
+        showAlert('Insufficient Cash', 'Cash received is less than the total amount.', 'error');
+        return;
+      }
+      if (paymentMethod === 'GCash' && !gcashRefNumber) {
+        setShowGCashModal(true);
+        return;
+      }
     }
 
     setProcessing(true);
     try {
       const receiptNo = generateReceiptNo();
       const txnId     = generateTxnId();
-      const now       = new Date();
 
       const payload = {
         branch: userBranch, cashier: user?.name || 'Staff', shop: '',
-        payment_method: paymentMethod,
-        cash_received: paymentMethod === 'Cash' ? parseFloat(cashReceived) : totalAmt,
-        discount_pct: discountPct, discount_label: discountLabel,
-        subtotal, discount_amt: discountAmt, vat_enabled: vatEnabled,
-        vat_amt: vatAmt, total: totalAmt, change_due: changeDue,
-        note: noteInput, reference_no: referenceNo,
+        payment_method: isSplitPayment ? 'Split' : paymentMethod,
+        is_split: isSplitPayment,
+        split_gcash_amt: isSplitPayment ? (parseFloat(splitGcashAmt) || 0) : null,
+        split_cash_amt:  isSplitPayment ? (parseFloat(splitCashAmt)  || 0) : null,
+        gcash_ref: isSplitPayment ? splitGcashRef : (paymentMethod === 'GCash' ? gcashRefNumber : null),
+        cash_received: isSplitPayment
+          ? (parseFloat(splitCashAmt) || 0)
+          : (paymentMethod === 'Cash' ? parseFloat(cashReceived) : totalAmt),
+        discount_pct: discountPct, discount_label: discountType,
+        subtotal, discount_amt: discountAmt,
+        vat_enabled: vatEnabled, vat_amt: vatAmt,
+        total: totalAmt,
+        change_due: isSplitPayment
+          ? Math.max(0, (parseFloat(splitCashAmt) || 0) - (totalAmt - (parseFloat(splitGcashAmt) || 0)))
+          : changeDue,
+        note: noteInput,
         receipt_no: receiptNo, txn_id: txnId,
         items: cart.map(c => ({ id: c.id, source: 'menu', name: c.displayName, price: c.price, qty: c.qty, subtotal: c.price * c.qty })),
       };
@@ -653,46 +685,32 @@ export function POSContent({ user }) {
       });
       const d = await res.json();
       if (d.success) {
-        setLastReceipt({
-          ...payload,
-          receiptNo, txnId,
-          date: fmtDate(),
-          time: fmtTime(),
-          cashier: user?.name || 'Staff',
-          branch: userBranch,
-        });
+        setLastReceipt({ ...payload, receiptNo, txnId, date: fmtDate(), time: fmtTime(), cashier: user?.name || 'Staff', branch: userBranch });
         setShowReceiptModal(true);
         clearCart();
         fetchTransactions();
         fetchProducts();
       } else {
-        showModal('Transaction Failed', d.error || 'Failed to process sale.', 'error');
+        showAlert('Transaction Failed', d.error || 'Failed to process sale.', 'error');
       }
     } catch {
-      showModal('Connection Error', 'Failed to process sale. Check your connection.', 'error');
-    }
-    finally { setProcessing(false); }
+      showAlert('Connection Error', 'Failed to process sale. Check your connection.', 'error');
+    } finally { setProcessing(false); }
   };
 
-  // Void
+  // ── Void ──────────────────────────────────────────────────────────────────
   const handleVoidRequest = (tx) => { setVoidTarget(tx); setShowVoidModal(true); };
   const handleVoidConfirm = async (tx) => {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${tx.id}/void`, { method: 'PUT' });
       const d   = await res.json();
       setShowVoidModal(false); setVoidTarget(null);
-      if (d.success) {
-        showModal('Voided', 'Transaction has been voided successfully.', 'success');
-        fetchTransactions();
-      } else {
-        showModal('Void Failed', d.error || 'Could not void this transaction.', 'error');
-      }
-    } catch {
-      setShowVoidModal(false);
-      showModal('Connection Error', 'Failed to void transaction.', 'error');
-    }
+      if (d.success) { showAlert('Voided', 'Transaction has been voided successfully.', 'success'); fetchTransactions(); }
+      else showAlert('Void Failed', d.error || 'Could not void this transaction.', 'error');
+    } catch { setShowVoidModal(false); showAlert('Connection Error', 'Failed to void transaction.', 'error'); }
   };
 
+  // ── Filtered transactions ─────────────────────────────────────────────────
   const filteredTx = useMemo(() => {
     const q = txSearch.toLowerCase();
     return transactions.filter(tx => {
@@ -705,65 +723,82 @@ export function POSContent({ user }) {
 
   const txPageItems  = filteredTx.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE);
   const todayStr     = new Date().toISOString().slice(0, 10);
-  const todaySales   = transactions.filter(tx => (tx.created_at || '').startsWith(todayStr));
+  const todaySales   = transactions.filter(tx => (tx.created_at || '').startsWith(todayStr) && !tx.voided);
   const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
 
-  const inp = {
-    width: '100%', padding: '9px 12px', borderRadius: 10,
-    border: '1.5px solid #b2dfdb', background: '#f0fdf5',
-    fontSize: 13, fontFamily: 'inherit', color: '#0d2b1e', outline: 'none', boxSizing: 'border-box',
-  };
-  const smallBtn = {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-    height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid #b2dfdb',
-    background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-  };
+  // ── Shared styles ─────────────────────────────────────────────────────────
+  const inp = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', color: '#0d2b1e', outline: 'none', boxSizing: 'border-box' };
+  const smallBtn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid #b2dfdb', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif", padding: '18px 20px', minHeight: '100vh' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @media print { body>*{display:none!important;} }
       `}</style>
 
-      {/* Modals */}
-      <Modal
-        show={modal.show}
-        title={modal.title}
-        message={modal.message}
-        type={modal.type}
-        showCancel={modal.showCancel}
-        onConfirm={() => { closeModal(); modal.onConfirm?.(); }}
-        onCancel={closeModal}
-      />
-      <ReceiptModal
-        show={showReceiptModal}
-        receipt={lastReceipt}
-        onClose={() => setShowReceiptModal(false)}
-        onNewSale={() => setShowReceiptModal(false)}
-      />
-      <VoidModal
-        show={showVoidModal}
-        tx={voidTarget}
+      {/* ── Modals ── */}
+      <Modal show={modal.show} title={modal.title} message={modal.message} type={modal.type}
+        onConfirm={closeModal} onCancel={closeModal} />
+      <ReceiptModal show={showReceiptModal} receipt={lastReceipt}
+        onClose={() => setShowReceiptModal(false)} onNewSale={() => setShowReceiptModal(false)} />
+      <VoidModal show={showVoidModal} tx={voidTarget}
         onClose={() => { setShowVoidModal(false); setVoidTarget(null); }}
-        onConfirm={handleVoidConfirm}
-        branchManagerPassword={branchManagerPw}
-      />
-      <GCashQRModal
-        show={showGCashQR}
-        amount={totalAmt}
-        onClose={() => setShowGCashQR(false)}
-        branchName={userBranch}
-      />
+        onConfirm={handleVoidConfirm} />
+      {showGCashModal && (
+        <GCashQRModal
+          totalAmt={isSplitPayment ? (parseFloat(splitGcashAmt) || 0) : totalAmt}
+          fmtPHP={fmtPeso}
+          onConfirm={refNum => {
+            setShowGCashModal(false);
+            if (isSplitPayment) { setSplitGcashPaid(true); setSplitGcashRef(refNum); setGcashRefNumber(refNum); }
+            else { setGcashRefNumber(refNum); setTimeout(() => processSale(), 100); }
+          }}
+          onCancel={() => { setShowGCashModal(false); setGcashPaymentAmt(0); }}
+        />
+      )}
 
-      {/* Stat cards */}
+      {/* ── Discount Auth Modal ── */}
+      {showDiscountAuth && pendingDiscount && (
+        <div onClick={() => setShowDiscountAuth(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 18, padding: '26px 28px', width: 340, maxWidth: '95vw', boxShadow: '0 16px 48px rgba(0,0,0,0.22)' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#0d2b1e', marginBottom: 4 }}>{pendingDiscount.label} Discount</div>
+            <div style={{ fontSize: 12, color: '#5a7a65', marginBottom: 16 }}>Manager authorization required.</div>
+            {pendingDiscount.label === 'Others' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Custom Discount %</div>
+                <input type="number" min="1" max="100" placeholder="e.g. 15" value={customDiscountInput} onChange={e => setCustomDiscountInput(e.target.value)} style={inp} />
+              </div>
+            )}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Manager Password</div>
+              <input type="password" placeholder="Enter password…" value={discountAuthInput}
+                onChange={e => { setDiscountAuthInput(e.target.value); setDiscountAuthErr(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') confirmDiscountAuth(); }}
+                autoFocus style={inp} />
+              {discountAuthErr && <div style={{ marginTop: 5, fontSize: 12, color: '#e53935', fontWeight: 700 }}>⚠ {discountAuthErr}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowDiscountAuth(false)} style={{ ...smallBtn, flex: 1, height: 38, fontSize: 13 }}>Cancel</button>
+              <button onClick={confirmDiscountAuth}
+                style={{ flex: 1, height: 38, borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Apply Discount
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
         {[
-          { label: "Today's Revenue",    value: fmtPeso(todayRevenue),              sub: `${todaySales.length} transactions` },
-          { label: 'Transactions Today', value: todaySales.length,                  sub: 'Completed sales' },
+          { label: "Today's Revenue",    value: fmtPeso(todayRevenue),          sub: `${todaySales.length} transactions` },
+          { label: 'Transactions Today', value: todaySales.length,              sub: 'Completed sales' },
           { label: 'Avg Order Value',    value: fmtPeso(todaySales.length ? todayRevenue / todaySales.length : 0), sub: 'Per transaction' },
-          { label: 'Items in Cart',      value: cart.reduce((s,c)=>s+c.qty,0),      sub: 'Current session' },
+          { label: 'Items in Cart',      value: cart.reduce((s, c) => s + c.qty, 0), sub: 'Current session' },
         ].map((s, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 8px rgba(0,140,60,0.06)' }}>
             <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#5a7a65', marginBottom: 5 }}>{s.label}</div>
@@ -773,34 +808,30 @@ export function POSContent({ user }) {
         ))}
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ── */}
       <div style={{ display: 'flex', gap: 4, background: 'rgba(0,168,76,0.06)', borderRadius: 12, padding: 4, marginBottom: 18, width: 'fit-content' }}>
         {[
           { id: 'cashier', label: 'Cashier',             red: false },
           { id: 'history', label: 'Transaction History', red: false },
-          { id: 'voided',  label: 'Voided',              red: true  },
+          { id: 'voided',  label: 'Voided',              red: true },
         ].map(({ id, label, red }) => {
-          const isActive = activeTab === id;
-          const voidedCount = transactions.filter(t => t.voided).length;
+          const isActive     = activeTab === id;
+          const voidedCount  = transactions.filter(t => t.voided).length;
           return (
             <button key={id} onClick={() => setActiveTab(id)}
-              style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
-                background: isActive ? (red ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#00c853,#00897b)') : 'transparent',
-                color:      isActive ? '#fff' : (red ? '#ef4444' : '#5a7a65'),
-                boxShadow:  isActive ? (red ? '0 2px 8px rgba(239,68,68,.3)' : '0 2px 8px rgba(0,180,90,.3)') : 'none',
-              }}>
+              style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, background: isActive ? (red ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#00c853,#00897b)') : 'transparent', color: isActive ? '#fff' : (red ? '#ef4444' : '#5a7a65'), boxShadow: isActive ? (red ? '0 2px 8px rgba(239,68,68,.3)' : '0 2px 8px rgba(0,180,90,.3)') : 'none' }}>
               {label}
               {id === 'voided' && voidedCount > 0 && (
-                <span style={{ background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.15)', color: isActive ? '#fff' : '#dc2626', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 800 }}>
-                  {voidedCount}
-                </span>
+                <span style={{ background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.15)', color: isActive ? '#fff' : '#dc2626', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 800 }}>{voidedCount}</span>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* ── CASHIER TAB ── */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* CASHIER TAB                                                         */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'cashier' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 390px', gap: 18, alignItems: 'start' }}>
           {/* Products */}
@@ -808,22 +839,9 @@ export function POSContent({ user }) {
             <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
               <div style={{ position: 'relative' }}>
                 <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  data-form-type="other"
-                  placeholder="Search products..."
-                  value={searchProduct}
-                  onChange={e => setSearchProduct(e.target.value)}
-                  style={{ ...inp, paddingLeft: 32 }}
-                />
+                <input type="text" autoComplete="off" placeholder="Search products..." value={searchProduct} onChange={e => setSearchProduct(e.target.value)} style={{ ...inp, paddingLeft: 32 }} />
               </div>
             </div>
-
             {allProducts.length === 0 ? (
               <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
                 {!userBranch ? 'No branch assigned to your account.' : 'No products found for this branch.'}
@@ -835,13 +853,9 @@ export function POSContent({ user }) {
                   return (
                     <div key={product.id} onClick={() => addToCart(product)}
                       style={{ background: '#fff', border: `2px solid ${inCart ? '#00897b' : 'rgba(0,168,76,0.12)'}`, borderRadius: 13, padding: '13px 11px', cursor: 'pointer', transition: 'all .15s', boxShadow: inCart ? '0 4px 14px rgba(0,137,123,0.18)' : '0 1px 6px rgba(0,140,60,0.05)', position: 'relative' }}>
-                      {inCart && (
-                        <div style={{ position: 'absolute', top: 7, right: 7, background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '1px 7px' }}>
-                          x{inCart.qty}
-                        </div>
-                      )}
+                      {inCart && <div style={{ position: 'absolute', top: 7, right: 7, background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '1px 7px' }}>×{inCart.qty}</div>}
                       {product.image_url ? (
-                        <img src={product.image_url} alt="" style={{ width: '100%', height: 85, objectFit: 'cover', borderRadius: 8, marginBottom: 9 }} onError={e => e.target.style.display='none'} />
+                        <img src={product.image_url} alt="" style={{ width: '100%', height: 85, objectFit: 'cover', borderRadius: 8, marginBottom: 9 }} onError={e => (e.target.style.display = 'none')} />
                       ) : (
                         <div style={{ width: '100%', height: 85, borderRadius: 8, background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06))', marginBottom: 9 }} />
                       )}
@@ -856,17 +870,14 @@ export function POSContent({ user }) {
             )}
           </div>
 
-          {/* Cart / Order panel */}
+          {/* ── Order panel ── */}
           <div style={{ position: 'sticky', top: 80 }}>
             <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,140,60,0.08)' }}>
               {/* Cart header */}
               <div style={{ padding: '13px 16px', background: 'linear-gradient(135deg,#0d2b1e,#1a4a2e)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
                 <span style={{ fontWeight: 800, fontSize: 14 }}>Order Cart</span>
-                {cart.length > 0 && (
-                  <button onClick={clearCart} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 7, padding: '3px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Clear</button>
-                )}
+                {cart.length > 0 && <button onClick={clearCart} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 7, padding: '3px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Clear</button>}
               </div>
-
               {/* Cart items */}
               <div style={{ maxHeight: 240, overflowY: 'auto', padding: cart.length === 0 ? 0 : '6px 0' }}>
                 {cart.length === 0 ? (
@@ -886,7 +897,7 @@ export function POSContent({ user }) {
                       <button onClick={() => updateQty(item.id, +1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid rgba(0,168,76,0.2)', background: 'rgba(0,168,76,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#00897b' }}>+</button>
                     </div>
                     <div style={{ minWidth: 56, textAlign: 'right', fontWeight: 800, fontSize: 12, color: '#00897b' }}>{fmtPeso(item.price * item.qty)}</div>
-                    <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2, fontSize: 16, lineHeight: 1 }}>x</button>
+                    <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2, fontSize: 16, lineHeight: 1 }}>×</button>
                   </div>
                 ))}
               </div>
@@ -894,11 +905,10 @@ export function POSContent({ user }) {
               {/* Order options */}
               <div style={{ padding: '13px 16px', borderTop: '1px solid rgba(0,168,76,0.1)' }}>
 
-                {/* VAT toggle */}
+                {/* VAT */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em' }}>VAT (12%)</label>
-                  <div onClick={() => setVatEnabled(v => !v)}
-                    style={{ width: 42, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative', background: vatEnabled ? 'linear-gradient(135deg,#00c853,#00897b)' : '#e0e0e0', transition: 'background .2s' }}>
+                  <div onClick={() => setVatEnabled(v => !v)} style={{ width: 42, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative', background: vatEnabled ? 'linear-gradient(135deg,#00c853,#00897b)' : '#e0e0e0', transition: 'background .2s' }}>
                     <div style={{ position: 'absolute', top: 2, left: vatEnabled ? 21 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
                   </div>
                 </div>
@@ -906,46 +916,35 @@ export function POSContent({ user }) {
                 {/* Discount */}
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>Discount</div>
-                  {discountPct > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 11px', background: '#e0f2f1', borderRadius: 9, border: '1.5px solid #b2dfdb' }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#00695c' }}>{discountLabel}</span>
-                      <button onClick={removeDiscount} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}>Remove</button>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* PWD/Senior button */}
-                      <button onClick={applyPwdSenior}
-                        style={{ width: '100%', padding: '9px 0', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 8 }}>
-                        PWD / Senior Citizen — 20%
-                      </button>
-                      {/* Other discount */}
-                      <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                        <input
-                          type="text"
-                          maxLength={4}
-                          placeholder="Ref last 4 digits"
-                          value={otherRefLast4}
-                          onChange={e => setOtherRefLast4(e.target.value.replace(/\D/g,'').slice(0,4))}
-                          style={{ ...inp, flex: 1, padding: '7px 10px', fontSize: 12 }}
-                        />
-                        <input
-                          type="number"
-                          min="1" max="100"
-                          placeholder="Disc %"
-                          value={otherDiscPct}
-                          onChange={e => setOtherDiscPct(e.target.value)}
-                          style={{ ...inp, width: 72, padding: '7px 10px', fontSize: 12 }}
-                        />
-                        <button onClick={applyOtherDiscount}
-                          style={{ padding: '7px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                          Apply
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'None',           pct: 0,    requiresAuth: false },
+                      { label: 'PWD',            pct: 20,   requiresAuth: true  },
+                      { label: 'Senior Citizen', pct: 20,   requiresAuth: true  },
+                      { label: 'Others',         pct: null, requiresAuth: true  },
+                    ].map(d => {
+                      const isActive = d.pct !== null ? discountPct === d.pct && discountType === d.label : discountType === 'Others';
+                      return (
+                        <button key={d.label}
+                          onClick={() => {
+                            if (d.label === 'None') { setDiscountPct(0); setDiscountType('None'); setShowDiscountAuth(false); setCustomDiscountInput(''); }
+                            else { setPendingDiscount(d); setDiscountAuthInput(''); setDiscountAuthErr(''); setCustomDiscountInput(''); setShowDiscountAuth(true); }
+                          }}
+                          style={{ height: 30, padding: '0 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', background: isActive ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#f0fdf5', color: isActive ? '#fff' : '#5a7a65' }}>
+                          {d.label}{d.pct !== null && d.label !== 'None' ? ` (${d.pct}%)` : ''}
                         </button>
-                      </div>
+                      );
+                    })}
+                  </div>
+                  {discountType && discountType !== 'None' && discountPct > 0 && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: '#00897b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ background: '#e0f2f1', border: '1px solid #b2dfdb', borderRadius: 20, padding: '2px 10px' }}>{discountType} — {discountPct}% off</span>
+                      <button onClick={() => { setDiscountPct(0); setDiscountType('None'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53935', fontSize: 13, fontWeight: 800, padding: 0 }}>×</button>
                     </div>
                   )}
                 </div>
 
-                {/* Order summary */}
+                {/* Totals */}
                 <div style={{ background: 'rgba(0,168,76,0.05)', border: '1.5px solid rgba(0,168,76,0.12)', borderRadius: 11, padding: '11px 13px', marginBottom: 12 }}>
                   {[
                     { label: 'Subtotal', value: fmtPeso(subtotal), color: '#94a3b8' },
@@ -961,41 +960,123 @@ export function POSContent({ user }) {
                   </div>
                 </div>
 
-                {/* Payment method */}
+                {/* Payment Method */}
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>Payment Method</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-                    {/* CASH */}
-                    <button
-                      onClick={() => { setPaymentMethod('Cash'); }}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `2px solid ${paymentMethod === 'Cash' ? '#00897b' : 'rgba(0,168,76,0.15)'}`, background: paymentMethod === 'Cash' ? 'linear-gradient(135deg,#00c853,#00897b)' : '#fff', color: paymentMethod === 'Cash' ? '#fff' : '#0d2b1e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 9, transition: 'all .15s' }}>
-                      <Banknote size={15} />
-                      <span>Cash</span>
-                    </button>
-
-                    {/* E-WALLET */}
-                    <button
-                      onClick={() => { setPaymentMethod('E-Wallet'); setShowGCashQR(true); }}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `2px solid ${paymentMethod === 'E-Wallet' ? '#00897b' : 'rgba(0,168,76,0.15)'}`, background: paymentMethod === 'E-Wallet' ? 'linear-gradient(135deg,#00c853,#00897b)' : '#fff', color: paymentMethod === 'E-Wallet' ? '#fff' : '#0d2b1e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 9, transition: 'all .15s' }}>
-                      <QrCode size={15} />
-                      <span>E-Wallet</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, opacity: 0.75 }}>GCash / Maya — Scan QR</span>
-                    </button>
-
-                    {/* BANK TRANSFER / CARD */}
-                    <button
-                      onClick={() => { setPaymentMethod('Bank Transfer / Card'); }}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `2px solid ${paymentMethod === 'Bank Transfer / Card' ? '#00897b' : 'rgba(0,168,76,0.15)'}`, background: paymentMethod === 'Bank Transfer / Card' ? 'linear-gradient(135deg,#00c853,#00897b)' : '#fff', color: paymentMethod === 'Bank Transfer / Card' ? '#fff' : '#0d2b1e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 9, transition: 'all .15s' }}>
-                      <CreditCard size={15} />
-                      <span>Bank Transfer / Card</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, opacity: 0.75 }}>Enter ref no.</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em' }}>Payment Method</div>
+                    {/* Split toggle */}
+                    <button onClick={() => { setIsSplitPayment(v => !v); setSplitGcashAmt(''); setSplitCashAmt(''); setSplitGcashPaid(false); setSplitGcashRef(''); setGcashRefNumber(''); setCashReceived(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, border: 'none', background: isSplitPayment ? 'linear-gradient(135deg,#007acc,#0057a8)' : '#f0f0f0', color: isSplitPayment ? '#fff' : '#5a7a65', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      ✂ {isSplitPayment ? 'Split ON' : 'Split Payment'}
                     </button>
                   </div>
+
+                  {/* Normal payment buttons */}
+                  {!isSplitPayment && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[
+                        { id: 'Cash',  label: 'Cash',  icon: <Banknote size={15} /> },
+                        { id: 'GCash', label: 'GCash', icon: <QrCode size={15} />,    sub: 'PayMongo QR' },
+                        { id: 'Others',label: 'Others',icon: <CreditCard size={15} /> },
+                      ].map(m => (
+                        <button key={m.id} onClick={() => { setPaymentMethod(m.id); if (m.id !== 'GCash') setGcashRefNumber(''); }}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `2px solid ${paymentMethod === m.id ? '#00897b' : 'rgba(0,168,76,0.15)'}`, background: paymentMethod === m.id ? 'linear-gradient(135deg,#00c853,#00897b)' : '#fff', color: paymentMethod === m.id ? '#fff' : '#0d2b1e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 9, transition: 'all .15s' }}>
+                          {m.icon} <span>{m.label}</span>
+                          {m.sub && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.75 }}>{m.sub}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* GCash ref badge */}
+                  {!isSplitPayment && paymentMethod === 'GCash' && gcashRefNumber && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#e8f4ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '6px 12px' }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>GCash Ref #</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', fontFamily: 'monospace' }}>{gcashRefNumber}</div>
+                      </div>
+                      <button onClick={() => setGcashRefNumber('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 16 }}>×</button>
+                    </div>
+                  )}
+
+                  {/* Split payment panel */}
+                  {isSplitPayment && (
+                    <div style={{ background: '#f8fffe', border: '1.5px solid #b2dfdb', borderRadius: 12, padding: '14px 14px 10px', marginTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5a7a65' }}>Total to split:</span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: '#0d2b1e' }}>{fmtPeso(totalAmt)}</span>
+                      </div>
+                      {/* GCash leg */}
+                      <div style={{ background: splitGcashPaid ? '#e8f5e9' : '#fff', border: `1.5px solid ${splitGcashPaid ? '#00897b' : '#bfdbfe'}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#007acc,#0057a8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, color: '#fff' }}>G</div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1e40af' }}>GCash amount</span>
+                          </div>
+                          {splitGcashPaid && <span style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: '#d1fae5', padding: '2px 8px', borderRadius: 20 }}>✓ Paid</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: '#5a7a65' }}>₱</span>
+                            <input type="number" placeholder="0.00" value={splitGcashAmt} disabled={splitGcashPaid}
+                              onChange={e => { const val = e.target.value; setSplitGcashAmt(val); const g = parseFloat(val) || 0; const rem = Math.max(0, totalAmt - g); setSplitCashAmt(rem > 0 ? rem.toFixed(2) : ''); }}
+                              style={{ ...inp, paddingLeft: 24, opacity: splitGcashPaid ? 0.6 : 1, cursor: splitGcashPaid ? 'not-allowed' : 'text' }} />
+                          </div>
+                          {!splitGcashPaid ? (
+                            <button onClick={() => {
+                              const g = parseFloat(splitGcashAmt);
+                              if (!g || g <= 0) { showAlert('Invalid Amount', 'Enter a valid GCash amount.', 'error'); return; }
+                              if (g > totalAmt) { showAlert('Too Much', 'GCash amount cannot exceed total.', 'error'); return; }
+                              if (g < 100) { showAlert('Minimum ₱100', 'Minimum GCash amount via PayMongo is ₱100.', 'error'); return; }
+                              setGcashPaymentAmt(g); setShowGCashModal(true);
+                            }}
+                              style={{ padding: '0 14px', height: 36, borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#007acc,#0057a8)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Pay GCash
+                            </button>
+                          ) : (
+                            <button onClick={() => { setSplitGcashPaid(false); setSplitGcashRef(''); setGcashRefNumber(''); setSplitCashAmt(''); }}
+                              style={{ padding: '0 10px', height: 36, borderRadius: 9, border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Redo
+                            </button>
+                          )}
+                        </div>
+                        {splitGcashPaid && splitGcashRef && <div style={{ marginTop: 5, fontSize: 11, color: '#00695c', fontFamily: 'monospace', fontWeight: 600 }}>Ref: {splitGcashRef}</div>}
+                      </div>
+                      {/* Cash leg */}
+                      <div style={{ background: '#fff', border: '1.5px solid #d1eedd', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#fff' }}>₱</div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#2E7D32' }}>Cash amount</span>
+                        </div>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: '#5a7a65' }}>₱</span>
+                          <input type="number" placeholder="0.00" value={splitCashAmt} onChange={e => setSplitCashAmt(e.target.value)} style={{ ...inp, paddingLeft: 24 }} />
+                        </div>
+                      </div>
+                      {/* Split summary */}
+                      {((parseFloat(splitGcashAmt) || 0) + (parseFloat(splitCashAmt) || 0)) > 0 && (() => {
+                        const gcash = parseFloat(splitGcashAmt) || 0;
+                        const cash  = parseFloat(splitCashAmt)  || 0;
+                        const covered   = gcash + cash;
+                        const shortfall = totalAmt - covered;
+                        const change    = covered - totalAmt;
+                        return (
+                          <div style={{ marginTop: 10, padding: '8px 10px', background: Math.abs(shortfall) < 0.01 ? '#e8f5e9' : shortfall > 0 ? '#fff3e0' : '#e8f5e9', borderRadius: 8, fontSize: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 2 }}><span>GCash</span><span style={{ fontWeight: 700 }}>{fmtPeso(gcash)}</span></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 4 }}><span>Cash</span><span style={{ fontWeight: 700 }}>{fmtPeso(cash)}</span></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 4 }}>
+                              <span style={{ fontWeight: 800, color: shortfall > 0.01 ? '#e65100' : '#2e7d32' }}>{shortfall > 0.01 ? `⚠ Short by` : change > 0.01 ? 'Change due' : '✓ Exact'}</span>
+                              <span style={{ fontWeight: 800, color: shortfall > 0.01 ? '#e65100' : '#2e7d32' }}>{shortfall > 0.01 ? fmtPeso(shortfall) : change > 0.01 ? fmtPeso(change) : ''}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
-                {/* Cash received */}
-                {paymentMethod === 'Cash' && (
+                {/* Cash received (normal) */}
+                {!isSplitPayment && paymentMethod === 'Cash' && (
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>Cash Received</div>
                     <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} placeholder="0.00"
@@ -1010,15 +1091,6 @@ export function POSContent({ user }) {
                   </div>
                 )}
 
-                {/* Reference number for E-Wallet and Bank Transfer / Card */}
-                {['E-Wallet', 'Bank Transfer / Card'].includes(paymentMethod) && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>Reference Number</div>
-                    <input type="text" value={referenceNo} onChange={e => setReferenceNo(e.target.value)} placeholder="Enter transaction / reference number"
-                      style={inp} />
-                  </div>
-                )}
-
                 {/* Note */}
                 <div style={{ marginBottom: 12 }}>
                   <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Order note (optional)..." rows={2}
@@ -1027,14 +1099,24 @@ export function POSContent({ user }) {
 
                 {/* Charge button */}
                 <button onClick={processSale} disabled={processing || cart.length === 0}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 0', borderRadius: 12, border: 'none',
-                    background: cart.length === 0 || processing ? '#e0e0e0' : 'linear-gradient(135deg,#00c853,#00897b)',
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 0', borderRadius: 12, border: 'none',
+                    background: cart.length === 0 || processing ? '#e0e0e0' : isSplitPayment ? (() => { const g = parseFloat(splitGcashAmt) || 0; const c = parseFloat(splitCashAmt) || 0; const ok = Math.abs((g + c) - totalAmt) < 0.01 && (!g || splitGcashPaid); return ok ? 'linear-gradient(135deg,#00c853,#00897b)' : '#e0e0e0'; })() : paymentMethod === 'GCash' && !gcashRefNumber ? 'linear-gradient(135deg,#007acc,#0057a8)' : 'linear-gradient(135deg,#00c853,#00897b)',
                     color: cart.length === 0 || processing ? '#9e9e9e' : '#fff',
-                    fontSize: 15, fontWeight: 900, cursor: cart.length === 0 || processing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    fontSize: 15, fontWeight: 900, cursor: cart.length === 0 || processing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: processing ? 0.7 : 1,
                   }}>
-                  {processing
-                    ? <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Processing...</>
-                    : `Charge ${fmtPeso(totalAmt)}`}
+                  {processing ? (
+                    <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Processing...</>
+                  ) : isSplitPayment ? (() => {
+                    const g = parseFloat(splitGcashAmt) || 0; const c = parseFloat(splitCashAmt) || 0;
+                    const covered = Math.abs((g + c) - totalAmt) < 0.01;
+                    const gcashDone = !g || splitGcashPaid;
+                    if (!covered) return `Enter amounts totalling ${fmtPeso(totalAmt)}`;
+                    if (!gcashDone) return 'Complete GCash payment first';
+                    return `💳 Charge ${fmtPeso(totalAmt)} (Split)`;
+                  })() : paymentMethod === 'GCash' && !gcashRefNumber
+                    ? `💳 Scan GCash QR — ${fmtPeso(totalAmt)}`
+                    : `💳 Charge ${fmtPeso(totalAmt)}`}
                 </button>
               </div>
             </div>
@@ -1042,25 +1124,22 @@ export function POSContent({ user }) {
         </div>
       )}
 
-      {/* ── HISTORY TAB ── */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* HISTORY TAB                                                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'history' && (
         <>
           <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: '1 1 200px' }}>
                 <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
-                <input type="text" placeholder="Search ID or cashier..." value={txSearch} onChange={e => setTxSearch(e.target.value)}
-                  style={{ ...inp, paddingLeft: 30 }} />
+                <input type="text" placeholder="Search ID or cashier..." value={txSearch} onChange={e => setTxSearch(e.target.value)} style={{ ...inp, paddingLeft: 30 }} />
               </div>
               <input type="date" value={txDateFrom} onChange={e => setTxDateFrom(e.target.value)} style={{ ...inp, width: 150 }} />
               <input type="date" value={txDateTo}   onChange={e => setTxDateTo(e.target.value)}   style={{ ...inp, width: 150 }} />
-              {(txSearch || txDateFrom || txDateTo) && (
-                <button onClick={() => { setTxSearch(''); setTxDateFrom(''); setTxDateTo(''); }}
-                  style={{ ...smallBtn, color: '#00897b', borderColor: '#b2dfdb' }}>Clear</button>
-              )}
+              {(txSearch || txDateFrom || txDateTo) && <button onClick={() => { setTxSearch(''); setTxDateFrom(''); setTxDateTo(''); }} style={{ ...smallBtn, color: '#00897b', borderColor: '#b2dfdb' }}>Clear</button>}
             </div>
           </div>
-
           <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
             <div style={{ padding: '12px 18px', background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
               <span style={{ fontWeight: 800, fontSize: 13 }}>Transaction History</span>
@@ -1073,55 +1152,35 @@ export function POSContent({ user }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr>
-                      {['#','Date','Cashier','Items','Subtotal','Discount','VAT','Total','Payment','Ref No.','Status',''].map(h => (
+                      {['#', 'Date', 'Cashier', 'Items', 'Subtotal', 'Disc', 'VAT', 'Total', 'Payment', 'Status', ''].map(h => (
                         <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5, color: '#00897b', letterSpacing: '0.07em', textTransform: 'uppercase', borderBottom: '1px solid #d1eedd', background: '#f8fffe', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {txPageItems.length === 0 ? (
-                      <tr><td colSpan={12} style={{ padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>No transactions found.</td></tr>
+                      <tr><td colSpan={11} style={{ padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>No transactions found.</td></tr>
                     ) : txPageItems.map(tx => (
-                      <tr key={tx.id}
-                        onMouseEnter={e => e.currentTarget.style.background='#f6fef8'}
-                        onMouseLeave={e => e.currentTarget.style.background='transparent'}
-                        style={{ borderBottom: '1px solid #f0f8f0', opacity: tx.voided ? 0.5 : 1 }}>
+                      <tr key={tx.id} onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ borderBottom: '1px solid #f0f8f0', opacity: tx.voided ? 0.5 : 1 }}>
                         <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 12 }}>#{tx.id}</td>
-                        <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>
-                          {new Date(tx.created_at).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-                        </td>
+                        <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
                         <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
-                        <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{(tx.items||[]).length}</td>
+                        <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{(tx.items || []).length}</td>
                         <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{fmtPeso(tx.subtotal)}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          {tx.discount_pct > 0
-                            ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>-{tx.discount_pct}%</span>
-                            : <span style={{ color: '#94a3b8' }}>—</span>}
-                        </td>
-                        <td style={{ padding: '10px 12px' }}>
-                          {tx.vat_enabled
-                            ? <span style={{ color: '#3b82f6', fontWeight: 700 }}>+{fmtPeso(tx.vat_amt)}</span>
-                            : <span style={{ color: '#94a3b8' }}>—</span>}
-                        </td>
+                        <td style={{ padding: '10px 12px' }}>{tx.discount_pct > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>−{tx.discount_pct}%</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                        <td style={{ padding: '10px 12px' }}>{tx.vat_enabled ? <span style={{ color: '#3b82f6', fontWeight: 700 }}>+{fmtPeso(tx.vat_amt)}</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
                         <td style={{ padding: '10px 12px', fontWeight: 800, color: '#00897b' }}>{fmtPeso(tx.total)}</td>
                         <td style={{ padding: '10px 12px' }}>
-                          <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: tx.payment_method === 'Cash' ? 'rgba(0,200,83,0.1)' : 'rgba(59,130,246,0.1)', color: tx.payment_method === 'Cash' ? '#00897b' : '#2563eb' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: tx.payment_method === 'Cash' ? 'rgba(0,200,83,0.1)' : tx.payment_method === 'Split' ? 'rgba(107,33,168,0.1)' : 'rgba(59,130,246,0.1)', color: tx.payment_method === 'Cash' ? '#00897b' : tx.payment_method === 'Split' ? '#6b21a8' : '#2563eb' }}>
                             {tx.payment_method}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12 }}>{tx.reference_no || '—'}</td>
                         <td style={{ padding: '10px 12px' }}>
-                          {tx.voided
-                            ? <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#dc2626' }}>VOIDED</span>
+                          {tx.voided ? <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#dc2626' }}>VOIDED</span>
                             : <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(0,200,83,0.1)', color: '#00897b' }}>PAID</span>}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
-                          {!tx.voided && (
-                            <button onClick={() => handleVoidRequest(tx)}
-                              style={{ ...smallBtn, color: '#dc2626', borderColor: '#fca5a5', background: '#fff' }}>
-                              Void
-                            </button>
-                          )}
+                          {!tx.voided && <button onClick={() => handleVoidRequest(tx)} style={{ ...smallBtn, color: '#dc2626', borderColor: '#fca5a5', background: '#fff' }}>Void</button>}
                         </td>
                       </tr>
                     ))}
@@ -1129,15 +1188,12 @@ export function POSContent({ user }) {
                 </table>
               </div>
             )}
-            {/* Pagination */}
             {filteredTx.length > TX_PAGE_SIZE && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
-                <span style={{ fontSize: 12, color: '#5a7a65' }}>
-                  {(txPage * TX_PAGE_SIZE + 1)}–{Math.min((txPage + 1) * TX_PAGE_SIZE, filteredTx.length)} of {filteredTx.length}
-                </span>
+                <span style={{ fontSize: 12, color: '#5a7a65' }}>{(txPage * TX_PAGE_SIZE + 1)}–{Math.min((txPage + 1) * TX_PAGE_SIZE, filteredTx.length)} of {filteredTx.length}</span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setTxPage(p => Math.max(0, p-1))} disabled={txPage === 0} style={{ ...smallBtn, opacity: txPage === 0 ? 0.35 : 1 }}>‹</button>
-                  <button onClick={() => setTxPage(p => Math.min(Math.ceil(filteredTx.length/TX_PAGE_SIZE)-1, p+1))} disabled={txPage >= Math.ceil(filteredTx.length/TX_PAGE_SIZE)-1} style={{ ...smallBtn, opacity: txPage >= Math.ceil(filteredTx.length/TX_PAGE_SIZE)-1 ? 0.35 : 1 }}>›</button>
+                  <button onClick={() => setTxPage(p => Math.max(0, p - 1))} disabled={txPage === 0} style={{ ...smallBtn, opacity: txPage === 0 ? 0.35 : 1 }}>‹</button>
+                  <button onClick={() => setTxPage(p => Math.min(Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1, p + 1))} disabled={txPage >= Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1} style={{ ...smallBtn, opacity: txPage >= Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1 ? 0.35 : 1 }}>›</button>
                 </div>
               </div>
             )}
@@ -1145,81 +1201,56 @@ export function POSContent({ user }) {
         </>
       )}
 
-      {/* ── VOIDED TAB ── */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* VOIDED TAB                                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'voided' && (() => {
         const voidedList = transactions.filter(tx => tx.voided);
         return (
           <>
-            {/* Summary card */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 18 }}>
               {[
-                { label: 'Total Voided',        value: voidedList.length,                                                        sub: 'All time' },
-                { label: 'Total Amount Voided', value: fmtPeso(voidedList.reduce((s,t)=>s+Number(t.total||0),0)),               sub: 'Lost revenue' },
-                { label: 'Today Voided',        value: voidedList.filter(t=>(t.created_at||'').startsWith(new Date().toISOString().slice(0,10))).length, sub: 'Today only' },
-              ].map((s,i) => (
-                <div key={i} style={{ background:'#fff', border:'1px solid rgba(239,68,68,0.15)', borderRadius:14, padding:'14px 16px', boxShadow:'0 1px 8px rgba(239,68,68,0.06)' }}>
-                  <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#b91c1c', marginBottom:5 }}>{s.label}</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:'#0d2b1e' }}>{s.value}</div>
-                  <div style={{ fontSize:11, color:'#94a3b8', marginTop:3 }}>{s.sub}</div>
+                { label: 'Total Voided',        value: voidedList.length, sub: 'All time' },
+                { label: 'Total Amount Voided', value: fmtPeso(voidedList.reduce((s, t) => s + Number(t.total || 0), 0)), sub: 'Lost revenue' },
+                { label: 'Today Voided',        value: voidedList.filter(t => (t.created_at || '').startsWith(new Date().toISOString().slice(0, 10))).length, sub: 'Today only' },
+              ].map((s, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#b91c1c', marginBottom: 5 }}>{s.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e' }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.sub}</div>
                 </div>
               ))}
             </div>
-
-            <div style={{ background:'#fff', border:'1px solid rgba(239,68,68,0.15)', borderRadius:14, overflow:'hidden', boxShadow:'0 1px 8px rgba(239,68,68,0.06)' }}>
-              <div style={{ padding:'12px 18px', background:'linear-gradient(135deg,#ef4444,#dc2626)', display:'flex', justifyContent:'space-between', alignItems:'center', color:'#fff' }}>
-                <span style={{ fontWeight:800, fontSize:13 }}>Voided Transactions</span>
-                <span style={{ fontSize:12, opacity:0.9 }}>{voidedList.length} record{voidedList.length !== 1 ? 's' : ''}</span>
+            <div style={{ background: '#fff', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 18px', background: 'linear-gradient(135deg,#ef4444,#dc2626)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
+                <span style={{ fontWeight: 800, fontSize: 13 }}>Voided Transactions</span>
+                <span style={{ fontSize: 12, opacity: 0.9 }}>{voidedList.length} record{voidedList.length !== 1 ? 's' : ''}</span>
               </div>
-
               {voidedList.length === 0 ? (
-                <div style={{ padding:'52px 0', textAlign:'center', color:'#5a7a65', fontSize:13 }}>
-                  <div style={{ fontSize:32, marginBottom:10 }}>--</div>
-                  <div style={{ fontWeight:700 }}>No voided transactions</div>
-                  <div style={{ fontSize:12, marginTop:4, color:'#94a3b8' }}>Voided transactions will appear here.</div>
+                <div style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>--</div>
+                  <div style={{ fontWeight: 700 }}>No voided transactions</div>
                 </div>
               ) : (
-                <div style={{ overflowX:'auto' }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr>
-                        {['#','Date Voided','Cashier','Items','Total','Payment','Ref No.','Discount'].map(h => (
-                          <th key={h} style={{ padding:'10px 12px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#dc2626', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:'1px solid #fecaca', background:'#fff5f5', whiteSpace:'nowrap' }}>{h}</th>
+                        {['#', 'Date', 'Cashier', 'Items', 'Total', 'Payment', 'Discount'].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5, color: '#dc2626', letterSpacing: '0.07em', textTransform: 'uppercase', borderBottom: '1px solid #fecaca', background: '#fff5f5', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {voidedList.map(tx => (
-                        <tr key={tx.id}
-                          onMouseEnter={e => e.currentTarget.style.background='#fff5f5'}
-                          onMouseLeave={e => e.currentTarget.style.background='transparent'}
-                          style={{ borderBottom:'1px solid #fff0f0' }}>
-                          <td style={{ padding:'10px 12px', color:'#94a3b8', fontSize:12 }}>#{tx.id}</td>
-                          <td style={{ padding:'10px 12px', color:'#5a7a65', fontSize:12, whiteSpace:'nowrap' }}>
-                            {new Date(tx.created_at).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-                          </td>
-                          <td style={{ padding:'10px 12px', fontWeight:600, color:'#0d2b1e' }}>{tx.cashier}</td>
-                          <td style={{ padding:'10px 12px' }}>
-                            {(tx.items||[]).length > 0 ? (
-                              <div>
-                                <div style={{ fontWeight:600, color:'#0d2b1e', fontSize:12 }}>{(tx.items||[]).length} item{(tx.items||[]).length !== 1 ? 's' : ''}</div>
-                                <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>
-                                  {(tx.items||[]).slice(0,2).map(it => it.name).join(', ')}{(tx.items||[]).length > 2 ? '...' : ''}
-                                </div>
-                              </div>
-                            ) : <span style={{ color:'#94a3b8' }}>—</span>}
-                          </td>
-                          <td style={{ padding:'10px 12px', fontWeight:800, color:'#dc2626', textDecoration:'line-through' }}>{fmtPeso(tx.total)}</td>
-                          <td style={{ padding:'10px 12px' }}>
-                            <span style={{ padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700, background:'rgba(239,68,68,0.08)', color:'#dc2626' }}>
-                              {tx.payment_method}
-                            </span>
-                          </td>
-                          <td style={{ padding:'10px 12px', color:'#5a7a65', fontSize:12 }}>{tx.reference_no || '—'}</td>
-                          <td style={{ padding:'10px 12px', color:'#5a7a65', fontSize:12 }}>
-                            {tx.discount_pct > 0
-                              ? <span style={{ color:'#f59e0b', fontWeight:700 }}>{tx.discount_label || tx.discount_pct + '%'}</span>
-                              : <span style={{ color:'#94a3b8' }}>—</span>}
-                          </td>
+                        <tr key={tx.id} onMouseEnter={e => e.currentTarget.style.background = '#fff5f5'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ borderBottom: '1px solid #fff0f0' }}>
+                          <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 12 }}>#{tx.id}</td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{(tx.items || []).length}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 800, color: '#dc2626', textDecoration: 'line-through' }}>{fmtPeso(tx.total)}</td>
+                          <td style={{ padding: '10px 12px' }}><span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>{tx.payment_method}</span></td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12 }}>{tx.discount_pct > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>{tx.discount_label || tx.discount_pct + '%'}</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1257,7 +1288,6 @@ export default function StaffDashboard() {
   }, []);
 
   const confirmLogout = () => { localStorage.removeItem('user'); window.location.reload(); };
-
   if (!user) return null;
 
   return (
@@ -1267,13 +1297,13 @@ export default function StaffDashboard() {
         * { margin: 0; padding: 0; box-sizing: border-box; }
       `}</style>
 
-      {/* Top Bar */}
+      {/* Top bar */}
       <div style={{ background: '#fff', padding: '1rem 2rem', boxShadow: '0 2px 8px rgba(46,125,50,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
         <h1 style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.4rem', fontWeight: 800, color: '#00897b' }}>Point of Sale</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: '0.95rem' }}>{user.name}</div>
-            <div style={{ fontSize: '0.8rem', color: '#5a7a65' }}>Staff — {user.branch}</div>
+            <div style={{ fontSize: '0.8rem', color: '#5a7a65' }}>{user.role} — {user.branch}</div>
           </div>
           <button onClick={() => setShowLogoutModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 18px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -1290,7 +1320,7 @@ export default function StaffDashboard() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ background: '#fff', borderRadius: 20, padding: '32px 36px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2rem' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <LogOut size={28} color="#dc2626" />
             </div>
             <h2 style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 20, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Log out?</h2>
