@@ -9,11 +9,11 @@ import FranchisorDashboard from "./FranchisorDashboard";
 import ManagerDashboard from "./ManagerDashboard";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
-const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod,
-  // pass these as props since they're no longer in scope:
-  handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
-}) => {
-  
+  const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod,
+    // pass these as props since they're no longer in scope:
+    handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
+  }) => {
+
     const hasFocused = useRef(false);
 
     useEffect(() => {

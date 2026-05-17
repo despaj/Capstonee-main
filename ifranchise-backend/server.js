@@ -760,7 +760,10 @@ app.post("/check-duplicate", async (req, res) => {
   const { email, mobile } = req.body;
   try {
     const result = await pool.query(
-      "SELECT id FROM applications WHERE email = $1 OR phone = $2 LIMIT 1",
+      `SELECT id FROM applications WHERE email = $1 OR phone = $2
+       UNION
+       SELECT id FROM ipharma_applications WHERE email = $1 OR phone = $2
+       LIMIT 1`,
       [email, mobile]
     );
     res.json({ exists: result.rows.length > 0 });
@@ -772,8 +775,38 @@ app.post("/check-duplicate", async (req, res) => {
 
 app.get("/applications", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM applications ORDER BY created_at DESC");
-    console.log("First app row:", result.rows[0]); // ← add this
+    const result = await pool.query(`
+      SELECT 
+        'ip-' || id::text AS id,
+        name, email, phone, 'iPharma Mart' AS franchise,
+        status, date, address, dob, civil_status,
+        spouse_name, spouse_occupation, dependents,
+        NULL AS payment_mode, NULL AS gender, NULL AS nationality,
+        NULL AS employment_type, NULL AS years_employer, NULL AS income,
+        NULL AS employer_name, NULL AS business_address,
+        NULL AS position, NULL AS business_nature,
+        NULL AS id_type, NULL AS id_image, NULL AS letter_of_intent,
+        created_at
+      FROM ipharma_applications
+
+      UNION ALL
+
+      SELECT
+        id::text AS id,
+        name, email, phone, franchise,
+        status, date, address, dob, civil_status,
+        spouse_name, spouse_occupation, dependents,
+        payment_mode, gender, nationality,
+        employment_type, years_employer, income,
+        employer_name, business_address,
+        position, business_nature,
+        id_type, id_image, letter_of_intent,
+        created_at
+      FROM applications
+
+      ORDER BY created_at DESC
+    `);
+
     const apps = result.rows.map(rowToApplication);
     res.json(apps);
   } catch (err) {
@@ -845,36 +878,29 @@ app.post("/ipharma-applications", async (req, res) => {
   try {
     const b = req.body;
     const result = await pool.query(
-      `INSERT INTO applications (
-        name, email, phone, franchise, payment_mode, status, date,
-        address, telephone,
-        dob, civil_status, spouse_name, spouse_occupation, spouse_dob, dependents,
-        tin, education, involvement, equity, investment, fund_source,
+      `INSERT INTO ipharma_applications (
+        name, email, phone, telephone, status, date,
+        address, dob, civil_status, spouse_name, spouse_occupation, spouse_dob,
+        dependents, tin, education, involvement, equity, investment, fund_source,
         other_business, location, family_depend, market_area, start_date,
-        signature, date_signed,
-        gender, nationality,
-        employment_type, years_employer, income,
-        employer_name, business_address, position, business_nature
+        signature, date_signed
       ) VALUES (
-        $1,$2,$3,'iPharma Mart','To be determined','pending',$4,
-        $5,$6,
-        $7,$8,$9,$10,$11,$12,
-        $13,$14,$15,$16,$17,$18,
+        $1,$2,$3,$4,'pending',$5,
+        $6,$7,$8,$9,$10,$11,
+        $12,$13,$14,$15,$16,$17,$18,
         $19,$20,$21,$22,$23,
-        $24,$25,
-        'Not specified','Filipino',
-        'Business Owner',0,$17,
-        $19,$20,'Franchise Owner','Pharmaceutical Retail'
+        $24,$25
       ) RETURNING *`,
       [
-        b.name, b.email, b.mobile,
+        b.name, b.email, b.phone, b.telephone || null,
         b.date || new Date().toISOString().split("T")[0],
-        b.address, b.telephone || null,
+        b.address,
         b.dob || null, b.maritalStatus, b.spouseName || null,
         b.spouseOccupation || null, b.spouseDob || null,
         b.dependents ? parseInt(b.dependents) : null,
-        b.tin || null, b.education || null, b.involvement || null,
-        b.equity || null,
+        b.tin || null,
+        b.education ? JSON.stringify(b.education) : null,
+        b.involvement || null, b.equity || null,
         b.investment ? parseFloat(b.investment) : null,
         b.fundSource || null,
         b.otherBusiness || null, b.location || null,
@@ -883,8 +909,12 @@ app.post("/ipharma-applications", async (req, res) => {
         b.signature || null, b.dateSigned || null,
       ]
     );
-    const app = rowToApplication(result.rows[0]);
-    res.json({ success: true, message: "iPharma Mart application submitted successfully", application: app });
+
+    res.json({ 
+      success: true, 
+      id: result.rows[0].id,
+      message: "iPharma Mart application submitted successfully",
+    });
   } catch (err) {
     console.error("Error submitting iPharma application:", err);
     res.status(500).json({ success: false, error: "Failed to submit application", details: err.message });
@@ -893,13 +923,20 @@ app.post("/ipharma-applications", async (req, res) => {
 
 app.put("/applications/:id/status", async (req, res) => {
   try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+
     const { status } = req.body;
     const result = await pool.query(
-      "UPDATE applications SET status=$1 WHERE id=$2 RETURNING *",
-      [status, req.params.id]
+      `UPDATE ${sourceTable} SET status=$1 WHERE id=$2 RETURNING *`,
+      [status, id]
     );
+
     if (result.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
+
     res.json({
       success: true,
       message: "Application status updated successfully",
@@ -910,24 +947,27 @@ app.put("/applications/:id/status", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to update application status" });
   }
 });
-
 app.delete("/applications/:id", async (req, res) => {
   try {
-    // Fetch full application data first
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = isIpharma ? rawId.replace("ip-", "") : rawId;
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+
     const existing = await pool.query(
-      "SELECT * FROM applications WHERE id=$1", [req.params.id]
+      `SELECT * FROM ${sourceTable} WHERE id=$1`, [id]
     );
+
     if (existing.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
 
-    // Save to delete history
     await pool.query(
       'INSERT INTO application_delete_history (application_data) VALUES ($1)',
       [JSON.stringify(existing.rows[0])]
     );
 
-    // Now delete
-    await pool.query("DELETE FROM applications WHERE id=$1", [req.params.id]);
+    await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
+
     res.json({ success: true, message: "Application deleted successfully" });
   } catch (err) {
     console.error("Error deleting application:", err);
@@ -1265,8 +1305,6 @@ app.post("/api/extract-id", async (req, res) => {
 
     if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
 
-    console.log("Mindee raw ID fields:", JSON.stringify(response.rawHttp.inference.result.fields, null, 2));
-
     const fields = response.rawHttp.inference.result.fields;
 
     const firstName  = fields?.given_names?.value   || fields?.first_name?.value    || "";
@@ -1366,7 +1404,6 @@ app.get("/inventory-delete-history", async (req, res) => {
 app.post("/inventory", async (req, res) => {
   try {
     const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
-    console.log("image_url received:", image_url);
 
     if (!branch)
       return res.status(400).json({ error: "Branch is required" });
@@ -1403,7 +1440,6 @@ app.post("/inventory", async (req, res) => {
 app.put("/inventory/:id", async (req, res) => {
   try {
     const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
-    console.log("image_url received:", image_url);
 
     // Fetch old values for the diff
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
@@ -1918,7 +1954,6 @@ app.put("/branches/:id", async (req, res) => {
       "UPDATE branches SET name=$1, brand_id=$2, region=$3, manager=$4, contact=$5, address=$6, concept=$7 WHERE id=$8 RETURNING *",
       [name, brand_id, region, manager, contact, address, concept || null, req.params.id]
     );
-    console.log('Update result:', result.rows); // <-- add
     res.json({ success: true, branch: result.rows[0] });
   } catch (err) {
     console.error('Update branch error FULL:', err.message, err.code, err.detail); // <-- expanded
@@ -2120,7 +2155,6 @@ app.get("/announcements", async (req, res) => {
 });
 
 app.post("/announcements", async (req, res) => {
-    console.log("POST /announcements called", new Date().toISOString());
   try {
     const { title, content, userId } = req.body;
 
@@ -2266,7 +2300,6 @@ app.post("/orders", async (req, res) => {
   const client = await pool.connect();
   
   const { user_id, phone, brand, branch, items, total_amount, address } = req.body;
-  console.log("address value being inserted:", address);
 
    if (!items || !Array.isArray(items) || items.length === 0) {
     client.release();
@@ -3445,11 +3478,6 @@ app.post("/api/verify-id", async (req, res) => {
 
     const data = result.data || {};
     const authScore = result.authentication?.score ?? 1;
-
-    console.log("Full result.data keys:", JSON.stringify(Object.keys(data), null, 2));
-console.log("documentType field:", JSON.stringify(result.data?.documentType, null, 2));
-console.log("documentName field:", JSON.stringify(result.data?.documentName, null, 2));
-console.log("type field:", JSON.stringify(result.data?.type, null, 2));
 
   const detectedType =
     result.data?.documentType?.value        ||

@@ -650,7 +650,6 @@ const confirmAndFill = () => {
   
   const formatDob = (raw) => {
     if (!raw) return "";
-    // Mindee sometimes returns DD/MM/YYYY — normalize to YYYY-MM-DD for input[type=date]
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
       const [dd, mm, yyyy] = raw.split("/");
@@ -659,9 +658,11 @@ const confirmAndFill = () => {
     return raw;
   };
 
-  onComplete({
+  const { address, ...ocrWithoutAddress } = ocrResult;
+
+  onComplete({ 
     ocrResult: {
-      ...ocrResult,
+      ...ocrWithoutAddress,
       dob: formatDob(ocrResult?.dob),
     },
     idType,
@@ -841,7 +842,6 @@ const confirmAndFill = () => {
                       ["First Name", ocrResult.firstName],
                       ["Middle Name", ocrResult.middleName],
                       ["Date of Birth", ocrResult.dob],
-                      ["Address", ocrResult.address],
                       ["ID Number", ocrResult.idNumber],
                       ["Expiry Date", ocrResult.expiryDate],
                     ].map(([label, val]) => (
@@ -986,6 +986,7 @@ export default function ApplyFranchise() {
   const [showTerms, setShowTerms] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [showIdScanner, setShowIdScanner] = useState(false);
+  const [loading, setLoading] = useState(null);
 
   // Form state
   const [concept, setConcept] = useState("");
@@ -1110,12 +1111,17 @@ const checkDuplicate = async (email, mobile) => {
 
   const handleSubmitClick = async (e) => {
     e.preventDefault();
+    setLoading("load"); 
+
     if (!validate()) {
+      setLoading(null);
       showAlert("error", "Please fill in all required fields and complete all verification steps before submitting.");
       return;
     }
+
     const isDuplicate = await checkDuplicate(form.email, form.mobile);
     if (isDuplicate) {
+      setLoading(null);
       auditLog.record("DUPLICATE_DETECTED", { email: form.email, mobile: form.mobile });
       showAlert("error", "An application with this email or mobile number already exists. Each person may only submit one application.");
       return;
@@ -1125,11 +1131,15 @@ const checkDuplicate = async (email, mobile) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(otp);
 
-    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mobile: form.mobile, otp }),
-    });
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: form.mobile, otp }),
+      });
+    } finally {
+      setLoading(null);
+    }
 
     setShowOtp(true);
   };
@@ -1243,95 +1253,95 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     }
   };
 
-  // Fetch regions on mount
-useEffect(() => {
-  const fetchRegions = async () => {
-    setLoadingRegions(true);
-    try {
-      const res  = await fetch(`${PSGC}/regions/`);
-      const data = await res.json();
-      setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (err) {
-      console.error("Failed to fetch regions:", err);
-    } finally {
-      setLoadingRegions(false);
-    }
-  };
-  fetchRegions();
-}, []);
-
-// Fetch provinces when region changes
-useEffect(() => {
-  if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
-  const fetchProvinces = async () => {
-    setLoadingProvinces(true);
-    setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
-    setCities([]); setBarangays([]);
-    try {
-      const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
-      const data = await res.json();
-      // Some regions (like NCR) have no provinces — fetch cities directly
-      if (!Array.isArray(data) || data.length === 0) {
-        const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
-        const citData = await citRes.json();
-        setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
-        setProvinces([]);
-      } else {
-        setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+    // Fetch regions on mount
+  useEffect(() => {
+    const fetchRegions = async () => {
+      setLoadingRegions(true);
+      try {
+        const res  = await fetch(`${PSGC}/regions/`);
+        const data = await res.json();
+        setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch regions:", err);
+      } finally {
+        setLoadingRegions(false);
       }
-    } catch (err) {
-      console.error("Failed to fetch provinces:", err);
-    } finally {
-      setLoadingProvinces(false);
-    }
-  };
-  fetchProvinces();
-}, [addrRegion]);
+    };
+    fetchRegions();
+  }, []);
 
-// Fetch cities when province changes
-useEffect(() => {
-  if (!addrProvince) { setCities([]); setBarangays([]); return; }
-  const fetchCities = async () => {
-    setLoadingCities(true);
-    setAddrCity(""); setAddrBarangay("");
-    setBarangays([]);
-    try {
-      const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
-      const data = await res.json();
-      setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
-    } catch (err) {
-      console.error("Failed to fetch cities:", err);
-    } finally {
-      setLoadingCities(false);
-    }
-  };
-  fetchCities();
-}, [addrProvince]);
+  // Fetch provinces when region changes
+  useEffect(() => {
+    if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
+    const fetchProvinces = async () => {
+      setLoadingProvinces(true);
+      setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
+      setCities([]); setBarangays([]);
+      try {
+        const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
+        const data = await res.json();
+        // Some regions (like NCR) have no provinces — fetch cities directly
+        if (!Array.isArray(data) || data.length === 0) {
+          const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
+          const citData = await citRes.json();
+          setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
+          setProvinces([]);
+        } else {
+          setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (err) {
+        console.error("Failed to fetch provinces:", err);
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+    fetchProvinces();
+  }, [addrRegion]);
 
-// Fetch barangays when city changes
-useEffect(() => {
-  if (!addrCity) { setBarangays([]); return; }
-  const fetchBarangays = async () => {
-    setLoadingBarangays(true);
-    setAddrBarangay("");
-    try {
-      const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
-      const data = await res.json();
-      setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
-    } catch (err) {
-      console.error("Failed to fetch barangays:", err);
-    } finally {
-      setLoadingBarangays(false);
-    }
-  };
-  fetchBarangays();
-}, [addrCity]);
+  // Fetch cities when province changes
+  useEffect(() => {
+    if (!addrProvince) { setCities([]); setBarangays([]); return; }
+    const fetchCities = async () => {
+      setLoadingCities(true);
+      setAddrCity(""); setAddrBarangay("");
+      setBarangays([]);
+      try {
+        const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
+        const data = await res.json();
+        setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+      } catch (err) {
+        console.error("Failed to fetch cities:", err);
+      } finally {
+        setLoadingCities(false);
+      }
+    };
+    fetchCities();
+  }, [addrProvince]);
 
-// Helper to get name from code
-const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name   || "";
-const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
-const getCityName     = () => cities.find(c => c.code === addrCity)?.name       || "";
-const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
+  // Fetch barangays when city changes
+  useEffect(() => {
+    if (!addrCity) { setBarangays([]); return; }
+    const fetchBarangays = async () => {
+      setLoadingBarangays(true);
+      setAddrBarangay("");
+      try {
+        const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
+        const data = await res.json();
+        setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+      } catch (err) {
+        console.error("Failed to fetch barangays:", err);
+      } finally {
+        setLoadingBarangays(false);
+      }
+    };
+    fetchBarangays();
+  }, [addrCity]);
+
+  // Helper to get name from code
+  const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name   || "";
+  const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
+  const getCityName     = () => cities.find(c => c.code === addrCity)?.name       || "";
+  const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
 
   useEffect(() => {
     const fields = ["paymentMode","lastName","firstName","dob","gender","dependents","mobile","email","employmentType","yearsEmployer","income","employerName","businessAddress","position","businessNature"];
@@ -1361,6 +1371,39 @@ const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name
 
   return (
     <div className="af-page">
+
+      {loading === "load" && (
+        <>
+          <style>{`
+            @keyframes spin {
+              0%   { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            <div style={{
+              background: "#fff", borderRadius: 20, padding: "40px 48px",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", minWidth: 260,
+            }}>
+              <div style={{
+                width: 56, height: 56,
+                border: "5px solid #c8e6c9",
+                borderTop: "5px solid #2E7D32",
+                borderRadius: "50%",
+                animation: "spin 0.9s linear infinite",
+              }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#2E7D32" }}>
+                Loading...
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
       <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => alert.onConfirm() : null} />
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
       <OtpModal open={showOtp} mobile={form.mobile} onVerify={handleOtpVerified} onClose={() => setShowOtp(false)} expectedOtp={generatedOtp} onResend={(newOtp) => setGeneratedOtp(newOtp)} />

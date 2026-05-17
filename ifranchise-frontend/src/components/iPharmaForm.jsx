@@ -45,27 +45,6 @@ const DEGREE_TYPES = [
   "Elementary", "High School", "Senior High School", "Vocational/Technical",
   "Bachelor's Degree", "Master's Degree", "Doctorate", "Others",
 ];
-const PH_REGIONS = [
-  "NCR – National Capital Region", "CAR – Cordillera Administrative Region",
-  "Region I – Ilocos Region", "Region II – Cagayan Valley",
-  "Region III – Central Luzon", "Region IV-A – CALABARZON",
-  "Region IV-B – MIMAROPA", "Region V – Bicol Region",
-  "Region VI – Western Visayas", "Region VII – Central Visayas",
-  "Region VIII – Eastern Visayas", "Region IX – Zamboanga Peninsula",
-  "Region X – Northern Mindanao", "Region XI – Davao Region",
-  "Region XII – SOCCSKSARGEN", "Region XIII – Caraga", "BARMM",
-];
-const PH_PROVINCES_BY_REGION = {
-  "NCR – National Capital Region": ["Metro Manila"],
-  "Region IV-A – CALABARZON": ["Batangas", "Cavite", "Laguna", "Quezon", "Rizal"],
-  "Region III – Central Luzon": ["Aurora", "Bataan", "Bulacan", "Nueva Ecija", "Pampanga", "Tarlac", "Zambales"],
-};
-const PH_CITIES_BY_PROVINCE = {
-  "Metro Manila": ["Caloocan","Las Piñas","Makati","Malabon","Mandaluyong","Manila","Marikina","Muntinlupa","Navotas","Parañaque","Pasay","Pasig","Pateros","Quezon City","San Juan","Taguig","Valenzuela"],
-  "Rizal": ["Antipolo","Binangonan","Cainta","Cardona","Jala-Jala","Morong","Pililla","Rodriguez","San Mateo","Tanay","Taytay","Teresa"],
-  "Cavite": ["Bacoor","Carmona","Cavite City","Dasmariñas","General Trias","Imus","Tagaytay"],
-  "Laguna": ["Biñan","Cabuyao","Calamba","San Pedro","Santa Rosa"],
-};
 
 const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
@@ -73,6 +52,7 @@ const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 function AlertModal({ open, type, message, onClose, onConfirm }) {
   if (!open) return null;
   const ok = type === "success";
+
   return (
     <div style={S.overlay}>
       <div style={S.modalBox}>
@@ -99,6 +79,7 @@ function AlertModal({ open, type, message, onClose, onConfirm }) {
 // ─── TERMS MODAL ──────────────────────────────────────────────────────────────
 function TermsModal({ open, onClose }) {
   if (!open) return null;
+
   return (
     <div style={S.overlay}>
       <div style={{ ...S.modalBox, width: 640, maxWidth: "95vw", textAlign: "left", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
@@ -310,8 +291,13 @@ const runOcr = async () => {
     return raw;
   };
 
+  const { address, ...ocrWithoutAddress } = ocrResult; 
+
   onComplete({
-    ocrResult: { ...ocrResult, dob: formatDob(ocrResult?.dob) },
+      ocrResult: {
+      ...ocrWithoutAddress,
+      dob: formatDob(ocrResult?.dob),
+    },
     idType, idValid, frontImg, backImg,
   });
   onClose();
@@ -399,7 +385,12 @@ const runOcr = async () => {
                 <>
                   <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 10px", color: "#374151" }}>Extracted Information (will auto-fill form):</p>
                   <div style={{ background: "#fffbf7", border: "1.5px solid #fed7aa", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
-                    {[["Last Name", ocrResult.lastName],["First Name", ocrResult.firstName],["Middle Name", ocrResult.middleName],["Date of Birth", ocrResult.dob],["Address", ocrResult.address],["ID Number", ocrResult.idNumber],["Expiry", ocrResult.expiryDate]].map(([l, v]) => (
+                    {[["Last Name", ocrResult.lastName],
+                    ["First Name", ocrResult.firstName],
+                    ["Middle Name", ocrResult.middleName],
+                    ["Date of Birth", ocrResult.dob],
+                    ["ID Number", ocrResult.idNumber],
+                    ["Expiry", ocrResult.expiryDate]].map(([l, v]) => (
                       <div key={l} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6" }}>
                         <span style={{ color: "#6B7280", width: 110, flexShrink: 0 }}>{l}</span>
                         <span style={{ fontWeight: 600 }}>{v || "—"}</span>
@@ -485,6 +476,7 @@ export default function IPharmaForm() {
   const [suffix, setSuffix] = useState("");
   const [errors, setErrors] = useState({});
   const [progress, setProgress] = useState(0);
+  const [loading, setLoading] = useState(null);
 
   const [generatedOtp, setGeneratedOtp] = useState("");
 
@@ -506,12 +498,24 @@ export default function IPharmaForm() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
 
-  // Address
-  const [addrRegion, setAddrRegion] = useState("");
+   // Address
+  const [addrRegion,   setAddrRegion]   = useState("");
   const [addrProvince, setAddrProvince] = useState("");
-  const [addrCity, setAddrCity] = useState("");
+  const [addrCity,     setAddrCity]     = useState("");
   const [addrBarangay, setAddrBarangay] = useState("");
-  const [addrStreet, setAddrStreet] = useState("");
+  const [addrStreet,   setAddrStreet]   = useState("");
+
+  const [regions,    setRegions]    = useState([]);
+  const [provinces,  setProvinces]  = useState([]);
+  const [cities,     setCities]     = useState([]);
+  const [barangays,  setBarangays]  = useState([]);
+
+  const [loadingRegions,   setLoadingRegions]   = useState(false);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCities,    setLoadingCities]    = useState(false);
+  const [loadingBarangays, setLoadingBarangays] = useState(false);
+
+  const PSGC = "https://psgc.gitlab.io/api";
 
   // Education list
   const [educList, setEducList] = useState([]);
@@ -571,9 +575,6 @@ export default function IPharmaForm() {
   const updateEduc = (i, field, val) => setEducList(p => { const n = [...p]; n[i] = { ...n[i], [field]: val }; return n; });
   const removeEduc = (i) => setEducList(p => p.filter((_, idx) => idx !== i));
 
-  const availableProvinces = PH_PROVINCES_BY_REGION[addrRegion] || [];
-  const availableCities = PH_CITIES_BY_PROVINCE[addrProvince] || PH_CITIES_BY_PROVINCE[addrRegion] || [];
-
   // ID complete handler
 const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
   if (!idValid) {
@@ -597,6 +598,77 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
   showAlert("success", "ID verified! Fields have been auto-filled. Please review and complete the remaining fields.");
 };
 
+useEffect(() => {
+  const fetchRegions = async () => {
+    setLoadingRegions(true);
+    try {
+      const res  = await fetch(`${PSGC}/regions/`);
+      const data = await res.json();
+      setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+    } catch (err) { console.error("Failed to fetch regions:", err); }
+    finally { setLoadingRegions(false); }
+  };
+  fetchRegions();
+}, []);
+
+useEffect(() => {
+  if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
+  const fetchProvinces = async () => {
+    setLoadingProvinces(true);
+    setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
+    setCities([]); setBarangays([]);
+    try {
+      const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
+        const citData = await citRes.json();
+        setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
+        setProvinces([]);
+      } else {
+        setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    } catch (err) { console.error("Failed to fetch provinces:", err); }
+    finally { setLoadingProvinces(false); }
+  };
+  fetchProvinces();
+}, [addrRegion]);
+
+useEffect(() => {
+  if (!addrProvince) { setCities([]); setBarangays([]); return; }
+  const fetchCities = async () => {
+    setLoadingCities(true);
+    setAddrCity(""); setAddrBarangay(""); setBarangays([]);
+    try {
+      const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
+      const data = await res.json();
+      setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+    } catch (err) { console.error("Failed to fetch cities:", err); }
+    finally { setLoadingCities(false); }
+  };
+  fetchCities();
+}, [addrProvince]);
+
+useEffect(() => {
+  if (!addrCity) { setBarangays([]); return; }
+  const fetchBarangays = async () => {
+    setLoadingBarangays(true);
+    setAddrBarangay("");
+    try {
+      const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
+      const data = await res.json();
+      setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+    } catch (err) { console.error("Failed to fetch barangays:", err); }
+    finally { setLoadingBarangays(false); }
+  };
+  fetchBarangays();
+}, [addrCity]);
+
+const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name    || "";
+const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
+const getCityName     = () => cities.find(c => c.code === addrCity)?.name        || "";
+const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
+
   // Progress
   useEffect(() => {
     const fields = ["lastName","firstName","mobile","email","dob","involvement","equity","investment","fundSource","location","familyDepend","marketArea","startDate"];
@@ -612,12 +684,22 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
 
   const showSpouse = maritalStatus === "Married" || maritalStatus === "Widowed";
 
-  // Duplicate check (placeholder)
-  const checkDuplicate = async (email, mobile) => {
-    auditLog.record("DUPLICATE_CHECK", { email, mobile });
-    await new Promise(r => setTimeout(r, 300));
+const checkDuplicate = async (email, mobile) => {
+  auditLog.record("DUPLICATE_CHECK", { email, mobile });
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/check-duplicate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, mobile }),
+    });
+    const data = await res.json();
+    console.log("Duplicate check response:", data);
+    return data.exists;
+  } catch (err) {
+    console.error("Duplicate check error:", err);
     return false;
-  };
+  }
+};
 
   // Page validators
   const validatePage = (fields, extras = []) => {
@@ -625,8 +707,9 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     fields.forEach(k => { const err = validateField(k, form[k]); if (err) e[k] = err; });
     if (extras.includes("maritalStatus") && !maritalStatus) e.maritalStatus = "Please select marital status";
     if (extras.includes("addrRegion") && !addrRegion) e.addrRegion = "Please select a region";
+    if (extras.includes("addrProvince") && provinces.length > 0 && !addrProvince) e.addrProvince = "Please select a province";
     if (extras.includes("addrCity") && !addrCity) e.addrCity = "Please select a city/municipality";
-    if (extras.includes("addrBarangay") && !addrBarangay) e.addrBarangay = "Please enter a barangay";
+    if (extras.includes("addrBarangay") && !addrBarangay) e.addrBarangay = "Please select a barangay";
     if (extras.includes("addrStreet") && !addrStreet) e.addrStreet = "Please enter a street address";
     if (extras.includes("idVerified") && !idVerified) e.idVerified = "Please complete ID verification";
     if (extras.includes("letterOfIntent") && !letterOfIntent) e.letterOfIntent = "Please upload your Letter of Intent";
@@ -637,13 +720,16 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
   };
 
   const p1Fields = ["lastName","firstName","mobile","email","dob"];
-  const p1Extras = ["maritalStatus","addrRegion","addrCity","addrBarangay","addrStreet","idVerified"];
+  const p1Extras = ["maritalStatus","addrRegion","addrProvince","addrCity","addrBarangay","addrStreet","idVerified"];
   const p2Fields = ["involvement","equity","investment","fundSource","location"];
   const p3Fields = ["familyDepend","marketArea","startDate"];
   const p3Extras = ["letterOfIntent","terms","consent"];
 
   const handleFinalSubmit = async () => {
+    
+    setLoading("load"); 
     if (!validatePage(p3Fields, p3Extras)) {
+      setLoading(null);
       showAlert("error", "Please fill in all required fields and complete all verification steps.");
       return;
     }
@@ -651,24 +737,33 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     if (isDuplicate) {
       auditLog.record("DUPLICATE_DETECTED", { email: form.email, mobile: form.mobile });
       showAlert("error", "An application with this email or mobile number already exists.");
+      setLoading(null);
       return;
     }
     auditLog.record("FORM_VALIDATED", { email: form.email });
+    setLoading(null);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(otp);
+
+    try {
     await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mobile: form.mobile, otp }),
     });
+  } finally {
+      setLoading(null);
+    }
     setShowOtp(true);
+
+handleOtpVerified(true);
   };
 
   const handleOtpVerified = async (success) => {
     setShowOtp(false);
     if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
     auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email });
-    const fullAddress = [addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ");
+    const fullAddress = [addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()].filter(Boolean).join(", ");
     const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, suffix].filter(Boolean).join(" ");
     const payload = {
       name: fullName, suffix, maritalStatus,
@@ -703,7 +798,39 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
   const steps = [{ label: "Personal", pct: 33 }, { label: "Business", pct: 66 }, { label: "Done", pct: 100 }];
 
   return (
+    
     <div style={{ minHeight: "100vh", fontFamily: "'Montserrat',sans-serif", backgroundImage: `linear-gradient(rgba(255,255,255,0.78),rgba(255,237,213,0.78)),url(${welcome})`, backgroundSize: "cover", backgroundAttachment: "fixed", paddingTop: 90, paddingBottom: 60 }}>
+          {loading === "load" && (
+        <>
+          <style>{`
+            @keyframes spin {
+              0%   { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            <div style={{
+              background: "#fff", borderRadius: 20, padding: "40px 48px",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", minWidth: 260,
+            }}>
+              <div style={{
+                width: 56, height: 56,
+                border: "5px solid #c8e6c9",
+                borderTop: "5px solid #ea580c",
+                borderRadius: "50%",
+                animation: "spin 0.9s linear infinite",
+              }} />
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#ea580c" }}>
+                Loading...
+              </p>
+            </div>
+          </div>
+        </>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
@@ -828,38 +955,81 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
               {/* Address */}
               <div style={sec}>
                 <SectionHeader icon={MapPin} title="Present Address" />
+
                 <Field label="Region" required error={errors.addrRegion}>
-                  <CustomSelect value={addrRegion} placeholder="Select Region" options={PH_REGIONS} error={errors.addrRegion}
-                    onSelect={v => { setAddrRegion(v); setAddrProvince(""); setAddrCity(""); setAddrBarangay(""); setErrors(p => ({ ...p, addrRegion: "" })); }} />
+                  <select
+                    className="ip-inp"
+                    style={{ ...inpStyle, border: errors.addrRegion ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                    value={addrRegion}
+                    onChange={e => { setAddrRegion(e.target.value); setErrors(p => ({ ...p, addrRegion: "" })); }}
+                    disabled={loadingRegions}
+                  >
+                    <option value="">{loadingRegions ? "Loading regions..." : "Select Region"}</option>
+                    {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
+                  </select>
                 </Field>
-                {availableProvinces.length > 0 && (
-                  <Field label="Province">
-                    <CustomSelect value={addrProvince} placeholder="Select Province" options={availableProvinces}
-                      onSelect={v => { setAddrProvince(v); setAddrCity(""); }} />
+
+                {provinces.length > 0 && (
+                  <Field label="Province" required error={errors.addrProvince}>
+                    <select
+                      className="ip-inp"
+                      style={{ ...inpStyle, border: errors.addrProvince ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      value={addrProvince}
+                      onChange={e => { setAddrProvince(e.target.value); setErrors(p => ({ ...p, addrProvince: "" })); }}
+                      disabled={loadingProvinces || !addrRegion}
+                    >
+                      <option value="">{loadingProvinces ? "Loading provinces..." : "Select Province"}</option>
+                      {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
+                    </select>
                   </Field>
                 )}
+
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
                   <Field label="City / Municipality" required error={errors.addrCity} half>
-                    <CustomSelect value={addrCity} placeholder="Select City/Municipality"
-                      options={availableCities.length ? availableCities : ["— Select region first —"]}
-                      disabled={!addrRegion} error={errors.addrCity}
-                      onSelect={v => { setAddrCity(v); setErrors(p => ({ ...p, addrCity: "" })); }} />
+                    <select
+                      className="ip-inp"
+                      style={{ ...inpStyle, border: errors.addrCity ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      value={addrCity}
+                      onChange={e => { setAddrCity(e.target.value); setErrors(p => ({ ...p, addrCity: "" })); }}
+                      disabled={loadingCities || !addrRegion}
+                    >
+                      <option value="">
+                        {loadingCities ? "Loading cities..." : !addrRegion ? "Select region first" : "Select City/Municipality"}
+                      </option>
+                      {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    </select>
                   </Field>
+
                   <Field label="Barangay" required error={errors.addrBarangay} half>
-                    <input className="ip-inp" style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
-                      placeholder="e.g. Brgy. San Jose" value={addrBarangay}
-                      onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }} />
+                    <select
+                      className="ip-inp"
+                      style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      value={addrBarangay}
+                      onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }}
+                      disabled={loadingBarangays || !addrCity}
+                    >
+                      <option value="">
+                        {loadingBarangays ? "Loading barangays..." : !addrCity ? "Select city first" : "Select Barangay"}
+                      </option>
+                      {barangays.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+                    </select>
                   </Field>
                 </div>
+
                 <Field label="House No. / Street / Subdivision" required error={errors.addrStreet}>
-                  <input className="ip-inp" style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <input className="ip-inp"
+                    style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
                     placeholder="House No., Street, Subdivision" value={addrStreet}
                     onChange={e => { setAddrStreet(e.target.value); setErrors(p => ({ ...p, addrStreet: "" })); }} />
                 </Field>
+
                 {addrRegion && (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: "#fff3e0", borderRadius: 8, fontSize: 12, color: "#ea580c" }}>
                     <MapPin size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>{[addrStreet, addrBarangay, addrCity, addrProvince, addrRegion].filter(Boolean).join(", ") || "Address preview will appear here"}</span>
+                    <span>
+                      {[addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()]
+                        .filter(Boolean).join(", ") || "Address preview will appear here"}
+                    </span>
                   </div>
                 )}
               </div>
