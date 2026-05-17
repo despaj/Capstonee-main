@@ -2991,36 +2991,112 @@ app.post('/ai/dashboard-analysis', async (req, res) => {
       .map(([d, v]) => `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`)
       .join(', ');
 
-    const prompt = `
-You are a franchise business analyst for a Filipino quick-service restaurant and pharmacy franchise system called iFranchise (brands include Coffee Spot and iPharma Mart).
+    // Build richer branch context
+const sortedBranches = Object.entries(branchTotals).sort((a, b) => b[1] - a[1]);
+const branchCount    = sortedBranches.length;
+const avgBranchRev   = branchCount > 0
+  ? sortedBranches.reduce((s, [, v]) => s + v, 0) / branchCount
+  : 0;
 
-Analyze this sales data (period: ${preset || 'this month'}, scope: ${filterLabel || 'All Brands & Branches'}) and return a JSON object — nothing else, no markdown.
+const topBranchesDetailed = sortedBranches
+  .slice(0, 8)
+  .map(([name, rev]) => {
+    const pctOfAvg = avgBranchRev > 0
+      ? (((rev - avgBranchRev) / avgBranchRev) * 100).toFixed(1)
+      : '0';
+    const flag = rev > avgBranchRev ? '▲ above avg' : '▼ below avg';
+    return `  • ${name}: ₱${rev.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${flag} by ${Math.abs(pctOfAvg)}%)`;
+  })
+  .join('\n');
 
-DATA:
-- Total revenue: ₱${totalRevenue.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
-- Total profit: ₱${profit.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${profitPct}% margin)
-- Total COGS: ₱${totalCogs.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
-- Transactions: ${txCount}, avg order: ₱${avgOrder.toFixed(0)}
-- Revenue by branch:
-  ${topBranches || 'No branch data'}
-- Revenue by day of week: ${dayBreakdown}
+const dayEntries  = Object.entries(dayTotals);
+const totalDayRev = dayEntries.reduce((s, [, v]) => s + v, 0);
+const avgDayRev   = totalDayRev / 7;
 
-Return ONLY this JSON (no extra text):
+const dayBreakdownDetailed = dayEntries
+  .map(([d, v]) => {
+    const pct = avgDayRev > 0
+      ? (((v - avgDayRev) / avgDayRev) * 100).toFixed(0)
+      : '0';
+    return `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${Number(pct) >= 0 ? '+' : ''}${pct}%)`;
+  })
+  .join(', ');
+
+const peakDayEntry    = dayEntries.reduce((a, b) => b[1] > a[1] ? b : a, ['—', 0]);
+const slowestDayEntry = dayEntries.reduce((a, b) => b[1] < a[1] ? b : a, ['—', Infinity]);
+const slowestDropPct  = avgDayRev > 0
+  ? Math.round(((avgDayRev - slowestDayEntry[1]) / avgDayRev) * 100)
+  : 0;
+const weeklyRunRate   = txCount > 0
+  ? Math.round((totalRevenue / txCount) * (txCount / 7) * 7)
+  : 0;
+
+const prompt = `
+You are a prescriptive business analyst for iFranchise — a Filipino franchise management system (brands: Coffee Spot quick-service restaurants and iPharma Mart pharmacies).
+
+Your job is NOT to describe what happened. You must tell franchise managers WHAT SPECIFIC ACTIONS TO TAKE RIGHT NOW to improve revenue, cut costs, and fix underperforming branches.
+
+Period: ${preset || 'this month'} | Scope: ${filterLabel || 'All Brands & Branches'}
+
+═══ PERFORMANCE DATA ═══
+Revenue:      ₱${totalRevenue.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+Profit:       ₱${profit.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${profitPct}% margin)
+COGS:         ₱${totalCogs.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+Transactions: ${txCount} | Avg order: ₱${avgOrder.toFixed(0)}
+Avg branch revenue: ₱${avgBranchRev.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
+
+Branch performance vs branch average:
+${topBranchesDetailed || '  No branch data'}
+
+Day-of-week vs daily average:
+${dayBreakdownDetailed}
+Peak: ${peakDayEntry[0]} | Slowest: ${slowestDayEntry[0]} (${slowestDropPct}% below avg)
+
+═══ PRESCRIPTIVE RULES — FOLLOW STRICTLY ═══
+1. UNDERPERFORMING branches (below avg): prescribe specific fixes — staffing, promos, menu, or hours changes.
+2. OVERPERFORMING branches: prescribe how to replicate their success in weaker ones.
+3. SLOWEST day(s): prescribe a concrete promo (e.g. "Run a ₱99 bundle every Tuesday 2–5pm").
+4. THIN margins (below 20%): prescribe COGS reduction — supplier renegotiation, waste audit, portion control.
+5. LOW avg order (below ₱150 Coffee Spot / ₱200 iPharma): prescribe upselling scripts or bundle mechanics.
+6. Always include PESO ESTIMATES where data allows.
+7. Every recommendation must be IMMEDIATELY ACTIONABLE — no vague advice.
+
+Return ONLY valid JSON, no markdown, no extra text:
 {
-  "projectedRevenue": <number, 7-day forecast in PHP based on current weekly run rate>,
-  "projectedChange": <number, % change vs prior period, positive or negative>,
-  "peakDay": "<string, predicted busiest day>",
-  "slowestDay": "<string, predicted slowest day>",
-  "slowestDayDropPct": <number, % below average for slowest day>,
-  "confidence": <number, 0-100, based on how many transactions and how spread the data is>,
-  "summary": "<2-3 sentence narrative analysis of overall performance, mention specific branches and numbers>",
+  "projectedRevenue": <7-day projection PHP based on run rate ₱${weeklyRunRate}>,
+  "projectedChange": <estimated % uplift if recommendations followed, positive number>,
+  "peakDay": "${peakDayEntry[0]}",
+  "slowestDay": "${slowestDayEntry[0]}",
+  "slowestDayDropPct": ${slowestDropPct},
+  "confidence": <0-100, higher when txCount > 50 and multiple branches have data>,
+  "summary": "<3 sentences: (1) performance verdict with key numbers, (2) biggest problem or opportunity with branch name, (3) single highest-impact action to take this week>",
   "recommendations": [
-    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation with peso estimates where possible>" },
-    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation>" },
-    { "branch": "<branch name or 'All branches'>", "type": "success|warning|info", "text": "<specific actionable recommendation>" }
+    {
+      "branch": "<specific branch or 'All Branches'>",
+      "type": "success|warning|info",
+      "text": "<WHO does WHAT by WHEN with expected peso impact. E.g. Branch manager at BGC to introduce a ₱149 drink+pastry bundle on Tuesdays — estimated +₱6,000/week based on current slow-day volume.>",
+      "priority": "high|medium|low"
+    },
+    {
+      "branch": "<specific branch or 'All Branches'>",
+      "type": "success|warning|info",
+      "text": "<concrete action with peso estimate>",
+      "priority": "high|medium|low"
+    },
+    {
+      "branch": "<specific branch or 'All Branches'>",
+      "type": "success|warning|info",
+      "text": "<concrete action with peso estimate>",
+      "priority": "high|medium|low"
+    },
+    {
+      "branch": "<specific branch or 'All Branches'>",
+      "type": "success|warning|info",
+      "text": "<concrete action with peso estimate>",
+      "priority": "high|medium|low"
+    }
   ]
-}
-`;
+}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -3028,12 +3104,12 @@ Return ONLY this JSON (no extra text):
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        temperature: 0.3,
-      }),
+     body: JSON.stringify({
+  model: 'llama-3.3-70b-versatile',
+  messages: [{ role: 'user', content: prompt }],
+  max_tokens: 1200, 
+  temperature: 0.2,  
+}),
     });
 
     const data   = await response.json();

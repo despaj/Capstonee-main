@@ -1162,10 +1162,12 @@ const handleDeleteItem = async id => {
         <div><label style={invLabelSt}>Min Stock</label><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></div>
         <div><label style={invLabelSt}>Selling Price (₱)</label><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></div>
       </div>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Ingredients</label>
-        {renderIngredientPicker()}
-      </div>
+     {["coffee spot", "food caravan"].some(b => formBrand?.name?.toLowerCase().includes(b)) && (
+  <div style={{ marginBottom:13 }}>
+    <label style={invLabelSt}>Ingredients</label>
+    {renderIngredientPicker()}
+  </div>
+)}
       <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
         <button type="button" onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={btnSt}>Cancel</button>
         <button type="submit" style={btnPrimarySt}>Save Item</button>

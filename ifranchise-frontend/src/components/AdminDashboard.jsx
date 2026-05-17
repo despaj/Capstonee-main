@@ -279,7 +279,7 @@ export default function AdminDashboard() {
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
     { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
-    { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} />,  section: 'main' },
+   // { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} />,  section: 'main' },
     { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />,section: 'main' },
     { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
     // { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} />,    section: 'main' },
@@ -525,7 +525,7 @@ export default function AdminDashboard() {
           {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
-          {activeModule === 'pos'            && <POSContent user={user} brands={brands} />}
+          {/*activeModule === 'pos'            && <POSContent user={user} brands={brands} />*/}
           {activeModule === 'mobileShop'     && <MobileShopContent />}
           {activeModule === 'mobileOrders'   && <MobileOrdersContent />}
           {activeModule === 'receipts'       && <Receipts />}
@@ -1823,7 +1823,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
               fontFamily: 'Montserrat,sans-serif', fontWeight: 800,
               fontSize: 15, color: '#0d2b1e',
             }}>
-              AI Predictive Analysis
+              AI Prescriptive Analysis
             </div>
             <div style={{ fontSize: 11, color: '#5a7a65' }}>
               Powered by Groq · llama-3.3-70b

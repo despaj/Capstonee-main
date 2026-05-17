@@ -427,7 +427,7 @@ export default function FranchiseeDashboard({ onLogout }) {
           {activeModule === 'dashboard'      && <FrDashboardContent transactions={transactions} brands={brands} user={user} />}
           {activeModule === 'menuInventory'  && <FrMenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <FrStockInventoryContent user={user} brands={brands} />}
-          {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
+          {/*activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />*/}
           {activeModule === 'receipts'       && <Receipts />}
           {activeModule === 'reports'        && <FrReportsContent user={user} transactions={transactions} />}
           {activeModule === 'staff'          && <FrStaffManagementContent user={user} />}
