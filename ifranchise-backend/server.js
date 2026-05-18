@@ -2303,7 +2303,7 @@ app.get("/orders", async (req, res) => {
       LEFT JOIN users u       ON u.id  = o.user_id
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN shop_items si  ON si.id = oi.shop_item_id
-
+      
       GROUP BY o.id, u.name, o.address
       ORDER BY o.created_at DESC
     `);
@@ -2422,6 +2422,42 @@ app.get("/api/orders/counts", async (req, res) => {
   } catch (err) {
     console.error("GET /api/orders/counts error:", err);
     res.status(500).json({ error: "Failed to fetch order counts" });
+  }
+});
+app.get("/orders/:id", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        o.id, o.status, o.total_amount, o.created_at,
+        o.phone, o.brand, o.branch, o.address,
+        u.name AS user_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'name',  si.name,
+              'qty',   oi.quantity,
+              'price', oi.price,
+              'unit',  si.unit,
+              'image_url', si.image_url
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) AS items
+      FROM orders o
+      LEFT JOIN users u        ON u.id  = o.user_id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN shop_items si  ON si.id = oi.shop_item_id
+      WHERE o.id = $1
+      GROUP BY o.id, u.name, o.address
+    `, [req.params.id]);
+
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Order not found" });
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("GET /orders/:id error:", err);
+    res.status(500).json({ error: "Failed to fetch order" });
   }
 });
 
@@ -3534,6 +3570,31 @@ app.delete("/reports/:id", async (req, res) => {
   }
 });
 
+app.get("/notifications/low-stock-items", async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const userResult = await pool.query(
+      "SELECT branch FROM users WHERE id=$1", [userId]
+    );
+    if (userResult.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+
+    const { branch } = userResult.rows[0];
+
+    const result = await pool.query(
+      `SELECT name, branch, unit, stock, min_stock
+       FROM ingredients
+       WHERE branch=$1 AND min_stock > 0 AND stock < min_stock
+       ORDER BY (stock::float / NULLIF(min_stock::float, 0)) ASC`,
+      [branch]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /notifications/low-stock-items error:", err);
+    res.status(500).json({ error: "Failed to fetch low stock items" });
+  }
+});
+
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────
 
@@ -3904,6 +3965,74 @@ app.post("/api/verify-id", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to verify ID" });
   }
 });
+
+
+// ─── LOW STOCK NOTIFICATIONS ──────────────────────────────────
+app.post("/notifications/check-low-stock", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const userResult = await pool.query(
+      "SELECT branch FROM users WHERE id=$1", [userId]
+    );
+    if (userResult.rows.length === 0)
+      return res.status(404).json({ error: "User not found" });
+
+    const { branch } = userResult.rows[0];
+    if (!branch) return res.json({ success: true, created: 0 });
+
+    // Fetch low stock ingredients for this branch
+    const lowStock = await pool.query(
+      `SELECT name, stock, min_stock FROM ingredients
+       WHERE branch=$1 AND min_stock > 0 AND stock <= min_stock AND stock > 0
+       ORDER BY (stock::float / min_stock::float) ASC`,
+      [branch]
+    );
+
+    const items = lowStock.rows;
+    if (items.length === 0) return res.json({ success: true, created: 0 });
+
+    let title, body;
+    if (items.length <= 3) {
+      const names = items.map(i => i.name).join(", ");
+      title = "Low Stock Alert";
+      body  = `${names} ${items.length === 1 ? "is" : "are"} low on stock. Reorder now?`;
+    } else {
+      title = "Multiple Items Low on Stock";
+      body  = `${items.length} ingredients in your branch are running low. Reorder now.`;
+    }
+
+    // Avoid duplicate: check if same notification was sent in last 24h
+    const existing = await pool.query(
+      `SELECT id FROM notifications
+       WHERE user_id=$1 AND type='low_stock'
+       AND created_at > NOW() - INTERVAL '24 hours'
+       LIMIT 1`,
+      [userId]
+    );
+    if (existing.rows.length > 0)
+      return res.json({ success: true, created: 0, skipped: true });
+
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, title, body)
+       VALUES ($1, 'low_stock', $2, $3)`,
+      [userId, title, body]
+    );
+
+    // Push notification if token exists
+    const tokenRow = await pool.query(
+      "SELECT push_token FROM users WHERE id=$1", [userId]
+    );
+    const token = tokenRow.rows[0]?.push_token;
+    if (token) await sendPushNotification(token, title, body);
+
+    res.json({ success: true, created: 1, itemCount: items.length });
+  } catch (err) {
+    console.error("POST /notifications/check-low-stock error:", err);
+    res.status(500).json({ error: "Failed to check low stock" });
+  }
+});
+
+
 
 // ─── ROOT ─────────────────────────────────────────────────────
 app.get("/", (req, res) => {
