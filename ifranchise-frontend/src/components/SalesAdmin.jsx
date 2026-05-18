@@ -144,6 +144,7 @@ export default function SalesAdmin() {
 
   const mainNav    = navigation.filter(n => n.section === 'main');
   const accountNav = navigation.filter(n => n.section === 'account');
+  
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
 
   return (

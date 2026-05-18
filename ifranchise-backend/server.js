@@ -23,7 +23,7 @@ app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use(cookieParser());
 app.use(cors({
   origin: ["http://localhost:3000",  "https://www.franchisync.xyz",   "https://franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
-  allowedHeaders: ["Content-Type", "X-Client"],
+  allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
   credentials: true
 }));
 app.use(express.json());
@@ -54,17 +54,30 @@ async function sendPushNotification(expoPushToken, title, body) {
   });
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+
 function getOrCreateDeviceId(req, res) {
+  // First try the header (sent by frontend)
+  const headerDeviceId = req.headers["x-device-id"];
+  if (headerDeviceId) {
+    console.log("🍪 Device ID from header:", headerDeviceId);
+    return headerDeviceId;
+  }
+
+  // Fallback to cookie (for production/mobile)
   let deviceId = req.cookies?.device_id;
   if (!deviceId) {
-    deviceId = uuidv4();
+    deviceId = crypto.randomUUID();
+    const isLocalhost = req.headers.origin?.includes("localhost");
     res.cookie("device_id", deviceId, {
       httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      maxAge: 365 * 24 * 60 * 60 * 1000,
+      sameSite: isLocalhost ? "lax" : "none",
+      secure: !isLocalhost,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    console.log(`New device_id created: ${deviceId}`);
+    console.log("🍪 New cookie device ID set:", deviceId);
+  } else {
+    console.log("🍪 Existing cookie found:", deviceId);
   }
   return deviceId;
 }
@@ -118,22 +131,18 @@ const rowToApplication = (row) => ({
 // ─── AUTH ───────────────────────────────────────────────────
 
 app.post("/login", async (req, res) => {
-    console.log("ALL HEADERS:", JSON.stringify(req.headers));
-  console.log("x-client header:", req.headers["x-client"]);
   const { email, password } = req.body;
+
+   console.log("🍪 All cookies received:", req.cookies);
+  console.log("🍪 device_id cookie:", req.cookies?.device_id);
+
   const deviceId = getOrCreateDeviceId(req, res);
+   console.log("🔑 deviceId being used for lookup:", deviceId);
 
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
-    console.log("User found:", user.rows.length);
-    console.log("Email received:", JSON.stringify(email));
-
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
-
-    console.log("DB password:", JSON.stringify(user.rows[0].password));
-    console.log("Input password:", JSON.stringify(password));
-    console.log("Match:", password === user.rows[0].password);
 
     const validPass = password === user.rows[0].password;
     if (!validPass)
@@ -143,15 +152,17 @@ app.post("/login", async (req, res) => {
     const mobileBlockedRoles = ["Super Admin", "Franchisee Operations Admin", "Sales Admin", "Staff"];
     if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       return res.status(403).json({ message: "Invalid credentials" });
-        const safeUser = {
-          id:     user.rows[0].id,
-          name:   user.rows[0].name,
-          email:  user.rows[0].email,
-          role:   user.rows[0].role,
-          branch: user.rows[0].branch,
-          brand:  user.rows[0].brand,
-        };
 
+    const safeUser = {
+      id:     user.rows[0].id,
+      name:   user.rows[0].name,
+      email:  user.rows[0].email,
+      role:   user.rows[0].role,
+      branch: user.rows[0].branch,
+      brand:  user.rows[0].brand,
+    };
+
+    // Check trusted device — deviceId is guaranteed to be set above
     const device = await pool.query(
       `SELECT * FROM trusted_devices
        WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
@@ -159,15 +170,15 @@ app.post("/login", async (req, res) => {
     );
 
     if (device.rows.length > 0) {
-      console.log(`Trusted device for user ${email} — skipping OTP`);
+      console.log(`✅ Trusted device for ${email} — skipping OTP`);
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
-    console.log(`OTP required for user ${email}`);
-    res.json({ success: true, skipOtp: false, user: safeUser });
+    console.log(`🔐 OTP required for ${email}`);
+    return res.json({ success: true, skipOtp: false, user: safeUser });
 
   } catch (err) {
-    console.error(err);
+    console.error("Login error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -207,11 +218,11 @@ app.post("/send-otp-after-login", async (req, res) => {
 });
 
 app.post("/verify-otp-login", async (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp, trustDevice } = req.body;
 
   try {
     if (!otpStore[email])
-      return res.status(401).json({ message: "N o OTP found for this email" });
+      return res.status(401).json({ message: "No OTP found for this email" });
 
     const storedOtp = otpStore[email];
 
@@ -229,7 +240,6 @@ app.post("/verify-otp-login", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(404).json({ message: "User not found" });
 
-    // No trusted device logic needed — session is managed client-side
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
@@ -239,7 +249,29 @@ app.post("/verify-otp-login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    res.json({ success: true, user: safeUser });
+    const deviceId = getOrCreateDeviceId(req, res);
+
+    console.log("TRUST DEBUG — deviceId:", deviceId);
+    console.log("TRUST DEBUG — trustDevice:", trustDevice);
+    console.log("TRUST DEBUG — userId:", user.rows[0].id);
+
+    if (trustDevice) {
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      try {
+        const result = await pool.query(
+          `INSERT INTO trusted_devices (device_id, user_id, expires_at)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (device_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+          [deviceId, user.rows[0].id, expiresAt]
+        );
+        console.log("✅ Insert rowCount:", result.rowCount);
+      } catch (dbErr) {
+        console.error("❌ INSERT failed:", dbErr.code, dbErr.message, dbErr.detail, dbErr.constraint);
+      }
+    }
+
+    return res.json({ success: true, user: safeUser });
+
   } catch (err) {
     console.error("OTP verification error:", err);
     res.status(500).json({ message: "OTP verification failed" });
@@ -251,20 +283,11 @@ app.post("/logout", async (req, res) => {
   const { userId } = req.body;
 
   try {
-    if (deviceId && userId) {
-      await pool.query(
-        "DELETE FROM trusted_devices WHERE device_id=$1 AND user_id=$2",
-        [deviceId, userId]
-      );
-      console.log(`Trust revoked for user ${userId} on device ${deviceId}`);
-    }
-
-     res.clearCookie("device_id", {
+    res.clearCookie("device_id", {
       httpOnly: true,
       sameSite: "lax",
     });
 
-    res.clearCookie("device_id", { httpOnly: true, sameSite: "lax" });
     res.json({ success: true });
   } catch (err) {
     console.error("Logout error:", err);
@@ -353,6 +376,46 @@ app.post("/api/send-otp", async (req, res) => {
   }
 });
 
+app.post("/verify-sms-otp", async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    if (!otpStore[email])
+      return res.status(401).json({ message: "No OTP found for this email" });
+
+    const storedOtp = otpStore[email];
+
+    if (Date.now() > storedOtp.expires) {
+      delete otpStore[email];
+      return res.status(401).json({ message: "OTP has expired. Please request a new one." });
+    }
+
+    if (storedOtp.code !== otp)
+      return res.status(401).json({ message: "Invalid OTP" });
+
+    delete otpStore[email];
+
+    const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    if (user.rows.length === 0)
+      return res.status(404).json({ message: "User not found" });
+
+    const safeUser = {
+      id:     user.rows[0].id,
+      name:   user.rows[0].name,
+      email:  user.rows[0].email,
+      role:   user.rows[0].role,
+      branch: user.rows[0].branch,
+      brand:  user.rows[0].brand,
+    };
+
+    return res.json({ success: true, user: safeUser });
+
+  } catch (err) {
+    console.error("SMS OTP verification error:", err);
+    res.status(500).json({ message: "OTP verification failed" });
+  }
+});
+
 app.post("/send-login-sms-otp", async (req, res) => {
   const { email } = req.body;
 
@@ -409,10 +472,15 @@ app.post("/send-login-sms-otp", async (req, res) => {
 app.post("/get-contact-number", async (req, res) => {
   const { email } = req.body;
   try {
-    const user = await db.query("SELECT contact_number FROM users WHERE email = ?", [email]);
-    if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ contact_number: user.contact_number });
-  } catch {
+    const result = await pool.query(
+      "SELECT contact_number FROM users WHERE email=$1",
+      [email.trim()]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ message: "User not found" });
+    res.json({ contact_number: result.rows[0].contact_number });
+  } catch (err) {
+    console.error("get-contact-number error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

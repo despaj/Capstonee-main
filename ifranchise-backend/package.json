@@ -10,6 +10,7 @@
     "mindee": "^5.1.1",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
+    "proxy": "http://localhost:5000",
     "pg": "^8.18.0",
     "resend": "^6.11.0",
     "uuid": "^13.0.0"

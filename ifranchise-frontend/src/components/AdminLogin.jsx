@@ -12,7 +12,7 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
   const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
     // pass these as props since they're no longer in scope:
-    handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
+    trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
   }) => {
 
     const hasFocused = useRef(false);
@@ -49,6 +49,7 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
             />
           ))}
         </div>
+         {trustDeviceCheckbox}
         <button className={`btn yellow ${isLocked ? "btn-disabled" : ""}`}
           onClick={!isLocked ? onVerify : undefined}
           disabled={!!isLocked || !!loading}>
@@ -119,10 +120,12 @@ export default function AdminLogin() {
   const forgotOtpRefs = useRef([]);
   const [forgotOtpMethod, setForgotOtpMethod] = useState("");
   const [forgotOtpError, setForgotOtpError] = useState("");
+  const [trustDevice, setTrustDevice] = useState(false);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetError, setResetError] = useState("");
+
 
   const [errors, setErrors] = useState({});
   const [authError, setAuthError] = useState("");
@@ -311,7 +314,7 @@ export default function AdminLogin() {
     setLoading("login");
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Client": "web" },
+        method: "POST", headers: { "Content-Type": "application/json", "X-Client": "web",  "X-Device-ID": getOrCreateLocalDeviceId(), },
         body: JSON.stringify({ email: email.trim(), password: password.trim() }), credentials: "include",
       });
       const data = await res.json();
@@ -321,10 +324,23 @@ export default function AdminLogin() {
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
         localStorage.removeItem(`loginLockout_${email.toLowerCase()}`);
         setOtpEmail(email.trim());
+
         sessionStorage.setItem("tempUser", JSON.stringify(data.user));
-        await sendOtpSilent(email.trim());
-        setStep("otp");
-      }
+
+          if (data.skipOtp) {
+            const user = data.user;
+            rememberMe
+              ? localStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 30*24*60*60*1000 }))
+              : sessionStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 24*60*60*1000 }));
+            sessionStorage.removeItem("tempUser");
+            setLoggedIn(true);
+            setUserRole(user.role);
+            return;
+          }
+
+          await sendOtpSilent(email.trim());
+          setStep("otp");
+       }
     } catch { setAuthError("Connection error. Please try again."); 
      } finally {
     setLoading("");
@@ -393,8 +409,8 @@ const verifyOtp = async () => {
   setLoading("otp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: otpEmail.trim(), otp: val }), credentials: "include",
+      method: "POST", headers: { "Content-Type": "application/json",  "X-Device-ID": getOrCreateLocalDeviceId(), },
+      body: JSON.stringify({ email: otpEmail.trim(), otp: val, trustDevice: !!trustDevice }), credentials: "include",
     });
     const data = await res.json();
 
@@ -413,26 +429,24 @@ const verifyOtp = async () => {
     const user = data.user;
 
      if (rememberMe) {
-    localStorage.setItem("user", JSON.stringify({
-      ...user,
-      sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days
-    }));
-  } else {
-    // sessionStorage clears automatically when browser/tab closes
-    sessionStorage.setItem("user", JSON.stringify({
-      ...user,
-      sessionExpiry: Date.now() + 24 * 60 * 60 * 1000 // safety cap: 24hrs
-    }));
-  }
+        localStorage.setItem("user", JSON.stringify({
+          ...user,
+          sessionExpiry: Date.now() + 30 * 24 * 60 * 60 * 1000
+        }));
+      } else {
+        sessionStorage.setItem("user", JSON.stringify({
+          ...user,
+          sessionExpiry: Date.now() + 24 * 60 * 60 * 1000
+        }));
+      }
+        sessionStorage.removeItem("tempUser");
+        setLoggedIn(true); 
+        setUserRole(user.role);
+      } catch { setOtpError("OTP verification failed"); 
+      } finally { setLoading(""); }
+    };
 
-    sessionStorage.removeItem("tempUser");
-    setLoggedIn(true); 
-    setUserRole(user.role);
-  } catch { setOtpError("OTP verification failed"); 
-   } finally { setLoading(""); }
-};
 
-  // ── Open Forgot Password: pre-fetch phone then show choice ──
   const handleForgotPasswordOpen = async () => {
     setChoiceError("");
     setForgotEmail(email.trim());
@@ -635,27 +649,39 @@ const verifyForgotSmsOtp = async () => {
     finally { setLoading(""); }
   };
 
+  const getOrCreateLocalDeviceId = () => {
+  let deviceId = localStorage.getItem("device_id");
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem("device_id", deviceId);
+  }
+  return deviceId;
+};
+
+
   // ── Logout ──
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
 
-    const storedUser = localStorage.getItem("user");
-    const userId = storedUser ? JSON.parse(storedUser)?.id : null;
-
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-        method: "POST", 
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),   
-        credentials: "include"
+        credentials: "include",
       });
     } catch {}
+
     localStorage.removeItem("user");
     localStorage.removeItem("rememberedUser");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("tempUser");
-    setLoggedIn(false); setUserRole(null); setStep("login");
-    setEmail(""); setPassword(""); setOtp(["","","","","",""]); setOtpEmail("");
+    setLoggedIn(false);
+    setUserRole(null);
+    setStep("login");
+    setEmail("");
+    setPassword("");
+    setOtp(["", "", "", "", "", ""]);
+    setOtpEmail("");
   };
 
   // ── Step progress index ──
@@ -794,12 +820,6 @@ const verifyForgotSmsOtp = async () => {
               {errors.password && <span className="field-error">{errors.password}</span>}
               <button className="forgot-link" onClick={handleForgotPasswordOpen}>Forgot Password?</button>
             </div>
-            <div className="remember-wrap">
-              <label className="remember-label">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="remember-checkbox" />
-                <span className="remember-text">Remember me for 30 days</span>
-              </label>
-            </div>
             <button className="btn" onClick={login} disabled={loading === "login"}>
               {loading === "login" ? <><span className="sms-spinner" /> Logging in...</> : "LOGIN"}
             </button>
@@ -836,6 +856,7 @@ const verifyForgotSmsOtp = async () => {
               </>
             )}
           </p>
+
             <OtpEntryBlock
               otpArr={otp}
               setOtpArr={setOtp}
@@ -862,21 +883,35 @@ const verifyForgotSmsOtp = async () => {
               resendDisabled={resendDisabled}
               resendTimer={resendTimer}
               OTP_MAX_ATTEMPTS={OTP_MAX_ATTEMPTS}
-               extraButton={
-    otpMethod === "email" ? (
-      <button
-        type="button"
-        className="switch-method-link"
-        onClick={handleSwitchToSmsOtp}
-        disabled={!!loading}
-      >
-        Use SMS instead
-      </button>
-    ) : null
-  }
-            />
-        
 
+              trustDeviceCheckbox={
+                <div style={{ textAlign:"left", marginBottom:12 }}>
+                  <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"#555", cursor:"pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={trustDevice}
+                      onChange={(e) => setTrustDevice(e.target.checked)}
+                      style={{ accentColor:"#2E7D32", width:15, height:15, flexShrink:0 }}
+                    />
+                    Don't ask again on this device for 30 days
+                  </label>
+                </div>
+              }
+
+               extraButton={
+                  otpMethod === "email" ? (
+                    <button
+                      type="button"
+                      className="switch-method-link"
+                      onClick={handleSwitchToSmsOtp}
+                      disabled={!!loading}
+                    >
+                      Use SMS instead
+                    </button>
+                  ) : null
+                }
+            />
+      
             {loading === "sms" &&(
             <div className="sms-loading-overlay">
               <div className="sms-loading-box">
@@ -1076,7 +1111,9 @@ p { color:#555; font-size:13px; margin-bottom:16px; }
 .login-subtext { font-size:13px; color:#666; margin-bottom:18px; margin-top:0; }
 
 .input-container { margin-bottom:18px; position:relative; width:100%; text-align:left; }
-input[type="text"], input[type="email"], input[type="password"], input:not([type]) {
+input[type="text"], input[type="email"], input[type="password"], 
+
+input:not([type]) {
   width:100%; padding:13px 14px; border-radius:12px; border:1.5px solid #c8e6c9; outline:none;
   font-size:14px; background:#fafafa; transition: border-color 0.2s;
 }

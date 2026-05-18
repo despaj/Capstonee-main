@@ -173,12 +173,21 @@ export default function FranchiseAdminDashboard() {
     return s ? JSON.parse(s) : null;
   };
   const [user, setUser] = useState(getUserFromStorage);
+  
+    const [transactions, setTransactions] = useState([]);
 
   useEffect(() => {
     const u = getUserFromStorage();
     if (!u) navigate('/admin-login');
     else setUser(u);
   }, []);
+
+  
+    useEffect(() => {
+      fetch(`${process.env.REACT_APP_API_URL}/transactions`)
+        .then(res => res.json()).then(data => setTransactions(data))
+        .catch(err => console.error("Failed to fetch transactions", err));
+    }, []);
 
   useEffect(() => {
     sessionStorage.setItem('fa_activeModule', activeModule);
@@ -212,6 +221,7 @@ export default function FranchiseAdminDashboard() {
   }, []);
 
   const navigation = [
+    { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
     { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
     { id: 'mobileOrders',   label: 'Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
@@ -224,7 +234,8 @@ export default function FranchiseAdminDashboard() {
 
   const mainNav    = navigation.filter(n => n.section === 'main');
   const accountNav = navigation.filter(n => n.section === 'account');
-  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || '';
+
+  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Menu Inventory';
 
   return (
     <div className="fa-root">
@@ -381,6 +392,7 @@ export default function FranchiseAdminDashboard() {
         </div>
 
         <div className="fa-content">
+          {activeModule === 'dashboard'      && <FADashboardContent transactions={transactions} brands={brands} />}
             {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
             {activeModule === 'stockInventory' && <FAStockInventoryContent user={user} brands={brands} />}
             {activeModule === 'mobileOrders'   && <FAMobileOrdersContent />}
@@ -451,6 +463,1261 @@ const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size}
 const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
 
+
+function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
+  const [data,    setData]    = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [tab,     setTab]     = React.useState('top10'); // top10 | fast | slow | buyers | region
+
+  const fetch_ = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      if (filterBranch) {
+        params.set('branch', filterBranch);
+      } else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === 'string' ? br : br.name);
+        if (names.length) params.set('branches', names.join(','));
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  React.useEffect(() => { fetch_(); }, [fetch_]);
+
+  const fmtPeso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const TABS = [
+    { id: 'top10',   label: 'Top 10 Products' },
+    { id: 'fast',    label: 'Fast Moving' },
+    { id: 'slow',    label: 'Slow Moving' },
+    { id: 'buyers',  label: 'Top Performers' },
+    { id: 'region',  label: 'By Region' },
+  ];
+
+  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
+
+  const maxQty = data
+    ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
+    : 1;
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BarChart2 size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>Fast/slow movers · Top sellers · Regional breakdown</div>
+          </div>
+        </div>
+        <button onClick={fetch_} disabled={loading}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Summary chips */}
+      {data && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Total Products', value: data.totalProducts },
+            { label: 'Fast Movers',    value: data.fastMoving?.length || 0,  color: '#059669', bg: '#d1fae5' },
+            { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
+          ].map((c, i) => (
+            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
+              color:      tab === t.id ? '#fff' : '#5a7a65',
+              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+          <div style={{ marginTop: 8 }}>Loading product analytics…</div>
+        </div>
+      )}
+
+      {/* TOP 10 / FAST / SLOW */}
+      {!loading && data && (tab === 'top10' || tab === 'fast' || tab === 'slow') && (() => {
+        const list = tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving;
+        if (!list?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No data for this filter.</div>;
+        const maxR = Math.max(1, ...list.map(p => p.totalRevenue));
+        return (
+          <div>
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
+            </div>
+            {list.map((p, i) => (
+              <div key={p.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['1','2','3'][i] : `${i+1}`}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
+                    {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
+                    {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
+                  </div>
+                </div>
+                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
+                <div style={{ paddingLeft: 8 }}>
+                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* TOP PERFORMERS (buyers/cashiers) */}
+      {!loading && data && tab === 'buyers' && (() => {
+        const list = data.topBuyers || [];
+        if (!list.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No buyer data available.</div>;
+        return (
+          <div>
+            <div style={{ fontSize: 11, color: '#5a7a65', marginBottom: 12, fontStyle: 'italic' }}>
+              Based on cashier/staff who processed the most items — proxy for top performers.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Name</span><span style={{ textAlign: 'right' }}>Items Sold</span><span style={{ paddingLeft: 8 }}>Top Product</span>
+            </div>
+            {list.map((b, i) => (
+              <div key={b.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['🥇','🥈','🥉'][i] : `${i+1}`}
+                </span>
+                <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
+                <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#00897b' }}>{b.totalItems.toLocaleString()}</div>
+                <div style={{ paddingLeft: 8, fontSize: 12, color: '#5a7a65', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ background: '#e0f2f1', color: '#00695c', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{b.topProduct}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* REGION */}
+      {!loading && data && tab === 'region' && (() => {
+        const regions = ['Luzon', 'Visayas', 'Mindanao', 'Other'];
+        const hasAny  = regions.some(r => data.regionTop5?.[r]?.length > 0);
+        if (!hasAny) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No regional data — make sure your branches have regions assigned in Brand & Branch settings.</div>;
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            {regions.map(region => {
+              const items = data.regionTop5?.[region] || [];
+              const regionColors = { Luzon: { bg: '#e0f2f1', border: '#00897b', accent: '#00897b' }, Visayas: { bg: '#dbeafe', border: '#1d4ed8', accent: '#1d4ed8' }, Mindanao: { bg: '#fef9c3', border: '#ca8a04', accent: '#ca8a04' }, Other: { bg: '#f3f4f6', border: '#6b7280', accent: '#6b7280' } };
+              const rc = regionColors[region];
+              const maxQ = Math.max(1, ...items.map(p => p.qty));
+              return (
+                <div key={region} style={{ background: '#fff', border: `1.5px solid ${rc.border}20`, borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+                  <div style={{ background: rc.bg, padding: '10px 14px', borderBottom: `1px solid ${rc.border}30` }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: rc.accent }}>
+                      {region === 'Luzon' ? '🏝️' : region === 'Visayas' ? '🌊' : region === 'Mindanao' ? '🌿' : '📍'} {region}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>Top 5 products</div>
+                  </div>
+                  <div style={{ padding: '10px 14px' }}>
+                    {items.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic', padding: '8px 0' }}>No sales data</div>
+                    ) : items.map((p, i) => (
+                      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: rc.accent, minWidth: 16 }}>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                          <div style={{ height: 5, borderRadius: 3, background: '#f0f0f0', marginTop: 3 }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${(p.qty / maxQ) * 100}%`, background: rc.accent }} />
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: rc.accent, flexShrink: 0 }}>{p.qty}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+    </div>
+  );
+}
+
+// ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
+function AIPredictivePanel({ transactions, filterLabel, preset }) {
+  const [analysis,  setAnalysis]  = React.useState(null);
+  const [loading,   setLoading]   = React.useState(false);
+  const [error,     setError]     = React.useState(null);
+  const [lastRun,   setLastRun]   = React.useState(null);
+
+  const fmtPeso = n =>
+    '₱' + Number(n || 0).toLocaleString('en-PH', {
+      minimumFractionDigits: 0, maximumFractionDigits: 0,
+    });
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) {
+      setError('No transaction data available for the current filter and date range.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString('en-PH', {
+          hour: '2-digit', minute: '2-digit',
+        }));
+      } else {
+        setError(data.error || 'Analysis failed.');
+      }
+    } catch (err) {
+      setError('Could not reach the AI service. Check your server connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const typeStyle = type => ({
+    success: { borderColor: '#3B6D11', bg: '#EAF3DE', color: '#27500A' },
+    warning: { borderColor: '#BA7517', bg: '#FAEEDA', color: '#633806' },
+    info:    { borderColor: '#185FA5', bg: '#E6F1FB', color: '#0C447C' },
+  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#5F5E5A' });
+
+  const anomalyConfig = anomalyType => ({
+    ghost_sales:          { label: 'Ghost sales',    dot: '#A32D2D', badgeBg: '#FCEBEB', badgeColor: '#791F1F' },
+    low_stock_no_reorder: { label: 'Not reordering', dot: '#BA7517', badgeBg: '#FAEEDA', badgeColor: '#633806' },
+    dead_stock:           { label: 'Dead stock',     dot: '#185FA5', badgeBg: '#E6F1FB', badgeColor: '#0C447C' },
+  }[anomalyType] || {   label: 'Anomaly',        dot: '#888780', badgeBg: '#F1EFE8', badgeColor: '#5F5E5A' });
+
+  const kpiAccent = (index, analysis) => {
+    if (index === 0) return analysis.projectedChange >= 0 ? '#3B6D11' : '#A32D2D';
+    if (index === 2) return '#BA7517';
+    if (index === 3) return analysis.confidence >= 80 ? '#3B6D11' : analysis.confidence >= 60 ? '#BA7517' : '#A32D2D';
+    return '#888780';
+  };
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid rgba(0,168,76,0.12)',
+      borderRadius: 18,
+      padding: '14px 18px',
+      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+      marginTop: 16,
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#185FA5', flexShrink: 0,
+          }}/>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
+              AI Prescriptive Analysis
+            </div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>
+              Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={runAnalysis}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 14px', borderRadius: 9,
+            border: '1px solid #185FA5',
+            background: loading ? '#f0f0f0' : '#E6F1FB',
+            color: loading ? '#9e9e9e' : '#0C447C',
+            fontSize: 12, fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {loading ? (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2}
+                style={{ animation: 'spin 0.8s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              Analyzing…
+            </>
+          ) : (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              {analysis ? 'Re-run analysis' : 'Run AI analysis'}
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ── Empty state ── */}
+      {!analysis && !loading && !error && (
+        <div style={{
+          padding: '28px 0', textAlign: 'center',
+          border: '1px dashed #b2dfdb', borderRadius: 12,
+          color: '#5a7a65',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            Ready to analyze your data
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            {transactions?.length
+              ? `${transactions.length} transactions loaded · ${filterLabel}`
+              : 'Select a date range and branch filter, then run the analysis'}
+          </div>
+        </div>
+      )}
+
+      {/* ── Error state ── */}
+      {error && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10,
+          background: '#FCEBEB', border: '1px solid #F7C1C1',
+          color: '#791F1F', fontSize: 12, fontWeight: 600,
+        }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Loading state ── */}
+      {loading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '28px 0', color: '#5a7a65', fontSize: 13,
+        }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
+            stroke="#185FA5" strokeWidth={2}
+            style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}>
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          Sending {transactions?.length} transactions to Groq…
+        </div>
+      )}
+
+      {/* ── Results ── */}
+      {analysis && !loading && (
+        <>
+
+          {/* KPI row — colored left-border accent */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 8, marginBottom: 14,
+          }}>
+            {[
+              {
+                label: 'Projected 7-day',
+                value: fmtPeso(analysis.projectedRevenue),
+                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior`,
+              },
+              {
+                label: 'Peak day',
+                value: analysis.peakDay || '—',
+                sub: 'Highest revenue expected',
+              },
+              {
+                label: 'Slowest day',
+                value: analysis.slowestDay || '—',
+                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below avg`,
+              },
+              {
+                label: 'Confidence',
+                value: `${analysis.confidence || 0}%`,
+                sub: analysis.confidence >= 80 ? 'High — strong data'
+                  : analysis.confidence >= 60 ? 'Medium — limited data'
+                  : 'Low — need more data',
+              },
+            ].map((card, i) => {
+              const accent = kpiAccent(i, analysis);
+              return (
+                <div key={i} style={{
+                  background: '#f8fffe',
+                  border: '1px solid #e0f2f1',
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
+                  }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
+                    {card.value}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
+                    {card.sub}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Anomalies as a table */}
+          {analysis.stockAnomalies?.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#A32D2D',
+                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+              }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none"
+                  stroke="#A32D2D" strokeWidth={2.5} strokeLinecap="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Stock vs sales anomalies — {analysis.stockAnomalies.length} detected
+              </div>
+              <table style={{
+                width: '100%', borderCollapse: 'collapse',
+                fontSize: 12, tableLayout: 'fixed',
+              }}>
+                <colgroup>
+                  <col style={{ width: '16px' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '40%' }} />
+                  <col style={{ width: '24%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {['', 'Type', 'Branch', 'Finding', 'Action'].map(h => (
+                      <th key={h} style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: '#5a7a65',
+                        padding: '0 8px 7px', textAlign: 'left',
+                        borderBottom: '1px solid #e0f2f1',
+                      }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.stockAnomalies.map((anomaly, i) => {
+                    const cfg = anomalyConfig(anomaly.anomalyType);
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f8f0' }}
+                        onMouseEnter={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '#f6fef8')}
+                        onMouseLeave={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '')}>
+                        <td style={{ padding: '8px 8px 8px 4px' }}>
+                          <span style={{
+                            width: 7, height: 7, borderRadius: '50%',
+                            background: cfg.dot, display: 'inline-block',
+                          }}/>
+                        </td>
+                        <td style={{ padding: '8px' }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                            borderRadius: 20, background: cfg.badgeBg,
+                            color: cfg.badgeColor, whiteSpace: 'nowrap',
+                          }}>
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td style={{
+                          padding: '8px', fontWeight: 700,
+                          color: '#0d2b1e', fontSize: 12,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {anomaly.branch}
+                        </td>
+                        <td style={{
+                          padding: '8px', color: '#5a7a65', fontSize: 12,
+                          lineHeight: 1.45,
+                        }}>
+                          {anomaly.finding}
+                        </td>
+                        <td style={{
+                          padding: '8px', color: '#0C447C',
+                          fontSize: 12, lineHeight: 1.45,
+                        }}>
+                          {anomaly.action}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* No anomalies */}
+          {analysis.stockAnomalies?.length === 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px', borderRadius: 9,
+              background: '#f0fdf5', border: '1px solid #d1eedd',
+              marginBottom: 12, fontSize: 12, fontWeight: 700, color: '#3B6D11',
+            }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="#3B6D11" strokeWidth={2.5} strokeLinecap="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              No stock vs sales anomalies detected for this period.
+            </div>
+          )}
+
+          {/* Summary — inline callout */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            background: '#f8fffe', border: '1px solid #e0f2f1',
+            borderRadius: 10, padding: '10px 14px', marginBottom: 14,
+          }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
+              stroke="#185FA5" strokeWidth={2.5} strokeLinecap="round"
+              style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.65, margin: 0 }}>
+              {analysis.summary}
+            </p>
+          </div>
+
+          {/* Recommendations — 2-column grid */}
+          {analysis.recommendations?.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
+              }}>
+                Recommendations
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: analysis.recommendations.length > 2 ? '1fr 1fr' : '1fr',
+                gap: 6,
+              }}>
+                {analysis.recommendations.map((rec, i) => {
+                  const s = typeStyle(rec.type);
+                  return (
+                    <div key={i} style={{
+                      borderLeft: `2px solid ${s.borderColor}`,
+                      background: s.bg,
+                      borderRadius: '0 8px 8px 0',
+                      padding: '8px 12px',
+                    }}>
+                      <div style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: s.color, marginBottom: 3,
+                      }}>
+                        {rec.branch}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
+                        {rec.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------DASHBOARD------------------
+function FADashboardContent({ transactions, brands: propBrands = [] }) {
+  const today   = new Date();
+  const fmt8    = (d) => d.toISOString().slice(0, 10);
+  const fmtAmt  = (n) => '₱' + Number(n||0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const fmtShort= (n) => { if(n>=1_000_000) return '₱'+(n/1_000_000).toFixed(1)+'M'; if(n>=1_000) return '₱'+(n/1_000).toFixed(0)+'k'; return '₱'+Number(n).toFixed(0); };
+  const [rangeMode,    setRangeMode]    = useState('preset');
+  const [preset,       setPreset]       = useState('month');
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem('dashboardArchives')||'[]'); } catch { return []; } });
+  const [showArchivePanel,  setShowArchivePanel]  = useState(false);
+  const [viewingArchive,    setViewingArchive]    = useState(null);
+  const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
+  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
+  const [tooltip,           setTooltip]           = useState(null);
+  const svgRef = useRef(null);
+
+  const [filterBrand,    setFilterBrand]    = useState(null);
+  const [filterBranch,   setFilterBranch]   = useState(null);
+  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
+  const [branchDropOpen, setBranchDropOpen] = useState(false);
+  const [brandQ,  setBrandQ]  = useState('');
+  const [branchQ, setBranchQ] = useState('');
+  const brandRef  = useRef(null);
+  const branchRef = useRef(null);
+
+    const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  useEffect(() => {
+    const fn = (e) => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const brandList      = propBrands.length > 0 ? propBrands : [];
+  const selectedBrand  = brandList.find(b => b.id === filterBrand);
+  const branchList     = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name) : [];
+  const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+
+const fetchKpis = useCallback(async () => {
+  setKpiLoading(true);
+  try {
+    const params = new URLSearchParams();
+    if (rangeMode === 'preset') {
+      params.set('preset', preset);
+    } else if (appliedRange) {
+      params.set('from', appliedRange.from);
+      params.set('to', appliedRange.to);
+    } else {
+      params.set('preset', 'month');
+    }
+
+    if (filterBranch) {
+      params.set('branch', filterBranch);
+    } else if (filterBrand && selectedBrand) {
+      const branchNames = (selectedBrand.branches || [])
+        .map(br => (typeof br === 'string' ? br : br.name));
+      if (branchNames.length > 0) params.set('branches', branchNames.join(','));
+    }
+
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+    const data = await res.json();
+    if (!data.error) setKpiData(data);
+  } catch (err) {
+    console.error('Failed to fetch dashboard stats:', err);
+  } finally {
+    setKpiLoading(false);
+  }
+}, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => {
+    if (!viewingArchive) fetchKpis();
+  }, [fetchKpis, viewingArchive]);
+
+  
+  const filterLabel = (() => {
+    if (filterBranch) return filterBranch;
+    if (filterBrand)  return selectedBrand?.name + ' – All Branches';
+    return 'All Brands & Branches';
+  })();
+
+  const getRangeLabel = () => {
+    if (viewingArchive) return `Archive: ${viewingArchive.year}`;
+    if (rangeMode === 'custom' && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
+    const map = { day:'Today', week:'This Week', month:'This Month', year:'This Year' };
+    return map[preset] || 'This Month';
+  };
+
+    const chartData = useMemo(() => {
+    if (viewingArchive) return viewingArchive.chartData;
+
+    // Apply brand/branch filter
+    let txList = transactions;
+    if (filterBranch) {
+      txList = transactions.filter(tx => tx.branch === filterBranch);
+    } else if (filterBrand && selectedBrand) {
+      const branchNames = (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name);
+      txList = transactions.filter(tx => branchNames.includes(tx.branch));
+    }
+
+    if (!txList.length) return { labels: [], values: [] };
+
+    const now = new Date();
+
+    const filtered = txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === "day") return d.toDateString() === now.toDateString();
+      if (preset === "week") {
+        const start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        start.setHours(0,0,0,0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23,59,59,999);
+        return d >= start && d <= end;
+      }
+      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === "year")  return d.getFullYear() === now.getFullYear();
+      if (rangeMode === 'custom' && appliedRange) {
+        const from = new Date(appliedRange.from);
+        const to   = new Date(appliedRange.to);
+        return d >= from && d <= to;
+      }
+      return true;
+    });
+
+    let grouped = {};
+
+    if (preset === "day") {
+      filtered.forEach(tx => {
+        const hour  = new Date(tx.created_at).getHours();
+        const label = `${hour}:00`;
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "week") {
+      filtered.forEach(tx => {
+        const label = new Date(tx.created_at).toLocaleDateString("en-US", { weekday: "short" });
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "month") {
+      filtered.forEach(tx => {
+        const day   = new Date(tx.created_at).getDate();
+        const label = `Day ${day}`;
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (preset === "year") {
+      filtered.forEach(tx => {
+        const label = new Date(tx.created_at).toLocaleDateString("en-US", { month: "short" });
+        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+      });
+    } else if (rangeMode === 'custom' && appliedRange) {
+      const from     = new Date(appliedRange.from);
+      const to       = new Date(appliedRange.to);
+      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
+      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
+      const labels   = Array.from({length: numWeeks}, (_, i) => `Week ${i+1}`);
+      const values   = Array(numWeeks).fill(0);
+      filtered.forEach(tx => {
+        const d       = new Date(tx.created_at);
+        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks-1);
+        values[weekIdx] += tx.total || 0;
+      });
+      return { labels, values };
+    }
+
+    const labels = Object.keys(grouped);
+    const values = labels.map(l => grouped[l]);
+    return { labels, values };
+  }, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
+
+  const values    = chartData.values;
+  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
+  const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length-1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
+  const trending  = Number(pctChange) >= 0;
+
+  const SVG_W = 820, SVG_H = 160, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
+  const plotW = SVG_W - PAD_L - PAD_R;
+  const plotH = SVG_H - PAD_T - PAD_B;
+  const maxV  = peak > 0 ? peak * 1.18 : 1;
+
+  const pts = useMemo(() => values.map((v, i) => ({
+    x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
+    y: PAD_T + plotH - (v / maxV) * plotH,
+    v, label: chartData.labels[i],
+  })), [values, chartData.labels, maxV, plotH, plotW]);
+
+  const { linePath, areaPath } = useMemo(() => {
+    if (!pts.length) return { linePath:'', areaPath:'' };
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cx = (pts[i].x + pts[i+1].x) / 2;
+      d += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i+1].y}, ${pts[i+1].x} ${pts[i+1].y}`;
+    }
+    return { linePath:d, areaPath:d + ` L ${pts[pts.length-1].x} ${PAD_T+plotH} L ${pts[0].x} ${PAD_T+plotH} Z` };
+  }, [pts, PAD_T, plotH]);
+
+  const yTicks = useMemo(() =>
+    [0, 0.25, 0.5, 0.75, 1].map(t => ({ y:PAD_T + plotH - t * plotH, label:fmtShort(t * maxV) })),
+    [maxV, PAD_T, plotH]
+  );
+
+  const handleMouseMove = useCallback((e) => {
+    if (!svgRef.current || !pts.length) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mx   = ((e.clientX - rect.left) / rect.width) * SVG_W;
+    let best = pts[0], bestDist = Infinity;
+    for (const p of pts) { const d = Math.abs(p.x - mx); if (d < bestDist) { bestDist = d; best = p; } }
+    setTooltip({ x:best.x, y:best.y, label:best.label, value:best.v });
+  }, [pts]);
+
+  const saveArchive = () => {
+    const year = parseInt(archiveYearInput);
+    if (isNaN(year) || year < 2000 || year > 2100) { alert('Please enter a valid year (2000–2100)'); return; }
+    if (archives.find(a => a.year === year)) { alert(`Year ${year} is already archived.`); return; }
+    const snapshot = { year, label:`Full Year ${year}`, savedAt:new Date().toLocaleString(), chartData, kpis:{ totalSales:kpiData?.totalSales||total, avgSales:avg, peakSales:peak, lowSales:low } };
+    const updated  = [...archives, snapshot].sort((a, b) => b.year - a.year);
+    setArchives(updated);
+    localStorage.setItem('dashboardArchives', JSON.stringify(updated));
+    setArchiveConfirm(false);
+    alert(`Year ${year} archived successfully!`);
+  };
+
+  const deleteArchive = (year) => {
+    if (!window.confirm(`Delete archive for ${year}?`)) return;
+    const updated = archives.filter(a => a.year !== year);
+    setArchives(updated);
+    localStorage.setItem('dashboardArchives', JSON.stringify(updated));
+    if (viewingArchive?.year === year) setViewingArchive(null);
+  };
+
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) { alert('Please select both From and To dates'); return; }
+    if (customFrom > customTo) { alert('"From" date cannot be after "To" date'); return; }
+    setAppliedRange({ from:customFrom, to:customTo });
+    setViewingArchive(null);
+  };
+
+    const kpiCards = [
+    { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+    { label:'Total Sales',    value: kpiData ? kpiData.totalSales   : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
+  ];
+
+   const dropSt = {
+    position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400,
+    background:'#fff', border:'1px solid #b2dfdb', borderRadius:11,
+    boxShadow:'0 8px 28px rgba(0,0,0,0.10)', maxHeight:220, overflowY:'auto',
+  };
+  const optSt = (active) => ({
+    padding:'9px 14px', cursor:'pointer', fontSize:13,
+    color: active ? '#00695c' : '#0d2b1e', fontWeight: active ? 700 : 500,
+    background: active ? '#e0f2f1' : 'transparent',
+    display:'flex', alignItems:'center', gap:8,
+  });
+  const filterInputSt = {
+    height:36, padding:'0 11px', borderRadius:9,
+    border:'1px solid #b2dfdb', background:'#f0fdf5',
+    fontSize:13, color:'#0d2b1e', outline:'none',
+    fontFamily:'inherit', boxSizing:'border-box', width:'100%',
+  };
+
+  return (
+    <div style={{ fontFamily:"'Poppins', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
+        .db-root * { box-sizing:border-box; }
+        .db-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+        @media(max-width:900px){ .db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
+        .db-kpi-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
+        .db-kpi-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
+        .db-placeholder-val { font-size:13px; font-weight:700; padding:6px 14px; border-radius:10px; background:#f0fdf5; border:1.5px dashed #a7f3d0; color:#5a7a65; display:inline-block; margin-top:4px; }
+        .db-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+        .db-tab-group { display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px; }
+        .db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5a7a65; cursor:pointer; transition:all .15s; font-family:inherit; }
+        .db-tab.active { background:linear-gradient(135deg,#00c853,#00897b); color:#fff; box-shadow:0 2px 8px rgba(0,180,90,.35); }
+        .db-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
+        .db-date-input { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
+        .db-date-input:focus { border-color:#00897b; }
+        .db-apply-btn { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .db-chart-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:14px 16px 10px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:12px; }
+        .db-chart-wrap { position:relative; cursor:crosshair; user-select:none; }
+        .db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
+        .db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
+        .db-ins-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+        @media(max-width:800px){ .db-ins-grid{ grid-template-columns:1fr; } }
+        .db-ins-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
+        .db-archive-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
+        .db-archive-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #e0f2f1; margin-bottom:8px; background:#f8fffe; }
+        .db-archive-row:hover { background:#e8fdf0; }
+        .db-archive-btn { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
+        .db-viewing-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+        .db-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#e0f2f1; color:#00695c; border:1px solid #b2dfdb; cursor:pointer; }
+        .db-filter-chip:hover { background:#b2dfdb; }
+        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+      `}</style>
+
+      <div className="db-root">
+
+        {viewingArchive && (
+          <div className="db-viewing-banner">
+            <span style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:14 }}>
+              <Archive size={16}/> Viewing Archive: {viewingArchive.year}
+              <span style={{ opacity:0.6, fontSize:12, fontWeight:400 }}>— saved {viewingArchive.savedAt}</span>
+            </span>
+            <button onClick={() => setViewingArchive(null)}
+              style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', borderRadius:8, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              <X size={12}/> Exit Archive View
+            </button>
+          </div>
+        )}
+
+        {/* KPI Cards */}
+        <div className="db-kpi-grid">
+          {kpiCards.map((k, i) => (
+            <div key={i} className="db-kpi-card">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                <div>
+                  <div style={{ fontSize:10.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', marginBottom:5 }}>{k.label}</div>
+                  {kpiLoading && k.value === null
+                    ? <div className="db-placeholder-val">Loading…</div>
+                    : k.value !== null && k.value !== undefined
+                      ? <div style={{ fontSize:22, fontWeight:800, color:'#0d2b1e' }}>{fmtAmt(k.value)}</div>
+                      : <div className="db-placeholder-val">— Pending connection</div>
+                  }
+                </div>
+              </div>
+              <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>{k.note}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background:'#fff', border:'1px solid rgba(0,168,76,0.13)', borderRadius:16, padding:'10px 14px', marginBottom:12, boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
+  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+
+    {/* Brand dropdown */}
+    <div ref={brandRef} style={{ position:'relative', minWidth:170 }}>
+      <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(''); }}
+        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor:'pointer', paddingRight:28, userSelect:'none', color: filterBrand ? '#0d2b1e' : '#5a7a65', height:34 }}>
+        <Globe size={12} color="#00897b"/>
+        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+          {selectedBrand ? selectedBrand.name : 'All Brands'}
+        </span>
+        <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>
+      </div>
+      {brandDropOpen && (
+        <div style={dropSt}>
+          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+            <div style={{ position:'relative' }}>
+              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+              <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
+                placeholder="Search brand…" onClick={e => e.stopPropagation()}
+                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+            </div>
+          </div>
+          <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>
+            All Brands
+          </div>
+          {filteredBrands.map(b => (
+            <div key={b.id} style={optSt(filterBrand === b.id)}
+              onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
+              <span style={{ fontSize:16 }}>{b.emoji||''}</span> {b.name}
+              <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
+            </div>
+          ))}
+          {filteredBrands.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No brands found</div>}
+        </div>
+      )}
+    </div>
+
+    {/* Branch dropdown */}
+    <div ref={branchRef} style={{ position:'relative', minWidth:180, opacity: filterBrand ? 1 : 0.45 }}>
+      <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(''); } }}
+        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor: filterBrand ? 'pointer' : 'not-allowed', paddingRight:28, userSelect:'none', color: filterBranch ? '#0d2b1e' : '#5a7a65', height:34 }}>
+        <Store size={12} color={filterBrand ? '#00897b' : '#5a7a65'}/>
+        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+          {filterBranch || (filterBrand ? 'All Branches' : 'Select brand first')}
+        </span>
+        {filterBrand && <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>}
+      </div>
+      {branchDropOpen && filterBrand && (
+        <div style={dropSt}>
+          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+            <div style={{ position:'relative' }}>
+              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+              <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
+                placeholder="Search branch…" onClick={e => e.stopPropagation()}
+                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+            </div>
+          </div>
+          <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>
+            All Branches
+          </div>
+          {filteredBranches.map(br => (
+            <div key={br} style={optSt(filterBranch === br)}
+              onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(''); }}>
+              <Store size={11} color="#00897b"/> {br}
+            </div>
+          ))}
+          {filteredBranches.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No branches found</div>}
+        </div>
+      )}
+    </div>
+
+    {/* Active filter chips */}
+    {(filterBrand || filterBranch) && (
+      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+        {filterBrand && !filterBranch && (
+          <span className="db-filter-chip" onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+            {selectedBrand?.emoji} {selectedBrand?.name} <X size={10}/>
+          </span>
+        )}
+        {filterBranch && (
+          <span className="db-filter-chip" onClick={() => setFilterBranch(null)}>
+            <Store size={10}/> {filterBranch} <X size={10}/>
+          </span>
+        )}
+        <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }}
+          style={{ padding:'3px 10px', borderRadius:20, border:'1px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          Clear
+        </button>
+      </div>
+    )}
+
+    {/* Divider */}
+    <div style={{ width:1, height:22, background:'#d1eedd', flexShrink:0 }}/>
+
+    {/* Preset / Custom toggle */}
+    <div className="db-tab-group">
+      <button className={`db-tab${rangeMode==='preset'?' active':''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
+      <button className={`db-tab${rangeMode==='custom'?' active':''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom</button>
+    </div>
+
+    {/* Preset day tabs OR custom date inputs */}
+    {rangeMode === 'preset' ? (
+      <div className="db-tab-group">
+        {['day','week','month','year'].map(p => (
+          <button key={p} className={`db-tab${preset===p?' active':''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
+            {p.charAt(0).toUpperCase()+p.slice(1)}
+          </button>
+        ))}
+      </div>
+    ) : (
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <Calendar size={13} color="#5a7a65"/>
+        <input type="date" className="db-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo}/>
+        <span style={{ color:'#5a7a65', fontSize:12 }}>to</span>
+        <input type="date" className="db-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)}/>
+        <button className="db-apply-btn" onClick={applyCustomRange}>Apply</button>
+      </div>
+    )}
+
+    {/* Archives + loading — pushed right */}
+    <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+      {kpiLoading && (
+        <span style={{ fontSize:11, color:'#5a7a65', display:'flex', alignItems:'center', gap:5 }}>
+          <RefreshCw size={11} style={{ animation:'spin 1s linear infinite' }}/> Loading…
+        </span>
+      )}
+      <button onClick={() => setShowArchivePanel(v => !v)}
+        style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', background:showArchivePanel?'#e0f2f1':'#fff', color:'#00695c', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+        <Archive size={13}/> Archives
+        {archives.length > 0 && <span style={{ background:'#00897b', color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{archives.length}</span>}
+      </button>
+    </div>
+
+  </div>
+</div>
+
+        {/* Archive panel */}
+        {showArchivePanel && (
+          <div className="db-archive-panel">
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+              <div style={{ fontFamily:'Montserrat,sans-serif', fontWeight:800, fontSize:15, color:'#0d2b1e', display:'flex', alignItems:'center', gap:8 }}>
+                <Archive size={16} color="#00897b"/> Yearly Archives
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                {!archiveConfirm ? (
+                  <>
+                    <input type="number" className="db-date-input" style={{ width:90 }} value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year"/>
+                    <button onClick={() => setArchiveConfirm(true)}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                      <Plus size={13}/> Archive Year
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fef9c3', border:'1.5px solid #fde68a', borderRadius:10, padding:'7px 14px' }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#92400e' }}>Archive {archiveYearInput}?</span>
+                    <button className="db-archive-btn" style={{ borderColor:'#00897b', background:'#e0f2f1', color:'#00695c' }} onClick={saveArchive}>Confirm</button>
+                    <button className="db-archive-btn" style={{ borderColor:'#d1d5db', background:'#f9fafb', color:'#6b7280' }} onClick={() => setArchiveConfirm(false)}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {archives.length === 0 ? (
+              <div style={{ padding:'24px 0', textAlign:'center', color:'#94a3b8', fontSize:13 }}>No archives yet.</div>
+            ) : archives.map(a => (
+              <div key={a.year} className="db-archive-row">
+                <div>
+                  <div style={{ fontWeight:800, fontSize:14, color:'#0d2b1e' }}>{a.label}</div>
+                  <div style={{ fontSize:11, color:'#5a7a65', marginTop:2 }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button className="db-archive-btn"
+                    style={{ borderColor:viewingArchive?.year===a.year?'#00897b':'#b2dfdb', background:viewingArchive?.year===a.year?'#e0f2f1':'#f8fffe', color:'#00695c' }}
+                    onClick={() => { setViewingArchive(viewingArchive?.year===a.year?null:a); setShowArchivePanel(false); }}>
+                    {viewingArchive?.year===a.year?'Viewing':'View'}
+                  </button>
+                  <button className="db-archive-btn" style={{ borderColor:'#fecaca', background:'#fff', color:'#ef4444' }} onClick={() => deleteArchive(a.year)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        
+        <div className="db-chart-card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div style={{ fontFamily:'Montserrat,sans-serif', fontWeight:700, fontSize:15, color:'#0d2b1e', display:'flex', alignItems:'center', gap:8 }}>
+              <BarChart size={16} color="#00897b"/> Revenue Overview
+              <span style={{ fontSize:11, fontWeight:600, color:'#5a7a65', background:'#f0fdf5', padding:'3px 10px', borderRadius:8, border:'1px solid #d1eedd' }}>{getRangeLabel()}</span>
+              {(filterBrand || filterBranch) && (
+                <span style={{ fontSize:11, fontWeight:700, color:'#00695c', background:'#e0f2f1', padding:'3px 10px', borderRadius:8, border:'1px solid #b2dfdb', display:'flex', alignItems:'center', gap:5 }}>
+                  {filterBranch
+                    ? <><Store size={10}/> {filterBranch}</>
+                    : <><Globe size={10}/> {selectedBrand?.name}</>}
+                </span>
+              )}
+            </div>
+            {kpiData && (
+              <div style={{ fontSize:12, color:'#00897b', fontWeight:700, display:'flex', alignItems:'center', gap:5 }}>
+                <Check size={11} color="#10B981"/> Live: {fmtAmt(kpiData.totalSales)} · {kpiData.txCount} txns
+              </div>
+            )}
+          </div>
+
+          {values.length === 0 || (total === 0 && !kpiLoading) ? (
+            <div style={{ height:200, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fffe', borderRadius:12, border:'1px dashed #b2dfdb', color:'#5a7a65' }}>
+              <BarChart2 size={32} color="#b2dfdb"/>
+              <div style={{ fontWeight:700, fontSize:14, marginTop:10 }}>No sales data for this selection</div>
+              <div style={{ fontSize:12, marginTop:4, color:'#94a3b8' }}>Try a different range, brand, or branch</div>
+            </div>
+          ) : (
+            <div className="db-chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
+              <svg ref={svgRef} style={{ width:'100%', display:'block', overflow:'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="gLine2" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#e9cd30"/><stop offset="100%" stopColor="#ffa875"/>
+                  </linearGradient>
+                  <linearGradient id="gArea2" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00c853" stopOpacity="0.20"/><stop offset="100%" stopColor="#00c853" stopOpacity="0.01"/>
+                  </linearGradient>
+                  <filter id="glow2"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                {yTicks.map((t, i) => (
+                  <g key={i}>
+                    <line x1={PAD_L} y1={t.y} x2={SVG_W-PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4"/>
+                    <text x={PAD_L-8} y={t.y+4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
+                  </g>
+                ))}
+                <path d={areaPath} fill="url(#gArea2)"/>
+                <path d={linePath} fill="none" stroke="url(#gLine2)" strokeWidth="3" strokeLinecap="round" filter="url(#glow2)"/>
+                {pts.map((p, i) => (
+                  <text key={i} x={p.x} y={SVG_H-6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
+                ))}
+                {tooltip && (
+                  <>
+                    <line x1={tooltip.x} y1={tooltip.y+7} x2={tooltip.x} y2={PAD_T+plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55"/>
+                    <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#glow2)"/>
+                  </>
+                )}
+              </svg>
+              {tooltip && (
+                <div className="db-tooltip" style={{ left:`${(tooltip.x/SVG_W)*100}%`, top:`${(tooltip.y/SVG_H)*100}%` }}>
+                  <div style={{ fontSize:10.5, opacity:0.6, marginBottom:2 }}>{tooltip.label}</div>
+                  <div style={{ fontSize:15, fontWeight:800, color:'#a7f3d0' }}>{fmtAmt(tooltip.value)}</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+       <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+  {[
+    { label:'Peak', value: total > 0 ? fmtAmt(peak) : '—', sub: total > 0 ? `Day: ${peakLabel}` : 'No data' },
+    { label:'Trend', value: total > 0 ? `${trending?'+':'-'}${Math.abs(pctChange)}%` : '—', sub: total > 0 ? (trending ? '↑ Upward' : '↓ Downward') : 'No data', valueColor: trending ? '#00897b' : '#d97706' },
+    { label:'Avg order', value: kpiData ? fmtAmt(kpiData.avgOrder) : (total > 0 ? fmtAmt(avg) : '—'), sub: kpiData ? `${kpiData.txCount} transactions` : `${filterLabel}` },
+    { label:'Total revenue', value: kpiData ? fmtAmt(kpiData.totalSales) : (total > 0 ? fmtAmt(total) : '—'), sub: getRangeLabel() },
+  ].map((s, i) => (
+    <div key={i} style={{ flex:1, background:'#fff', border:'1px solid rgba(0,168,76,0.12)', borderRadius:12, padding:'10px 14px', boxShadow:'0 1px 6px rgba(0,140,60,0.05)' }}>
+      <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', color:'#5a7a65', marginBottom:4 }}>{s.label}</div>
+      <div style={{ fontSize:16, fontWeight:800, color: s.valueColor || '#0d2b1e' }}>{s.value}</div>
+      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sub}</div>
+    </div>
+  ))}
+</div>
+      
+
+      </div>
+      <AIPredictivePanel
+  transactionCount={transactions.length}
+  transactions={transactions}
+  filterLabel={filterLabel}
+  preset={preset}
+/>
+<ProductAnalyticsPanel
+  preset={preset}
+  appliedRange={appliedRange}
+  rangeMode={rangeMode}
+  filterBranch={filterBranch}
+  filterBrand={filterBrand}
+  selectedBrand={selectedBrand}
+/>
+    </div>
+    
+  );
+}
 
 // ─── Chip ─────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
@@ -3666,195 +4933,862 @@ function FACommunicationContent({ user }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MODULE 5 — BRAND & BRANCH (view-only + ability to edit branch details)
-// ═════════════════════════════════════════════════════════════════════════════
-function FABrandBranchContent({ brands: propBrands, onBrandsChange }) {
-  const [brands, setBrands] = useState(propBrands || []);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterBrand, setFilterBrand] = useState('all');
-  const [showEditBranchModal, setShowEditBranchModal] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState(null);
-  const [branchForm, setBranchForm] = useState({ name: '', brand_id: '', region: '', manager: '', contact: '', address: '', concept: '' });
-  const [alertModal, setAlertModal] = useState(null);
 
-  useEffect(() => { fetchBrands(); }, []);
+
+// ══════════════ BRAND BRANCH ═════════════════════════════════
+
+function BrandFormFields({ form, setForm }) {
+  const [catInput, setCatInput] = useState("");
+  const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
+  const inputSt = {
+    width: "100%", padding: "9px 12px", borderRadius: 10,
+    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
+    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+    marginTop: 4, boxSizing: "border-box",
+  };
+  const lbl = {
+    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
+  };
+
+  const addCategory = () => {
+    const val = catInput.trim();
+    if (!val) return;
+    if ((form.categories || []).map((c) => c.toLowerCase()).includes(val.toLowerCase())) {
+      alert(`"${val}" is already in the list.`);
+      return;
+    }
+    setForm((f) => ({ ...f, categories: [...(f.categories || []), val] }));
+    setCatInput("");
+  };
+  const removeCategory = (cat) =>
+    setForm((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }));
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <label style={lbl}>Brand Name *</label>
+        <input style={inputSt} {...f("name")} placeholder="Enter brand name" required />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Contact Email</label>
+          <input type="email" style={inputSt} {...f("contact_email")} placeholder="brand@example.com" />
+        </div>
+        <div>
+          <label style={lbl}>Contact Phone</label>
+          <input
+            type="tel"
+            style={inputSt}
+            maxLength={11}
+            value={form.contact_phone}
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"];
+              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
+              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
+            }}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              setForm((prev) => ({ ...prev, contact_phone: digits }));
+            }}
+            placeholder="09XXXXXXXXX"
+          />
+        </div>
+      </div>
+      <div>
+        <label style={lbl}>Description</label>
+        <textarea style={{ ...inputSt, resize: "vertical", lineHeight: 1.5 }} {...f("description")} rows={3} placeholder="Brief description..." />
+      </div>
+      <div>
+        <label style={lbl}>Categories</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <input
+            style={{ ...inputSt, marginTop: 0, flex: 1 }}
+            placeholder="e.g. Medicine, Supplement..."
+            value={catInput}
+            onChange={(e) => setCatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+          />
+          <button
+            type="button"
+            onClick={addCategory}
+            style={{
+              padding: "9px 16px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#2E7D32,#00897b)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+            }}
+          >
+            <Plus size={13} /> Add
+          </button>
+        </div>
+        {(form.categories || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>No categories yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+            {form.categories.map((cat) => (
+              <span
+                key={cat}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 12px", borderRadius: 20,
+                  background: "#e0f2f1", border: "1.5px solid #00897b",
+                  color: "#00695c", fontSize: 12, fontWeight: 700,
+                }}
+              >
+                {cat}
+                <button
+                  type="button"
+                  onClick={() => removeCategory(cat)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#00897b" }}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BranchFormFields({ form, setForm, brands }) {
+  const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
+  const inputSt = {
+    width: "100%", padding: "9px 12px", borderRadius: 10,
+    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
+    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
+    marginTop: 4, boxSizing: "border-box",
+  };
+  const lbl = {
+    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
+    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
+  };
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <label style={lbl}>Parent Brand *</label>
+        <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("brand_id")} required>
+          <option value="">Select brand</option>
+          {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={lbl}>Branch Name *</label>
+        <input style={inputSt} {...f("name")} required />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Region *</label>
+          <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("region")} required>
+            <option value="">Select region</option>
+            {["NCR", "Region 3", "Region 4A", "Region 4B", "Region 5", "Region 7", "Region 11"].map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        {String(form.brand_id) === brands.find((b) => b.name === "Coffee Spot")?.id?.toString() && (
+          <div>
+            <label style={lbl}>Concept *</label>
+            <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("concept")}>
+              <option value="">Select concept</option>
+              <option>Full Store</option>
+              <option>Kiosk</option>
+            </select>
+          </div>
+        )}
+      </div>
+      <div>
+        <label style={lbl}>Branch Manager</label>
+        <input style={inputSt} {...f("manager")} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={lbl}>Contact Number</label>
+          <input
+            type="tel"
+            style={inputSt}
+            maxLength={11}
+            value={form.contact}
+            onKeyDown={(e) => {
+              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End", "Control"];
+              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
+              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
+            }}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              setForm((prev) => ({ ...prev, contact: digits }));
+            }}
+          />
+        </div>
+        <div>
+          <label style={lbl}>Address</label>
+          <input style={inputSt} {...f("address")} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BmModal({ title, onClose, onSubmit, children }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 520,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          maxHeight: "92vh", overflowY: "auto",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>
+            {title}
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid #b2dfdb", background: "#e0f2f1",
+              cursor: "pointer", color: "#00695c",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          {children}
+          <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 24px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                color: "#fff", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
+              }}
+            >
+              <Check size={14} /> Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function FABrandBranchContent({ brands: propBrands, onBrandsChange }) {
+  const [brands,              setBrands]              = useState(propBrands || []);
+  const [loading,             setLoading]             = useState(true);
+  const [searchQuery,         setSearchQuery]         = useState("");
+  const [filterRegion,        setFilterRegion]        = useState("all");
+  const [filterBrand,         setFilterBrand]         = useState("all");
+  const [showAddBrandModal,   setShowAddBrandModal]   = useState(false);
+  const [showEditBrandModal,  setShowEditBrandModal]  = useState(false);
+  const [showAddBranchModal,  setShowAddBranchModal]  = useState(false);
+  const [showEditBranchModal, setShowEditBranchModal] = useState(false);
+  const [selectedBrand,       setSelectedBrand]       = useState(null);
+  const [selectedBranch,      setSelectedBranch]      = useState(null);
+
+  // ── Delete modal & history ──────────────────────────────────────────────
+  const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
+  const [deletedHistory, setDeletedHistory] = useState([]);
+
+const fetchDeleteHistory = async () => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
+    const data = await res.json();
+    const normalized = Array.isArray(data) ? data.map(entry => ({
+      ...entry,
+      brandName: entry.brand_name ?? null,
+      deletedAt: entry.deleted_at ?? null,
+      data: typeof entry.data === 'string' 
+        ? JSON.parse(entry.data) 
+        : (entry.data ?? {}),
+    })) : [];
+    setDeletedHistory(normalized);
+  } catch (err) { 
+    console.error(err); 
+  }
+};
+  const [showHistory,    setShowHistory]    = useState(false);
+
+  const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
+  const emptyBranch = { name: "", brand_id: "", region: "", manager: "", contact: "", address: "", concept: "" };
+
+  const [brandForm,  setBrandForm]  = useState(emptyBrand);
+  const [branchForm, setBranchForm] = useState(emptyBranch);
+
+  useEffect(() => { fetchBrands(); fetchDeleteHistory(); }, []);
 
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      const sorted = [...list].sort((a, b) => a.name === 'Head Office' ? -1 : b.name === 'Head Office' ? 1 : 0);
-      setBrands(sorted); onBrandsChange?.(sorted);
-    } catch { console.error('Failed to fetch brands'); }
-    finally { setLoading(false); }
+
+          const sorted = [...list].sort((a, b) => {
+      if (a.name === "Head Office") return -1;
+      if (b.name === "Head Office") return 1;
+      return 0;
+    });
+
+      setBrands(sorted);
+      onBrandsChange?.(sorted);
+    } catch (err) {
+      console.error("Failed to fetch brands:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Add / Edit Brand ───────────────────────────────────────────────────
+  const handleAddBrand = async (e) => {
+    e.preventDefault();
+    const duplicate = brands.some(
+      (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
+    );
+    if (duplicate) { alert(`A brand named "${brandForm.name}" already exists.`); return; }
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandForm),
+      });
+      const data = await res.json();
+      if (data.success) { await fetchBrands(); setShowAddBrandModal(false); setBrandForm(emptyBrand); }
+      else alert(data.error || "Failed to add brand");
+    } catch { alert("Failed to add brand"); }
+  };
+
+  const handleEditBrand = async (e) => {
+    e.preventDefault();
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandForm),
+      });
+      const data = await res.json();
+      if (data.success) { await fetchBrands(); setShowEditBrandModal(false); setSelectedBrand(null); }
+      else alert(data.error || "Failed to update brand");
+    } catch { alert("Failed to update brand"); }
+  };
+
+  // ── Delete Brand (modal-driven) ────────────────────────────────────────
+const handleDeleteBrand = async () => {
+  const { id, name } = deleteTarget;
+  
+  // Get full brand with branches from local state
+  const brand = brands.find((b) => b.id === id);
+  const brandToSave = {
+    name: brand.name,
+    categories: brand.categories || [],
+    contact_email: brand.contact_email || null,
+    contact_phone: brand.contact_phone || null,
+    description: brand.description || null,
+    branches: (brand.branches || []).map(br => ({
+      name: br.name,
+      region: br.region || null,
+      manager: br.manager || null,
+      contact: br.contact || null,
+      address: br.address || null,
+      concept: br.concept || null,
+    })),
+  };
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { 
+      method: "DELETE" 
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          type: 'brand', 
+          name, 
+          brand_name: null,
+          data: brandToSave,  // ← clean object, no old IDs
+        }),
+      });
+      await fetchBrands();
+      await fetchDeleteHistory();
+      setDeleteTarget(null);
+    } else alert(data.error || "Failed to delete brand");
+  } catch { alert("Failed to delete brand"); }
+};
+
+  // ── Add / Edit Branch ──────────────────────────────────────────────────
+  const handleAddBranch = async (e) => {
+    e.preventDefault();
+    const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
+    const duplicate   = parentBrand?.branches?.some(
+      (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
+    );
+    if (duplicate) { alert(`A branch named "${branchForm.name}" already exists under this brand.`); return; }
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(branchForm),
+      });
+      const data = await res.json();
+      if (data.success) { await fetchBrands(); setShowAddBranchModal(false); setBranchForm(emptyBranch); }
+      else alert(data.error || "Failed to add branch");
+    } catch { alert("Failed to add branch"); }
   };
 
   const handleEditBranch = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(branchForm),
       });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); setAlertModal({ message: 'Branch updated!', type: 'success' }); }
-      else setAlertModal({ message: data.error || 'Failed to update.', type: 'error' });
-    } catch { setAlertModal({ message: 'Failed to update.', type: 'error' }); }
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
+      else alert(data.error || "Failed to update branch");
+    } catch { alert("Failed to update branch"); }
   };
 
+  // ── Delete Branch (modal-driven) ───────────────────────────────────────
+  const handleDeleteBranch = async () => {
+  const { id, name, brandName } = deleteTarget;
+  const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ 
+    type: 'branch', 
+    name, 
+    brand_name: brandName,  // ← was: brandName as key name (JS shorthand sent it fine but backend destructures brand_name)
+    data: branch 
+  }),
+});
+      await fetchBrands();          // ← was missing
+      await fetchDeleteHistory();
+      setDeleteTarget(null);
+    } else alert(data.error || "Failed to delete branch");
+  } catch { alert("Failed to delete branch"); }
+};
+  // ── Restore ────────────────────────────────────────────────────────────
+const handleRestore = async (entry) => {
+  try {
+    if (entry.type === "brand") {
+      const { branches, ...brandFields } = entry.data;
+      const branchList = Array.isArray(branches) ? branches : [];
+
+      console.log("Restoring brand:", brandFields);
+      console.log("With branches:", branchList);
+
+      // Step 1: re-create the brand
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(brandFields),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.error || "Failed to restore brand");
+        return;
+      }
+
+      const newBrandId = data.id;
+      console.log("New brand ID:", newBrandId);
+
+      // Step 2: re-create each branch under the new brand
+      for (const br of branchList) {
+        const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
+        console.log("Restoring branch:", branchFields, "under brand_id:", newBrandId);
+
+        const brRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: branchFields.name,
+            region: branchFields.region || null,
+            manager: branchFields.manager || null,
+            contact: branchFields.contact || null,
+            address: branchFields.address || null,
+            concept: branchFields.concept || null,
+            brand_id: newBrandId,
+          }),
+        });
+        const brData = await brRes.json();
+        console.log("Branch restore result:", brData);
+        if (!brData.success) {
+          console.error("Failed to restore branch:", branchFields.name, brData.error);
+        }
+      }
+
+      // Step 3: remove from delete history
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
+        method: 'DELETE',
+      });
+
+      await fetchBrands();
+      await fetchDeleteHistory();
+
+    } else {
+      // Branch restore
+      const parentBrand = brands.find((b) => b.name === entry.brandName);
+
+      if (!parentBrand) {
+        alert(
+          `Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.\n` +
+          `Restore the brand first if it was also deleted.`
+        );
+        return;
+      }
+
+      const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: branchFields.name,
+          region: branchFields.region || null,
+          manager: branchFields.manager || null,
+          contact: branchFields.contact || null,
+          address: branchFields.address || null,
+          concept: branchFields.concept || null,
+          brand_id: parentBrand.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
+          method: 'DELETE',
+        });
+        await fetchBrands();
+        await fetchDeleteHistory();
+      } else {
+        alert(data.error || "Failed to restore branch");
+      }
+    }
+  } catch (err) {
+    console.error("Restore error:", err);
+    alert("Failed to restore: " + err.message);
+  }
+};
+  // ── Derived data ───────────────────────────────────────────────────────
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
-  const allRegions = [...new Set(brands.flatMap(b => (b.branches || []).map(br => br.region).filter(Boolean)))];
+  const allRegions    = [
+    ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
+  ];
 
-  const filteredBrands = brands.map(brand => ({
-    ...brand,
-    branches: (brand.branches || []).filter(br =>
-      (!searchQuery || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || '').toLowerCase().includes(searchQuery.toLowerCase())) &&
-      true
-    ),
-  })).filter(brand => {
-    if (filterBrand !== 'all' && String(brand.id) !== String(filterBrand)) return false;
-    if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
-    return true;
-  });
+  const filteredBrands = brands
+    .map((brand) => ({
+      ...brand,
+      branches: (brand.branches || []).filter(
+        (br) =>
+          (!searchQuery ||
+            br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
+          (filterRegion === "all" || br.region === filterRegion)
+      ),
+    }))
+    .filter((brand) => {
+      if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
+      if (filterRegion !== "all" && brand.branches.length === 0) return false;
+      if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+      return true;
+    });
 
-  const thSt = { padding: '9px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5, color: '#00897b', letterSpacing: '0.07em', textTransform: 'uppercase', borderBottom: '2px solid #d1eedd', background: '#f8fffe', whiteSpace: 'nowrap' };
-  const tdSt = { padding: '11px 12px', borderBottom: '1px solid #f0f8f0', verticalAlign: 'middle' };
+  // ── Sub-components ─────────────────────────────────────────────────────
+  const ConceptBadge = ({ concept }) => {
+    const styles = {
+      "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" },
+      "Kiosk":      { bg: "rgba(59,130,246,0.1)", color: "#2563eb" },
+    };
+    const s = styles[concept] || { bg: "rgba(156,163,175,0.1)", color: "#6b7280" };
+    return (
+      <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+        {concept || "—"}
+      </span>
+    );
+  };
 
+  // ── Shared table styles ────────────────────────────────────────────────
+  const thSt = {
+    padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
+    color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
+    borderBottom: "2px solid #d1eedd", background: "#f8fffe",
+    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  };
+  const tdSt = {
+    padding: "11px 12px", borderBottom: "1px solid #f0f8f0",
+    verticalAlign: "middle", overflow: "hidden",
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      {alertModal && <AlertModal message={alertModal.message} type={alertModal.type} onClose={() => setAlertModal(null)} />}
+      <style>{`
+        .bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; }
+        .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
+        .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
+        .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; }
+        .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; }
+        .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; }
+        .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); }
+        .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; }
+        .bm-branch-tr:hover td { background:#f6fef8 !important; }
+        .bm-branch-tr:last-child td { border-bottom:none !important; }
+      `}</style>
 
-      {/* Edit Branch Modal */}
-      {showEditBranchModal && (
-        <div onClick={() => setShowEditBranchModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20, backdropFilter: 'blur(4px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 520, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', maxHeight: '92vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
-              <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Edit Branch</h2>
-              <button onClick={() => setShowEditBranchModal(false)} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
-            </div>
-            <form onSubmit={handleEditBranch}>
-              {[['Branch Name', 'name', 'text', true], ['Branch Manager', 'manager', 'text', false], ['Address', 'address', 'text', false]].map(([label, field, type, req]) => (
-                <div key={field} style={{ marginBottom: 14 }}>
-                  <label style={bmLabel}>{label}{req ? ' *' : ''}</label>
-                  <input type={type} value={branchForm[field]} onChange={e => setBranchForm(p => ({ ...p, [field]: e.target.value }))} required={req} style={{ ...bmInput, marginTop: 4 }} />
+      <div className="bm-root">
+        {/* ── Stat cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
+          {[
+            { label: "Total Brands",   value: brands.length, icon: <Globe size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#6ee7b7)", sub: "Registered brands" },
+            { label: "Total Branches", value: totalBranches, icon: <Store size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#a7f3d0)", sub: "Across all brands" },
+          ].map((s, i) => (
+            <div key={i} className="bm-stat">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#0d2b1e" }}>{s.value}</div>
                 </div>
-              ))}
-              <div style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>Region *</label>
-                <select value={branchForm.region} onChange={e => setBranchForm(p => ({ ...p, region: e.target.value }))} required style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}>
-                  <option value="">Select region</option>
-                  {['NCR', 'Region 3', 'Region 4A', 'Region 4B', 'Region 5', 'Region 7', 'Region 11'].map(r => <option key={r}>{r}</option>)}
-                </select>
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.icon}</div>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <label style={bmLabel}>Contact Number</label>
-                <input type="tel" maxLength={11} value={branchForm.contact}
-                  onChange={e => setBranchForm(p => ({ ...p, contact: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
-                  style={{ ...bmInput, marginTop: 4 }} placeholder="09XXXXXXXXX" />
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setShowEditBranchModal(false)} style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button type="submit" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)' }}><Check size={14} /> Save</button>
-              </div>
-            </form>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65" }}>{s.sub}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Toolbar ── */}
+        <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+            {/* Search */}
+            <div style={{ position:"relative" }}>
+              <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+              <input
+                type="text"
+                placeholder="Search brands or branches..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bm-input"
+                style={{ paddingLeft:32, width:260 }}
+              />
+            </div>
+
+            {/* Brand filter */}
+            <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
+              <option value="all">All Brands</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+
+            {/* Region filter */}
+            <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
+              <option value="all">All Regions</option>
+              {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            {/* Right-side actions */}
+            <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
+              <button
+                onClick={() => setShowHistory(true)}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+              >
+                <History size={14}/>
+                Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
+              </button>
+
+              <button
+                onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
+                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+              >
+                <Plus size={14}/> Add Branch
+              </button>
+            </div>
+
           </div>
         </div>
+
+        {/* ── Brand list ── */}
+        {loading ? (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
+            Loading brands & branches...
+          </div>
+        ) : filteredBrands.length === 0 ? (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
+            No brands found. Add your first brand above.
+          </div>
+        ) : filteredBrands.map((brand) => (
+          <div key={brand.id} className="bm-brand-card">
+            {/* Brand header */}
+            <div className="bm-brand-header">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Globe size={20} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>{brand.name}</div>
+                  <div style={{ fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+                    {brand.contact_email && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Mail size={11} /> {brand.contact_email}</span>}
+                    {brand.contact_phone && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Phone size={11} /> {brand.contact_phone}</span>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>
+                  {brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedBrand(brand);
+                    setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
+                    setShowEditBrandModal(true);
+                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <Edit2 size={12} /> Edit Brand
+                </button>
+                <button
+                  onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
+            </div>
+
+            {/* Branches table */}
+            <div style={{ width: "100%" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "22%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "8%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {["Branch Name", "Region", "Manager", "Contact", "Address", "Concept", "Actions"].map((h) => (
+                      <th key={h} style={thSt}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(!brand.branches || brand.branches.length === 0) ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>
+                        No branches yet.{" "}
+                        <span
+                          style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+                          onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}
+                        >
+                          Add the first branch
+                        </span>
+                      </td>
+                    </tr>
+                  ) : brand.branches.map((branch) => (
+                    <tr key={branch.id} className="bm-branch-tr">
+                      <td style={{ ...tdSt, fontWeight: 700, color: "#0d2b1e", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.region}</td>
+                      <td style={{ ...tdSt, color: "#0d2b1e", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
+                      <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
+                      <td style={tdSt}>
+                        {brand.name === "Coffee Spot"
+                          ? <ConceptBadge concept={branch.concept} />
+                          : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}
+                      </td>
+                      <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                          {/* Edit */}
+                          <button
+                            title="Edit branch"
+                            onClick={() => {
+                              setSelectedBranch(branch);
+                              setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" });
+                              setShowEditBranchModal(true);
+                            }}
+                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          {/* Delete */}
+                          <button
+                            title="Delete branch"
+                            onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })}
+                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Modals ── */}
+      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          target={deleteTarget}
+          onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
+          onClose={() => setDeleteTarget(null)}
+        />
       )}
 
-       {/* Notice banner */}
-      <div style={{ background: 'linear-gradient(135deg,rgba(233,205,48,0.12),rgba(255,168,117,0.08))', border: '1.5px solid rgba(233,205,48,0.3)', borderRadius: 12, padding: '10px 16px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Info size={16} color="#8a6a00" />
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#5d4400' }}>View-only access — You can view all brands & branches and edit branch details. Branch creation/deletion is restricted to Super Admins.</span>
-      </div>
-
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 28 }}>
-        <BmStatCard label="Total Brands" value={brands.length} icon={<Globe size={20} color="#065f46" />} bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="Registered brands" />
-        <BmStatCard label="Total Branches" value={totalBranches} icon={<Store size={20} color="#065f46" />} bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Across all brands" />
-      </div>
-
-      {/* Toolbar */}
-      <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.13)', borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={14} color="#5a7a65" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }} />
-            <input type="text" placeholder="Search brands or branches…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ ...bmInput, paddingLeft: 32, width: 260, height: 36 }} />
-          </div>
-          <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} style={{ ...bmInput, height: 36, width: 180, appearance: 'none', cursor: 'pointer' }}>
-            <option value="all">All Brands</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-          <div style={{ marginLeft: 'auto' }}>
-            <span style={{ fontSize: 12, color: '#5a7a65', fontWeight: 600 }}>
-              👁 View-only · Edit branch details via the pencil icon
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Brand list */}
-      {loading ? (
-        <div style={{ padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 14, fontWeight: 600 }}>Loading brands & branches…</div>
-      ) : filteredBrands.map(brand => (
-        <div key={brand.id} style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, boxShadow: '0 2px 14px rgba(0,140,60,0.07)', marginBottom: 24, overflow: 'hidden' }}>
-          <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', padding: '16px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Globe size={20} color="#fff" /></div>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>{brand.name}</div>
-                <div style={{ fontSize: 12, opacity: 0.8, display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-                  {brand.contact_email && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={11} /> {brand.contact_email}</span>}
-                  {brand.contact_phone && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} /> {brand.contact_phone}</span>}
-                </div>
-              </div>
-            </div>
-            <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? 'branch' : 'branches'}</span>
-          </div>
-
-          <div style={{ width: '100%' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '20%' }} /><col style={{ width: '12%' }} /><col style={{ width: '17%' }} />
-                <col style={{ width: '14%' }} /><col style={{ width: '22%' }} /><col style={{ width: '8%' }} /><col style={{ width: '7%' }} />
-              </colgroup>
-              <thead>
-                <tr>{['Branch Name', 'Region', 'Manager', 'Contact', 'Address', 'Concept', 'Edit'].map(h => <th key={h} style={thSt}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {(!brand.branches || brand.branches.length === 0) ? (
-                  <tr><td colSpan={7} style={{ padding: '24px 20px', color: '#5a7a65', fontSize: 13, fontStyle: 'italic', textAlign: 'center', borderBottom: 'none' }}>No branches yet.</td></tr>
-                ) : brand.branches.map(branch => (
-                  <tr key={branch.id}
-                    onMouseEnter={e => { [...e.currentTarget.querySelectorAll('td')].forEach(td => td.style.background = '#f6fef8'); }}
-                    onMouseLeave={e => { [...e.currentTarget.querySelectorAll('td')].forEach(td => td.style.background = ''); }}>
-                    <td style={{ ...tdSt, fontWeight: 700, color: '#0d2b1e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{branch.name}</td>
-                    <td style={{ ...tdSt, color: '#5a7a65', fontSize: 12 }}>{branch.region}</td>
-                    <td style={{ ...tdSt, color: '#0d2b1e', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branch.manager || '—'}</td>
-                    <td style={{ ...tdSt, color: '#5a7a65', fontSize: 12 }}>{branch.contact || '—'}</td>
-                    <td style={{ ...tdSt, color: '#5a7a65', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branch.address || '—'}</td>
-                    <td style={tdSt}>
-                      {branch.concept ? <span style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{branch.concept}</span> : <span style={{ color: '#9ca3af', fontSize: 12 }}>—</span>}
-                    </td>
-                    <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
-                      <button title="Edit branch" onClick={() => { setSelectedBranch(branch); setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager || '', contact: branch.contact || '', address: branch.address || '', concept: branch.concept || '' }); setShowEditBranchModal(true); }}
-                        style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: '1px solid #b2dfdb', background: '#e0f2f1', color: '#00695c', cursor: 'pointer', flexShrink: 0 }}>
-                        <Pencil size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+      {showHistory && (
+        <DeleteHistoryPanel
+          history={deletedHistory}
+          onRestore={handleRestore}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   );
 }
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MODULE 6 — PROFILE (identical logic to admin's ProfileContent)
