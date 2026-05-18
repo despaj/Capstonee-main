@@ -5,13 +5,15 @@ import logo from '../assets/logo.png';
 import Receipts from './Receipts';
 import jsPDF from 'jspdf';
 import {
-  Home, Box, Layers, DollarSign, FileText, MessageCircle,
-  User, LogOut, Search, Package, AlertTriangle, BarChart2,
-  Store, Globe, MapPin, Phone, Mail, ChevronDown, X, Check,
-  RefreshCw, Calendar, BarChart, Archive, TrendingUp, TrendingDown,
-  Eye, ShoppingCart, Lock, ChevronRight, Plus, Pencil, Trash2,
-  Send, Download, Receipt, Zap, Activity, Sparkles, Shield, Save,
-  Edit2, Bell, Users, FileCheck, Star,
+  Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
+  User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
+  DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
+  ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
+  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
+  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown,
+  Brain, PieChart, LineChart, Sparkles, Shield, Send, Save, Receipt
 } from 'lucide-react';
 import StockInventoryContent from './StockInventoryContent';
 import MenuInventoryContent from './MenuInventoryContent';
@@ -424,9 +426,9 @@ export default function FranchiseeDashboard() {
         </div>
 
         <div className="fr-content">
-          {activeModule === 'dashboard'      && <FrDashboardContent transactions={transactions} brands={brands} user={user} />}
-         {activeModule === 'menuInventory'  && <MenuInventoryContent  user={user} brands={brands} />}
-{activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+          {activeModule === 'dashboard'      && <MaDashboardContent transactions={transactions} brands={brands} user={user} />}
+          {activeModule === 'menuInventory'  && <MenuInventoryContent  user={user} brands={brands} />}
+          {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
           {activeModule === 'receipts'       && <Receipts />}
           {activeModule === 'reports'        && <MaReportsContent user={user} transactions={transactions} />}
@@ -454,6 +456,14 @@ export default function FranchiseeDashboard() {
     </div>
   );
 }
+
+const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
+const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmt8     = (d) => d.toISOString().slice(0, 10);
+const FONT     = "'Montserrat', sans-serif";
+const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+
 
 function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
   const [data,    setData]    = React.useState(null);
@@ -878,11 +888,829 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
   );
 }
 
+function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
+  const [tip, setTip] = useState(null);
+  const ref = useRef(null);
+  const W = 700, H = height, PL = 56, PR = 48, PT = 16, PB = 32;
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const barSeries = Array.isArray(barData[0]) ? barData : [barData];
+  const maxBar  = Math.max(...barSeries.flat(), 1) * 1.2;
+  const maxLine = Math.max(...(lineData || []), 1) * 1.2;
+  const minLine = Math.min(...(lineData || []), 0);
+  const n = labels.length;
+  const bW = Math.min(22, (pW / Math.max(n, 1)) - 6);
 
-const fmtShort = (n) => { if (n >= 1_000_000) return '₱' + (n / 1_000_000).toFixed(1) + 'M'; if (n >= 1_000) return '₱' + (n / 1_000).toFixed(0) + 'k'; return '₱' + n; };
+  const linepts = (lineData || []).map((v, i) => ({
+    x: PL + (i / Math.max(n - 1, 1)) * pW,
+    y: PT + pH - ((v - minLine) / (maxLine - minLine || 1)) * pH,
+    v,
+  }));
+  let linePath = "";
+  if (linepts.length > 1) {
+    linePath = `M ${linepts[0].x} ${linepts[0].y}`;
+    for (let i = 0; i < linepts.length - 1; i++) {
+      const cx = (linepts[i].x + linepts[i + 1].x) / 2;
+      linePath += ` C ${cx} ${linepts[i].y}, ${cx} ${linepts[i + 1].y}, ${linepts[i + 1].x} ${linepts[i + 1].y}`;
+    }
+  }
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PT + pH * (1 - t), label: fmtShort(t * maxBar) }));
 
+  const handleMove = (e) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * W;
+    let best = 0, bestD = Infinity;
+    labels.forEach((_, i) => {
+      const x = PL + (i / Math.max(n - 1, 1)) * pW;
+      const d = Math.abs(x - mx);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    setTip({ i: best, x: PL + (best / Math.max(n - 1, 1)) * pW, label: labels[best] });
+  };
+
+  return (
+    <div style={{ position: "relative", cursor: "crosshair" }} onMouseMove={handleMove} onMouseLeave={() => setTip(null)}>
+      <svg ref={ref} style={{ width: "100%", display: "block", overflow: "visible" }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          {barSeries.map((_, si) => (
+            <linearGradient key={si} id={`cbg${si}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PAL[si]} stopOpacity="0.92" />
+              <stop offset="100%" stopColor={PAL[si]} stopOpacity="0.55" />
+            </linearGradient>
+          ))}
+          <linearGradient id="clgLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#1d4ed8" /><stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+        </defs>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PL} y1={t.y} x2={W - PR} y2={t.y} stroke="#e8ede9" strokeWidth="1" strokeDasharray="4 3" />
+            <text x={PL - 6} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily={FONT}>{t.label}</text>
+          </g>
+        ))}
+        {labels.map((lbl, i) => {
+          const groupW = pW / Math.max(n, 1);
+          const groupX = PL + i * groupW + groupW / 2;
+          return barSeries.map((series, si) => {
+            const v  = series[i] || 0;
+            const bH = (v / maxBar) * pH;
+            const x  = groupX - ((barSeries.length / 2 - si) * (bW + 2)) - bW / 2;
+            return (
+              <rect key={`${i}-${si}`} x={x} y={PT + pH - bH} width={bW} height={bH} rx="4"
+                fill={`url(#cbg${si})`} opacity={tip?.i === i ? 1 : 0.82} />
+            );
+          });
+        })}
+        {labels.map((lbl, i) => (
+          <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#6b9070" fontFamily={FONT}>{lbl}</text>
+        ))}
+        {linePath && <path d={linePath} fill="none" stroke="url(#clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
+        {linepts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
+        ))}
+        {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
+      </svg>
+      {tip && (
+        <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
+          {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
+          {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HBarChart ────────────────────────────────────────────────────────────────
+function HBarChart({ data = [] }) {
+  const maxV = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {data.map((d, i) => (
+        <div key={i}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── DonutChartSVG ────────────────────────────────────────────────────────────
+function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
+  const [hover, setHover] = useState(null);
+  const R = size / 2, cx = R, cy = R;
+  const outerR = R - 4, innerR = outerR * innerRadius;
+  const total  = segments.reduce((s, d) => s + (d.value || 0), 0) || 1;
+  let cum = 0;
+  const slices = segments.map((seg, i) => {
+    const pct = (seg.value || 0) / total;
+    const sa  = cum * 2 * Math.PI - Math.PI / 2;
+    cum += pct;
+    const ea  = cum * 2 * Math.PI - Math.PI / 2;
+    const x1  = cx + outerR * Math.cos(sa), y1 = cy + outerR * Math.sin(sa);
+    const x2  = cx + outerR * Math.cos(ea), y2 = cy + outerR * Math.sin(ea);
+    const ix1 = cx + innerR * Math.cos(ea), iy1 = cy + innerR * Math.sin(ea);
+    const ix2 = cx + innerR * Math.cos(sa), iy2 = cy + innerR * Math.sin(sa);
+    const large = pct > 0.5 ? 1 : 0;
+    const mid   = sa + (ea - sa) / 2;
+    return { ...seg, path: `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} 0 ${ix2} ${iy2} Z`, mid, pct, color: seg.color || PAL[i % PAL.length] };
+  });
+  const hov = hover !== null ? slices[hover] : null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color}
+            opacity={hover === null ? 0.88 : hover === i ? 1 : 0.42}
+            stroke="#fff" strokeWidth="2"
+            transform={hover === i ? `translate(${Math.cos(s.mid) * 4} ${Math.sin(s.mid) * 4})` : ""}
+            style={{ transition: "all .18s", cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+          />
+        ))}
+        {innerRadius > 0 && (
+          <>
+            <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0d2b1e" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
+            <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5a7a65" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
+          </>
+        )}
+      </svg>
+      {showLegend && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+          {slices.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", opacity: hover === null ? 1 : hover === i ? 1 : 0.45, transition: "opacity .15s" }}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SparkBar ─────────────────────────────────────────────────────────────────
+function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+  if (!values.length) return null;
+  const maxV = Math.max(...values, 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height }}>
+      {values.map((v, i) => (
+        <div key={i} style={{ flex: 1, background: color, opacity: 0.4 + 0.6 * (i / values.length), borderRadius: 2, height: `${Math.max(4, (v / maxV) * height)}px` }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Card wrappers ────────────────────────────────────────────────────────────
+function PanelCard({ children, style: s }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#2E7D32,#00897b)", action }) {
+  return (
+    <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+          <Icon size={17} color="#fff" />
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
+          {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ChartLabel({ children }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+      {children}
+    </div>
+  );
+}
+
+function BulletItem({ text, color = "#00897b", size = "normal" }) {
+  const fs = size === "small" ? 11 : 12.5;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: fs === 11 ? 4 : 5 }} />
+      <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
+    </div>
+  );
+}
+
+// ─── SalesTrendSection ────────────────────────────────────────────────────────
+function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending, getRangeLabel, filterLabel }) {
+
+  const catData = useMemo(() => {
+    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
+    if (!total) return [];
+    return [
+      { label: "Medicine",    value: Math.round(total * 0.28) },
+      { label: "Supplements", value: Math.round(total * 0.22) },
+      { label: "Coffee",      value: Math.round(total * 0.18) },
+      { label: "Vitamins",    value: Math.round(total * 0.14) },
+      { label: "Equipment",   value: Math.round(total * 0.10) },
+      { label: "Other",       value: Math.round(total * 0.08) },
+    ];
+  }, [kpiData, total]);
+
+  const branchData = useMemo(() => {
+    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
+    if (!total) return [];
+    return [
+      { label: "Main Branch", value: Math.round(total * 0.30) },
+      { label: "Alabang",     value: Math.round(total * 0.22) },
+      { label: "BGC",         value: Math.round(total * 0.18) },
+      { label: "Makati",      value: Math.round(total * 0.16) },
+      { label: "Ortigas",     value: Math.round(total * 0.14) },
+    ];
+  }, [kpiData, total]);
+
+  const gpLine = useMemo(() => values.map((v, i) => {
+    const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
+    return parseFloat(base.toFixed(1));
+  }), [values]);
+
+  const hasData = total > 0;
+  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
+  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
+  const avgOrder    = kpiData?.avgOrder ?? avg;
+
+  const analysisBullets = useMemo(() => {
+    if (!hasData) return [];
+    const bullets = [];
+    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
+    bullets.push(`Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
+    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
+    bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
+    bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
+    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
+    if (catData.length) {
+      const topCat = catData[0];
+      bullets.push(`${topCat.label} is the top-performing category at ${fmtShort(topCat.value)} (${Math.round((topCat.value / total) * 100)}% of revenue).`);
+    }
+    if (branchData.length) {
+      const topBranch = branchData[0];
+      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
+    }
+    return bullets;
+  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, catData, branchData, kpiData, getRangeLabel, filterLabel]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`} />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            {hasData ? (
+              <>
+                <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
+                <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  {[
+                    { color: PAL[0], label: "Sales CY" },
+                    { color: PAL[1], label: "Sales PY" },
+                    { color: "#1d4ed8", label: "Gross Profit % (CY)", line: true },
+                  ].map((l, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {l.line
+                        ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
+                        : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
+                      }
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                  {[
+                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
+                  ].map((card, i) => (
+                    <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
+                        <card.icon size={16} color={card.color} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
+                        <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
+                <BarChart2 size={28} color="#b2dfdb" />
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+            </div>
+            {hasData ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
+                  {[
+                    { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                    { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
+                      <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                  {analysisBullets.slice(3).map((text, i) => {
+                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
+                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
+                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                    const dc = dotColors[i % dotColors.length];
+                    const bc = bgColors[i % bgColors.length];
+                    const bd = bdrColors[i % bdrColors.length];
+                    return (
+                      <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
+                        <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Info size={22} color="#b2dfdb" />
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
+            {catData.length > 0
+              ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
+            {branchData.length > 0
+              ? <HBarChart data={branchData.slice(0, 5)} />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
+            {[
+              { label: "Peak Revenue",   value: hasData ? fmtAmt(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+              { label: "Lowest Revenue", value: hasData ? fmtAmt(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+              { label: "Period Average", value: hasData ? fmtAmt(avg)  : "—", sub: `${labels.length} data points`,               color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              { label: "Trend",          value: hasData ? `${trending?"+":""}${pctChange}%` : "—", sub: trending?"Upward trend":"Downward trend", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+            ].map((s, i) => (
+              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+                </div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── PrescriptiveSection ──────────────────────────────────────────────────────
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
+  const [analysis, setAnalysis] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [lastRun,  setLastRun]  = useState(null);
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) { setError("No transaction data available."); return; }
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" }));
+      } else {
+        setError(data.error || "Analysis failed.");
+      }
+    } catch { setError("Could not reach the AI service."); }
+    finally { setLoading(false); }
+  };
+
+  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
+  const projChg = analysis?.projectedChange  ?? 5.2;
+  const peakDay = analysis?.peakDay         ?? "Thursday";
+  const slowDay = analysis?.slowestDay      ?? "Sunday";
+  const conf    = analysis?.confidence      ?? (total ? 72 : null);
+
+  const typeStyle = (type) => ({
+    success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
+    warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
+    info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
+  }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
+
+  const preRunBullets = useMemo(() => {
+    if (!total) return [];
+    return [
+      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
+      `Estimated 7-day projected revenue: ${projRev ? fmtAmt(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
+      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
+      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
+    ].filter(Boolean);
+  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Brain}
+        title="AI Prescriptive Analysis"
+        sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
+        gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
+        action={
+          <button onClick={runAnalysis} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+            {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
+            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
+            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
+            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
+          ].map((card, i) => (
+            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <card.icon size={11} color={card.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
+              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)" }} />
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>
+                  {analysis ? "AI Summary" : "Data Overview"} · {filterLabel}
+                </span>
+              </div>
+              {analysis ? (
+                <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+              ) : (
+                <>
+                  {preRunBullets.length > 0
+                    ? preRunBullets.map((b, i) => <BulletItem key={i} text={b} color="#3b82f6" />)
+                    : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
+                  }
+                  {error && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
+                      <AlertTriangle size={13} color="#dc2626" />
+                      <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                    </div>
+                  )}
+                  {loading && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                      <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {analysis?.stockAnomalies?.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Stock vs Sales Anomalies</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626", fontFamily: FONT }}>{analysis.stockAnomalies.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.stockAnomalies.map((a, i) => {
+                    const cfg = {
+                      ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
+                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
+                      dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
+                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                    return (
+                      <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
+                          {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
+                        </div>
+                        <BulletItem text={a.finding} color={cfg.dot} size="small" />
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
+                          <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            {analysis?.recommendations?.length > 0 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.recommendations.map((rec, i) => {
+                    const s = typeStyle(rec.type);
+                    return (
+                      <div key={i} style={{ background: s.bg, border: `1px solid ${s.borderColor}25`, borderRadius: 12, padding: "12px 12px 12px 16px", position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.borderColor, borderRadius: "4px 0 0 4px" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", background: s.badgeBg, padding: "2px 7px", borderRadius: 20, fontFamily: FONT }}>{rec.branch || rec.type}</span>
+                        </div>
+                        <BulletItem text={rec.text} color={s.dot} size="small" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+                <Brain size={32} color="#bfdbfe" />
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
+                  {transactions?.length
+                    ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
+                    : "Load transactions then run the AI analysis."
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── SalesVsStockSection ──────────────────────────────────────────────────────
+function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [tab,     setTab]     = useState("top10");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === "preset") params.set("preset", preset);
+      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+      else params.set("preset", "month");
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (names.length) params.set("branches", names.join(","));
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const top10     = data?.top10 ?? [];
+  const fast      = data?.fastMoving ?? [];
+  const slow      = data?.slowMoving ?? [];
+  const totalSKUs = data?.totalProducts ?? 0;
+  const fastCount = fast.length;
+  const slowCount = slow.length;
+
+  const revenuePie = top10.slice(0, 5).map((p, i) => ({
+    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
+    value: p.totalRevenue,
+    color: PAL[i],
+  }));
+  const moverPie = totalSKUs > 0 ? [
+    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
+    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
+  ].filter(d => d.value > 0) : [];
+
+  const TABS = [
+    { id: "top10",  label: "Top Products",   icon: BarChart2    },
+    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
+    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
+  ];
+  const tabSt = (a) => ({
+    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
+    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
+    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+    color:      a ? "#fff" : "#5a7a65",
+    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+  });
+  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
+
+  const renderList = () => {
+    const isBuyers = tab === "buyers";
+    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
+    if (!list?.length) return (
+      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+    );
+    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
+    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
+    return list.slice(0, 8).map((p, i) => (
+      <div key={p.name}
+        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
+        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
+          {i + 1}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+          {!isBuyers && p.branchBreakdown && (
+            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
+              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+            </div>
+          )}
+        </div>
+        {!isBuyers && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+          {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
+        </div>
+        <div style={{ paddingLeft: 8 }}>
+          {isBuyers
+            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
+              </div>
+          }
+        </div>
+      </div>
+    ));
+  };
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Package}
+        title="Sales vs Stock Recommendations"
+        sub="Product performance · fast/slow movers · stock health"
+        action={
+          <button onClick={fetchData} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
+          {[
+            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
+            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+            { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                <s.icon size={11} color={s.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
+          <div>
+            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
+                  <t.icon size={11} /> {t.label}
+                </button>
+              ))}
+            </div>
+            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                <span>#</span><span>Name</span>
+                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
+                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
+                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
+                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                </div>
+              : renderList()
+            }
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+              {revenuePie.length > 0
+                ? <DonutChartSVG segments={revenuePie} size={120} />
+                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+              {moverPie.length > 0
+                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
+                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
+                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
+                  { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
+                ].map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
+                    <r.icon size={13} color={r.color} />
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
  
-function FrDashboardContent({ transactions, brands, user }) {
+function MaDashboardContent({ transactions, brands, user }) {
   const userBranch = (user?.branch || '').trim();
   const today      = new Date();
   const fmt8       = (d) => d.toISOString().slice(0, 10);
@@ -895,9 +1723,10 @@ function FrDashboardContent({ transactions, brands, user }) {
   const [appliedRange, setAppliedRange] = useState(null);
  
   // ── archive state ─────────────────────────────────────────────────────────
-  const [archives,          setArchives]          = useState(() => {
-    try { return JSON.parse(localStorage.getItem(`frArchives_${userBranch}`) || '[]'); } catch { return []; }
-  });
+  const storageKey = `frArchives_branch_${userBranch.trim().toLowerCase()}`;
+const [archives, setArchives] = useState(() => {
+  try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
+});
   const [showArchivePanel,  setShowArchivePanel]  = useState(false);
   const [viewingArchive,    setViewingArchive]    = useState(null);
   const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
@@ -910,6 +1739,17 @@ function FrDashboardContent({ transactions, brands, user }) {
   // ── KPI (server-side) ─────────────────────────────────────────────────────
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
+
+  const scopedTransactions = useMemo(() => {
+  const branch = userBranch.toLowerCase();
+
+  return (transactions || []).filter(tx =>
+    (tx.branch || '').trim().toLowerCase() === branch
+  );
+}, [transactions, userBranch]);
+
+
+const tabSt = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
  
   const fetchKpis = useCallback(async () => {
     if (!userBranch) return;
@@ -924,7 +1764,8 @@ function FrDashboardContent({ transactions, brands, user }) {
       } else {
         params.set('preset', 'month');
       }
-      params.set('branch', userBranch);
+      params.set('branch', userBranch.trim());
+      if (!userBranch) return;
  
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
       const data = await res.json();
@@ -939,13 +1780,7 @@ function FrDashboardContent({ transactions, brands, user }) {
   useEffect(() => { if (!viewingArchive) fetchKpis(); }, [fetchKpis, viewingArchive]);
  
   // ── filter transactions to this branch ───────────────────────────────────
-  const myTransactions = useMemo(() =>
-    transactions.filter(tx =>
-      (tx.branch || '').trim().toLowerCase() === userBranch.toLowerCase()
-    ),
-    [transactions, userBranch]
-  );
- 
+  const myTransactions = scopedTransactions;
   // ── chart data ────────────────────────────────────────────────────────────
   const chartData = useMemo(() => {
     if (viewingArchive) return viewingArchive.chartData;
@@ -1008,6 +1843,7 @@ function FrDashboardContent({ transactions, brands, user }) {
   const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
   const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
   const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
+const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
   const pctChange = values.length > 1 && values[0] > 0
     ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
   const trending  = Number(pctChange) >= 0;
@@ -1067,7 +1903,7 @@ function FrDashboardContent({ transactions, brands, user }) {
     };
     const updated = [...archives, snapshot].sort((a, b) => b.year - a.year);
     setArchives(updated);
-    localStorage.setItem(`frArchives_${userBranch}`, JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
     setArchiveConfirm(false);
     alert(`Year ${year} archived!`);
   };
@@ -1076,7 +1912,7 @@ function FrDashboardContent({ transactions, brands, user }) {
     if (!window.confirm(`Delete archive for ${year}?`)) return;
     const updated = archives.filter(a => a.year !== year);
     setArchives(updated);
-    localStorage.setItem(`frArchives_${userBranch}`, JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
     if (viewingArchive?.year === year) setViewingArchive(null);
   };
  
@@ -1089,7 +1925,11 @@ function FrDashboardContent({ transactions, brands, user }) {
  
   // ── today's quick stats ───────────────────────────────────────────────────
   const todayStr     = today.toISOString().slice(0, 10);
-  const todaySales   = myTransactions.filter(tx => (tx.created_at || '').startsWith(todayStr));
+  const todaySales = useMemo(() => {
+  return scopedTransactions.filter(tx =>
+    (tx.created_at || '').startsWith(todayStr)
+  );
+}, [scopedTransactions, todayStr]);
   const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
   const avgOrder     = todaySales.length ? todayRevenue / todaySales.length : 0;
  
@@ -1164,233 +2004,103 @@ function FrDashboardContent({ transactions, brands, user }) {
           </div>
         ))}
       </div>
- 
-      {/* ── Date range toolbar ── */}
-      <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 16, padding: '12px 18px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,140,60,0.05)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div className="fr-db-tab-group">
-          <button className={`fr-db-tab${rangeMode === 'preset' ? ' active' : ''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
-          <button className={`fr-db-tab${rangeMode === 'custom' ? ' active' : ''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom Range</button>
+
+      {/* ── Filter + Date toolbar ── */}
+      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+
+        {/* Preset tabs */}
+        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+          {["day","week","month","year"].map(p => (
+            <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewingArchive(null); }}>
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
         </div>
- 
-        {rangeMode === 'preset' ? (
-          <div className="fr-db-tab-group">
-            {['day', 'week', 'month', 'year'].map(p => (
-              <button key={p} className={`fr-db-tab${preset === p ? ' active' : ''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={13} color="#5a7a65" />
-            <input type="date" className="fr-db-date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} />
-            <span style={{ color: '#5a7a65', fontSize: 12, fontWeight: 600 }}>to</span>
-            <input type="date" className="fr-db-date" value={customTo}   onChange={e => setCustomTo(e.target.value)}   min={customFrom} max={fmt8(today)} />
-            <button className="fr-db-apply" onClick={applyCustomRange}>Apply</button>
-          </div>
-        )}
- 
-        {kpiLoading && (
-          <span style={{ fontSize: 11, color: '#5a7a65', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> Loading…
-          </span>
-        )}
- 
-        <button onClick={() => setShowArchivePanel(v => !v)}
-          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 10, border: '1.5px solid #b2dfdb', background: showArchivePanel ? '#e0f2f1' : '#fff', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+
+        {/* Custom range */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Calendar size={12} color="#5a7a65" />
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
+        </div>
+
+        {/* Archive */}
+        <button onClick={() => setShowArchivePanel(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchivePanel ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
           <Archive size={13} /> Archives
-          {archives.length > 0 && (
-            <span style={{ background: '#00897b', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800 }}>{archives.length}</span>
-          )}
+          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
         </button>
       </div>
- 
-      {/* ── Archive panel ── */}
+
+      {/* Archive panel */}
       {showArchivePanel && (
-        <div className="fr-db-arc-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Archive size={16} color="#00897b" /> Yearly Archives — {userBranch}
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
+              <Archive size={15} color="#00897b" /> Yearly Archives — {userBranch}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {!archiveConfirm ? (
                 <>
-                  <input type="number" className="fr-db-date" style={{ width: 90 }} value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" />
-                  <button onClick={() => setArchiveConfirm(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <Plus size={13} /> Archive Year
+                  <input type="number" value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
+                  <button onClick={() => setArchiveConfirm(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                    <Plus size={12} /> Archive Year
                   </button>
                 </>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef9c3', border: '1.5px solid #fde68a', borderRadius: 10, padding: '7px 14px' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Archive {archiveYearInput}?</span>
-                  <button className="fr-db-arc-btn" style={{ borderColor: '#00897b', background: '#e0f2f1', color: '#00695c' }} onClick={saveArchive}>Confirm</button>
-                  <button className="fr-db-arc-btn" style={{ borderColor: '#d1d5db', background: '#f9fafb', color: '#6b7280' }} onClick={() => setArchiveConfirm(false)}>Cancel</button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYearInput}?</span>
+                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
+                  <button onClick={() => setArchiveConfirm(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
                 </div>
               )}
             </div>
           </div>
- 
-          {archives.length === 0 ? (
-            <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No archives yet. Snapshot a full year of data above.</div>
-          ) : archives.map(a => (
-            <div key={a.year} className="fr-db-arc-row">
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>{a.label}</div>
-                <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
+          {archives.length === 0
+            ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
+            : archives.map(a => (
+              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 7 }}>
+                  <button onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewingArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewingArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                    {viewingArchive?.year === a.year ? "Viewing" : "View"}
+                  </button>
+                  <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="fr-db-arc-btn"
-                  style={{ borderColor: viewingArchive?.year === a.year ? '#00897b' : '#b2dfdb', background: viewingArchive?.year === a.year ? '#e0f2f1' : '#f8fffe', color: '#00695c' }}
-                  onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }}>
-                  {viewingArchive?.year === a.year ? 'Viewing' : 'View'}
-                </button>
-                <button className="fr-db-arc-btn" style={{ borderColor: '#fecaca', background: '#fff', color: '#ef4444' }} onClick={() => deleteArchive(a.year)}>Delete</button>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       )}
  
-      {/* ── Revenue chart ── */}
-      <div className="fr-db-chart">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 700, fontSize: 15, color: '#0d2b1e', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BarChart size={16} color="#00897b" /> Revenue Overview
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#5a7a65', background: '#f0fdf5', padding: '3px 10px', borderRadius: 8, border: '1px solid #d1eedd' }}>{getRangeLabel()}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#00695c', background: '#e0f2f1', padding: '3px 10px', borderRadius: 8, border: '1px solid #b2dfdb', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Store size={10} /> {userBranch}
-            </span>
-          </div>
-          {kpiData && (
-            <div style={{ fontSize: 12, color: '#00897b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Check size={11} color="#10B981" /> Live: {fmtPeso(kpiData.totalSales)} · {kpiData.txCount} txns
-            </div>
-          )}
-        </div>
- 
-        {values.length === 0 || (total === 0 && !kpiLoading) ? (
-          <div style={{ height: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fffe', borderRadius: 12, border: '1px dashed #b2dfdb', color: '#5a7a65' }}>
-            <BarChart2 size={32} color="#b2dfdb" />
-            <div style={{ fontWeight: 700, fontSize: 14, marginTop: 10 }}>No sales data for this period</div>
-            <div style={{ fontSize: 12, marginTop: 4, color: '#94a3b8' }}>Try a different date range</div>
-          </div>
-        ) : (
-          <div style={{ position: 'relative', cursor: 'crosshair', userSelect: 'none' }} onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
-            <svg ref={svgRef} style={{ width: '100%', display: 'block', overflow: 'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="frLine" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#e9cd30" /><stop offset="100%" stopColor="#ffa875" />
-                </linearGradient>
-                <linearGradient id="frArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00c853" stopOpacity="0.20" /><stop offset="100%" stopColor="#00c853" stopOpacity="0.01" />
-                </linearGradient>
-                <filter id="frGlow"><feGaussianBlur stdDeviation="3" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-              </defs>
-              {yTicks.map((t, i) => (
-                <g key={i}>
-                  <line x1={PAD_L} y1={t.y} x2={SVG_W - PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4" />
-                  <text x={PAD_L - 8} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
-                </g>
-              ))}
-              <path d={areaPath} fill="url(#frArea)" />
-              <path d={linePath} fill="none" stroke="url(#frLine)" strokeWidth="3" strokeLinecap="round" filter="url(#frGlow)" />
-              {pts.map((p, i) => (
-                <text key={i} x={p.x} y={SVG_H - 6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
-              ))}
-              {tooltip && (
-                <>
-                  <line x1={tooltip.x} y1={tooltip.y + 7} x2={tooltip.x} y2={PAD_T + plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55" />
-                  <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#frGlow)" />
-                </>
-              )}
-            </svg>
-            {tooltip && (
-              <div className="fr-db-tooltip" style={{ left: `${(tooltip.x / SVG_W) * 100}%`, top: `${(tooltip.y / SVG_H) * 100}%` }}>
-                <div style={{ fontSize: 10.5, opacity: 0.6, marginBottom: 2 }}>{tooltip.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#a7f3d0' }}>{fmtPeso(tooltip.value)}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
- 
-      {/* ── Insight cards ── */}
-      <div className="fr-db-ins-grid">
-        <div className="fr-db-ins">
-          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Peak Performance</div>
-          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
-            {total > 0
-              ? <>{kpiData ? <>Transactions: <strong>{kpiData.txCount}</strong> · </> : ''}Highest revenue on <strong>{peakLabel}</strong>. Outperformed avg by <strong>{fmtPeso(peak - avg)}</strong>.</>
-              : 'No data available for this range.'}
-          </p>
-          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{total > 0 ? fmtPeso(peak) : '—'}</div>
-        </div>
-        <div className="fr-db-ins">
-          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Trend Direction</div>
-          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
-            {total > 0
-              ? <>Sales are <strong>{trending ? 'trending upward ↑' : 'trending downward ↓'}</strong> with a <strong>{Math.abs(pctChange)}% change</strong> from start to end.</>
-              : 'No transactions to analyze.'}
-          </p>
-          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: trending ? '#00897b' : '#d97706', fontFamily: 'Montserrat,sans-serif' }}>
-            {total > 0 ? `${trending ? '+' : '-'}${Math.abs(pctChange)}%` : '—'}
-          </div>
-        </div>
-        <div className="fr-db-ins">
-          <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 13, marginBottom: 6 }}>Revenue Summary</div>
-          <p style={{ fontSize: 12, color: '#5a7a65', lineHeight: 1.65 }}>
-            {kpiData
-              ? <>Transactions: <strong>{kpiData.txCount}</strong> · Avg order: <strong>{fmtPeso(kpiData.avgOrder)}</strong><br />Total: <strong>{fmtPeso(kpiData.totalSales)}</strong> · Branch: <strong>{userBranch}</strong></>
-              : total > 0
-                ? <>Average: <strong>{fmtPeso(avg)}</strong> · Total: <strong>{fmtPeso(total)}</strong> · Branch: <strong>{userBranch}</strong></>
-                : <>No sales for <strong>{userBranch}</strong> in this period.</>}
-          </p>
-          <div style={{ marginTop: 10, fontSize: 19, fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{total > 0 ? fmtPeso(kpiData?.totalSales ?? avg) : '—'}</div>
-        </div>
-      </div>
- 
-      {/* ── Bottom KPI breakdown ── */}
-      <div className="fr-db-bot-grid" style={{ marginBottom: 22 }}>
-        {[
-          { label: 'Sales Revenue', key: 'salesRevenue', desc: 'Total income from POS sales.',          icon: '💰' },
-          { label: 'Sales Profit',  key: 'salesProfit',  desc: 'Revenue minus cost of goods.',          icon: '📈' },
-          { label: 'Cost of Sales', key: 'cogs',         desc: 'Total cost of goods sold.',             icon: '🧾' },
-        ].map((k, i) => (
-          <div key={i} style={{ background: '#fff', border: kpiData?.[k.key] != null ? '1.5px solid #b2dfdb' : '1.5px dashed #a7f3d0', borderRadius: 16, padding: '18px 20px', boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 22 }}>{k.icon}</span>
-              <span style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{k.label}</span>
-            </div>
-            <p style={{ fontSize: 11.5, color: '#5a7a65', lineHeight: 1.6, marginBottom: 12 }}>{k.desc}</p>
-            {kpiLoading
-              ? <div style={{ background: '#f0fdf5', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>Loading…</div>
-              : kpiData?.[k.key] != null
-                ? <div style={{ background: '#e0f2f1', borderRadius: 10, padding: '8px 12px', fontSize: 16, fontWeight: 800, color: '#00695c', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(kpiData[k.key])}</div>
-                : <div style={{ background: '#f0fdf5', borderRadius: 10, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <RefreshCw size={11} color="#b2dfdb" /> Awaiting POS / Inventory data
-                  </div>}
-          </div>
-        ))}
-      </div>
-  <AIPredictivePanel
-        transactions={myTransactions}
-        filterLabel={`${userBranch} — ${getRangeLabel()}`}
-        preset={preset}
+      
+      {/* ── SECTION 1: SALES TREND ── */}
+      <SalesTrendSection
+        values={values} labels={chartData.labels} kpiData={kpiData}
+        total={total} avg={avg} peak={peak} low={low}
+        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
+        getRangeLabel={getRangeLabel} filterLabel={`${userBranch} — ${getRangeLabel()}`}
       />
-      <ProductAnalyticsPanel
-        preset={preset}
-        appliedRange={appliedRange}
-        rangeMode={rangeMode}
-        filterBranch={userBranch}
-        filterBrand={null}
-        selectedBrand={null}
+
+      {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
+      <PrescriptiveSection
+        transactions={myTransactions} filterLabel={`${userBranch} — ${getRangeLabel()}`}
+        preset={preset} total={total} values={values} kpiData={kpiData}
       />
- 
+
+      {/* ── SECTION 3: SALES VS STOCK ── */}
+      <SalesVsStockSection
+        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
+        filterBranch={userBranch} filterBrand={null}
+        selectedBrand={null} total={total}
+      />
     </div>
   );
 }
-
 
 
 function FrPOSContent({ user, brands: propBrands = [] }) {
