@@ -61,7 +61,6 @@ function getOrCreateDeviceId(req, res) {
     return headerDeviceId;
   }
 
-  // Fallback to cookie (for production/mobile)
   let deviceId = req.cookies?.device_id;
   if (!deviceId) {
     deviceId = crypto.randomUUID();
@@ -189,7 +188,7 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: email,
       subject: "Your FranchiSync Login OTP",
       html: `
@@ -644,7 +643,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync  <noreply@franchisync.business>",
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -722,7 +721,7 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: email,  
       subject: "Password Reset OTP - FranchiSync",
       html: `
@@ -795,7 +794,7 @@ app.post("/send-credentials", async (req, res) => {
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: "Franchisync <acc@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: to,
       subject: "Your Franchisync Account Credentials",
       html: `
@@ -807,7 +806,7 @@ app.post("/send-credentials", async (req, res) => {
             <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
           </div>
           <p style="color: #e74c3c;">Please log in and change your password immediately.</p>
-          <p>Log in your account at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
+          <p>Log in your account at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
         </div>
       `,
     });
@@ -823,7 +822,7 @@ app.post("/send-rejection", async (req, res) => {
   const { to, name } = req.body;
   try {
     const result = await resend.emails.send({
-      from: "Franchisync <acc@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: to,
       subject: "Update on Your Franchisync Application",
       html: `
@@ -837,7 +836,7 @@ app.post("/send-rejection", async (req, res) => {
           <p>If you have questions or would like to reapply in the future, feel free to reach out to us.</p>
           <p>Thank you again for your interest.</p>
           <p style="color: #5a7a65;">— The Franchisync Team</p>
-          <p>Visit us at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
+          <p>Visit us at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
         </div>
       `,
     });
