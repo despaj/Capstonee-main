@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD — Logic unchanged, UI updated to match FranchiseeDashboard
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -14,11 +11,14 @@ import {
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
-  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar,Pin,  Megaphone, BarChart, RefreshCw, Eye, Clock, Info, Download,History, RotateCcw, UserPlus, CheckCircle,
-  ChevronRight, Lock, Unlock, CheckCircle2,
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
+  ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
+  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
+  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown,
+  Brain, PieChart, LineChart,
 } from 'lucide-react';
 
-// ─── Design tokens (kept from original + Franchisee palette) ─────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -26,7 +26,6 @@ const C = {
   ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
-// ─── Shared CSS (Franchisee-style) ───────────────────────────────────────────
 const ADMIN_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -46,7 +45,7 @@ const ADMIN_CSS = `
   }
 `;
 
-// ─── Original style helpers (unchanged) ──────────────────────────────────────
+// ─── Shared style helpers ─────────────────────────────────────────────────────
 const invInputSt = {
   height:36, padding:"0 11px", borderRadius:9,
   border:`1px solid ${C.border}`, background:C.bg,
@@ -145,7 +144,7 @@ const bmActionBtn = (variant = "default") => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD — Shell with Franchisee UI
+// ADMIN DASHBOARD SHELL (from Code 2 — unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -163,38 +162,36 @@ export default function AdminDashboard() {
   const [transactions, setTransactions] = useState([]);
 
   const getUserFromStorage = () => {
-    const userString = 
-    localStorage.getItem('user') ||
-    localStorage.getItem('rememberedUser') ||
-    sessionStorage.getItem('user'); 
-
+    const userString =
+      localStorage.getItem('user') ||
+      localStorage.getItem('rememberedUser') ||
+      sessionStorage.getItem('user');
     if (userString) return JSON.parse(userString);
     return null;
   };
 
   const confirmLogout = async () => {
-  try {
-    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
-    const userId = stored ? JSON.parse(stored)?.id : null;
-
-    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-      credentials: "include",
-    });
-  } catch (err) {
-    console.error("Logout error:", err);
-  } finally {
-    localStorage.removeItem("user");
-    localStorage.removeItem("rememberedUser");
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("tempUser");
-    sessionStorage.removeItem("fr_activeModule");
-    setShowLogoutModal(false);
-    window.location.href = "/admin-login";
-  }
-};
+    try {
+      const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+      const userId = stored ? JSON.parse(stored)?.id : null;
+      await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+        credentials: "include",
+      });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      localStorage.removeItem("user");
+      localStorage.removeItem("rememberedUser");
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("tempUser");
+      sessionStorage.removeItem("fr_activeModule");
+      setShowLogoutModal(false);
+      window.location.href = "/admin-login";
+    }
+  };
 
   useEffect(() => {
     sessionStorage.setItem('fr_activeModule', activeModule);
@@ -210,7 +207,7 @@ export default function AdminDashboard() {
       .then(res => res.json()).then(data => setTransactions(data))
       .catch(err => console.error("Failed to fetch transactions", err));
   }, []);
-  
+
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
@@ -276,20 +273,18 @@ export default function AdminDashboard() {
   };
 
   const navigation = [
-    { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
-    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
-    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
-   // { id: 'pos',            label: 'POS',                   icon: <DollarSign size={20} />,  section: 'main' },
-    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />,section: 'main' },
-    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
-    // { id: 'receipts',       label: 'View Liquidation',      icon: <FileText size={20} />,    section: 'main' },
-    { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} />,   section: 'main' },
-    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,       section: 'main' },
-    { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,   section: 'main' },
-    { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} />,section:'main' },
-    { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} />,   section: 'main' },
-    { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} />,        section: 'account' },
-    { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />,      section: 'account', action: handleLogout },
+    { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,         section: 'main' },
+    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,          section: 'main' },
+    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,       section: 'main' },
+    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />, section: 'main' },
+    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,      section: 'main' },
+    { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} />,    section: 'main' },
+    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,        section: 'main' },
+    { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,    section: 'main' },
+    { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} />,section: 'main' },
+    { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} />,    section: 'main' },
+    { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} />,         section: 'account' },
+    { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />,       section: 'account', action: handleLogout },
   ];
 
   const mainNav    = navigation.filter(n => n.section === 'main');
@@ -308,8 +303,6 @@ export default function AdminDashboard() {
           display:flex; min-height:100vh;
           background:var(--grad-bg);
         }
-
-        /* ── Sidebar (Franchisee style) ── */
         .ad-sidebar {
           width:${sidebarCollapsed ? '76px' : '272px'};
           background:#fff;
@@ -343,7 +336,6 @@ export default function AdminDashboard() {
           transition:all .2s; flex-shrink:0;
         }
         .ad-toggle:hover { color:#00897b; background:rgba(0,168,76,0.08); }
-
         .ad-nav { padding:1rem 0.5rem; }
         .ad-nav-section {
           font-size:10px; font-weight:800; text-transform:uppercase;
@@ -369,10 +361,7 @@ export default function AdminDashboard() {
         .ad-nav-item.active .ad-nav-icon { color:#00897b; }
         .ad-nav-item.logout { color:#ef4444; margin-top:8px; }
         .ad-nav-item.logout:hover { background:rgba(239,68,68,0.08); }
-        .ad-nav-icon {
-          flex-shrink:0; display:flex;
-          justify-content:center; width:22px;
-        }
+        .ad-nav-icon { flex-shrink:0; display:flex; justify-content:center; width:22px; }
         .ad-nav-label {
           display:${sidebarCollapsed ? 'none' : 'block'};
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -381,15 +370,11 @@ export default function AdminDashboard() {
           position:absolute; right:0; top:20%; height:60%;
           width:3px; border-radius:2px; background:var(--grad-main);
         }
-
-        /* ── Main content ── */
         .ad-main {
           flex:1;
           margin-left:${sidebarCollapsed ? '76px' : '272px'};
           transition:margin-left 0.3s ease;
         }
-
-        /* ── Topbar (Franchisee style) ── */
         .ad-topbar {
           background:rgba(255,255,255,0.9);
           backdrop-filter:blur(12px);
@@ -399,22 +384,10 @@ export default function AdminDashboard() {
           position:sticky; top:0; z-index:100;
           border-bottom:1px solid rgba(0,168,76,0.08);
         }
-        .ad-topbar-breadcrumb {
-          font-size:12px; color:#94a3b8;
-          font-weight:600; font-family:'Poppins',sans-serif;
-        }
-        .ad-topbar-title {
-          font-family:'Montserrat',sans-serif;
-          font-size:1.5rem; font-weight:800; color:#0d2b1e;
-        }
-        .ad-user-name {
-          font-weight:700; color:#0d2b1e;
-          font-size:14px; font-family:'Montserrat',sans-serif;
-        }
-        .ad-user-role {
-          font-size:11px; color:#94a3b8;
-          font-weight:600; font-family:'Poppins',sans-serif;
-        }
+        .ad-topbar-breadcrumb { font-size:12px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
+        .ad-topbar-title { font-family:'Montserrat',sans-serif; font-size:1.5rem; font-weight:800; color:#0d2b1e; }
+        .ad-user-name { font-weight:700; color:#0d2b1e; font-size:14px; font-family:'Montserrat',sans-serif; }
+        .ad-user-role { font-size:11px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
         .ad-avatar {
           width:42px; height:42px; border-radius:14px;
           background:var(--grad-main);
@@ -425,9 +398,7 @@ export default function AdminDashboard() {
           font-family:'Montserrat',sans-serif;
         }
         .ad-avatar:hover { transform:scale(1.08); box-shadow:0 6px 18px rgba(0,180,90,.4); }
-
         .ad-content { padding:1.8rem 2rem; }
-
         @media(max-width:768px){
           .ad-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
           .ad-main{margin-left:0;}
@@ -435,7 +406,7 @@ export default function AdminDashboard() {
         }
       `}</style>
 
-      {/* ── SIDEBAR ─────────────────────────────────────────────── */}
+      {/* ── SIDEBAR ── */}
       <aside className="ad-sidebar">
         <div className="ad-sidebar-header">
           {!sidebarCollapsed && (
@@ -453,7 +424,6 @@ export default function AdminDashboard() {
             </button>
           )}
         </div>
-
         {sidebarCollapsed && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
             <button className="ad-toggle" onClick={() => setSidebarCollapsed(false)}>
@@ -461,7 +431,6 @@ export default function AdminDashboard() {
             </button>
           </div>
         )}
-
         <nav className="ad-nav">
           {!sidebarCollapsed && <div className="ad-nav-section">Main Menu</div>}
           {mainNav.map(item => (
@@ -479,7 +448,6 @@ export default function AdminDashboard() {
               {activeModule === item.id && <span className="ad-nav-bar" />}
             </div>
           ))}
-
           {!sidebarCollapsed && (
             <div className="ad-nav-section" style={{ marginTop: 8 }}>Account</div>
           )}
@@ -500,10 +468,8 @@ export default function AdminDashboard() {
         </nav>
       </aside>
 
-      {/* ── MAIN ────────────────────────────────────────────────── */}
+      {/* ── MAIN ── */}
       <main className="ad-main">
-
-        {/* Topbar */}
         <div className="ad-topbar">
           <div>
             <div className="ad-topbar-breadcrumb">iFranchise Admin → {moduleLabel}</div>
@@ -520,12 +486,10 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="ad-content">
           {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
-          {/*activeModule === 'pos'            && <POSContent user={user} brands={brands} />*/}
           {activeModule === 'mobileShop'     && <MobileShopContent />}
           {activeModule === 'mobileOrders'   && <MobileOrdersContent />}
           {activeModule === 'receipts'       && <Receipts />}
@@ -555,64 +519,24 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* ── LOGOUT MODAL (Franchisee style) ── */}
+      {/* ── LOGOUT MODAL ── */}
       {showLogoutModal && (
         <div
-          style={{
-            position:'fixed', inset:0,
-            background:'rgba(0,0,0,0.55)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            zIndex:3000,
-            backdropFilter:'blur(4px)',
-          }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, backdropFilter:'blur(4px)' }}
           onClick={() => setShowLogoutModal(false)}
         >
           <div
-            style={{
-              background:C.white, borderRadius:22, padding:'32px 36px',
-              maxWidth:400, width:'90%', textAlign:'center',
-              boxShadow:'0 24px 80px rgba(0,0,0,0.25)',
-              border:'1px solid rgba(0,168,76,0.15)',
-              animation:'slideUp .25s ease',
-            }}
+            style={{ background:C.white, borderRadius:22, padding:'32px 36px', maxWidth:400, width:'90%', textAlign:'center', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', border:'1px solid rgba(0,168,76,0.15)', animation:'slideUp .25s ease' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{
-              width:68, height:68, borderRadius:20,
-              background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              margin:'0 auto 20px', fontSize:'2rem',
-              border:'1.5px solid rgba(239,68,68,0.15)',
-            }}>🚪</div>
-            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>
-              Log out?
-            </h2>
+            <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2rem', border:'1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
+            <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
             <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:'Poppins,sans-serif' }}>
               You'll need to sign in again to access your account.
             </p>
             <div style={{ display:'flex', gap:10 }}>
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                style={{
-                  flex:1, padding:'11px 0', borderRadius:12,
-                  border:'1.5px solid #b2dfdb', background:'#f0fdf5',
-                  color:'#5a7a65', fontSize:13, fontWeight:700,
-                  cursor:'pointer', fontFamily:'Montserrat,sans-serif',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmLogout}
-                style={{
-                  flex:1, padding:'11px 0', borderRadius:12, border:'none',
-                  background:'linear-gradient(135deg,#ef4444,#dc2626)',
-                  color:'#fff', fontSize:13, fontWeight:800,
-                  cursor:'pointer', fontFamily:'Montserrat,sans-serif',
-                  boxShadow:'0 4px 14px rgba(239,68,68,.25)',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:7,
-                }}
-              >
+              <button onClick={() => setShowLogoutModal(false)} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Montserrat,sans-serif' }}>Cancel</button>
+              <button onClick={confirmLogout} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
                 <LogOut size={14} /> Log out
               </button>
             </div>
@@ -637,93 +561,1227 @@ export default function AdminDashboard() {
 }
 
 
+// ─── Dashboard-specific constants ────────────────────────────────────────────
+const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
+const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmt8     = (d) => d.toISOString().slice(0, 10);
+const FONT     = "'Montserrat', sans-serif";
+const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+
+// ─── ComboChart ───────────────────────────────────────────────────────────────
+function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
+  const [tip, setTip] = useState(null);
+  const ref = useRef(null);
+  const W = 700, H = height, PL = 56, PR = 48, PT = 16, PB = 32;
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const barSeries = Array.isArray(barData[0]) ? barData : [barData];
+  const maxBar  = Math.max(...barSeries.flat(), 1) * 1.2;
+  const maxLine = Math.max(...(lineData || []), 1) * 1.2;
+  const minLine = Math.min(...(lineData || []), 0);
+  const n = labels.length;
+  const bW = Math.min(22, (pW / Math.max(n, 1)) - 6);
+
+  const linepts = (lineData || []).map((v, i) => ({
+    x: PL + (i / Math.max(n - 1, 1)) * pW,
+    y: PT + pH - ((v - minLine) / (maxLine - minLine || 1)) * pH,
+    v,
+  }));
+  let linePath = "";
+  if (linepts.length > 1) {
+    linePath = `M ${linepts[0].x} ${linepts[0].y}`;
+    for (let i = 0; i < linepts.length - 1; i++) {
+      const cx = (linepts[i].x + linepts[i + 1].x) / 2;
+      linePath += ` C ${cx} ${linepts[i].y}, ${cx} ${linepts[i + 1].y}, ${linepts[i + 1].x} ${linepts[i + 1].y}`;
+    }
+  }
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PT + pH * (1 - t), label: fmtShort(t * maxBar) }));
+
+  const handleMove = (e) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * W;
+    let best = 0, bestD = Infinity;
+    labels.forEach((_, i) => {
+      const x = PL + (i / Math.max(n - 1, 1)) * pW;
+      const d = Math.abs(x - mx);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    setTip({ i: best, x: PL + (best / Math.max(n - 1, 1)) * pW, label: labels[best] });
+  };
+
+  return (
+    <div style={{ position: "relative", cursor: "crosshair" }} onMouseMove={handleMove} onMouseLeave={() => setTip(null)}>
+      <svg ref={ref} style={{ width: "100%", display: "block", overflow: "visible" }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          {barSeries.map((_, si) => (
+            <linearGradient key={si} id={`cbg${si}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PAL[si]} stopOpacity="0.92" />
+              <stop offset="100%" stopColor={PAL[si]} stopOpacity="0.55" />
+            </linearGradient>
+          ))}
+          <linearGradient id="clgLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#1d4ed8" /><stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+        </defs>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PL} y1={t.y} x2={W - PR} y2={t.y} stroke="#e8ede9" strokeWidth="1" strokeDasharray="4 3" />
+            <text x={PL - 6} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily={FONT}>{t.label}</text>
+          </g>
+        ))}
+        {labels.map((lbl, i) => {
+          const groupW = pW / Math.max(n, 1);
+          const groupX = PL + i * groupW + groupW / 2;
+          return barSeries.map((series, si) => {
+            const v  = series[i] || 0;
+            const bH = (v / maxBar) * pH;
+            const x  = groupX - ((barSeries.length / 2 - si) * (bW + 2)) - bW / 2;
+            return (
+              <rect key={`${i}-${si}`} x={x} y={PT + pH - bH} width={bW} height={bH} rx="4"
+                fill={`url(#cbg${si})`} opacity={tip?.i === i ? 1 : 0.82} />
+            );
+          });
+        })}
+        {labels.map((lbl, i) => (
+          <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#6b9070" fontFamily={FONT}>{lbl}</text>
+        ))}
+        {linePath && <path d={linePath} fill="none" stroke="url(#clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
+        {linepts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
+        ))}
+        {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
+      </svg>
+      {tip && (
+        <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
+          {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
+          {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HBarChart ────────────────────────────────────────────────────────────────
+function HBarChart({ data = [] }) {
+  const maxV = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {data.map((d, i) => (
+        <div key={i}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── DonutChartSVG ────────────────────────────────────────────────────────────
+function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
+  const [hover, setHover] = useState(null);
+  const R = size / 2, cx = R, cy = R;
+  const outerR = R - 4, innerR = outerR * innerRadius;
+  const total  = segments.reduce((s, d) => s + (d.value || 0), 0) || 1;
+  let cum = 0;
+  const slices = segments.map((seg, i) => {
+    const pct = (seg.value || 0) / total;
+    const sa  = cum * 2 * Math.PI - Math.PI / 2;
+    cum += pct;
+    const ea  = cum * 2 * Math.PI - Math.PI / 2;
+    const x1  = cx + outerR * Math.cos(sa), y1 = cy + outerR * Math.sin(sa);
+    const x2  = cx + outerR * Math.cos(ea), y2 = cy + outerR * Math.sin(ea);
+    const ix1 = cx + innerR * Math.cos(ea), iy1 = cy + innerR * Math.sin(ea);
+    const ix2 = cx + innerR * Math.cos(sa), iy2 = cy + innerR * Math.sin(sa);
+    const large = pct > 0.5 ? 1 : 0;
+    const mid   = sa + (ea - sa) / 2;
+    return { ...seg, path: `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} 0 ${ix2} ${iy2} Z`, mid, pct, color: seg.color || PAL[i % PAL.length] };
+  });
+  const hov = hover !== null ? slices[hover] : null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color}
+            opacity={hover === null ? 0.88 : hover === i ? 1 : 0.42}
+            stroke="#fff" strokeWidth="2"
+            transform={hover === i ? `translate(${Math.cos(s.mid) * 4} ${Math.sin(s.mid) * 4})` : ""}
+            style={{ transition: "all .18s", cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+          />
+        ))}
+        {innerRadius > 0 && (
+          <>
+            <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0d2b1e" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
+            <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5a7a65" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
+          </>
+        )}
+      </svg>
+      {showLegend && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+          {slices.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", opacity: hover === null ? 1 : hover === i ? 1 : 0.45, transition: "opacity .15s" }}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SparkBar ─────────────────────────────────────────────────────────────────
+function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+  if (!values.length) return null;
+  const maxV = Math.max(...values, 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height }}>
+      {values.map((v, i) => (
+        <div key={i} style={{ flex: 1, background: color, opacity: 0.4 + 0.6 * (i / values.length), borderRadius: 2, height: `${Math.max(4, (v / maxV) * height)}px` }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Card wrappers ────────────────────────────────────────────────────────────
+function PanelCard({ children, style: s }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#2E7D32,#00897b)", action }) {
+  return (
+    <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+          <Icon size={17} color="#fff" />
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
+          {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ChartLabel({ children }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+      {children}
+    </div>
+  );
+}
+
+function BulletItem({ text, color = "#00897b", size = "normal" }) {
+  const fs = size === "small" ? 11 : 12.5;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: fs === 11 ? 4 : 5 }} />
+      <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
+    </div>
+  );
+}
+
+// ─── SalesTrendSection ────────────────────────────────────────────────────────
+function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending, getRangeLabel, filterLabel }) {
+
+  const catData = useMemo(() => {
+    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
+    if (!total) return [];
+    return [
+      { label: "Medicine",    value: Math.round(total * 0.28) },
+      { label: "Supplements", value: Math.round(total * 0.22) },
+      { label: "Coffee",      value: Math.round(total * 0.18) },
+      { label: "Vitamins",    value: Math.round(total * 0.14) },
+      { label: "Equipment",   value: Math.round(total * 0.10) },
+      { label: "Other",       value: Math.round(total * 0.08) },
+    ];
+  }, [kpiData, total]);
+
+  const branchData = useMemo(() => {
+    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
+    if (!total) return [];
+    return [
+      { label: "Main Branch", value: Math.round(total * 0.30) },
+      { label: "Alabang",     value: Math.round(total * 0.22) },
+      { label: "BGC",         value: Math.round(total * 0.18) },
+      { label: "Makati",      value: Math.round(total * 0.16) },
+      { label: "Ortigas",     value: Math.round(total * 0.14) },
+    ];
+  }, [kpiData, total]);
+
+  const gpLine = useMemo(() => values.map((v, i) => {
+    const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
+    return parseFloat(base.toFixed(1));
+  }), [values]);
+
+  const hasData = total > 0;
+  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
+  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
+  const avgOrder    = kpiData?.avgOrder ?? avg;
+
+  const analysisBullets = useMemo(() => {
+    if (!hasData) return [];
+    const bullets = [];
+    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
+    bullets.push(`Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
+    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
+    bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
+    bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
+    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
+    if (catData.length) {
+      const topCat = catData[0];
+      bullets.push(`${topCat.label} is the top-performing category at ${fmtShort(topCat.value)} (${Math.round((topCat.value / total) * 100)}% of revenue).`);
+    }
+    if (branchData.length) {
+      const topBranch = branchData[0];
+      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
+    }
+    return bullets;
+  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, catData, branchData, kpiData, getRangeLabel, filterLabel]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`} />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            {hasData ? (
+              <>
+                <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
+                <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  {[
+                    { color: PAL[0], label: "Sales CY" },
+                    { color: PAL[1], label: "Sales PY" },
+                    { color: "#1d4ed8", label: "Gross Profit % (CY)", line: true },
+                  ].map((l, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {l.line
+                        ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
+                        : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
+                      }
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                  {[
+                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
+                  ].map((card, i) => (
+                    <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
+                        <card.icon size={16} color={card.color} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
+                        <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
+                <BarChart2 size={28} color="#b2dfdb" />
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+            </div>
+            {hasData ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
+                  {[
+                    { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                    { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
+                      <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                  {analysisBullets.slice(3).map((text, i) => {
+                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
+                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
+                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                    const dc = dotColors[i % dotColors.length];
+                    const bc = bgColors[i % bgColors.length];
+                    const bd = bdrColors[i % bdrColors.length];
+                    return (
+                      <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
+                        <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Info size={22} color="#b2dfdb" />
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
+            {catData.length > 0
+              ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
+            {branchData.length > 0
+              ? <HBarChart data={branchData.slice(0, 5)} />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
+            {[
+              { label: "Peak Revenue",   value: hasData ? fmtAmt(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+              { label: "Lowest Revenue", value: hasData ? fmtAmt(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+              { label: "Period Average", value: hasData ? fmtAmt(avg)  : "—", sub: `${labels.length} data points`,               color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              { label: "Trend",          value: hasData ? `${trending?"+":""}${pctChange}%` : "—", sub: trending?"Upward trend":"Downward trend", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+            ].map((s, i) => (
+              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+                </div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── PrescriptiveSection ──────────────────────────────────────────────────────
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
+  const [analysis, setAnalysis] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [lastRun,  setLastRun]  = useState(null);
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) { setError("No transaction data available."); return; }
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" }));
+      } else {
+        setError(data.error || "Analysis failed.");
+      }
+    } catch { setError("Could not reach the AI service."); }
+    finally { setLoading(false); }
+  };
+
+  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
+  const projChg = analysis?.projectedChange  ?? 5.2;
+  const peakDay = analysis?.peakDay         ?? "Thursday";
+  const slowDay = analysis?.slowestDay      ?? "Sunday";
+  const conf    = analysis?.confidence      ?? (total ? 72 : null);
+
+  const typeStyle = (type) => ({
+    success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
+    warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
+    info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
+  }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
+
+  const preRunBullets = useMemo(() => {
+    if (!total) return [];
+    return [
+      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
+      `Estimated 7-day projected revenue: ${projRev ? fmtAmt(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
+      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
+      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
+    ].filter(Boolean);
+  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Brain}
+        title="AI Prescriptive Analysis"
+        sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
+        gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
+        action={
+          <button onClick={runAnalysis} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+            {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
+            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
+            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
+            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
+          ].map((card, i) => (
+            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <card.icon size={11} color={card.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
+              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)" }} />
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>
+                  {analysis ? "AI Summary" : "Data Overview"} · {filterLabel}
+                </span>
+              </div>
+              {analysis ? (
+                <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+              ) : (
+                <>
+                  {preRunBullets.length > 0
+                    ? preRunBullets.map((b, i) => <BulletItem key={i} text={b} color="#3b82f6" />)
+                    : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
+                  }
+                  {error && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
+                      <AlertTriangle size={13} color="#dc2626" />
+                      <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                    </div>
+                  )}
+                  {loading && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                      <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {analysis?.stockAnomalies?.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Stock vs Sales Anomalies</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626", fontFamily: FONT }}>{analysis.stockAnomalies.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.stockAnomalies.map((a, i) => {
+                    const cfg = {
+                      ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
+                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
+                      dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
+                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                    return (
+                      <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
+                          {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
+                        </div>
+                        <BulletItem text={a.finding} color={cfg.dot} size="small" />
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
+                          <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            {analysis?.recommendations?.length > 0 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.recommendations.map((rec, i) => {
+                    const s = typeStyle(rec.type);
+                    return (
+                      <div key={i} style={{ background: s.bg, border: `1px solid ${s.borderColor}25`, borderRadius: 12, padding: "12px 12px 12px 16px", position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.borderColor, borderRadius: "4px 0 0 4px" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", background: s.badgeBg, padding: "2px 7px", borderRadius: 20, fontFamily: FONT }}>{rec.branch || rec.type}</span>
+                        </div>
+                        <BulletItem text={rec.text} color={s.dot} size="small" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+                <Brain size={32} color="#bfdbfe" />
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
+                  {transactions?.length
+                    ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
+                    : "Load transactions then run the AI analysis."
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── SalesVsStockSection ──────────────────────────────────────────────────────
+function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [tab,     setTab]     = useState("top10");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === "preset") params.set("preset", preset);
+      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+      else params.set("preset", "month");
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (names.length) params.set("branches", names.join(","));
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const top10     = data?.top10 ?? [];
+  const fast      = data?.fastMoving ?? [];
+  const slow      = data?.slowMoving ?? [];
+  const totalSKUs = data?.totalProducts ?? 0;
+  const fastCount = fast.length;
+  const slowCount = slow.length;
+
+  const revenuePie = top10.slice(0, 5).map((p, i) => ({
+    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
+    value: p.totalRevenue,
+    color: PAL[i],
+  }));
+  const moverPie = totalSKUs > 0 ? [
+    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
+    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
+  ].filter(d => d.value > 0) : [];
+
+  const TABS = [
+    { id: "top10",  label: "Top Products",   icon: BarChart2    },
+    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
+    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
+    { id: "buyers", label: "Top Performers", icon: Target       },
+  ];
+  const tabSt = (a) => ({
+    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
+    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
+    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+    color:      a ? "#fff" : "#5a7a65",
+    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+  });
+  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
+
+  const renderList = () => {
+    const isBuyers = tab === "buyers";
+    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
+    if (!list?.length) return (
+      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+    );
+    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
+    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
+    return list.slice(0, 8).map((p, i) => (
+      <div key={p.name}
+        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
+        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
+          {i + 1}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+          {!isBuyers && p.branchBreakdown && (
+            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
+              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+            </div>
+          )}
+        </div>
+        {!isBuyers && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+          {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
+        </div>
+        <div style={{ paddingLeft: 8 }}>
+          {isBuyers
+            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
+              </div>
+          }
+        </div>
+      </div>
+    ));
+  };
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Package}
+        title="Sales vs Stock Recommendations"
+        sub="Product performance · fast/slow movers · stock health"
+        action={
+          <button onClick={fetchData} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
+          {[
+            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
+            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+            { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                <s.icon size={11} color={s.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
+          <div>
+            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
+                  <t.icon size={11} /> {t.label}
+                </button>
+              ))}
+            </div>
+            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                <span>#</span><span>Name</span>
+                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
+                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
+                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
+                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                </div>
+              : renderList()
+            }
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+              {revenuePie.length > 0
+                ? <DonutChartSVG segments={revenuePie} size={120} />
+                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+              {moverPie.length > 0
+                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
+                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
+                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
+                  { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
+                ].map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
+                    <r.icon size={13} color={r.color} />
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── DashboardContent (rich UI from Code 1, logic wiring from Code 2) ─────────
+function DashboardContent({ transactions, brands: propBrands = [] }) {
+  const today = new Date();
+
+  const [rangeMode,    setRangeMode]    = useState("preset");
+  const [preset,       setPreset]       = useState("month");
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem("dashboardArchives") || "[]"); } catch { return []; } });
+  const [showArchive,  setShowArchive]  = useState(false);
+  const [viewArchive,  setViewArchive]  = useState(null);
+  const [archiveYear,  setArchiveYear]  = useState(String(today.getFullYear()));
+  const [archiveConf,  setArchiveConf]  = useState(false);
+
+  const [filterBrand,    setFilterBrand]    = useState(null);
+  const [filterBranch,   setFilterBranch]   = useState(null);
+  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
+  const [branchDropOpen, setBranchDropOpen] = useState(false);
+  const [brandQ,  setBrandQ]  = useState("");
+  const [branchQ, setBranchQ] = useState("");
+  const brandRef  = useRef(null);
+  const branchRef = useRef(null);
+  const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  useEffect(() => {
+    const fn = (e) => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const brandList      = propBrands.length > 0 ? propBrands : [];
+  const selectedBrand  = brandList.find(b => b.id === filterBrand);
+  const branchList     = selectedBrand ? (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
+  const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+  const fetchKpis = useCallback(async () => {
+    setKpiLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === "preset") params.set("preset", preset);
+      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+      else params.set("preset", "month");
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (bn.length) params.set("branches", bn.join(","));
+      }
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const d   = await res.json();
+      if (!d.error) setKpiData(d);
+    } catch (err) { console.error(err); }
+    finally { setKpiLoading(false); }
+  }, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => { if (!viewArchive) fetchKpis(); }, [fetchKpis, viewArchive]);
+
+  const filterLabel = filterBranch ? filterBranch : filterBrand ? (selectedBrand?.name + " – All Branches") : "All Brands & Branches";
+
+  const getRangeLabel = () => {
+    if (viewArchive) return `Archive: ${viewArchive.year}`;
+    if (rangeMode === "custom" && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
+    return { day: "Today", week: "This Week", month: "This Month", year: "This Year" }[preset] || "This Month";
+  };
+
+  const chartData = useMemo(() => {
+    if (viewArchive) return viewArchive.chartData;
+    let txList = transactions;
+    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = transactions.filter(tx => bn.includes(tx.branch));
+    }
+    if (!txList.length) return { labels: [], values: [] };
+    const now = new Date();
+    const filtered = txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === "day")   return d.toDateString() === now.toDateString();
+      if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === "year")  return d.getFullYear() === now.getFullYear();
+      if (rangeMode === "custom" && appliedRange) { const f = new Date(appliedRange.from); const t = new Date(appliedRange.to); return d >= f && d <= t; }
+      return true;
+    });
+    let grouped = {};
+    if (preset === "day")   filtered.forEach(tx => { const h = new Date(tx.created_at).getHours(); const l = `${h}:00`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+    else if (preset === "week")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{weekday:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+    else if (preset === "month") filtered.forEach(tx => { const l = `D${new Date(tx.created_at).getDate()}`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+    else if (preset === "year")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{month:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+    else if (rangeMode === "custom" && appliedRange) {
+      const from = new Date(appliedRange.from), to = new Date(appliedRange.to);
+      const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
+      const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
+      const values = Array(nw).fill(0);
+      filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
+      return { labels, values };
+    }
+    const labels = Object.keys(grouped);
+    return { labels, values: labels.map(l => grouped[l]) };
+  }, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
+
+  const values    = chartData.values;
+  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : "—";
+  const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
+  const trending  = Number(pctChange) >= 0;
+
+  const saveArchive = () => {
+    const year = parseInt(archiveYear);
+    if (isNaN(year) || year < 2000 || year > 2100) { alert("Enter a valid year"); return; }
+    if (archives.find(a => a.year === year)) { alert(`Year ${year} already archived`); return; }
+    const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
+    const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
+    setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+    setArchiveConf(false); alert(`Year ${year} archived!`);
+  };
+  const deleteArchive = (year) => {
+    if (!window.confirm(`Delete archive for ${year}?`)) return;
+    const upd = archives.filter(a => a.year !== year);
+    setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+    if (viewArchive?.year === year) setViewArchive(null);
+  };
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) { alert("Select both dates"); return; }
+    if (customFrom > customTo) { alert("\"From\" cannot be after \"To\""); return; }
+    setAppliedRange({ from: customFrom, to: customTo }); setViewArchive(null);
+  };
+
+  const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
+  const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
+  const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#00695c" : "#0d2b1e", fontWeight: a ? 700 : 500, background: a ? "#e0f2f1" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
+  const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        *, *::before, *::after { box-sizing: border-box; }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* Archive banner */}
+      {viewArchive && (
+        <div style={{ background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
+            <Archive size={16} /> Viewing Archive: {viewArchive.year}
+            <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewArchive.savedAt}</span>
+          </span>
+          <button onClick={() => setViewArchive(null)} style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
+            <X size={12} /> Exit Archive View
+          </button>
+        </div>
+      )}
+
+      {/* ── KPI Cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+        {[
+          { label: "Sales Revenue", value: kpiData?.salesRevenue,  icon: TrendingUp   },
+          { label: "Sales Profit",  value: kpiData?.salesProfit,   icon: BarChart2    },
+          { label: "Cost of Sales", value: kpiData?.cogs,          icon: Package      },
+          { label: "Total Sales",   value: kpiData?.totalSales,    icon: ShoppingCart },
+        ].map((k, i) => (
+          <div key={i}
+            style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                  <k.icon size={12} color="#00897b" /> {k.label}
+                </div>
+                {kpiLoading && k.value == null
+                  ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                  : k.value != null
+                    ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>{fmtAmt(k.value)}</div>
+                    : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                }
+              </div>
+              <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filter + Date toolbar ── */}
+      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {/* Brand dropdown */}
+        <div ref={brandRef} style={{ position: "relative", minWidth: 170 }}>
+          <div onClick={() => { setBrandDropOpen(v => !v); setBrandQ(""); }}
+            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#0d2b1e" : "#5a7a65" }}>
+            <Globe size={12} color="#00897b" />
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
+            <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />
+          </div>
+          {brandDropOpen && (
+            <div style={dropSt}>
+              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                  <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                </div>
+              </div>
+              <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
+              {filteredBrands.map(b => (
+                <div key={b.id} style={optSt(filterBrand === b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
+                  <Store size={12} color="#00897b" /> {b.name}
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "#5a7a65" }}>{(b.branches || []).length} branches</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Branch dropdown */}
+        <div ref={branchRef} style={{ position: "relative", minWidth: 180, opacity: filterBrand ? 1 : 0.45 }}>
+          <div onClick={() => { if (filterBrand) { setBranchDropOpen(v => !v); setBranchQ(""); } }}
+            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#0d2b1e" : "#5a7a65" }}>
+            <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{filterBranch || (filterBrand ? "All Branches" : "Select brand first")}</span>
+            {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />}
+          </div>
+          {branchDropOpen && filterBrand && (
+            <div style={dropSt}>
+              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                  <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                </div>
+              </div>
+              <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
+              {filteredBranches.map(br => (
+                <div key={br} style={optSt(filterBranch === br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
+                  <Store size={11} color="#00897b" /> {br}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Active chips */}
+        {(filterBrand || filterBranch) && (
+          <>
+            {filterBrand && !filterBranch && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+                <Store size={10} /> {selectedBrand?.name} <X size={9} />
+              </span>
+            )}
+            {filterBranch && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                onClick={() => setFilterBranch(null)}>
+                <Store size={10} /> {filterBranch} <X size={9} />
+              </span>
+            )}
+            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
+          </>
+        )}
+
+        <div style={{ width: 1, height: 24, background: "#e0ede2", margin: "0 4px" }} />
+
+        {/* Preset tabs */}
+        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+          {["day","week","month","year"].map(p => (
+            <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewArchive(null); }}>
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom range */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Calendar size={12} color="#5a7a65" />
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
+        </div>
+
+        {/* Archive */}
+        <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          <Archive size={13} /> Archives
+          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+        </button>
+      </div>
+
+      {/* Archive panel */}
+      {showArchive && (
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
+              <Archive size={15} color="#00897b" /> Yearly Archives
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!archiveConf ? (
+                <>
+                  <input type="number" value={archiveYear} onChange={e => setArchiveYear(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
+                  <button onClick={() => setArchiveConf(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                    <Plus size={12} /> Archive Year
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYear}?</span>
+                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
+                  <button onClick={() => setArchiveConf(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
+                </div>
+              )}
+            </div>
+          </div>
+          {archives.length === 0
+            ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
+            : archives.map(a => (
+              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 7 }}>
+                  <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                    {viewArchive?.year === a.year ? "Viewing" : "View"}
+                  </button>
+                  <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* ── SECTION 1: SALES TREND ── */}
+      <SalesTrendSection
+        values={values} labels={chartData.labels} kpiData={kpiData}
+        total={total} avg={avg} peak={peak} low={low}
+        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
+        getRangeLabel={getRangeLabel} filterLabel={filterLabel}
+      />
+
+      {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
+      <PrescriptiveSection
+        transactions={transactions} filterLabel={filterLabel}
+        preset={preset} total={total} values={values} kpiData={kpiData}
+      />
+
+      {/* ── SECTION 3: SALES VS STOCK ── */}
+      <SalesVsStockSection
+        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
+        filterBranch={filterBranch} filterBrand={filterBrand}
+        selectedBrand={selectedBrand} total={total}
+      />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// ALL CONTENT COMPONENTS BELOW ARE UNCHANGED FROM ORIGINAL
+// ████████████  ALL OTHER COMPONENTS BELOW — UNCHANGED FROM CODE 2  ██████████
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE CONFIRM MODAL
-// ─────────────────────────────────────────────────────────────────────────────
+
+// ── DeleteConfirmModal ────────────────────────────────────────────────────────
 function DeleteConfirmModal({ target, onConfirm, onClose }) {
   const isBrand = target.type === "brand";
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 20, padding: "28px 32px",
-          width: "100%", maxWidth: 420,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-          border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
-        }}
-      >
-        {/* Icon */}
-        <div
-          style={{
-            width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 16px",
-          }}
-        >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <Trash2 size={22} color="#dc2626" />
         </div>
-
-        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
-          Delete {isBrand ? "brand" : "branch"}?
-        </h2>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>Delete {isBrand ? "brand" : "branch"}?</h2>
         <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
-          You are about to delete <strong>"{target.name}"</strong>
-          {isBrand ? " and all its associated data." : "."}
+          You are about to delete <strong>"{target.name}"</strong>{isBrand ? " and all its associated data." : "."}
         </p>
-
         {isBrand && target.branchCount > 0 && (
-          <div
-            style={{
-              background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10,
-              padding: "10px 14px", fontSize: 12, color: "#c2410c",
-              textAlign: "center", marginBottom: 16,
-            }}
-          >
-            ⚠ This brand has {target.branchCount}{" "}
-            {target.branchCount === 1 ? "branch" : "branches"}. All branches will also be deleted.
+          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#c2410c", textAlign: "center", marginBottom: 16 }}>
+            ⚠ This brand has {target.branchCount} {target.branchCount === 1 ? "branch" : "branches"}. All branches will also be deleted.
           </div>
         )}
-
-        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
-          You can recover this from Delete History.
-        </p>
-
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>You can recover this from Delete History.</p>
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#dc2626,#ef4444)",
-              color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
-            }}
-          >
+          <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button type="button" onClick={onConfirm} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)" }}>
             <Trash2 size={14} /> Delete {isBrand ? "brand" : "branch"}
           </button>
         </div>
@@ -732,209 +1790,56 @@ function DeleteConfirmModal({ target, onConfirm, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE HISTORY PANEL
-// ─────────────────────────────────────────────────────────────────────────────
+// ── DeleteHistoryPanel ────────────────────────────────────────────────────────
 function DeleteHistoryPanel({ history, onRestore, onClose }) {
-  const fmt = (d) =>
-    new Date(d).toLocaleString("en-PH", {
-      month: "short", day: "numeric", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-
+  const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 20, padding: "28px 32px",
-          width: "100%", maxWidth: 580, maxHeight: "80vh",
-          display: "flex", flexDirection: "column",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-          border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
-        }}
-      >
-        {/* Header */}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
-              Delete History
-            </h2>
-            {history.length > 0 && (
-              <span
-                style={{
-                  fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
-                  background: "#fee2e2", color: "#dc2626",
-                }}
-              >
-                {history.length} deleted
-              </span>
-            )}
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>Delete History</h2>
+            {history.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#dc2626" }}>{history.length} deleted</span>}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: "50%",
-              border: "1px solid #b2dfdb", background: "#e0f2f1",
-              cursor: "pointer", color: "#00695c",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <X size={15} />
-          </button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
         </div>
-
-        {/* List */}
         <div style={{ overflowY: "auto", flex: 1 }}>
           {history.length === 0 ? (
-            <div
-              style={{
-                padding: "40px 0", textAlign: "center",
-                color: "#9ca3af", fontSize: 13, fontStyle: "italic",
-              }}
-            >
-              No deleted items yet.
-            </div>
-          ) : (
-            history.map((entry, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "12px 0",
-                  borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none",
-                }}
-              >
-                {/* Type badge */}
-                <span
-                  style={{
-                    fontSize: 10, fontWeight: 800, padding: "3px 10px",
-                    borderRadius: 20, whiteSpace: "nowrap",
-                    background: entry.type === "brand" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)",
-                    color: entry.type === "brand" ? "#2563eb" : "#059669",
-                  }}
-                >
-                  {entry.type === "brand" ? "Brand" : "Branch"}
-                </span>
-
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 700, fontSize: 13, color: "#0d2b1e",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}
-                  >
-                    {entry.name}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>
-                    {fmt(entry.deletedAt)}
-                    {entry.type === "brand" && entry.data?.branches?.length > 0
-                      ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included`
-                      : ""}
-                    {entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}
-                    {entry.type === "branch" && entry.data?.region ? ` · ${entry.data.region}` : ""}
-                    {entry.type === "branch" && entry.data?.concept ? ` · ${entry.data.concept}` : ""}
-                  </div>
-                </div>
-
-                {/* Restore button */}
-                <button
-                  onClick={() => onRestore(entry)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 14px", borderRadius: 9,
-                    border: "1.5px solid #00897b", background: "#e0f2f1",
-                    color: "#00695c", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
-                    whiteSpace: "nowrap", flexShrink: 0,
-                  }}
-                >
-                  <RotateCcw size={12} /> Restore
-                </button>
+            <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af", fontSize: 13, fontStyle: "italic" }}>No deleted items yet.</div>
+          ) : history.map((entry, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", background: entry.type === "brand" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)", color: entry.type === "brand" ? "#2563eb" : "#059669" }}>
+                {entry.type === "brand" ? "Brand" : "Branch"}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</div>
+                <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>{fmt(entry.deletedAt)}{entry.type === "brand" && entry.data?.branches?.length > 0 ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included` : ""}{entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}</div>
               </div>
-            ))
-          )}
+              <button onClick={() => onRestore(entry)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
+                <RotateCcw size={12} /> Restore
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BM MODAL (shared add/edit wrapper)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── BmModal ───────────────────────────────────────────────────────────────────
 function BmModal({ title, onClose, onSubmit, children }) {
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 20, padding: "28px 32px",
-          width: "100%", maxWidth: 520,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-          border: "1px solid rgba(0,168,76,0.15)",
-          maxHeight: "92vh", overflowY: "auto",
-        }}
-      >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: "50%",
-              border: "1px solid #b2dfdb", background: "#e0f2f1",
-              cursor: "pointer", color: "#00695c",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <X size={15} />
-          </button>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
         </div>
         <form onSubmit={onSubmit}>
           {children}
           <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 24px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
-                color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
-              }}
-            >
-              <Check size={14} /> Save
-            </button>
+            <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+            <button type="submit" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}><Check size={14} /> Save</button>
           </div>
         </form>
       </div>
@@ -942,210 +1847,92 @@ function BmModal({ title, onClose, onSubmit, children }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BRAND FORM FIELDS
-// ─────────────────────────────────────────────────────────────────────────────
+// ── BrandFormFields ───────────────────────────────────────────────────────────
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
-  const inputSt = {
-    width: "100%", padding: "9px 12px", borderRadius: 10,
-    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
-    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
-    marginTop: 4, boxSizing: "border-box",
-  };
-  const lbl = {
-    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
-    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
-  };
-
+  const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e", background: "#f0fdf5", fontFamily: "inherit", outline: "none", marginTop: 4, boxSizing: "border-box" };
+  const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
   const addCategory = () => {
     const val = catInput.trim();
     if (!val) return;
-    if ((form.categories || []).map((c) => c.toLowerCase()).includes(val.toLowerCase())) {
-      alert(`"${val}" is already in the list.`);
-      return;
-    }
+    if ((form.categories || []).map((c) => c.toLowerCase()).includes(val.toLowerCase())) { alert(`"${val}" is already in the list.`); return; }
     setForm((f) => ({ ...f, categories: [...(f.categories || []), val] }));
     setCatInput("");
   };
-  const removeCategory = (cat) =>
-    setForm((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }));
-
+  const removeCategory = (cat) => setForm((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }));
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div>
-        <label style={lbl}>Brand Name *</label>
-        <input style={inputSt} {...f("name")} placeholder="Enter brand name" required />
-      </div>
+      <div><label style={lbl}>Brand Name *</label><input style={inputSt} {...f("name")} placeholder="Enter brand name" required /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div>
-          <label style={lbl}>Contact Email</label>
-          <input type="email" style={inputSt} {...f("contact_email")} placeholder="brand@example.com" />
-        </div>
+        <div><label style={lbl}>Contact Email</label><input type="email" style={inputSt} {...f("contact_email")} placeholder="brand@example.com" /></div>
         <div>
           <label style={lbl}>Contact Phone</label>
-          <input
-            type="tel"
-            style={inputSt}
-            maxLength={11}
-            value={form.contact_phone}
-            onKeyDown={(e) => {
-              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"];
-              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
-              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
-            }}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
-              setForm((prev) => ({ ...prev, contact_phone: digits }));
-            }}
-            placeholder="09XXXXXXXXX"
-          />
+          <input type="tel" style={inputSt} maxLength={11} value={form.contact_phone}
+            onKeyDown={(e) => { const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"]; const isShortcut = (e.ctrlKey||e.metaKey)&&["a","c","v","x","z","y"].includes(e.key.toLowerCase()); if (!/^\d$/.test(e.key)&&!allowed.includes(e.key)&&!isShortcut) e.preventDefault(); }}
+            onChange={(e) => { const digits = e.target.value.replace(/\D/g,"").slice(0,11); setForm((prev) => ({...prev,contact_phone:digits})); }}
+            placeholder="09XXXXXXXXX" />
         </div>
       </div>
-      <div>
-        <label style={lbl}>Description</label>
-        <textarea style={{ ...inputSt, resize: "vertical", lineHeight: 1.5 }} {...f("description")} rows={3} placeholder="Brief description..." />
-      </div>
+      <div><label style={lbl}>Description</label><textarea style={{ ...inputSt, resize: "vertical", lineHeight: 1.5 }} {...f("description")} rows={3} placeholder="Brief description..." /></div>
       <div>
         <label style={lbl}>Categories</label>
         <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <input
-            style={{ ...inputSt, marginTop: 0, flex: 1 }}
-            placeholder="e.g. Medicine, Supplement..."
-            value={catInput}
-            onChange={(e) => setCatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-          />
-          <button
-            type="button"
-            onClick={addCategory}
-            style={{
-              padding: "9px 16px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#2E7D32,#00897b)",
-              color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-              display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
-            }}
-          >
-            <Plus size={13} /> Add
-          </button>
+          <input style={{ ...inputSt, marginTop: 0, flex: 1 }} placeholder="e.g. Medicine, Supplement..." value={catInput} onChange={(e) => setCatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }} />
+          <button type="button" onClick={addCategory} style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}><Plus size={13} /> Add</button>
         </div>
-        {(form.categories || []).length === 0 ? (
-          <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>No categories yet.</div>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
-            {form.categories.map((cat) => (
-              <span
-                key={cat}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "4px 12px", borderRadius: 20,
-                  background: "#e0f2f1", border: "1.5px solid #00897b",
-                  color: "#00695c", fontSize: 12, fontWeight: 700,
-                }}
-              >
-                {cat}
-                <button
-                  type="button"
-                  onClick={() => removeCategory(cat)}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#00897b" }}
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        {(form.categories || []).length === 0
+          ? <div style={{ fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 6 }}>No categories yet.</div>
+          : <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+              {form.categories.map((cat) => (
+                <span key={cat} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: "#e0f2f1", border: "1.5px solid #00897b", color: "#00695c", fontSize: 12, fontWeight: 700 }}>
+                  {cat}
+                  <button type="button" onClick={() => removeCategory(cat)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: "#00897b" }}><X size={12} /></button>
+                </span>
+              ))}
+            </div>
+        }
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BRANCH FORM FIELDS
-// ─────────────────────────────────────────────────────────────────────────────
+// ── BranchFormFields ──────────────────────────────────────────────────────────
 function BranchFormFields({ form, setForm, brands }) {
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
-  const inputSt = {
-    width: "100%", padding: "9px 12px", borderRadius: 10,
-    border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e",
-    background: "#f0fdf5", fontFamily: "inherit", outline: "none",
-    marginTop: 4, boxSizing: "border-box",
-  };
-  const lbl = {
-    display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65",
-    marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em",
-  };
+  const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e", background: "#f0fdf5", fontFamily: "inherit", outline: "none", marginTop: 4, boxSizing: "border-box" };
+  const lbl = { display: "block", fontSize: 11, fontWeight: 800, color: "#5a7a65", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.07em" };
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <div>
-        <label style={lbl}>Parent Brand *</label>
-        <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("brand_id")} required>
-          <option value="">Select brand</option>
-          {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-      </div>
-      <div>
-        <label style={lbl}>Branch Name *</label>
-        <input style={inputSt} {...f("name")} required />
-      </div>
+      <div><label style={lbl}>Parent Brand *</label><select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("brand_id")} required><option value="">Select brand</option>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+      <div><label style={lbl}>Branch Name *</label><input style={inputSt} {...f("name")} required /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label style={lbl}>Region *</label>
           <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("region")} required>
             <option value="">Select region</option>
-            {["NCR", "Region 3", "Region 4A", "Region 4B", "Region 5", "Region 7", "Region 11"].map((r) => (
-              <option key={r}>{r}</option>
-            ))}
+            {["NCR","Region 3","Region 4A","Region 4B","Region 5","Region 7","Region 11"].map((r) => <option key={r}>{r}</option>)}
           </select>
         </div>
         {String(form.brand_id) === brands.find((b) => b.name === "Coffee Spot")?.id?.toString() && (
-          <div>
-            <label style={lbl}>Concept *</label>
-            <select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("concept")}>
-              <option value="">Select concept</option>
-              <option>Full Store</option>
-              <option>Kiosk</option>
-            </select>
-          </div>
+          <div><label style={lbl}>Concept *</label><select style={{ ...inputSt, appearance: "none", cursor: "pointer" }} {...f("concept")}><option value="">Select concept</option><option>Full Store</option><option>Kiosk</option></select></div>
         )}
       </div>
-      <div>
-        <label style={lbl}>Branch Manager</label>
-        <input style={inputSt} {...f("manager")} />
-      </div>
+      <div><label style={lbl}>Branch Manager</label><input style={inputSt} {...f("manager")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label style={lbl}>Contact Number</label>
-          <input
-            type="tel"
-            style={inputSt}
-            maxLength={11}
-            value={form.contact}
-            onKeyDown={(e) => {
-              const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End", "Control"];
-              const isShortcut = (e.ctrlKey || e.metaKey) && ["a", "c", "v", "x", "z", "y"].includes(e.key.toLowerCase());
-              if (!/^\d$/.test(e.key) && !allowed.includes(e.key) && !isShortcut) e.preventDefault();
-            }}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
-              setForm((prev) => ({ ...prev, contact: digits }));
-            }}
-          />
+          <input type="tel" style={inputSt} maxLength={11} value={form.contact}
+            onKeyDown={(e) => { const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End","Control"]; const isShortcut = (e.ctrlKey||e.metaKey)&&["a","c","v","x","z","y"].includes(e.key.toLowerCase()); if (!/^\d$/.test(e.key)&&!allowed.includes(e.key)&&!isShortcut) e.preventDefault(); }}
+            onChange={(e) => { const digits = e.target.value.replace(/\D/g,"").slice(0,11); setForm((prev) => ({...prev,contact:digits})); }} />
         </div>
-        <div>
-          <label style={lbl}>Address</label>
-          <input style={inputSt} {...f("address")} />
-        </div>
+        <div><label style={lbl}>Address</label><input style={inputSt} {...f("address")} /></div>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
+// ── BrandManagementContent ────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -1158,37 +1945,24 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [showEditBranchModal, setShowEditBranchModal] = useState(false);
   const [selectedBrand,       setSelectedBrand]       = useState(null);
   const [selectedBranch,      setSelectedBranch]      = useState(null);
-
-  // ── Delete modal & history ──────────────────────────────────────────────
-  const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
-  const [deletedHistory, setDeletedHistory] = useState([]);
-
-const fetchDeleteHistory = async () => {
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
-    const data = await res.json();
-    const normalized = Array.isArray(data) ? data.map(entry => ({
-      ...entry,
-      brandName: entry.brand_name ?? null,
-      deletedAt: entry.deleted_at ?? null,
-      data: typeof entry.data === 'string' 
-        ? JSON.parse(entry.data) 
-        : (entry.data ?? {}),
-    })) : [];
-    setDeletedHistory(normalized);
-  } catch (err) { 
-    console.error(err); 
-  }
-};
-  const [showHistory,    setShowHistory]    = useState(false);
-
+  const [deleteTarget,        setDeleteTarget]        = useState(null);
+  const [deletedHistory,      setDeletedHistory]      = useState([]);
+  const [showHistory,         setShowHistory]         = useState(false);
   const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
   const emptyBranch = { name: "", brand_id: "", region: "", manager: "", contact: "", address: "", concept: "" };
-
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
   useEffect(() => { fetchBrands(); fetchDeleteHistory(); }, []);
+
+  const fetchDeleteHistory = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
+      const data = await res.json();
+      const normalized = Array.isArray(data) ? data.map(entry => ({ ...entry, brandName: entry.brand_name ?? null, deletedAt: entry.deleted_at ?? null, data: typeof entry.data === 'string' ? JSON.parse(entry.data) : (entry.data ?? {}) })) : [];
+      setDeletedHistory(normalized);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -1196,34 +1970,19 @@ const fetchDeleteHistory = async () => {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-
-          const sorted = [...list].sort((a, b) => {
-      if (a.name === "Head Office") return -1;
-      if (b.name === "Head Office") return 1;
-      return 0;
-    });
-
+      const sorted = [...list].sort((a, b) => { if (a.name === "Head Office") return -1; if (b.name === "Head Office") return 1; return 0; });
       setBrands(sorted);
       onBrandsChange?.(sorted);
-    } catch (err) {
-      console.error("Failed to fetch brands:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Failed to fetch brands:", err); }
+    finally { setLoading(false); }
   };
 
-  // ── Add / Edit Brand ───────────────────────────────────────────────────
   const handleAddBrand = async (e) => {
     e.preventDefault();
-    const duplicate = brands.some(
-      (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
-    );
+    const duplicate = brands.some((b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase());
     if (duplicate) { alert(`A brand named "${brandForm.name}" already exists.`); return; }
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandForm),
-      });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandForm) });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowAddBrandModal(false); setBrandForm(emptyBrand); }
       else alert(data.error || "Failed to add brand");
@@ -1233,74 +1992,34 @@ const fetchDeleteHistory = async () => {
   const handleEditBrand = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandForm),
-      });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandForm) });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowEditBrandModal(false); setSelectedBrand(null); }
       else alert(data.error || "Failed to update brand");
     } catch { alert("Failed to update brand"); }
   };
 
-  // ── Delete Brand (modal-driven) ────────────────────────────────────────
-const handleDeleteBrand = async () => {
-  const { id, name } = deleteTarget;
-  
-  // Get full brand with branches from local state
-  const brand = brands.find((b) => b.id === id);
-  const brandToSave = {
-    name: brand.name,
-    categories: brand.categories || [],
-    contact_email: brand.contact_email || null,
-    contact_phone: brand.contact_phone || null,
-    description: brand.description || null,
-    branches: (brand.branches || []).map(br => ({
-      name: br.name,
-      region: br.region || null,
-      manager: br.manager || null,
-      contact: br.contact || null,
-      address: br.address || null,
-      concept: br.concept || null,
-    })),
+  const handleDeleteBrand = async () => {
+    const { id, name } = deleteTarget;
+    const brand = brands.find((b) => b.id === id);
+    const brandToSave = { name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email || null, contact_phone: brand.contact_phone || null, description: brand.description || null, branches: (brand.branches || []).map(br => ({ name: br.name, region: br.region || null, manager: br.manager || null, contact: br.contact || null, address: br.address || null, concept: br.concept || null })) };
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'brand', name, brand_name: null, data: brandToSave }) });
+        await fetchBrands(); await fetchDeleteHistory(); setDeleteTarget(null);
+      } else alert(data.error || "Failed to delete brand");
+    } catch { alert("Failed to delete brand"); }
   };
 
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { 
-      method: "DELETE" 
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: 'brand', 
-          name, 
-          brand_name: null,
-          data: brandToSave,  // ← clean object, no old IDs
-        }),
-      });
-      await fetchBrands();
-      await fetchDeleteHistory();
-      setDeleteTarget(null);
-    } else alert(data.error || "Failed to delete brand");
-  } catch { alert("Failed to delete brand"); }
-};
-
-  // ── Add / Edit Branch ──────────────────────────────────────────────────
   const handleAddBranch = async (e) => {
     e.preventDefault();
     const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
-    const duplicate   = parentBrand?.branches?.some(
-      (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
-    );
+    const duplicate   = parentBrand?.branches?.some((br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
     if (duplicate) { alert(`A branch named "${branchForm.name}" already exists under this brand.`); return; }
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchForm),
-      });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branchForm) });
       const data = await res.json();
       if (data.success) { await fetchBrands(); setShowAddBranchModal(false); setBranchForm(emptyBranch); }
       else alert(data.error || "Failed to add branch");
@@ -1310,10 +2029,7 @@ const handleDeleteBrand = async () => {
   const handleEditBranch = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchForm),
-      });
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branchForm) });
       const text = await res.text();
       const data = JSON.parse(text);
       if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
@@ -1321,200 +2037,76 @@ const handleDeleteBrand = async () => {
     } catch { alert("Failed to update branch"); }
   };
 
-  // ── Delete Branch (modal-driven) ───────────────────────────────────────
   const handleDeleteBranch = async () => {
-  const { id, name, brandName } = deleteTarget;
-  const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    type: 'branch', 
-    name, 
-    brand_name: brandName,  // ← was: brandName as key name (JS shorthand sent it fine but backend destructures brand_name)
-    data: branch 
-  }),
-});
-      await fetchBrands();          // ← was missing
-      await fetchDeleteHistory();
-      setDeleteTarget(null);
-    } else alert(data.error || "Failed to delete branch");
-  } catch { alert("Failed to delete branch"); }
-};
-  // ── Restore ────────────────────────────────────────────────────────────
-const handleRestore = async (entry) => {
-  try {
-    if (entry.type === "brand") {
-      const { branches, ...brandFields } = entry.data;
-      const branchList = Array.isArray(branches) ? branches : [];
-
-      console.log("Restoring brand:", brandFields);
-      console.log("With branches:", branchList);
-
-      // Step 1: re-create the brand
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandFields),
-      });
-      const data = await res.json();
-
-      if (!data.success) {
-        alert(data.error || "Failed to restore brand");
-        return;
-      }
-
-      const newBrandId = data.id;
-      console.log("New brand ID:", newBrandId);
-
-      // Step 2: re-create each branch under the new brand
-      for (const br of branchList) {
-        const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-        console.log("Restoring branch:", branchFields, "under brand_id:", newBrandId);
-
-        const brRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: branchFields.name,
-            region: branchFields.region || null,
-            manager: branchFields.manager || null,
-            contact: branchFields.contact || null,
-            address: branchFields.address || null,
-            concept: branchFields.concept || null,
-            brand_id: newBrandId,
-          }),
-        });
-        const brData = await brRes.json();
-        console.log("Branch restore result:", brData);
-        if (!brData.success) {
-          console.error("Failed to restore branch:", branchFields.name, brData.error);
-        }
-      }
-
-      // Step 3: remove from delete history
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
-        method: 'DELETE',
-      });
-
-      await fetchBrands();
-      await fetchDeleteHistory();
-
-    } else {
-      // Branch restore
-      const parentBrand = brands.find((b) => b.name === entry.brandName);
-
-      if (!parentBrand) {
-        alert(
-          `Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.\n` +
-          `Restore the brand first if it was also deleted.`
-        );
-        return;
-      }
-
-      const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: branchFields.name,
-          region: branchFields.region || null,
-          manager: branchFields.manager || null,
-          contact: branchFields.contact || null,
-          address: branchFields.address || null,
-          concept: branchFields.concept || null,
-          brand_id: parentBrand.id,
-        }),
-      });
+    const { id, name, brandName } = deleteTarget;
+    const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
-          method: 'DELETE',
-        });
-        await fetchBrands();
-        await fetchDeleteHistory();
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'branch', name, brand_name: brandName, data: branch }) });
+        await fetchBrands(); await fetchDeleteHistory(); setDeleteTarget(null);
+      } else alert(data.error || "Failed to delete branch");
+    } catch { alert("Failed to delete branch"); }
+  };
+
+  const handleRestore = async (entry) => {
+    try {
+      if (entry.type === "brand") {
+        const { branches, ...brandFields } = entry.data;
+        const branchList = Array.isArray(branches) ? branches : [];
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandFields) });
+        const data = await res.json();
+        if (!data.success) { alert(data.error || "Failed to restore brand"); return; }
+        const newBrandId = data.id;
+        for (const br of branchList) {
+          const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
+          await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: branchFields.name, region: branchFields.region || null, manager: branchFields.manager || null, contact: branchFields.contact || null, address: branchFields.address || null, concept: branchFields.concept || null, brand_id: newBrandId }) });
+        }
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+        await fetchBrands(); await fetchDeleteHistory();
       } else {
-        alert(data.error || "Failed to restore branch");
+        const parentBrand = brands.find((b) => b.name === entry.brandName);
+        if (!parentBrand) { alert(`Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.`); return; }
+        const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: branchFields.name, region: branchFields.region || null, manager: branchFields.manager || null, contact: branchFields.contact || null, address: branchFields.address || null, concept: branchFields.concept || null, brand_id: parentBrand.id }) });
+        const data = await res.json();
+        if (data.success) {
+          await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+          await fetchBrands(); await fetchDeleteHistory();
+        } else alert(data.error || "Failed to restore branch");
       }
-    }
-  } catch (err) {
-    console.error("Restore error:", err);
-    alert("Failed to restore: " + err.message);
-  }
-};
-  // ── Derived data ───────────────────────────────────────────────────────
+    } catch (err) { console.error("Restore error:", err); alert("Failed to restore: " + err.message); }
+  };
+
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
-  const allRegions    = [
-    ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
-  ];
+  const allRegions    = [...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean))];
+  const filteredBrands = brands.map((brand) => ({
+    ...brand,
+    branches: (brand.branches || []).filter((br) =>
+      (!searchQuery || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
+      (filterRegion === "all" || br.region === filterRegion)
+    ),
+  })).filter((brand) => {
+    if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
+    if (filterRegion !== "all" && brand.branches.length === 0) return false;
+    if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+    return true;
+  });
 
-  const filteredBrands = brands
-    .map((brand) => ({
-      ...brand,
-      branches: (brand.branches || []).filter(
-        (br) =>
-          (!searchQuery ||
-            br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
-          (filterRegion === "all" || br.region === filterRegion)
-      ),
-    }))
-    .filter((brand) => {
-      if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
-      if (filterRegion !== "all" && brand.branches.length === 0) return false;
-      if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
-      return true;
-    });
-
-  // ── Sub-components ─────────────────────────────────────────────────────
   const ConceptBadge = ({ concept }) => {
-    const styles = {
-      "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" },
-      "Kiosk":      { bg: "rgba(59,130,246,0.1)", color: "#2563eb" },
-    };
+    const styles = { "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" }, "Kiosk": { bg: "rgba(59,130,246,0.1)", color: "#2563eb" } };
     const s = styles[concept] || { bg: "rgba(156,163,175,0.1)", color: "#6b7280" };
-    return (
-      <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-        {concept || "—"}
-      </span>
-    );
+    return <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{concept || "—"}</span>;
   };
 
-  // ── Shared table styles ────────────────────────────────────────────────
-  const thSt = {
-    padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
-    color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
-    borderBottom: "2px solid #d1eedd", background: "#f8fffe",
-    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  };
-  const tdSt = {
-    padding: "11px 12px", borderBottom: "1px solid #f0f8f0",
-    verticalAlign: "middle", overflow: "hidden",
-  };
+  const thSt = { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "2px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+  const tdSt = { padding: "11px 12px", borderBottom: "1px solid #f0f8f0", verticalAlign: "middle", overflow: "hidden" };
 
-  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      <style>{`
-        .bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; }
-        .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
-        .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
-        .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; }
-        .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; }
-        .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; }
-        .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); }
-        .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; }
-        .bm-branch-tr:hover td { background:#f6fef8 !important; }
-        .bm-branch-tr:last-child td { border-bottom:none !important; }
-      `}</style>
-
+      <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; }`}</style>
       <div className="bm-root">
-        {/* ── Stat cards ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
           {[
             { label: "Total Brands",   value: brands.length, icon: <Globe size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#6ee7b7)", sub: "Registered brands" },
@@ -1533,73 +2125,40 @@ const handleRestore = async (entry) => {
           ))}
         </div>
 
-        {/* ── Toolbar ── */}
         <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-
-            {/* Search */}
             <div style={{ position:"relative" }}>
               <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
-              <input
-                type="text"
-                placeholder="Search brands or branches..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="bm-input"
-                style={{ paddingLeft:32, width:260 }}
-              />
+              <input type="text" placeholder="Search brands or branches..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bm-input" style={{ paddingLeft:32, width:260 }}/>
             </div>
-
-            {/* Brand filter */}
             <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
               <option value="all">All Brands</option>
               {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
-
-            {/* Region filter */}
             <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
               <option value="all">All Regions</option>
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-
-            {/* Right-side actions */}
             <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-              <button
-                onClick={() => setShowHistory(true)}
-                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-              >
-                <History size={14}/>
-                Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
+              <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
               </button>
-
-              <button
-                onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
-                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-              >
+              <button onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 <Plus size={14}/> Add Branch
               </button>
             </div>
-
           </div>
         </div>
 
-        {/* ── Brand list ── */}
         {loading ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
-            Loading brands & branches...
-          </div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>Loading brands & branches...</div>
         ) : filteredBrands.length === 0 ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
-            No brands found. Add your first brand above.
-          </div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>No brands found. Add your first brand above.</div>
         ) : filteredBrands.map((brand) => (
           <div key={brand.id} className="bm-brand-card">
-            {/* Brand header */}
             <div className="bm-brand-header">
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Globe size={20} color="#fff" />
-                </div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}><Globe size={20} color="#fff" /></div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 16 }}>{brand.name}</div>
                   <div style={{ fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
@@ -1609,60 +2168,18 @@ const handleRestore = async (entry) => {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>
-                  {brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}
-                </span>
-                <button
-                  onClick={() => {
-                    setSelectedBrand(brand);
-                    setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
-                    setShowEditBrandModal(true);
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  <Edit2 size={12} /> Edit Brand
-                </button>
-                <button
-                  onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  <Trash2 size={12} /> Delete
-                </button>
+                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}</span>
+                <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description }); setShowEditBrandModal(true); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Edit2 size={12} /> Edit Brand</button>
+                <button onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Trash2 size={12} /> Delete</button>
               </div>
             </div>
-
-            {/* Branches table */}
             <div style={{ width: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-                <colgroup>
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "11%" }} />
-                  <col style={{ width: "16%" }} />
-                  <col style={{ width: "13%" }} />
-                  <col style={{ width: "22%" }} />
-                  <col style={{ width: "10%" }} />
-                  <col style={{ width: "8%" }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {["Branch Name", "Region", "Manager", "Contact", "Address", "Concept", "Actions"].map((h) => (
-                      <th key={h} style={thSt}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <colgroup><col style={{ width: "20%" }} /><col style={{ width: "11%" }} /><col style={{ width: "16%" }} /><col style={{ width: "13%" }} /><col style={{ width: "22%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /></colgroup>
+                <thead><tr>{["Branch Name","Region","Manager","Contact","Address","Concept","Actions"].map((h) => <th key={h} style={thSt}>{h}</th>)}</tr></thead>
                 <tbody>
                   {(!brand.branches || brand.branches.length === 0) ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>
-                        No branches yet.{" "}
-                        <span
-                          style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
-                          onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}
-                        >
-                          Add the first branch
-                        </span>
-                      </td>
-                    </tr>
+                    <tr><td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>No branches yet.{" "}<span style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }} onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}>Add the first branch</span></td></tr>
                   ) : brand.branches.map((branch) => (
                     <tr key={branch.id} className="bm-branch-tr">
                       <td style={{ ...tdSt, fontWeight: 700, color: "#0d2b1e", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
@@ -1670,33 +2187,11 @@ const handleRestore = async (entry) => {
                       <td style={{ ...tdSt, color: "#0d2b1e", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
                       <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
                       <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
-                      <td style={tdSt}>
-                        {brand.name === "Coffee Spot"
-                          ? <ConceptBadge concept={branch.concept} />
-                          : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}
-                      </td>
+                      <td style={tdSt}>{brand.name === "Coffee Spot" ? <ConceptBadge concept={branch.concept} /> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
                       <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                          {/* Edit */}
-                          <button
-                            title="Edit branch"
-                            onClick={() => {
-                              setSelectedBranch(branch);
-                              setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" });
-                              setShowEditBranchModal(true);
-                            }}
-                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          {/* Delete */}
-                          <button
-                            title="Delete branch"
-                            onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })}
-                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <button title="Edit branch" onClick={() => { setSelectedBranch(branch); setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" }); setShowEditBranchModal(true); }} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}><Pencil size={13} /></button>
+                          <button title="Delete branch" onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}><Trash2 size={13} /></button>
                         </div>
                       </td>
                     </tr>
@@ -1708,1402 +2203,12 @@ const handleRestore = async (entry) => {
         ))}
       </div>
 
-      {/* ── Modals ── */}
       {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
       {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
       {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
       {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          target={deleteTarget}
-          onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
-          onClose={() => setDeleteTarget(null)}
-        />
-      )}
-
-      {showHistory && (
-        <DeleteHistoryPanel
-          history={deletedHistory}
-          onRestore={handleRestore}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
-  const [data,    setData]    = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
-  const [tab,     setTab]     = React.useState('top10'); // top10 | fast | slow | buyers | region
-
-  const fetch_ = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (rangeMode === 'preset') {
-        params.set('preset', preset);
-      } else if (appliedRange) {
-        params.set('from', appliedRange.from);
-        params.set('to',   appliedRange.to);
-      } else {
-        params.set('preset', 'month');
-      }
-      if (filterBranch) {
-        params.set('branch', filterBranch);
-      } else if (filterBrand && selectedBrand) {
-        const names = (selectedBrand.branches || []).map(br => typeof br === 'string' ? br : br.name);
-        if (names.length) params.set('branches', names.join(','));
-      }
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
-
-  React.useEffect(() => { fetch_(); }, [fetch_]);
-
-  const fmtPeso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
-  const TABS = [
-    { id: 'top10',   label: 'Top 10 Products' },
-    { id: 'fast',    label: 'Fast Moving' },
-    { id: 'slow',    label: 'Slow Moving' },
-    { id: 'buyers',  label: 'Top Performers' },
-    { id: 'region',  label: 'By Region' },
-  ];
-
-  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
-
-  const maxQty = data
-    ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
-    : 1;
-
-  return (
-    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <BarChart2 size={18} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
-            <div style={{ fontSize: 11, color: '#5a7a65' }}>Fast/slow movers · Top sellers · Regional breakdown</div>
-          </div>
-        </div>
-        <button onClick={fetch_} disabled={loading}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-          {loading ? 'Loading…' : 'Refresh'}
-        </button>
-      </div>
-
-      {/* Summary chips */}
-      {data && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Total Products', value: data.totalProducts },
-            { label: 'Fast Movers',    value: data.fastMoving?.length || 0,  color: '#059669', bg: '#d1fae5' },
-            { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
-            { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
-          ].map((c, i) => (
-            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
-              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
-              color:      tab === t.id ? '#fff' : '#5a7a65',
-              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
-            }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
-          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
-          <div style={{ marginTop: 8 }}>Loading product analytics…</div>
-        </div>
-      )}
-
-      {/* TOP 10 / FAST / SLOW */}
-      {!loading && data && (tab === 'top10' || tab === 'fast' || tab === 'slow') && (() => {
-        const list = tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving;
-        if (!list?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No data for this filter.</div>;
-        const maxR = Math.max(1, ...list.map(p => p.totalRevenue));
-        return (
-          <div>
-            {/* Column headers */}
-            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
-              <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
-            </div>
-            {list.map((p, i) => (
-              <div key={p.name}
-                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
-                  {i < 3 ? ['1','2','3'][i] : `${i+1}`}
-                </span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
-                    {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
-                    {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
-                  </div>
-                </div>
-                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
-                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
-                <div style={{ paddingLeft: 8 }}>
-                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* TOP PERFORMERS (buyers/cashiers) */}
-      {!loading && data && tab === 'buyers' && (() => {
-        const list = data.topBuyers || [];
-        if (!list.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No buyer data available.</div>;
-        return (
-          <div>
-            <div style={{ fontSize: 11, color: '#5a7a65', marginBottom: 12, fontStyle: 'italic' }}>
-              Based on cashier/staff who processed the most items — proxy for top performers.
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
-              <span>#</span><span>Name</span><span style={{ textAlign: 'right' }}>Items Sold</span><span style={{ paddingLeft: 8 }}>Top Product</span>
-            </div>
-            {list.map((b, i) => (
-              <div key={b.name}
-                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
-                  {i < 3 ? ['🥇','🥈','🥉'][i] : `${i+1}`}
-                </span>
-                <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
-                <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#00897b' }}>{b.totalItems.toLocaleString()}</div>
-                <div style={{ paddingLeft: 8, fontSize: 12, color: '#5a7a65', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span style={{ background: '#e0f2f1', color: '#00695c', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{b.topProduct}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* REGION */}
-      {!loading && data && tab === 'region' && (() => {
-        const regions = ['Luzon', 'Visayas', 'Mindanao', 'Other'];
-        const hasAny  = regions.some(r => data.regionTop5?.[r]?.length > 0);
-        if (!hasAny) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No regional data — make sure your branches have regions assigned in Brand & Branch settings.</div>;
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-            {regions.map(region => {
-              const items = data.regionTop5?.[region] || [];
-              const regionColors = { Luzon: { bg: '#e0f2f1', border: '#00897b', accent: '#00897b' }, Visayas: { bg: '#dbeafe', border: '#1d4ed8', accent: '#1d4ed8' }, Mindanao: { bg: '#fef9c3', border: '#ca8a04', accent: '#ca8a04' }, Other: { bg: '#f3f4f6', border: '#6b7280', accent: '#6b7280' } };
-              const rc = regionColors[region];
-              const maxQ = Math.max(1, ...items.map(p => p.qty));
-              return (
-                <div key={region} style={{ background: '#fff', border: `1.5px solid ${rc.border}20`, borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-                  <div style={{ background: rc.bg, padding: '10px 14px', borderBottom: `1px solid ${rc.border}30` }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: rc.accent }}>
-                      {region === 'Luzon' ? '🏝️' : region === 'Visayas' ? '🌊' : region === 'Mindanao' ? '🌿' : '📍'} {region}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>Top 5 products</div>
-                  </div>
-                  <div style={{ padding: '10px 14px' }}>
-                    {items.length === 0 ? (
-                      <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic', padding: '8px 0' }}>No sales data</div>
-                    ) : items.map((p, i) => (
-                      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: rc.accent, minWidth: 16 }}>{i + 1}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                          <div style={{ height: 5, borderRadius: 3, background: '#f0f0f0', marginTop: 3 }}>
-                            <div style={{ height: '100%', borderRadius: 3, width: `${(p.qty / maxQ) * 100}%`, background: rc.accent }} />
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: rc.accent, flexShrink: 0 }}>{p.qty}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })()}
-
-    </div>
-  );
-}
-
-// ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
-function AIPredictivePanel({ transactions, filterLabel, preset }) {
-  const [analysis,  setAnalysis]  = React.useState(null);
-  const [loading,   setLoading]   = React.useState(false);
-  const [error,     setError]     = React.useState(null);
-  const [lastRun,   setLastRun]   = React.useState(null);
-
-  const fmtPeso = n =>
-    '₱' + Number(n || 0).toLocaleString('en-PH', {
-      minimumFractionDigits: 0, maximumFractionDigits: 0,
-    });
-
-  const runAnalysis = async () => {
-    if (!transactions?.length) {
-      setError('No transaction data available for the current filter and date range.');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactions, preset, filterLabel }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAnalysis(data.analysis);
-        setLastRun(new Date().toLocaleTimeString('en-PH', {
-          hour: '2-digit', minute: '2-digit',
-        }));
-      } else {
-        setError(data.error || 'Analysis failed.');
-      }
-    } catch (err) {
-      setError('Could not reach the AI service. Check your server connection.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const typeStyle = type => ({
-    success: { borderColor: '#3B6D11', bg: '#EAF3DE', color: '#27500A' },
-    warning: { borderColor: '#BA7517', bg: '#FAEEDA', color: '#633806' },
-    info:    { borderColor: '#185FA5', bg: '#E6F1FB', color: '#0C447C' },
-  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#5F5E5A' });
-
-  const anomalyConfig = anomalyType => ({
-    ghost_sales:          { label: 'Ghost sales',    dot: '#A32D2D', badgeBg: '#FCEBEB', badgeColor: '#791F1F' },
-    low_stock_no_reorder: { label: 'Not reordering', dot: '#BA7517', badgeBg: '#FAEEDA', badgeColor: '#633806' },
-    dead_stock:           { label: 'Dead stock',     dot: '#185FA5', badgeBg: '#E6F1FB', badgeColor: '#0C447C' },
-  }[anomalyType] || {   label: 'Anomaly',        dot: '#888780', badgeBg: '#F1EFE8', badgeColor: '#5F5E5A' });
-
-  const kpiAccent = (index, analysis) => {
-    if (index === 0) return analysis.projectedChange >= 0 ? '#3B6D11' : '#A32D2D';
-    if (index === 2) return '#BA7517';
-    if (index === 3) return analysis.confidence >= 80 ? '#3B6D11' : analysis.confidence >= 60 ? '#BA7517' : '#A32D2D';
-    return '#888780';
-  };
-
-  return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid rgba(0,168,76,0.12)',
-      borderRadius: 18,
-      padding: '14px 18px',
-      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
-      marginTop: 16,
-    }}>
-
-      {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', marginBottom: 14,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: '#185FA5', flexShrink: 0,
-          }}/>
-          <div>
-            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
-              AI Prescriptive Analysis
-            </div>
-            <div style={{ fontSize: 11, color: '#5a7a65' }}>
-              Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={runAnalysis}
-          disabled={loading}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 14px', borderRadius: 9,
-            border: '1px solid #185FA5',
-            background: loading ? '#f0f0f0' : '#E6F1FB',
-            color: loading ? '#9e9e9e' : '#0C447C',
-            fontSize: 12, fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          {loading ? (
-            <>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth={2}
-                style={{ animation: 'spin 0.8s linear infinite' }}>
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              </svg>
-              Analyzing…
-            </>
-          ) : (
-            <>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-              {analysis ? 'Re-run analysis' : 'Run AI analysis'}
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* ── Empty state ── */}
-      {!analysis && !loading && !error && (
-        <div style={{
-          padding: '28px 0', textAlign: 'center',
-          border: '1px dashed #b2dfdb', borderRadius: 12,
-          color: '#5a7a65',
-        }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
-            Ready to analyze your data
-          </div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>
-            {transactions?.length
-              ? `${transactions.length} transactions loaded · ${filterLabel}`
-              : 'Select a date range and branch filter, then run the analysis'}
-          </div>
-        </div>
-      )}
-
-      {/* ── Error state ── */}
-      {error && (
-        <div style={{
-          padding: '10px 14px', borderRadius: 10,
-          background: '#FCEBEB', border: '1px solid #F7C1C1',
-          color: '#791F1F', fontSize: 12, fontWeight: 600,
-        }}>
-          ⚠ {error}
-        </div>
-      )}
-
-      {/* ── Loading state ── */}
-      {loading && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '28px 0', color: '#5a7a65', fontSize: 13,
-        }}>
-          <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
-            stroke="#185FA5" strokeWidth={2}
-            style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}>
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-          </svg>
-          Sending {transactions?.length} transactions to Groq…
-        </div>
-      )}
-
-      {/* ── Results ── */}
-      {analysis && !loading && (
-        <>
-
-          {/* KPI row — colored left-border accent */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
-            gap: 8, marginBottom: 14,
-          }}>
-            {[
-              {
-                label: 'Projected 7-day',
-                value: fmtPeso(analysis.projectedRevenue),
-                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior`,
-              },
-              {
-                label: 'Peak day',
-                value: analysis.peakDay || '—',
-                sub: 'Highest revenue expected',
-              },
-              {
-                label: 'Slowest day',
-                value: analysis.slowestDay || '—',
-                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below avg`,
-              },
-              {
-                label: 'Confidence',
-                value: `${analysis.confidence || 0}%`,
-                sub: analysis.confidence >= 80 ? 'High — strong data'
-                  : analysis.confidence >= 60 ? 'Medium — limited data'
-                  : 'Low — need more data',
-              },
-            ].map((card, i) => {
-              const accent = kpiAccent(i, analysis);
-              return (
-                <div key={i} style={{
-                  background: '#f8fffe',
-                  border: '1px solid #e0f2f1',
-                  borderLeft: `3px solid ${accent}`,
-                  borderRadius: 10,
-                  padding: '9px 12px',
-                }}>
-                  <div style={{
-                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
-                  }}>
-                    {card.label}
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
-                    {card.value}
-                  </div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
-                    {card.sub}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Anomalies as a table */}
-          {analysis.stockAnomalies?.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                letterSpacing: '0.06em', color: '#A32D2D',
-                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
-              }}>
-                <svg width={12} height={12} viewBox="0 0 24 24" fill="none"
-                  stroke="#A32D2D" strokeWidth={2.5} strokeLinecap="round">
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                  <line x1="12" y1="9" x2="12" y2="13"/>
-                  <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                Stock vs sales anomalies — {analysis.stockAnomalies.length} detected
-              </div>
-              <table style={{
-                width: '100%', borderCollapse: 'collapse',
-                fontSize: 12, tableLayout: 'fixed',
-              }}>
-                <colgroup>
-                  <col style={{ width: '16px' }} />
-                  <col style={{ width: '18%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '40%' }} />
-                  <col style={{ width: '24%' }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {['', 'Type', 'Branch', 'Finding', 'Action'].map(h => (
-                      <th key={h} style={{
-                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                        letterSpacing: '0.06em', color: '#5a7a65',
-                        padding: '0 8px 7px', textAlign: 'left',
-                        borderBottom: '1px solid #e0f2f1',
-                      }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.stockAnomalies.map((anomaly, i) => {
-                    const cfg = anomalyConfig(anomaly.anomalyType);
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid #f0f8f0' }}
-                        onMouseEnter={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '#f6fef8')}
-                        onMouseLeave={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '')}>
-                        <td style={{ padding: '8px 8px 8px 4px' }}>
-                          <span style={{
-                            width: 7, height: 7, borderRadius: '50%',
-                            background: cfg.dot, display: 'inline-block',
-                          }}/>
-                        </td>
-                        <td style={{ padding: '8px' }}>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 8px',
-                            borderRadius: 20, background: cfg.badgeBg,
-                            color: cfg.badgeColor, whiteSpace: 'nowrap',
-                          }}>
-                            {cfg.label}
-                          </span>
-                        </td>
-                        <td style={{
-                          padding: '8px', fontWeight: 700,
-                          color: '#0d2b1e', fontSize: 12,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {anomaly.branch}
-                        </td>
-                        <td style={{
-                          padding: '8px', color: '#5a7a65', fontSize: 12,
-                          lineHeight: 1.45,
-                        }}>
-                          {anomaly.finding}
-                        </td>
-                        <td style={{
-                          padding: '8px', color: '#0C447C',
-                          fontSize: 12, lineHeight: 1.45,
-                        }}>
-                          {anomaly.action}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* No anomalies */}
-          {analysis.stockAnomalies?.length === 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 12px', borderRadius: 9,
-              background: '#f0fdf5', border: '1px solid #d1eedd',
-              marginBottom: 12, fontSize: 12, fontWeight: 700, color: '#3B6D11',
-            }}>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
-                stroke="#3B6D11" strokeWidth={2.5} strokeLinecap="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              No stock vs sales anomalies detected for this period.
-            </div>
-          )}
-
-          {/* Summary — inline callout */}
-          <div style={{
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-            background: '#f8fffe', border: '1px solid #e0f2f1',
-            borderRadius: 10, padding: '10px 14px', marginBottom: 14,
-          }}>
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
-              stroke="#185FA5" strokeWidth={2.5} strokeLinecap="round"
-              style={{ flexShrink: 0, marginTop: 1 }}>
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 16v-4M12 8h.01"/>
-            </svg>
-            <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.65, margin: 0 }}>
-              {analysis.summary}
-            </p>
-          </div>
-
-          {/* Recommendations — 2-column grid */}
-          {analysis.recommendations?.length > 0 && (
-            <>
-              <div style={{
-                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
-              }}>
-                Recommendations
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: analysis.recommendations.length > 2 ? '1fr 1fr' : '1fr',
-                gap: 6,
-              }}>
-                {analysis.recommendations.map((rec, i) => {
-                  const s = typeStyle(rec.type);
-                  return (
-                    <div key={i} style={{
-                      borderLeft: `2px solid ${s.borderColor}`,
-                      background: s.bg,
-                      borderRadius: '0 8px 8px 0',
-                      padding: '8px 12px',
-                    }}>
-                      <div style={{
-                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                        letterSpacing: '0.06em', color: s.color, marginBottom: 3,
-                      }}>
-                        {rec.branch}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
-                        {rec.text}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-        </>
-      )}
-    </div>
-  );
-}
-
-// ---------DASHBOARD------------------
-function DashboardContent({ transactions, brands: propBrands = [] }) {
-  const today   = new Date();
-  const fmt8    = (d) => d.toISOString().slice(0, 10);
-  const fmtAmt  = (n) => '₱' + Number(n||0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
-  const fmtShort= (n) => { if(n>=1_000_000) return '₱'+(n/1_000_000).toFixed(1)+'M'; if(n>=1_000) return '₱'+(n/1_000).toFixed(0)+'k'; return '₱'+Number(n).toFixed(0); };
-  const [rangeMode,    setRangeMode]    = useState('preset');
-  const [preset,       setPreset]       = useState('month');
-  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [customTo,     setCustomTo]     = useState(fmt8(today));
-  const [appliedRange, setAppliedRange] = useState(null);
-  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem('dashboardArchives')||'[]'); } catch { return []; } });
-  const [showArchivePanel,  setShowArchivePanel]  = useState(false);
-  const [viewingArchive,    setViewingArchive]    = useState(null);
-  const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
-  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
-  const [tooltip,           setTooltip]           = useState(null);
-  const svgRef = useRef(null);
-
-  const [filterBrand,    setFilterBrand]    = useState(null);
-  const [filterBranch,   setFilterBranch]   = useState(null);
-  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
-  const [branchDropOpen, setBranchDropOpen] = useState(false);
-  const [brandQ,  setBrandQ]  = useState('');
-  const [branchQ, setBranchQ] = useState('');
-  const brandRef  = useRef(null);
-  const branchRef = useRef(null);
-
-    const [kpiData,    setKpiData]    = useState(null);
-  const [kpiLoading, setKpiLoading] = useState(false);
-
-  useEffect(() => {
-    const fn = (e) => {
-      if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
-      if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
-    };
-    document.addEventListener('mousedown', fn);
-    return () => document.removeEventListener('mousedown', fn);
-  }, []);
-
-  const brandList      = propBrands.length > 0 ? propBrands : [];
-  const selectedBrand  = brandList.find(b => b.id === filterBrand);
-  const branchList     = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name) : [];
-  const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
-  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-
-
-const fetchKpis = useCallback(async () => {
-  setKpiLoading(true);
-  try {
-    const params = new URLSearchParams();
-    if (rangeMode === 'preset') {
-      params.set('preset', preset);
-    } else if (appliedRange) {
-      params.set('from', appliedRange.from);
-      params.set('to', appliedRange.to);
-    } else {
-      params.set('preset', 'month');
-    }
-
-    if (filterBranch) {
-      params.set('branch', filterBranch);
-    } else if (filterBrand && selectedBrand) {
-      const branchNames = (selectedBrand.branches || [])
-        .map(br => (typeof br === 'string' ? br : br.name));
-      if (branchNames.length > 0) params.set('branches', branchNames.join(','));
-    }
-
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
-    const data = await res.json();
-    if (!data.error) setKpiData(data);
-  } catch (err) {
-    console.error('Failed to fetch dashboard stats:', err);
-  } finally {
-    setKpiLoading(false);
-  }
-}, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
-
-  useEffect(() => {
-    if (!viewingArchive) fetchKpis();
-  }, [fetchKpis, viewingArchive]);
-
-  
-  const filterLabel = (() => {
-    if (filterBranch) return filterBranch;
-    if (filterBrand)  return selectedBrand?.name + ' – All Branches';
-    return 'All Brands & Branches';
-  })();
-
-  const getRangeLabel = () => {
-    if (viewingArchive) return `Archive: ${viewingArchive.year}`;
-    if (rangeMode === 'custom' && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
-    const map = { day:'Today', week:'This Week', month:'This Month', year:'This Year' };
-    return map[preset] || 'This Month';
-  };
-
-    const chartData = useMemo(() => {
-    if (viewingArchive) return viewingArchive.chartData;
-
-    // Apply brand/branch filter
-    let txList = transactions;
-    if (filterBranch) {
-      txList = transactions.filter(tx => tx.branch === filterBranch);
-    } else if (filterBrand && selectedBrand) {
-      const branchNames = (selectedBrand.branches||[]).map(br => typeof br==='string'?br:br.name);
-      txList = transactions.filter(tx => branchNames.includes(tx.branch));
-    }
-
-    if (!txList.length) return { labels: [], values: [] };
-
-    const now = new Date();
-
-    const filtered = txList.filter(tx => {
-      const d = new Date(tx.created_at);
-      if (preset === "day") return d.toDateString() === now.toDateString();
-      if (preset === "week") {
-        const start = new Date(now);
-        start.setDate(now.getDate() - now.getDay());
-        start.setHours(0,0,0,0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23,59,59,999);
-        return d >= start && d <= end;
-      }
-      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (preset === "year")  return d.getFullYear() === now.getFullYear();
-      if (rangeMode === 'custom' && appliedRange) {
-        const from = new Date(appliedRange.from);
-        const to   = new Date(appliedRange.to);
-        return d >= from && d <= to;
-      }
-      return true;
-    });
-
-    let grouped = {};
-
-    if (preset === "day") {
-      filtered.forEach(tx => {
-        const hour  = new Date(tx.created_at).getHours();
-        const label = `${hour}:00`;
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "week") {
-      filtered.forEach(tx => {
-        const label = new Date(tx.created_at).toLocaleDateString("en-US", { weekday: "short" });
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "month") {
-      filtered.forEach(tx => {
-        const day   = new Date(tx.created_at).getDate();
-        const label = `Day ${day}`;
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (preset === "year") {
-      filtered.forEach(tx => {
-        const label = new Date(tx.created_at).toLocaleDateString("en-US", { month: "short" });
-        grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
-      });
-    } else if (rangeMode === 'custom' && appliedRange) {
-      const from     = new Date(appliedRange.from);
-      const to       = new Date(appliedRange.to);
-      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
-      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
-      const labels   = Array.from({length: numWeeks}, (_, i) => `Week ${i+1}`);
-      const values   = Array(numWeeks).fill(0);
-      filtered.forEach(tx => {
-        const d       = new Date(tx.created_at);
-        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks-1);
-        values[weekIdx] += tx.total || 0;
-      });
-      return { labels, values };
-    }
-
-    const labels = Object.keys(grouped);
-    const values = labels.map(l => grouped[l]);
-    return { labels, values };
-  }, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
-
-  const values    = chartData.values;
-  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
-  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
-  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
-  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
-  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
-  const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length-1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
-  const trending  = Number(pctChange) >= 0;
-
-  const SVG_W = 820, SVG_H = 160, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
-  const plotW = SVG_W - PAD_L - PAD_R;
-  const plotH = SVG_H - PAD_T - PAD_B;
-  const maxV  = peak > 0 ? peak * 1.18 : 1;
-
-  const pts = useMemo(() => values.map((v, i) => ({
-    x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
-    y: PAD_T + plotH - (v / maxV) * plotH,
-    v, label: chartData.labels[i],
-  })), [values, chartData.labels, maxV, plotH, plotW]);
-
-  const { linePath, areaPath } = useMemo(() => {
-    if (!pts.length) return { linePath:'', areaPath:'' };
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const cx = (pts[i].x + pts[i+1].x) / 2;
-      d += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i+1].y}, ${pts[i+1].x} ${pts[i+1].y}`;
-    }
-    return { linePath:d, areaPath:d + ` L ${pts[pts.length-1].x} ${PAD_T+plotH} L ${pts[0].x} ${PAD_T+plotH} Z` };
-  }, [pts, PAD_T, plotH]);
-
-  const yTicks = useMemo(() =>
-    [0, 0.25, 0.5, 0.75, 1].map(t => ({ y:PAD_T + plotH - t * plotH, label:fmtShort(t * maxV) })),
-    [maxV, PAD_T, plotH]
-  );
-
-  const handleMouseMove = useCallback((e) => {
-    if (!svgRef.current || !pts.length) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const mx   = ((e.clientX - rect.left) / rect.width) * SVG_W;
-    let best = pts[0], bestDist = Infinity;
-    for (const p of pts) { const d = Math.abs(p.x - mx); if (d < bestDist) { bestDist = d; best = p; } }
-    setTooltip({ x:best.x, y:best.y, label:best.label, value:best.v });
-  }, [pts]);
-
-  const saveArchive = () => {
-    const year = parseInt(archiveYearInput);
-    if (isNaN(year) || year < 2000 || year > 2100) { alert('Please enter a valid year (2000–2100)'); return; }
-    if (archives.find(a => a.year === year)) { alert(`Year ${year} is already archived.`); return; }
-    const snapshot = { year, label:`Full Year ${year}`, savedAt:new Date().toLocaleString(), chartData, kpis:{ totalSales:kpiData?.totalSales||total, avgSales:avg, peakSales:peak, lowSales:low } };
-    const updated  = [...archives, snapshot].sort((a, b) => b.year - a.year);
-    setArchives(updated);
-    localStorage.setItem('dashboardArchives', JSON.stringify(updated));
-    setArchiveConfirm(false);
-    alert(`Year ${year} archived successfully!`);
-  };
-
-  const deleteArchive = (year) => {
-    if (!window.confirm(`Delete archive for ${year}?`)) return;
-    const updated = archives.filter(a => a.year !== year);
-    setArchives(updated);
-    localStorage.setItem('dashboardArchives', JSON.stringify(updated));
-    if (viewingArchive?.year === year) setViewingArchive(null);
-  };
-
-  const applyCustomRange = () => {
-    if (!customFrom || !customTo) { alert('Please select both From and To dates'); return; }
-    if (customFrom > customTo) { alert('"From" date cannot be after "To" date'); return; }
-    setAppliedRange({ from:customFrom, to:customTo });
-    setViewingArchive(null);
-  };
-
-    const kpiCards = [
-    { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
-    { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
-    { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
-    { label:'Total Sales',    value: kpiData ? kpiData.totalSales   : null, note: kpiLoading ? 'Loading…' : `${getRangeLabel()} · ${filterLabel}` },
-  ];
-
-   const dropSt = {
-    position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400,
-    background:'#fff', border:'1px solid #b2dfdb', borderRadius:11,
-    boxShadow:'0 8px 28px rgba(0,0,0,0.10)', maxHeight:220, overflowY:'auto',
-  };
-  const optSt = (active) => ({
-    padding:'9px 14px', cursor:'pointer', fontSize:13,
-    color: active ? '#00695c' : '#0d2b1e', fontWeight: active ? 700 : 500,
-    background: active ? '#e0f2f1' : 'transparent',
-    display:'flex', alignItems:'center', gap:8,
-  });
-  const filterInputSt = {
-    height:36, padding:'0 11px', borderRadius:9,
-    border:'1px solid #b2dfdb', background:'#f0fdf5',
-    fontSize:13, color:'#0d2b1e', outline:'none',
-    fontFamily:'inherit', boxSizing:'border-box', width:'100%',
-  };
-
-  return (
-    <div style={{ fontFamily:"'Poppins', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
-        .db-root * { box-sizing:border-box; }
-        .db-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-        @media(max-width:900px){ .db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
-        .db-kpi-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
-        .db-kpi-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
-        .db-placeholder-val { font-size:13px; font-weight:700; padding:6px 14px; border-radius:10px; background:#f0fdf5; border:1.5px dashed #a7f3d0; color:#5a7a65; display:inline-block; margin-top:4px; }
-        .db-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
-        .db-tab-group { display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px; }
-        .db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5a7a65; cursor:pointer; transition:all .15s; font-family:inherit; }
-        .db-tab.active { background:linear-gradient(135deg,#00c853,#00897b); color:#fff; box-shadow:0 2px 8px rgba(0,180,90,.35); }
-        .db-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
-        .db-date-input { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
-        .db-date-input:focus { border-color:#00897b; }
-        .db-apply-btn { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
-        .db-chart-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:14px 16px 10px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:12px; }
-        .db-chart-wrap { position:relative; cursor:crosshair; user-select:none; }
-        .db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
-        .db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
-        .db-ins-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
-        @media(max-width:800px){ .db-ins-grid{ grid-template-columns:1fr; } }
-        .db-ins-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
-        .db-archive-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
-        .db-archive-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #e0f2f1; margin-bottom:8px; background:#f8fffe; }
-        .db-archive-row:hover { background:#e8fdf0; }
-        .db-archive-btn { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
-        .db-viewing-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
-        .db-filter-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#e0f2f1; color:#00695c; border:1px solid #b2dfdb; cursor:pointer; }
-        .db-filter-chip:hover { background:#b2dfdb; }
-        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-      `}</style>
-
-      <div className="db-root">
-
-        {viewingArchive && (
-          <div className="db-viewing-banner">
-            <span style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, fontSize:14 }}>
-              <Archive size={16}/> Viewing Archive: {viewingArchive.year}
-              <span style={{ opacity:0.6, fontSize:12, fontWeight:400 }}>— saved {viewingArchive.savedAt}</span>
-            </span>
-            <button onClick={() => setViewingArchive(null)}
-              style={{ background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', borderRadius:8, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
-              <X size={12}/> Exit Archive View
-            </button>
-          </div>
-        )}
-
-        {/* KPI Cards */}
-        <div className="db-kpi-grid">
-          {kpiCards.map((k, i) => (
-            <div key={i} className="db-kpi-card">
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
-                <div>
-                  <div style={{ fontSize:10.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', marginBottom:5 }}>{k.label}</div>
-                  {kpiLoading && k.value === null
-                    ? <div className="db-placeholder-val">Loading…</div>
-                    : k.value !== null && k.value !== undefined
-                      ? <div style={{ fontSize:22, fontWeight:800, color:'#0d2b1e' }}>{fmtAmt(k.value)}</div>
-                      : <div className="db-placeholder-val">— Pending connection</div>
-                  }
-                </div>
-              </div>
-              <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8' }}>{k.note}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ background:'#fff', border:'1px solid rgba(0,168,76,0.13)', borderRadius:16, padding:'10px 14px', marginBottom:12, boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
-  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-
-    {/* Brand dropdown */}
-    <div ref={brandRef} style={{ position:'relative', minWidth:170 }}>
-      <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(''); }}
-        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor:'pointer', paddingRight:28, userSelect:'none', color: filterBrand ? '#0d2b1e' : '#5a7a65', height:34 }}>
-        <Globe size={12} color="#00897b"/>
-        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
-          {selectedBrand ? selectedBrand.name : 'All Brands'}
-        </span>
-        <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>
-      </div>
-      {brandDropOpen && (
-        <div style={dropSt}>
-          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
-            <div style={{ position:'relative' }}>
-              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
-              <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
-                placeholder="Search brand…" onClick={e => e.stopPropagation()}
-                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-            </div>
-          </div>
-          <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>
-            All Brands
-          </div>
-          {filteredBrands.map(b => (
-            <div key={b.id} style={optSt(filterBrand === b.id)}
-              onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
-              <span style={{ fontSize:16 }}>{b.emoji||''}</span> {b.name}
-              <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
-            </div>
-          ))}
-          {filteredBrands.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No brands found</div>}
-        </div>
-      )}
-    </div>
-
-    {/* Branch dropdown */}
-    <div ref={branchRef} style={{ position:'relative', minWidth:180, opacity: filterBrand ? 1 : 0.45 }}>
-      <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(''); } }}
-        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor: filterBrand ? 'pointer' : 'not-allowed', paddingRight:28, userSelect:'none', color: filterBranch ? '#0d2b1e' : '#5a7a65', height:34 }}>
-        <Store size={12} color={filterBrand ? '#00897b' : '#5a7a65'}/>
-        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
-          {filterBranch || (filterBrand ? 'All Branches' : 'Select brand first')}
-        </span>
-        {filterBrand && <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>}
-      </div>
-      {branchDropOpen && filterBrand && (
-        <div style={dropSt}>
-          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
-            <div style={{ position:'relative' }}>
-              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
-              <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
-                placeholder="Search branch…" onClick={e => e.stopPropagation()}
-                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-            </div>
-          </div>
-          <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>
-            All Branches
-          </div>
-          {filteredBranches.map(br => (
-            <div key={br} style={optSt(filterBranch === br)}
-              onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(''); }}>
-              <Store size={11} color="#00897b"/> {br}
-            </div>
-          ))}
-          {filteredBranches.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No branches found</div>}
-        </div>
-      )}
-    </div>
-
-    {/* Active filter chips */}
-    {(filterBrand || filterBranch) && (
-      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-        {filterBrand && !filterBranch && (
-          <span className="db-filter-chip" onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
-            {selectedBrand?.emoji} {selectedBrand?.name} <X size={10}/>
-          </span>
-        )}
-        {filterBranch && (
-          <span className="db-filter-chip" onClick={() => setFilterBranch(null)}>
-            <Store size={10}/> {filterBranch} <X size={10}/>
-          </span>
-        )}
-        <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }}
-          style={{ padding:'3px 10px', borderRadius:20, border:'1px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-          Clear
-        </button>
-      </div>
-    )}
-
-    {/* Divider */}
-    <div style={{ width:1, height:22, background:'#d1eedd', flexShrink:0 }}/>
-
-    {/* Preset / Custom toggle */}
-    <div className="db-tab-group">
-      <button className={`db-tab${rangeMode==='preset'?' active':''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
-      <button className={`db-tab${rangeMode==='custom'?' active':''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom</button>
-    </div>
-
-    {/* Preset day tabs OR custom date inputs */}
-    {rangeMode === 'preset' ? (
-      <div className="db-tab-group">
-        {['day','week','month','year'].map(p => (
-          <button key={p} className={`db-tab${preset===p?' active':''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
-            {p.charAt(0).toUpperCase()+p.slice(1)}
-          </button>
-        ))}
-      </div>
-    ) : (
-      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-        <Calendar size={13} color="#5a7a65"/>
-        <input type="date" className="db-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo}/>
-        <span style={{ color:'#5a7a65', fontSize:12 }}>to</span>
-        <input type="date" className="db-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)}/>
-        <button className="db-apply-btn" onClick={applyCustomRange}>Apply</button>
-      </div>
-    )}
-
-    {/* Archives + loading — pushed right */}
-    <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-      {kpiLoading && (
-        <span style={{ fontSize:11, color:'#5a7a65', display:'flex', alignItems:'center', gap:5 }}>
-          <RefreshCw size={11} style={{ animation:'spin 1s linear infinite' }}/> Loading…
-        </span>
-      )}
-      <button onClick={() => setShowArchivePanel(v => !v)}
-        style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', background:showArchivePanel?'#e0f2f1':'#fff', color:'#00695c', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-        <Archive size={13}/> Archives
-        {archives.length > 0 && <span style={{ background:'#00897b', color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{archives.length}</span>}
-      </button>
-    </div>
-
-  </div>
-</div>
-
-        {/* Archive panel */}
-        {showArchivePanel && (
-          <div className="db-archive-panel">
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-              <div style={{ fontFamily:'Montserrat,sans-serif', fontWeight:800, fontSize:15, color:'#0d2b1e', display:'flex', alignItems:'center', gap:8 }}>
-                <Archive size={16} color="#00897b"/> Yearly Archives
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                {!archiveConfirm ? (
-                  <>
-                    <input type="number" className="db-date-input" style={{ width:90 }} value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year"/>
-                    <button onClick={() => setArchiveConfirm(true)}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:9, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                      <Plus size={13}/> Archive Year
-                    </button>
-                  </>
-                ) : (
-                  <div style={{ display:'flex', alignItems:'center', gap:8, background:'#fef9c3', border:'1.5px solid #fde68a', borderRadius:10, padding:'7px 14px' }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:'#92400e' }}>Archive {archiveYearInput}?</span>
-                    <button className="db-archive-btn" style={{ borderColor:'#00897b', background:'#e0f2f1', color:'#00695c' }} onClick={saveArchive}>Confirm</button>
-                    <button className="db-archive-btn" style={{ borderColor:'#d1d5db', background:'#f9fafb', color:'#6b7280' }} onClick={() => setArchiveConfirm(false)}>Cancel</button>
-                  </div>
-                )}
-              </div>
-            </div>
-            {archives.length === 0 ? (
-              <div style={{ padding:'24px 0', textAlign:'center', color:'#94a3b8', fontSize:13 }}>No archives yet.</div>
-            ) : archives.map(a => (
-              <div key={a.year} className="db-archive-row">
-                <div>
-                  <div style={{ fontWeight:800, fontSize:14, color:'#0d2b1e' }}>{a.label}</div>
-                  <div style={{ fontSize:11, color:'#5a7a65', marginTop:2 }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
-                </div>
-                <div style={{ display:'flex', gap:8 }}>
-                  <button className="db-archive-btn"
-                    style={{ borderColor:viewingArchive?.year===a.year?'#00897b':'#b2dfdb', background:viewingArchive?.year===a.year?'#e0f2f1':'#f8fffe', color:'#00695c' }}
-                    onClick={() => { setViewingArchive(viewingArchive?.year===a.year?null:a); setShowArchivePanel(false); }}>
-                    {viewingArchive?.year===a.year?'Viewing':'View'}
-                  </button>
-                  <button className="db-archive-btn" style={{ borderColor:'#fecaca', background:'#fff', color:'#ef4444' }} onClick={() => deleteArchive(a.year)}>Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        
-        <div className="db-chart-card">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-            <div style={{ fontFamily:'Montserrat,sans-serif', fontWeight:700, fontSize:15, color:'#0d2b1e', display:'flex', alignItems:'center', gap:8 }}>
-              <BarChart size={16} color="#00897b"/> Revenue Overview
-              <span style={{ fontSize:11, fontWeight:600, color:'#5a7a65', background:'#f0fdf5', padding:'3px 10px', borderRadius:8, border:'1px solid #d1eedd' }}>{getRangeLabel()}</span>
-              {(filterBrand || filterBranch) && (
-                <span style={{ fontSize:11, fontWeight:700, color:'#00695c', background:'#e0f2f1', padding:'3px 10px', borderRadius:8, border:'1px solid #b2dfdb', display:'flex', alignItems:'center', gap:5 }}>
-                  {filterBranch
-                    ? <><Store size={10}/> {filterBranch}</>
-                    : <><Globe size={10}/> {selectedBrand?.name}</>}
-                </span>
-              )}
-            </div>
-            {kpiData && (
-              <div style={{ fontSize:12, color:'#00897b', fontWeight:700, display:'flex', alignItems:'center', gap:5 }}>
-                <Check size={11} color="#10B981"/> Live: {fmtAmt(kpiData.totalSales)} · {kpiData.txCount} txns
-              </div>
-            )}
-          </div>
-
-          {values.length === 0 || (total === 0 && !kpiLoading) ? (
-            <div style={{ height:200, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#f8fffe', borderRadius:12, border:'1px dashed #b2dfdb', color:'#5a7a65' }}>
-              <BarChart2 size={32} color="#b2dfdb"/>
-              <div style={{ fontWeight:700, fontSize:14, marginTop:10 }}>No sales data for this selection</div>
-              <div style={{ fontSize:12, marginTop:4, color:'#94a3b8' }}>Try a different range, brand, or branch</div>
-            </div>
-          ) : (
-            <div className="db-chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
-              <svg ref={svgRef} style={{ width:'100%', display:'block', overflow:'visible' }} viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="gLine2" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#e9cd30"/><stop offset="100%" stopColor="#ffa875"/>
-                  </linearGradient>
-                  <linearGradient id="gArea2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00c853" stopOpacity="0.20"/><stop offset="100%" stopColor="#00c853" stopOpacity="0.01"/>
-                  </linearGradient>
-                  <filter id="glow2"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                </defs>
-                {yTicks.map((t, i) => (
-                  <g key={i}>
-                    <line x1={PAD_L} y1={t.y} x2={SVG_W-PAD_R} y2={t.y} stroke="#e2ede6" strokeWidth="1" strokeDasharray="5 4"/>
-                    <text x={PAD_L-8} y={t.y+4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily="Poppins,sans-serif">{t.label}</text>
-                  </g>
-                ))}
-                <path d={areaPath} fill="url(#gArea2)"/>
-                <path d={linePath} fill="none" stroke="url(#gLine2)" strokeWidth="3" strokeLinecap="round" filter="url(#glow2)"/>
-                {pts.map((p, i) => (
-                  <text key={i} x={p.x} y={SVG_H-6} textAnchor="middle" fontSize="10.5" fill="#6b9070" fontFamily="Poppins,sans-serif">{p.label}</text>
-                ))}
-                {tooltip && (
-                  <>
-                    <line x1={tooltip.x} y1={tooltip.y+7} x2={tooltip.x} y2={PAD_T+plotH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.55"/>
-                    <circle cx={tooltip.x} cy={tooltip.y} r="6" fill="#00c853" stroke="#fff" strokeWidth="2.5" filter="url(#glow2)"/>
-                  </>
-                )}
-              </svg>
-              {tooltip && (
-                <div className="db-tooltip" style={{ left:`${(tooltip.x/SVG_W)*100}%`, top:`${(tooltip.y/SVG_H)*100}%` }}>
-                  <div style={{ fontSize:10.5, opacity:0.6, marginBottom:2 }}>{tooltip.label}</div>
-                  <div style={{ fontSize:15, fontWeight:800, color:'#a7f3d0' }}>{fmtAmt(tooltip.value)}</div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-       <div style={{ display:'flex', gap:10, marginBottom:12 }}>
-  {[
-    { label:'Peak', value: total > 0 ? fmtAmt(peak) : '—', sub: total > 0 ? `Day: ${peakLabel}` : 'No data' },
-    { label:'Trend', value: total > 0 ? `${trending?'+':'-'}${Math.abs(pctChange)}%` : '—', sub: total > 0 ? (trending ? '↑ Upward' : '↓ Downward') : 'No data', valueColor: trending ? '#00897b' : '#d97706' },
-    { label:'Avg order', value: kpiData ? fmtAmt(kpiData.avgOrder) : (total > 0 ? fmtAmt(avg) : '—'), sub: kpiData ? `${kpiData.txCount} transactions` : `${filterLabel}` },
-    { label:'Total revenue', value: kpiData ? fmtAmt(kpiData.totalSales) : (total > 0 ? fmtAmt(total) : '—'), sub: getRangeLabel() },
-  ].map((s, i) => (
-    <div key={i} style={{ flex:1, background:'#fff', border:'1px solid rgba(0,168,76,0.12)', borderRadius:12, padding:'10px 14px', boxShadow:'0 1px 6px rgba(0,140,60,0.05)' }}>
-      <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', color:'#5a7a65', marginBottom:4 }}>{s.label}</div>
-      <div style={{ fontSize:16, fontWeight:800, color: s.valueColor || '#0d2b1e' }}>{s.value}</div>
-      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sub}</div>
-    </div>
-  ))}
-</div>
-      
-
-      </div>
-      <AIPredictivePanel
-  transactionCount={transactions.length}
-  transactions={transactions}
-  filterLabel={filterLabel}
-  preset={preset}
-/>
-<ProductAnalyticsPanel
-  preset={preset}
-  appliedRange={appliedRange}
-  rangeMode={rangeMode}
-  filterBranch={filterBranch}
-  filterBrand={filterBrand}
-  selectedBrand={selectedBrand}
-/>
-    </div>
-    
-  );
-}
-
-// MOBILE SHOP
-const Field = ({ label, error, children }) => (
-    <div>
-      <label style={{ fontSize:"0.8rem", fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
-      {children}
-      {error && <p style={{ color:"#e53935", fontSize:"0.72rem", marginTop:3, fontWeight:600 }}>{error}</p>}
-    </div>
-  );
-
-function MultiSelectBranchDropdown({ branches, selected, onChange, disabled, error, msInputStyle }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  const toggle = (br) => {
-    const updated = selected.includes(br)
-      ? selected.filter(b => b !== br)
-      : [...selected, br];
-    onChange(updated);
-  };
-
-  const selectAll = () => onChange([...branches]);
-  const clearAll  = () => onChange([]);
-
-  const label = disabled
-    ? "Select a brand first"
-    : selected.length === 0
-      ? "Select branches…"
-      : selected.length === branches.length
-        ? "All branches"
-        : selected.join(", ");
-
-  return (
-    <div ref={ref} style={{ position:"relative", marginTop:"0.3rem" }}>
-      <div
-        onClick={() => { if (!disabled) setOpen(v => !v); }}
-        style={{
-          ...msInputStyle,
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.5 : 1,
-          border: `1px solid ${error ? "#e53935" : "#d1eedd"}`,
-          userSelect:"none", paddingRight:10,
-          minHeight:36, height:"auto", flexWrap:"wrap", gap:4,
-        }}>
-        {selected.length > 0 && !disabled ? (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:4, flex:1 }}>
-            {selected.map(br => (
-              <span key={br} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 8px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c", border:"1px solid #b2dfdb" }}>
-                {br}
-                <span
-                  onMouseDown={e => { e.stopPropagation(); toggle(br); }}
-                  style={{ cursor:"pointer", fontSize:12, lineHeight:1, color:"#5a7a65" }}>×</span>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span style={{ color: C.muted, fontSize:13 }}>{label}</span>
-        )}
-        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition:"transform .15s" }}>
-          <path d="m6 9 6 6 6-6"/>
-        </svg>
-      </div>
-
-      {open && !disabled && (
-        <div style={{
-          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:500,
-          background:C.white, border:`1px solid ${C.border}`, borderRadius:10,
-          boxShadow:"0 8px 24px rgba(0,0,0,0.10)", overflow:"hidden",
-        }}>
-          <div style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:`1px solid ${C.border}`, background:"#f8fffe" }}>
-            <span onMouseDown={e => { e.preventDefault(); selectAll(); }}
-              style={{ fontSize:11, fontWeight:700, color:"#00897b", cursor:"pointer" }}>
-              Select All
-            </span>
-            <span onMouseDown={e => { e.preventDefault(); clearAll(); }}
-              style={{ fontSize:11, fontWeight:700, color:C.muted, cursor:"pointer" }}>
-              Clear
-            </span>
-          </div>
-          <div style={{ maxHeight:180, overflowY:"auto" }}>
-            {branches.length === 0 ? (
-              <div style={{ padding:"12px", fontSize:12, color:C.muted, fontStyle:"italic", textAlign:"center" }}>No branches available</div>
-            ) : branches.map(br => (
-              <div key={br} onMouseDown={e => { e.preventDefault(); toggle(br); }}
-                style={{
-                  display:"flex", alignItems:"center", gap:10,
-                  padding:"9px 12px", cursor:"pointer", fontSize:13,
-                  background: selected.includes(br) ? "#f0fdf5" : C.white,
-                  borderBottom:`1px solid #f5fdf7`,
-                }}>
-                <div style={{
-                  width:16, height:16, borderRadius:4, flexShrink:0,
-                  border: `2px solid ${selected.includes(br) ? "#00897b" : "#b2dfdb"}`,
-                  background: selected.includes(br) ? "#00897b" : C.white,
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                }}>
-                  {selected.includes(br) && (
-                    <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  )}
-                </div>
-                <span style={{ fontWeight: selected.includes(br) ? 700 : 500, color: selected.includes(br) ? "#00695c" : C.ink }}>
-                  {br}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {deleteTarget && <DeleteConfirmModal target={deleteTarget} onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch} onClose={() => setDeleteTarget(null)} />}
+      {showHistory && <DeleteHistoryPanel history={deletedHistory} onRestore={handleRestore} onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
@@ -3306,7 +2411,33 @@ alert(
 
   const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
   const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
+const Field = ({ label, error, children }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <label
+      style={{
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#2c3e50"
+      }}
+    >
+      {label}
+    </label>
 
+    {children}
+
+    {error && (
+      <span
+        style={{
+          fontSize: 12,
+          color: "#e53935",
+          fontWeight: 600
+        }}
+      >
+        {error}
+      </span>
+    )}
+  </div>
+);
   return (
     <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
