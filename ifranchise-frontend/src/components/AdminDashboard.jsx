@@ -1738,6 +1738,234 @@ const handleRestore = async (entry) => {
   );
 }
 
+function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
+  const [data,    setData]    = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [tab,     setTab]     = React.useState('top10'); // top10 | fast | slow | buyers | region
+
+  const fetch_ = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      if (filterBranch) {
+        params.set('branch', filterBranch);
+      } else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === 'string' ? br : br.name);
+        if (names.length) params.set('branches', names.join(','));
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  React.useEffect(() => { fetch_(); }, [fetch_]);
+
+  const fmtPeso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const TABS = [
+    { id: 'top10',   label: 'Top 10 Products' },
+    { id: 'fast',    label: 'Fast Moving' },
+    { id: 'slow',    label: 'Slow Moving' },
+    { id: 'buyers',  label: 'Top Performers' },
+    { id: 'region',  label: 'By Region' },
+  ];
+
+  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
+
+  const maxQty = data
+    ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
+    : 1;
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BarChart2 size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>Fast/slow movers · Top sellers · Regional breakdown</div>
+          </div>
+        </div>
+        <button onClick={fetch_} disabled={loading}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Summary chips */}
+      {data && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Total Products', value: data.totalProducts },
+            { label: 'Fast Movers',    value: data.fastMoving?.length || 0,  color: '#059669', bg: '#d1fae5' },
+            { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
+          ].map((c, i) => (
+            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
+              color:      tab === t.id ? '#fff' : '#5a7a65',
+              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+          <div style={{ marginTop: 8 }}>Loading product analytics…</div>
+        </div>
+      )}
+
+      {/* TOP 10 / FAST / SLOW */}
+      {!loading && data && (tab === 'top10' || tab === 'fast' || tab === 'slow') && (() => {
+        const list = tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving;
+        if (!list?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No data for this filter.</div>;
+        const maxR = Math.max(1, ...list.map(p => p.totalRevenue));
+        return (
+          <div>
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
+            </div>
+            {list.map((p, i) => (
+              <div key={p.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['1','2','3'][i] : `${i+1}`}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
+                    {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
+                    {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
+                  </div>
+                </div>
+                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
+                <div style={{ paddingLeft: 8 }}>
+                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* TOP PERFORMERS (buyers/cashiers) */}
+      {!loading && data && tab === 'buyers' && (() => {
+        const list = data.topBuyers || [];
+        if (!list.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No buyer data available.</div>;
+        return (
+          <div>
+            <div style={{ fontSize: 11, color: '#5a7a65', marginBottom: 12, fontStyle: 'italic' }}>
+              Based on cashier/staff who processed the most items — proxy for top performers.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Name</span><span style={{ textAlign: 'right' }}>Items Sold</span><span style={{ paddingLeft: 8 }}>Top Product</span>
+            </div>
+            {list.map((b, i) => (
+              <div key={b.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 1fr', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['🥇','🥈','🥉'][i] : `${i+1}`}
+                </span>
+                <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</div>
+                <div style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#00897b' }}>{b.totalItems.toLocaleString()}</div>
+                <div style={{ paddingLeft: 8, fontSize: 12, color: '#5a7a65', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ background: '#e0f2f1', color: '#00695c', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{b.topProduct}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* REGION */}
+      {!loading && data && tab === 'region' && (() => {
+        const regions = ['Luzon', 'Visayas', 'Mindanao', 'Other'];
+        const hasAny  = regions.some(r => data.regionTop5?.[r]?.length > 0);
+        if (!hasAny) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No regional data — make sure your branches have regions assigned in Brand & Branch settings.</div>;
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            {regions.map(region => {
+              const items = data.regionTop5?.[region] || [];
+              const regionColors = { Luzon: { bg: '#e0f2f1', border: '#00897b', accent: '#00897b' }, Visayas: { bg: '#dbeafe', border: '#1d4ed8', accent: '#1d4ed8' }, Mindanao: { bg: '#fef9c3', border: '#ca8a04', accent: '#ca8a04' }, Other: { bg: '#f3f4f6', border: '#6b7280', accent: '#6b7280' } };
+              const rc = regionColors[region];
+              const maxQ = Math.max(1, ...items.map(p => p.qty));
+              return (
+                <div key={region} style={{ background: '#fff', border: `1.5px solid ${rc.border}20`, borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+                  <div style={{ background: rc.bg, padding: '10px 14px', borderBottom: `1px solid ${rc.border}30` }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: rc.accent }}>
+                      {region === 'Luzon' ? '🏝️' : region === 'Visayas' ? '🌊' : region === 'Mindanao' ? '🌿' : '📍'} {region}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>Top 5 products</div>
+                  </div>
+                  <div style={{ padding: '10px 14px' }}>
+                    {items.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic', padding: '8px 0' }}>No sales data</div>
+                    ) : items.map((p, i) => (
+                      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: rc.accent, minWidth: 16 }}>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                          <div style={{ height: 5, borderRadius: 3, background: '#f0f0f0', marginTop: 3 }}>
+                            <div style={{ height: '100%', borderRadius: 3, width: `${(p.qty / maxQ) * 100}%`, background: rc.accent }} />
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: rc.accent, flexShrink: 0 }}>{p.qty}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+    </div>
+  );
+}
+
 // ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
 function AIPredictivePanel({ transactions, filterLabel, preset }) {
   const [analysis,  setAnalysis]  = React.useState(null);
@@ -1783,40 +2011,47 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
     success: { borderColor: '#3B6D11', bg: '#EAF3DE', color: '#27500A' },
     warning: { borderColor: '#BA7517', bg: '#FAEEDA', color: '#633806' },
     info:    { borderColor: '#185FA5', bg: '#E6F1FB', color: '#0C447C' },
-  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#2C2C2A' });
+  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#5F5E5A' });
+
+  const anomalyConfig = anomalyType => ({
+    ghost_sales:          { label: 'Ghost sales',    dot: '#A32D2D', badgeBg: '#FCEBEB', badgeColor: '#791F1F' },
+    low_stock_no_reorder: { label: 'Not reordering', dot: '#BA7517', badgeBg: '#FAEEDA', badgeColor: '#633806' },
+    dead_stock:           { label: 'Dead stock',     dot: '#185FA5', badgeBg: '#E6F1FB', badgeColor: '#0C447C' },
+  }[anomalyType] || {   label: 'Anomaly',        dot: '#888780', badgeBg: '#F1EFE8', badgeColor: '#5F5E5A' });
+
+  const kpiAccent = (index, analysis) => {
+    if (index === 0) return analysis.projectedChange >= 0 ? '#3B6D11' : '#A32D2D';
+    if (index === 2) return '#BA7517';
+    if (index === 3) return analysis.confidence >= 80 ? '#3B6D11' : analysis.confidence >= 60 ? '#BA7517' : '#A32D2D';
+    return '#888780';
+  };
 
   return (
     <div style={{
-      background: '#fff', border: '1px solid rgba(0,168,76,0.12)',
-      borderRadius: 22, padding: '22px 24px',
-      boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24,
+      background: '#fff',
+      border: '1px solid rgba(0,168,76,0.12)',
+      borderRadius: 18,
+      padding: '14px 18px',
+      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+      marginTop: 16,
     }}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div style={{
         display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', marginBottom: 18,
+        alignItems: 'center', marginBottom: 14,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg,#185FA5,#0C447C)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
-              stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.8 2.8-2 3.5V12l3 3-3 3v1a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-1l-3-3 3-3V9.5A4 4 0 0 1 8 6a4 4 0 0 1 4-4z"/>
-            </svg>
-          </div>
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#185FA5', flexShrink: 0,
+          }}/>
           <div>
-            <div style={{
-              fontFamily: 'Montserrat,sans-serif', fontWeight: 800,
-              fontSize: 15, color: '#0d2b1e',
-            }}>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
               AI Prescriptive Analysis
             </div>
             <div style={{ fontSize: 11, color: '#5a7a65' }}>
-              Powered by Groq · llama-3.3-70b
-              {lastRun && ` · Last run ${lastRun}`}
+              Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
             </div>
           </div>
         </div>
@@ -1824,20 +2059,19 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
           onClick={runAnalysis}
           disabled={loading}
           style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '9px 20px', borderRadius: 11, border: 'none',
-            background: loading
-              ? '#e0e0e0'
-              : 'linear-gradient(135deg,#185FA5,#0C447C)',
-            color: loading ? '#9e9e9e' : '#fff',
-            fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 14px', borderRadius: 9,
+            border: '1px solid #185FA5',
+            background: loading ? '#f0f0f0' : '#E6F1FB',
+            color: loading ? '#9e9e9e' : '#0C447C',
+            fontSize: 12, fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
-            boxShadow: loading ? 'none' : '0 2px 10px rgba(24,95,165,0.35)',
           }}
         >
           {loading ? (
             <>
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth={2}
                 style={{ animation: 'spin 0.8s linear infinite' }}>
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
@@ -1846,7 +2080,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
             </>
           ) : (
             <>
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth={2} strokeLinecap="round">
                 <polygon points="5 3 19 12 5 21 5 3"/>
               </svg>
@@ -1856,15 +2090,15 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
         </button>
       </div>
 
-      {/* Empty / error / prompt states */}
+      {/* ── Empty state ── */}
       {!analysis && !loading && !error && (
         <div style={{
-          padding: '32px 0', textAlign: 'center',
-          color: '#5a7a65', fontSize: 13,
-          border: '1.5px dashed #b2dfdb', borderRadius: 14,
+          padding: '28px 0', textAlign: 'center',
+          border: '1px dashed #b2dfdb', borderRadius: 12,
+          color: '#5a7a65',
         }}>
-          <div style={{ fontSize: '2rem', marginBottom: 10 }}>🤖</div>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
             Ready to analyze your data
           </div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>
@@ -1875,147 +2109,245 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
         </div>
       )}
 
+      {/* ── Error state ── */}
       {error && (
         <div style={{
-          padding: '14px 16px', borderRadius: 12,
-          background: '#fee2e2', border: '1px solid #fecaca',
-          color: '#dc2626', fontSize: 13, fontWeight: 600,
+          padding: '10px 14px', borderRadius: 10,
+          background: '#FCEBEB', border: '1px solid #F7C1C1',
+          color: '#791F1F', fontSize: 12, fontWeight: 600,
         }}>
           ⚠ {error}
         </div>
       )}
 
+      {/* ── Loading state ── */}
       {loading && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '32px 0', color: '#5a7a65', fontSize: 13,
+          padding: '28px 0', color: '#5a7a65', fontSize: 13,
         }}>
-          <svg width={20} height={20} viewBox="0 0 24 24" fill="none"
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
             stroke="#185FA5" strokeWidth={2}
             style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}>
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
-          Sending {transactions?.length} transactions to Groq for analysis…
+          Sending {transactions?.length} transactions to Groq…
         </div>
       )}
 
-      {/* Results */}
+      {/* ── Results ── */}
       {analysis && !loading && (
         <>
-          {/* KPI forecast cards */}
+
+          {/* KPI row — colored left-border accent */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4,1fr)',
-            gap: 12, marginBottom: 20,
+            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 8, marginBottom: 14,
           }}>
             {[
               {
-                label: 'Projected 7-day revenue',
+                label: 'Projected 7-day',
                 value: fmtPeso(analysis.projectedRevenue),
-                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior period`,
-                subColor: analysis.projectedChange >= 0 ? '#3B6D11' : '#dc2626',
+                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior`,
               },
               {
-                label: 'Peak day forecast',
+                label: 'Peak day',
                 value: analysis.peakDay || '—',
-                sub: 'Expected highest revenue',
-                subColor: '#5a7a65',
+                sub: 'Highest revenue expected',
               },
               {
-                label: 'Slowest day forecast',
+                label: 'Slowest day',
                 value: analysis.slowestDay || '—',
-                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below average`,
-                subColor: '#BA7517',
+                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below avg`,
               },
               {
-                label: 'Confidence score',
+                label: 'Confidence',
                 value: `${analysis.confidence || 0}%`,
-                sub: analysis.confidence >= 80
-                  ? 'High — strong data'
-                  : analysis.confidence >= 60
-                    ? 'Medium — limited data'
-                    : 'Low — need more data',
-                subColor: analysis.confidence >= 80
-                  ? '#3B6D11'
-                  : analysis.confidence >= 60
-                    ? '#BA7517'
-                    : '#dc2626',
+                sub: analysis.confidence >= 80 ? 'High — strong data'
+                  : analysis.confidence >= 60 ? 'Medium — limited data'
+                  : 'Low — need more data',
               },
-            ].map((card, i) => (
-              <div key={i} style={{
-                background: '#f8fffe',
-                border: '1px solid #e0f2f1',
-                borderRadius: 14, padding: '14px 16px',
-              }}>
-                <div style={{
-                  fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
-                  letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 6,
+            ].map((card, i) => {
+              const accent = kpiAccent(i, analysis);
+              return (
+                <div key={i} style={{
+                  background: '#f8fffe',
+                  border: '1px solid #e0f2f1',
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: 10,
+                  padding: '9px 12px',
                 }}>
-                  {card.label}
+                  <div style={{
+                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
+                  }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
+                    {card.value}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
+                    {card.sub}
+                  </div>
                 </div>
-                <div style={{
-                  fontSize: 20, fontWeight: 800, color: '#0d2b1e', marginBottom: 4,
-                }}>
-                  {card.value}
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: card.subColor }}>
-                  {card.sub}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Summary narrative */}
-          <div style={{
-            background: '#f0fdf5', border: '1px solid #d1eedd',
-            borderRadius: 14, padding: '16px 18px', marginBottom: 16,
-          }}>
-            <div style={{
-              fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
-              letterSpacing: '0.07em', color: '#00897b', marginBottom: 8,
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <svg width={12} height={12} viewBox="0 0 24 24" fill="none"
-                stroke="#00897b" strokeWidth={2.5} strokeLinecap="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 16v-4M12 8h.01"/>
-              </svg>
-              AI summary · {filterLabel}
+          {/* Anomalies as a table */}
+          {analysis.stockAnomalies?.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#A32D2D',
+                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
+              }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none"
+                  stroke="#A32D2D" strokeWidth={2.5} strokeLinecap="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Stock vs sales anomalies — {analysis.stockAnomalies.length} detected
+              </div>
+              <table style={{
+                width: '100%', borderCollapse: 'collapse',
+                fontSize: 12, tableLayout: 'fixed',
+              }}>
+                <colgroup>
+                  <col style={{ width: '16px' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '40%' }} />
+                  <col style={{ width: '24%' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {['', 'Type', 'Branch', 'Finding', 'Action'].map(h => (
+                      <th key={h} style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: '#5a7a65',
+                        padding: '0 8px 7px', textAlign: 'left',
+                        borderBottom: '1px solid #e0f2f1',
+                      }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.stockAnomalies.map((anomaly, i) => {
+                    const cfg = anomalyConfig(anomaly.anomalyType);
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f8f0' }}
+                        onMouseEnter={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '#f6fef8')}
+                        onMouseLeave={e => Array.from(e.currentTarget.cells).forEach(c => c.style.background = '')}>
+                        <td style={{ padding: '8px 8px 8px 4px' }}>
+                          <span style={{
+                            width: 7, height: 7, borderRadius: '50%',
+                            background: cfg.dot, display: 'inline-block',
+                          }}/>
+                        </td>
+                        <td style={{ padding: '8px' }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                            borderRadius: 20, background: cfg.badgeBg,
+                            color: cfg.badgeColor, whiteSpace: 'nowrap',
+                          }}>
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td style={{
+                          padding: '8px', fontWeight: 700,
+                          color: '#0d2b1e', fontSize: 12,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {anomaly.branch}
+                        </td>
+                        <td style={{
+                          padding: '8px', color: '#5a7a65', fontSize: 12,
+                          lineHeight: 1.45,
+                        }}>
+                          {anomaly.finding}
+                        </td>
+                        <td style={{
+                          padding: '8px', color: '#0C447C',
+                          fontSize: 12, lineHeight: 1.45,
+                        }}>
+                          {anomaly.action}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <p style={{
-              fontSize: 13.5, color: '#0d2b1e', lineHeight: 1.7, margin: 0,
+          )}
+
+          {/* No anomalies */}
+          {analysis.stockAnomalies?.length === 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px', borderRadius: 9,
+              background: '#f0fdf5', border: '1px solid #d1eedd',
+              marginBottom: 12, fontSize: 12, fontWeight: 700, color: '#3B6D11',
             }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="#3B6D11" strokeWidth={2.5} strokeLinecap="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              No stock vs sales anomalies detected for this period.
+            </div>
+          )}
+
+          {/* Summary — inline callout */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+            background: '#f8fffe', border: '1px solid #e0f2f1',
+            borderRadius: 10, padding: '10px 14px', marginBottom: 14,
+          }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
+              stroke="#185FA5" strokeWidth={2.5} strokeLinecap="round"
+              style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.65, margin: 0 }}>
               {analysis.summary}
             </p>
           </div>
 
-          {/* Recommendations */}
+          {/* Recommendations — 2-column grid */}
           {analysis.recommendations?.length > 0 && (
             <>
               <div style={{
-                fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase',
-                letterSpacing: '0.07em', color: '#5a7a65', marginBottom: 10,
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
               }}>
                 Recommendations
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: analysis.recommendations.length > 2 ? '1fr 1fr' : '1fr',
+                gap: 6,
+              }}>
                 {analysis.recommendations.map((rec, i) => {
                   const s = typeStyle(rec.type);
                   return (
                     <div key={i} style={{
-                      borderLeft: `3px solid ${s.borderColor}`,
-                      background: s.bg, borderRadius: '0 10px 10px 0',
-                      padding: '10px 14px',
+                      borderLeft: `2px solid ${s.borderColor}`,
+                      background: s.bg,
+                      borderRadius: '0 8px 8px 0',
+                      padding: '8px 12px',
                     }}>
                       <div style={{
                         fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                        letterSpacing: '0.07em', color: s.color, marginBottom: 3,
+                        letterSpacing: '0.06em', color: s.color, marginBottom: 3,
                       }}>
                         {rec.branch}
                       </div>
-                      <div style={{
-                        fontSize: 13, color: '#0d2b1e', lineHeight: 1.6,
-                      }}>
+                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
                         {rec.text}
                       </div>
                     </div>
@@ -2024,6 +2356,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
               </div>
             </>
           )}
+
         </>
       )}
     </div>
@@ -2217,7 +2550,7 @@ const fetchKpis = useCallback(async () => {
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length-1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
   const trending  = Number(pctChange) >= 0;
 
-  const SVG_W = 820, SVG_H = 260, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
+  const SVG_W = 820, SVG_H = 160, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
   const plotW = SVG_W - PAD_L - PAD_R;
   const plotH = SVG_H - PAD_T - PAD_B;
   const maxV  = peak > 0 ? peak * 1.18 : 1;
@@ -2309,7 +2642,7 @@ const fetchKpis = useCallback(async () => {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
         .db-root * { box-sizing:border-box; }
-        .db-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        .db-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
         @media(max-width:900px){ .db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
         .db-kpi-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
         .db-kpi-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
@@ -2322,11 +2655,11 @@ const fetchKpis = useCallback(async () => {
         .db-date-input { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
         .db-date-input:focus { border-color:#00897b; }
         .db-apply-btn { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
-        .db-chart-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:18px; }
+        .db-chart-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:14px 16px 10px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:12px; }
         .db-chart-wrap { position:relative; cursor:crosshair; user-select:none; }
         .db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
         .db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
-        .db-ins-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+        .db-ins-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
         @media(max-width:800px){ .db-ins-grid{ grid-template-columns:1fr; } }
         .db-ins-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
         .db-archive-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
@@ -2374,142 +2707,142 @@ const fetchKpis = useCallback(async () => {
           ))}
         </div>
 
-        <div style={{ background:'#fff', border:'1px solid rgba(0,168,76,0.12)', borderRadius:16, padding:'14px 18px', marginBottom:18, boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <span style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'#5a7a65', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:6 }}>
-              <Globe size={12} color="#00897b"/> Filter by
-            </span>
+        <div style={{ background:'#fff', border:'1px solid rgba(0,168,76,0.13)', borderRadius:16, padding:'10px 14px', marginBottom:12, boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
+  <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
 
-          
-            <div ref={brandRef} style={{ position:'relative', minWidth:190 }}>
-              <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(''); }}
-                style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor:'pointer', paddingRight:28, userSelect:'none', color: filterBrand ? '#0d2b1e' : '#5a7a65' }}>
-                <Globe size={12} color="#00897b"/>
-                <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
-                  {selectedBrand ? selectedBrand.name : 'All Brands'}
-                </span>
-                <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>
-              </div>
-              {brandDropOpen && (
-                <div style={dropSt}>
-                  <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
-                    <div style={{ position:'relative' }}>
-                      <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
-                      <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
-                        placeholder="Search brand…" onClick={e => e.stopPropagation()}
-                        style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-                    </div>
-                  </div>
-                  <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>
-                    All Brands
-                  </div>
-                  {filteredBrands.map(b => (
-                    <div key={b.id} style={optSt(filterBrand === b.id)}
-                      onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
-                      <span style={{ fontSize:16 }}>{b.emoji||''}</span> {b.name}
-                      <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
-                    </div>
-                  ))}
-                  {filteredBrands.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No brands found</div>}
-                </div>
-              )}
-            </div>
-
-          
-            <div ref={branchRef} style={{ position:'relative', minWidth:200, opacity: filterBrand ? 1 : 0.45, transition:'opacity .15s' }}>
-              <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(''); } }}
-                style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor: filterBrand ? 'pointer' : 'not-allowed', paddingRight:28, userSelect:'none', color: filterBranch ? '#0d2b1e' : '#5a7a65' }}>
-                <Store size={12} color={filterBrand ? '#00897b' : '#5a7a65'}/>
-                <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
-                  {filterBranch || (filterBrand ? 'All Branches' : 'Select brand first')}
-                </span>
-                {filterBrand && <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>}
-              </div>
-              {branchDropOpen && filterBrand && (
-                <div style={dropSt}>
-                  <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
-                    <div style={{ position:'relative' }}>
-                      <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
-                      <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
-                        placeholder="Search branch…" onClick={e => e.stopPropagation()}
-                        style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
-                    </div>
-                  </div>
-                  <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>
-                    All Branches
-                  </div>
-                  {filteredBranches.map(br => (
-                    <div key={br} style={optSt(filterBranch === br)}
-                      onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(''); }}>
-                      <Store size={11} color="#00897b"/> {br}
-                    </div>
-                  ))}
-                  {filteredBranches.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No branches found</div>}
-                </div>
-              )}
-            </div>
-
-         
-            {(filterBrand || filterBranch) && (
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-                {filterBrand && !filterBranch && (
-                  <span className="db-filter-chip" onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
-                    {selectedBrand?.emoji} {selectedBrand?.name} <X size={10}/>
-                  </span>
-                )}
-                {filterBranch && (
-                  <span className="db-filter-chip" onClick={() => setFilterBranch(null)}>
-                    <Store size={10}/> {filterBranch} <X size={10}/>
-                  </span>
-                )}
-                <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }}
-                  style={{ padding:'3px 10px', borderRadius:20, border:'1px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                  Clear
-                </button>
-              </div>
-            )}
-
-            {kpiLoading && (
-              <span style={{ fontSize:11, color:'#5a7a65', display:'flex', alignItems:'center', gap:5 }}>
-                <RefreshCw size={11} style={{ animation:'spin 1s linear infinite' }}/> Loading…
-              </span>
-            )}
-
-            <div style={{ marginLeft:'auto', fontSize:12, color:'#94a3b8', fontWeight:600 }}>
-              {transactions.length.toLocaleString()} transactions · {filterLabel}
+    {/* Brand dropdown */}
+    <div ref={brandRef} style={{ position:'relative', minWidth:170 }}>
+      <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(''); }}
+        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor:'pointer', paddingRight:28, userSelect:'none', color: filterBrand ? '#0d2b1e' : '#5a7a65', height:34 }}>
+        <Globe size={12} color="#00897b"/>
+        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+          {selectedBrand ? selectedBrand.name : 'All Brands'}
+        </span>
+        <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>
+      </div>
+      {brandDropOpen && (
+        <div style={dropSt}>
+          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+            <div style={{ position:'relative' }}>
+              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+              <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)}
+                placeholder="Search brand…" onClick={e => e.stopPropagation()}
+                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
             </div>
           </div>
+          <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>
+            All Brands
+          </div>
+          {filteredBrands.map(b => (
+            <div key={b.id} style={optSt(filterBrand === b.id)}
+              onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(''); }}>
+              <span style={{ fontSize:16 }}>{b.emoji||''}</span> {b.name}
+              <span style={{ marginLeft:'auto', fontSize:11, color:'#5a7a65' }}>{(b.branches||[]).length} branches</span>
+            </div>
+          ))}
+          {filteredBrands.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No brands found</div>}
         </div>
+      )}
+    </div>
 
-
-        <div className="db-toolbar">
-          <div className="db-tab-group">
-            <button className={`db-tab${rangeMode==='preset'?' active':''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
-            <button className={`db-tab${rangeMode==='custom'?' active':''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom Range</button>
+    {/* Branch dropdown */}
+    <div ref={branchRef} style={{ position:'relative', minWidth:180, opacity: filterBrand ? 1 : 0.45 }}>
+      <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(''); } }}
+        style={{ ...filterInputSt, display:'flex', alignItems:'center', gap:7, cursor: filterBrand ? 'pointer' : 'not-allowed', paddingRight:28, userSelect:'none', color: filterBranch ? '#0d2b1e' : '#5a7a65', height:34 }}>
+        <Store size={12} color={filterBrand ? '#00897b' : '#5a7a65'}/>
+        <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:13 }}>
+          {filterBranch || (filterBrand ? 'All Branches' : 'Select brand first')}
+        </span>
+        {filterBrand && <ChevronDown size={11} style={{ position:'absolute', right:9, color:'#5a7a65', flexShrink:0 }}/>}
+      </div>
+      {branchDropOpen && filterBrand && (
+        <div style={dropSt}>
+          <div style={{ padding:'7px 9px', borderBottom:'1px solid #b2dfdb', position:'sticky', top:0, background:'#fff' }}>
+            <div style={{ position:'relative' }}>
+              <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#5a7a65' }}/>
+              <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)}
+                placeholder="Search branch…" onClick={e => e.stopPropagation()}
+                style={{ ...filterInputSt, height:30, fontSize:12, paddingLeft:26 }}/>
+            </div>
           </div>
-          {rangeMode === 'preset' ? (
-            <div className="db-tab-group">
-              {['day','week','month','year'].map(p => (
-                <button key={p} className={`db-tab${preset===p?' active':''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
-                  {p.charAt(0).toUpperCase()+p.slice(1)}
-                </button>
-              ))}
+          <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>
+            All Branches
+          </div>
+          {filteredBranches.map(br => (
+            <div key={br} style={optSt(filterBranch === br)}
+              onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(''); }}>
+              <Store size={11} color="#00897b"/> {br}
             </div>
-          ) : (
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <Calendar size={13} color="#5a7a65"/>
-              <input type="date" className="db-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo}/>
-              <span style={{ color:'#5a7a65', fontSize:12, fontWeight:600 }}>to</span>
-              <input type="date" className="db-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)}/>
-              <button className="db-apply-btn" onClick={applyCustomRange}>Apply</button>
-            </div>
-          )}
-          <button onClick={() => setShowArchivePanel(v => !v)}
-            style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:10, border:'1.5px solid #b2dfdb', background:showArchivePanel?'#e0f2f1':'#fff', color:'#00695c', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-            <Archive size={13}/> Archives
-            {archives.length > 0 && <span style={{ background:'#00897b', color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{archives.length}</span>}
+          ))}
+          {filteredBranches.length === 0 && <div style={{ padding:'12px 14px', fontSize:13, color:'#5a7a65', fontStyle:'italic' }}>No branches found</div>}
+        </div>
+      )}
+    </div>
+
+    {/* Active filter chips */}
+    {(filterBrand || filterBranch) && (
+      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+        {filterBrand && !filterBranch && (
+          <span className="db-filter-chip" onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+            {selectedBrand?.emoji} {selectedBrand?.name} <X size={10}/>
+          </span>
+        )}
+        {filterBranch && (
+          <span className="db-filter-chip" onClick={() => setFilterBranch(null)}>
+            <Store size={10}/> {filterBranch} <X size={10}/>
+          </span>
+        )}
+        <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }}
+          style={{ padding:'3px 10px', borderRadius:20, border:'1px solid #d1d5db', background:'#f9fafb', color:'#6b7280', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+          Clear
+        </button>
+      </div>
+    )}
+
+    {/* Divider */}
+    <div style={{ width:1, height:22, background:'#d1eedd', flexShrink:0 }}/>
+
+    {/* Preset / Custom toggle */}
+    <div className="db-tab-group">
+      <button className={`db-tab${rangeMode==='preset'?' active':''}`} onClick={() => { setRangeMode('preset'); setViewingArchive(null); }}>Preset</button>
+      <button className={`db-tab${rangeMode==='custom'?' active':''}`} onClick={() => { setRangeMode('custom'); setViewingArchive(null); }}>Custom</button>
+    </div>
+
+    {/* Preset day tabs OR custom date inputs */}
+    {rangeMode === 'preset' ? (
+      <div className="db-tab-group">
+        {['day','week','month','year'].map(p => (
+          <button key={p} className={`db-tab${preset===p?' active':''}`} onClick={() => { setPreset(p); setViewingArchive(null); }}>
+            {p.charAt(0).toUpperCase()+p.slice(1)}
           </button>
-        </div>
+        ))}
+      </div>
+    ) : (
+      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <Calendar size={13} color="#5a7a65"/>
+        <input type="date" className="db-date-input" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo}/>
+        <span style={{ color:'#5a7a65', fontSize:12 }}>to</span>
+        <input type="date" className="db-date-input" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)}/>
+        <button className="db-apply-btn" onClick={applyCustomRange}>Apply</button>
+      </div>
+    )}
+
+    {/* Archives + loading — pushed right */}
+    <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+      {kpiLoading && (
+        <span style={{ fontSize:11, color:'#5a7a65', display:'flex', alignItems:'center', gap:5 }}>
+          <RefreshCw size={11} style={{ animation:'spin 1s linear infinite' }}/> Loading…
+        </span>
+      )}
+      <button onClick={() => setShowArchivePanel(v => !v)}
+        style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 12px', borderRadius:10, border:'1.5px solid #b2dfdb', background:showArchivePanel?'#e0f2f1':'#fff', color:'#00695c', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+        <Archive size={13}/> Archives
+        {archives.length > 0 && <span style={{ background:'#00897b', color:'#fff', borderRadius:10, padding:'1px 7px', fontSize:10, fontWeight:800 }}>{archives.length}</span>}
+      </button>
+    </div>
+
+  </div>
+</div>
 
         {/* Archive panel */}
         {showArchivePanel && (
@@ -2624,62 +2957,21 @@ const fetchKpis = useCallback(async () => {
           )}
         </div>
 
-        {/* Insights */}
-        <div className="db-ins-grid">
-          <div className="db-ins-card">
-            <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Peak Performance</div>
-            <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              {total > 0
-                ? <>{kpiData ? <>Transactions: <strong>{kpiData.txCount}</strong> · </> : ''}Highest revenue on <strong>{peakLabel}</strong> ({getRangeLabel()}). Outperformed average by <strong>{fmtAmt(peak - avg)}</strong>.</>
-                : 'No data available for the selected filters and range.'}
-            </p>
-            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{total > 0 ? fmtAmt(peak) : '—'}</div>
-          </div>
-          <div className="db-ins-card">
-            <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Trend Direction</div>
-            <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              {total > 0
-                ? <>Sales are <strong>{trending ? 'trending upward ↑' : 'trending downward ↓'}</strong> with a <strong>{Math.abs(pctChange)}% change</strong> from start to end of selected range.</>
-                : 'No transactions to analyze trends.'}
-            </p>
-            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:trending?'#00897b':'#d97706' }}>
-              {total > 0 ? `${trending?'+':'-'}${Math.abs(pctChange)}%` : '—'}
-            </div>
-          </div>
-          <div className="db-ins-card">
-            <div style={{ fontWeight:700, color:'#0d2b1e', fontSize:13, marginBottom:6 }}>Revenue Summary</div>
-            <p style={{ fontSize:12, color:'#5a7a65', lineHeight:1.65 }}>
-              {kpiData
-                ? <>Transactions: <strong>{kpiData.txCount}</strong> · Avg order: <strong>{fmtAmt(kpiData.avgOrder)}</strong><br/>Total revenue: <strong>{fmtAmt(kpiData.totalSales)}</strong> · Scope: <strong>{filterLabel}</strong></>
-                : total > 0
-                  ? <>Average: <strong>{fmtAmt(avg)}</strong> · Total: <strong>{fmtAmt(total)}</strong> · Scope: <strong>{filterLabel}</strong></>
-                  : <>No sales recorded for <strong>{filterLabel}</strong> in this period.</>}
-            </p>
-            <div style={{ marginTop:10, fontSize:19, fontWeight:800, color:'#00897b' }}>{total > 0 ? fmtAmt(kpiData?.totalSales ?? avg) : '—'}</div>
-          </div>
-        </div>
-
-        {/* Bottom KPI cards */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
-          {[
-            { label:'Sales Revenue',  value: kpiData ? kpiData.salesRevenue : null, desc:'Total income from sales pulled from POS transactions.', icon:'' },
-            { label:'Sales Profit',   value: kpiData ? kpiData.salesProfit  : null, desc:'Net profit after deducting cost of sales from revenue.', icon:'' },
-            { label:'Cost of Sales',  value: kpiData ? kpiData.cogs         : null, desc:'Total cost of goods sold from Inventory movements.', icon:'' },
-          ].map((k, i) => (
-            <div key={i} style={{ background:'#fff', border: k.value !== null ? '1.5px solid #b2dfdb' : '1.5px dashed #a7f3d0', borderRadius:16, padding:'18px 20px', boxShadow:'0 1px 8px rgba(0,140,60,0.05)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                <span style={{ fontSize:22 }}>{k.icon}</span>
-                <span style={{ fontWeight:800, fontSize:13, color:'#0d2b1e' }}>{k.label}</span>
-              </div>
-              <p style={{ fontSize:11.5, color:'#5a7a65', lineHeight:1.6, marginBottom:12 }}>{k.desc}</p>
-              {k.value !== null
-                ? <div style={{ background:'#e0f2f1', borderRadius:10, padding:'8px 12px', fontSize:16, fontWeight:800, color:'#00695c' }}>{fmtAmt(k.value)}</div>
-                : <div style={{ background:'#f0fdf5', borderRadius:10, padding:'8px 12px', fontSize:12, fontWeight:700, color:'#94a3b8', display:'flex', alignItems:'center', gap:6 }}>
-                    <RefreshCw size={11} color="#b2dfdb"/> Awaiting POS / Inventory connection
-                  </div>}
-            </div>
-          ))}
-        </div>
+       <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+  {[
+    { label:'Peak', value: total > 0 ? fmtAmt(peak) : '—', sub: total > 0 ? `Day: ${peakLabel}` : 'No data' },
+    { label:'Trend', value: total > 0 ? `${trending?'+':'-'}${Math.abs(pctChange)}%` : '—', sub: total > 0 ? (trending ? '↑ Upward' : '↓ Downward') : 'No data', valueColor: trending ? '#00897b' : '#d97706' },
+    { label:'Avg order', value: kpiData ? fmtAmt(kpiData.avgOrder) : (total > 0 ? fmtAmt(avg) : '—'), sub: kpiData ? `${kpiData.txCount} transactions` : `${filterLabel}` },
+    { label:'Total revenue', value: kpiData ? fmtAmt(kpiData.totalSales) : (total > 0 ? fmtAmt(total) : '—'), sub: getRangeLabel() },
+  ].map((s, i) => (
+    <div key={i} style={{ flex:1, background:'#fff', border:'1px solid rgba(0,168,76,0.12)', borderRadius:12, padding:'10px 14px', boxShadow:'0 1px 6px rgba(0,140,60,0.05)' }}>
+      <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.07em', color:'#5a7a65', marginBottom:4 }}>{s.label}</div>
+      <div style={{ fontSize:16, fontWeight:800, color: s.valueColor || '#0d2b1e' }}>{s.value}</div>
+      <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>{s.sub}</div>
+    </div>
+  ))}
+</div>
+      
 
       </div>
       <AIPredictivePanel
@@ -2687,6 +2979,14 @@ const fetchKpis = useCallback(async () => {
   transactions={transactions}
   filterLabel={filterLabel}
   preset={preset}
+/>
+<ProductAnalyticsPanel
+  preset={preset}
+  appliedRange={appliedRange}
+  rangeMode={rangeMode}
+  filterBranch={filterBranch}
+  filterBrand={filterBrand}
+  selectedBrand={selectedBrand}
 />
     </div>
     
@@ -2827,13 +3127,22 @@ function MobileShopContent() {
   const [editingItem,   setEditingItem]   = useState(null); // holds the item being edited
   const [editErrors,    setEditErrors]    = useState({});
   const [editLoading,   setEditLoading]   = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+const [filterShop, setFilterShop] = useState("all");
   const [newItem, setNewItem] = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"",  });
 
   const excelRef = useRef(null);
 const [brands, setBrands] = useState([]);
 
 useEffect(() => { fetchItems(); fetchBrands(); }, []);
+const filteredItems = items.filter(item => {
+  const q = searchQuery.toLowerCase();
+  if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
+  if (filterShop !== "all" && item.shop !== filterShop) return false;
+  return true;
+});
 
+const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
 const fetchBrands = async () => {
   try {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
@@ -3145,15 +3454,43 @@ alert(
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
           <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
+          
         </div>
-        {items.length === 0 ? (
+        <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+  <div style={{ position: "relative" }}>
+    <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)" }} />
+    <input
+      type="text"
+      placeholder="Search items..."
+      value={searchQuery}
+      onChange={e => setSearchQuery(e.target.value)}
+      style={{ padding: "7px 12px 7px 28px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.bg, fontFamily: "inherit", outline: "none", width: 220 }}
+    />
+  </div>
+  <select
+    value={filterShop}
+    onChange={e => setFilterShop(e.target.value)}
+    style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.bg, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+  >
+    <option value="all">All Shops</option>
+    {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+  </select>
+  {(searchQuery || filterShop !== "all") && (
+    <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
+      style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
+      Clear
+    </button>
+  )}
+  <span style={{ marginLeft: "auto", fontSize: 12, color: "#5a7a65", fontWeight: 600 }}>{filteredItems.length} of {items.length} items</span>
+</div>
+        {filteredItems.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
         ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Brand","Price","Unit","Status",""].map((label, i) => (
+                  {["Image","Shop","Item Name","Price","Unit","Status",""].map((label, i) => (
                     <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
                       {label}
                     </th>
@@ -3161,7 +3498,7 @@ alert(
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => {
+                {filteredItems.map(item => {
                   const isConfirm = confirmDelete === item.id;
                   return (
                     <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
@@ -3174,7 +3511,6 @@ alert(
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.shop}</span>
                       </td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.brand || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                     <td style={{ padding:"10px 12px" }}>

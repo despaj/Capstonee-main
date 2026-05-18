@@ -36,23 +36,12 @@ const pool = new Pool({
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
-  ssl: { rejectUnauthorized: false },
-  max: 8,
-  idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 5000,
-});
-
-pool.on("error", (err) => {
-  console.error("Unexpected pool error:", err);
+  ssl: { rejectUnauthorized: false }
 });
 
 setInterval(async () => {
-  try {
-    await pool.query(`DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`);
-    console.log('Cleaned up expired reports');
-  } catch (err) {
-    console.error('Cleanup error:', err.message);
-  }
+  await pool.query(`DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`);
+  console.log('Cleaned up expired reports');
 }, 24 * 60 * 60 * 1000);
 
 const otpStore = {};
@@ -129,12 +118,22 @@ const rowToApplication = (row) => ({
 // ─── AUTH ───────────────────────────────────────────────────
 
 app.post("/login", async (req, res) => {
+    console.log("ALL HEADERS:", JSON.stringify(req.headers));
+  console.log("x-client header:", req.headers["x-client"]);
   const { email, password } = req.body;
+  const deviceId = getOrCreateDeviceId(req, res);
 
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    console.log("User found:", user.rows.length);
+    console.log("Email received:", JSON.stringify(email));
+
     if (user.rows.length === 0)
       return res.status(401).json({ message: "Invalid credentials" });
+
+    console.log("DB password:", JSON.stringify(user.rows[0].password));
+    console.log("Input password:", JSON.stringify(password));
+    console.log("Match:", password === user.rows[0].password);
 
     const validPass = password === user.rows[0].password;
     if (!validPass)
@@ -145,6 +144,11 @@ app.post("/login", async (req, res) => {
     if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       return res.status(403).json({ message: "Invalid credentials" });
 
+// Block Administrator accounts from mobile (no X-Client: web header)
+const isWeb = req.headers["x-client"] === "web";
+const mobileBlockedRoles = ["Administrator", "Staff"];
+if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
+  return res.status(403).json({ message: "Invalid credentials" });
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
@@ -154,7 +158,19 @@ app.post("/login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    return res.json({ success: true, skipOtp: false, user: safeUser });
+    const device = await pool.query(
+      `SELECT * FROM trusted_devices
+       WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
+      [deviceId, user.rows[0].id]
+    );
+
+    if (device.rows.length > 0) {
+      console.log(`Trusted device for user ${email} — skipping OTP`);
+      return res.json({ success: true, skipOtp: true, user: safeUser });
+    }
+
+    console.log(`OTP required for user ${email}`);
+    res.json({ success: true, skipOtp: false, user: safeUser });
 
   } catch (err) {
     console.error(err);
@@ -219,6 +235,7 @@ app.post("/verify-otp-login", async (req, res) => {
     if (user.rows.length === 0)
       return res.status(404).json({ message: "User not found" });
 
+    // No trusted device logic needed — session is managed client-side
     const safeUser = {
       id:     user.rows[0].id,
       name:   user.rows[0].name,
@@ -228,7 +245,7 @@ app.post("/verify-otp-login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    res.json({ success: true, user: safeUser, sessionVerified: true });
+    res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
     res.status(500).json({ message: "OTP verification failed" });
@@ -398,14 +415,10 @@ app.post("/send-login-sms-otp", async (req, res) => {
 app.post("/get-contact-number", async (req, res) => {
   const { email } = req.body;
   try {
-    const result = await pool.query(
-      "SELECT contact_number FROM users WHERE email = $1", [email]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ message: "User not found" });
-    res.json({ contact_number: result.rows[0].contact_number });
-  } catch (err) {
-    console.error("GET /get-contact-number error:", err);
+    const user = await db.query("SELECT contact_number FROM users WHERE email = ?", [email]);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ contact_number: user.contact_number });
+  } catch {
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -933,14 +946,14 @@ app.post("/ipharma-applications", async (req, res) => {
         $24,$25,$26,$27, $28
       ) RETURNING *`,
       [
-        b.name, b.email, b.phone, b.telephone || null,       
-        b.date || new Date().toISOString().split("T")[0],  
-        b.address,                                          
-        b.dob || null, b.maritalStatus, b.spouseName || null,
-        b.spouseOccupation || null, b.spouseDob || null,
-        b.dependents ? parseInt(b.dependents) : null,    
-        b.tin || null,               
-        b.education ? JSON.stringify(b.education) : null,
+        b.name, b.email, b.phone, b.telephone || null,        // $1-$4
+        b.date || new Date().toISOString().split("T")[0],     // $5
+        b.address,                                            // $6
+        b.dob || null, b.maritalStatus, b.spouseName || null, // $7-$9
+        b.spouseOccupation || null, b.spouseDob || null,      // $10-$11
+        b.dependents ? parseInt(b.dependents) : null,         // $12
+        b.tin || null,                                        // $13
+        b.education ? JSON.stringify(b.education) : null,     // $14
         b.involvement || null, b.equity || null,            
         b.investment ? parseFloat(b.investment) : null,  
         b.fundSource || null,                          
@@ -1400,32 +1413,19 @@ app.get("/inventory", async (req, res) => {
       ? await pool.query("SELECT * FROM inventory WHERE branch=$1 ORDER BY name", [branch])
       : await pool.query("SELECT * FROM inventory ORDER BY name");
 
-    if (result.rows.length === 0) return res.json([]);
-
-    const ids = result.rows.map(r => r.id);
-    const ings = await pool.query(
-      `SELECT pi.inventory_id, pi.quantity AS qty_required, pi.unit, 
-              i.id, i.name, i.stock
-       FROM product_ingredients pi
-       JOIN ingredients i ON i.id = pi.ingredient_id
-       WHERE pi.inventory_id = ANY($1)`,
-      [ids]
-    );
-
-    const ingMap = {};
-    ings.rows.forEach(ing => {
-      if (!ingMap[ing.inventory_id]) ingMap[ing.inventory_id] = [];
-      ingMap[ing.inventory_id].push(ing);
-    });
-
-    const items = result.rows.map(item => ({
-      ...item,
-      ingredients: ingMap[item.id] || [],
+    const items = await Promise.all(result.rows.map(async item => {
+      const ings = await pool.query(
+        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock
+         FROM product_ingredients pi
+         JOIN ingredients i ON i.id = pi.ingredient_id
+         WHERE pi.inventory_id = $1`,
+        [item.id]
+      );
+      return { ...item, ingredients: ings.rows };
     }));
 
     res.json(items);
   } catch (err) {
-    console.error("GET /inventory error:", err);
     res.status(500).json({ error: "Failed to fetch inventory" });
   }
 });
@@ -1689,14 +1689,18 @@ app.get("/ingredients", async (req, res) => {
 
 app.post("/ingredients", async (req, res) => {
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields } = req.body;
     if (!name || !unit)
       return res.status(400).json({ error: "Name and unit are required" });
     const result = await pool.query(
-      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [name, branch || null, brand || null, unit,
-       parseFloat(stock) || 0, parseFloat(min_stock) || 0, parseFloat(cost_per_unit) || 0]
+      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        name, branch || null, brand || null, unit,
+        parseFloat(stock) || 0, parseFloat(min_stock) || 0,
+        parseFloat(cost_per_unit) || 0,
+        JSON.stringify(extra_fields || {}),
+      ]
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
@@ -1704,23 +1708,24 @@ app.post("/ingredients", async (req, res) => {
     res.status(500).json({ error: "Failed to add ingredient" });
   }
 });
-
 app.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields } = req.body;
 
     await client.query("BEGIN");
 
     const result = await client.query(
       `UPDATE ingredients
-       SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6, cost_per_unit=$7, updated_at=NOW()
-       WHERE id=$8 RETURNING *`,
+       SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6,
+           cost_per_unit=$7, extra_fields=$8, updated_at=NOW()
+       WHERE id=$9 RETURNING *`,
       [
         name, branch || null, brand || null, unit,
         parseFloat(stock) || 0, parseFloat(min_stock) || 0,
         parseFloat(cost_per_unit) || 0,
-        req.params.id
+        JSON.stringify(extra_fields || {}),
+        req.params.id,
       ]
     );
 
@@ -1729,16 +1734,14 @@ app.put("/ingredients/:id", async (req, res) => {
       return res.status(404).json({ error: "Ingredient not found" });
     }
 
+    // your existing product cost recalculation logic below stays the same...
     const ingredientId = req.params.id;
-
     const affectedProducts = await client.query(
       `SELECT DISTINCT inventory_id FROM product_ingredients WHERE ingredient_id = $1`,
       [ingredientId]
     );
-
     for (const row of affectedProducts.rows) {
       const inventoryId = row.inventory_id;
-
       const costResult = await client.query(
         `SELECT SUM(pi.quantity * i.cost_per_unit) AS total_cost
          FROM product_ingredients pi
@@ -1746,9 +1749,7 @@ app.put("/ingredients/:id", async (req, res) => {
          WHERE pi.inventory_id = $1`,
         [inventoryId]
       );
-
       const totalCost = parseFloat(costResult.rows[0].total_cost) || 0;
-
       await client.query(
         `UPDATE inventory SET cost = $1, updated_at = NOW() WHERE id = $2`,
         [totalCost, inventoryId]
@@ -1756,12 +1757,7 @@ app.put("/ingredients/:id", async (req, res) => {
     }
 
     await client.query("COMMIT");
-
-    res.json({
-      success: true,
-      item: result.rows[0],
-      updatedProducts: affectedProducts.rows.length
-    });
+    res.json({ success: true, item: result.rows[0], updatedProducts: affectedProducts.rows.length });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PUT /ingredients/:id error:", err);
@@ -2235,14 +2231,15 @@ app.post("/announcements", async (req, res) => {
 try {
   const announcementId = result.rows[0].id;
   const allUsers = await pool.query("SELECT id FROM users");
-  const userIds = allUsers.rows.map(u => u.id);
 
-  await pool.query(
-  `INSERT INTO notifications (user_id, type, title, body, reference_id)
-   SELECT unnest($1::int[]), 'announcement', $2, $3, $4
-   ON CONFLICT DO NOTHING`,
-  [userIds, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
-  );
+  await Promise.all(allUsers.rows.map(u =>
+    pool.query(
+      `INSERT INTO notifications (user_id, type, title, body, reference_id)
+      VALUES ($1, 'announcement', $2, $3, $4)
+      ON CONFLICT DO NOTHING`,
+      [u.id, title, content.length > 80 ? content.slice(0, 80) + "…" : content, announcementId]
+    )
+  ));
   const tokens = await pool.query('SELECT push_token FROM users WHERE push_token IS NOT NULL');
   await Promise.all(tokens.rows.map(r =>
     sendPushNotification(r.push_token, 'New Announcement', title)
@@ -2766,9 +2763,7 @@ app.get('/reports/history', async (req, res) => {
               submitted_at AS "generatedDate", expires_at as "expiresAt",
               status, remark
        FROM reports
-       WHERE branch = $1 
-         AND status IN ('submitted', 'approved', 'returned')
-         AND expires_at > NOW()
+       WHERE branch = $1 AND status = 'submitted' AND expires_at > NOW()
        ORDER BY submitted_at DESC`,
       [branch]
     );
@@ -2980,12 +2975,154 @@ app.post('/ai/report', async (req, res) => {
   }
 });
 
+app.get('/dashboard/product-analytics', async (req, res) => {
+  try {
+    const { preset, from, to, branch, branches } = req.query;
+
+    const params = [];
+    const conditions = [];
+    let paramIdx = 1;
+
+    if (from && to) {
+      conditions.push(`created_at >= $${paramIdx} AND created_at <= $${paramIdx + 1}::date + interval '1 day'`);
+      params.push(from, to);
+      paramIdx += 2;
+    } else {
+      const presetMap = {
+        day:   `created_at >= CURRENT_DATE`,
+        week:  `created_at >= date_trunc('week', CURRENT_DATE)`,
+        month: `created_at >= date_trunc('month', CURRENT_DATE)`,
+        year:  `created_at >= date_trunc('year', CURRENT_DATE)`,
+      };
+      conditions.push(presetMap[preset] || presetMap['month']);
+    }
+
+    if (branch) {
+      conditions.push(`branch = $${paramIdx}`);
+      params.push(branch);
+      paramIdx++;
+    } else if (branches) {
+      const list = branches.split(',').map(b => b.trim()).filter(Boolean);
+      if (list.length > 0) {
+        const placeholders = list.map((_, i) => `$${paramIdx + i}`).join(', ');
+        conditions.push(`branch IN (${placeholders})`);
+        params.push(...list);
+        paramIdx += list.length;
+      }
+    }
+
+    conditions.push(`(is_voided = false OR is_voided IS NULL)`);
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const result = await pool.query(
+      `SELECT branch, items, cashier FROM transactions ${whereClause}`,
+      params
+    );
+
+    // Region mapping
+    const REGION_MAP = {
+      NCR: 'Luzon', 'Region 1': 'Luzon', 'Region 2': 'Luzon', 'Region 3': 'Luzon',
+      'Region 4A': 'Luzon', 'Region 4B': 'Luzon', 'Region 5': 'Luzon',
+      'Region 6': 'Visayas', 'Region 7': 'Visayas', 'Region 8': 'Visayas',
+      'Region 9': 'Mindanao', 'Region 10': 'Mindanao', 'Region 11': 'Mindanao',
+      'Region 12': 'Mindanao', 'BARMM': 'Mindanao', 'CAR': 'Luzon', 'CARAGA': 'Mindanao',
+    };
+
+    // Branch-to-region lookup from DB
+    const branchRows = await pool.query(`SELECT b.name AS branch_name, br.region FROM branches b LEFT JOIN brands br ON br.id = b.brand_id`);
+    // Actually branches table has region column directly
+    const branchRegionRows = await pool.query(`SELECT name, region FROM branches`);
+    const branchToRegion = {};
+    branchRegionRows.rows.forEach(r => {
+      const region = REGION_MAP[r.region] || r.region || 'Other';
+      branchToRegion[r.name] = region;
+    });
+
+    // Aggregate
+    const productMap = {};     // name -> { totalQty, totalRevenue, branchBreakdown, regionBreakdown, buyerCount }
+    const buyerProductMap = {}; // cashier -> { productName -> qty }
+
+    for (const tx of result.rows) {
+      const items = typeof tx.items === 'string' ? JSON.parse(tx.items) : (tx.items || []);
+      const region = branchToRegion[tx.branch] || 'Other';
+      const cashier = tx.cashier || 'Unknown';
+
+      for (const item of items) {
+        const name = item.name || 'Unknown';
+        const qty  = parseInt(item.qty || 0);
+        const rev  = parseFloat(item.price || 0) * qty;
+
+        if (!productMap[name]) {
+          productMap[name] = { name, totalQty: 0, totalRevenue: 0, branchBreakdown: {}, regionBreakdown: { Luzon: 0, Visayas: 0, Mindanao: 0, Other: 0 } };
+        }
+        productMap[name].totalQty      += qty;
+        productMap[name].totalRevenue  += rev;
+        productMap[name].branchBreakdown[tx.branch] = (productMap[name].branchBreakdown[tx.branch] || 0) + qty;
+        productMap[name].regionBreakdown[region]    = (productMap[name].regionBreakdown[region]    || 0) + qty;
+
+        // Track per-cashier purchases
+        if (!buyerProductMap[cashier]) buyerProductMap[cashier] = {};
+        buyerProductMap[cashier][name] = (buyerProductMap[cashier][name] || 0) + qty;
+      }
+    }
+
+    const allProducts = Object.values(productMap).sort((a, b) => b.totalQty - a.totalQty);
+    const totalQtyAll = allProducts.reduce((s, p) => s + p.totalQty, 0);
+    const avgQty      = totalQtyAll / Math.max(allProducts.length, 1);
+
+    const top10       = allProducts.slice(0, 10);
+    const fastMoving  = allProducts.filter(p => p.totalQty >= avgQty * 1.5).slice(0, 10);
+    const slowMoving  = allProducts.filter(p => p.totalQty <= avgQty * 0.5 && p.totalQty > 0).slice(0, 10);
+
+    // Top buyers (cashiers/staff as proxy — replace with user_name if available)
+    const topBuyers = Object.entries(buyerProductMap)
+      .map(([name, products]) => ({
+        name,
+        totalItems: Object.values(products).reduce((s, v) => s + v, 0),
+        topProduct: Object.entries(products).sort((a, b) => b[1] - a[1])[0]?.[0] || '—',
+      }))
+      .sort((a, b) => b.totalItems - a.totalItems)
+      .slice(0, 10);
+
+    // Regional summary
+    const regionSummary = { Luzon: {}, Visayas: {}, Mindanao: {}, Other: {} };
+    for (const p of allProducts) {
+      for (const [region, qty] of Object.entries(p.regionBreakdown)) {
+        if (qty > 0) {
+          regionSummary[region][p.name] = (regionSummary[region][p.name] || 0) + qty;
+        }
+      }
+    }
+    const regionTop5 = {};
+    for (const [region, products] of Object.entries(regionSummary)) {
+      regionTop5[region] = Object.entries(products)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, qty]) => ({ name, qty }));
+    }
+
+    res.json({
+      top10,
+      fastMoving,
+      slowMoving,
+      topBuyers,
+      regionTop5,
+      totalProducts: allProducts.length,
+      avgQty: Math.round(avgQty),
+    });
+
+  } catch (err) {
+    console.error('GET /dashboard/product-analytics error:', err);
+    res.status(500).json({ error: 'Failed to fetch product analytics' });
+  }
+});
+
 app.post('/ai/dashboard-analysis', async (req, res) => {
   try {
+  
     const { transactions, brands, preset, filterLabel } = req.body;
 
-    // Aggregate the data before sending to Groq
-    const branchTotals = {};
+      const branchTotals = {};
     const dayTotals    = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
     const dayNames     = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     let totalRevenue   = 0;
@@ -3010,61 +3147,154 @@ app.post('/ai/dashboard-analysis', async (req, res) => {
       ? ((profit / totalRevenue) * 100).toFixed(1)
       : '0';
 
-    // Sort branches and days for the prompt
-    const topBranches = Object.entries(branchTotals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([name, rev]) => `${name}: ₱${rev.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`)
-      .join('\n  ');
+    // ── 2. Fetch inventory / stock data per branch ────────────────────────────
+    //    Pull all inventory items so we can detect stock anomalies
+    let inventoryRows = [];
+    try {
+      const invResult = await pool.query(
+        `SELECT name, branch, stock, min_stock, price, cost
+         FROM inventory
+         ORDER BY branch, name`
+      );
+      inventoryRows = invResult.rows;
+    } catch (invErr) {
+      console.error('Failed to fetch inventory for AI analysis:', invErr.message);
+      // Non-fatal — continue without stock data
+    }
 
-    const dayBreakdown = Object.entries(dayTotals)
-      .map(([d, v]) => `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`)
+    // Group inventory by branch
+    const stockByBranch = {};
+    for (const item of inventoryRows) {
+      const br = item.branch || 'Unknown';
+      if (!stockByBranch[br]) stockByBranch[br] = { lowStock: [], zeroStock: [], totalItems: 0 };
+      stockByBranch[br].totalItems++;
+
+      const stock    = parseFloat(item.stock    || 0);
+      const minStock = parseFloat(item.min_stock || 0);
+
+      if (stock === 0) {
+        stockByBranch[br].zeroStock.push(item.name);
+      } else if (minStock > 0 && stock <= minStock) {
+        stockByBranch[br].lowStock.push({ name: item.name, stock, minStock });
+      }
+    }
+
+    // ── 3. Identify stock-vs-sales anomalies ──────────────────────────────────
+    //    Anomaly A: branch has zero/low stock but is still generating sales
+    //    Anomaly B: branch has no recent sales but its stock is not depleting (not ordering)
+    const anomalies = [];
+
+    for (const [branch, stockInfo] of Object.entries(stockByBranch)) {
+      const hasRevenue      = (branchTotals[branch] || 0) > 0;
+      const zeroCount       = stockInfo.zeroStock.length;
+      const lowCount        = stockInfo.lowStock.length;
+      const totalItems      = stockInfo.totalItems;
+      const criticalPct     = totalItems > 0 ? ((zeroCount + lowCount) / totalItems * 100).toFixed(0) : 0;
+
+      // Ghost sales: selling with zero/critically low stock (possible data issue or offline sales)
+      if (hasRevenue && zeroCount > 0) {
+        anomalies.push({
+          branch,
+          type:    'ghost_sales',
+          revenue: branchTotals[branch],
+          zeroStockItems:  stockInfo.zeroStock.slice(0, 5),
+          zeroCount,
+          lowCount,
+          criticalPct,
+        });
+      }
+
+      // Low stock but no reorder signal: low stock + has sales = should be ordering but isn't
+      if (hasRevenue && lowCount >= 3 && zeroCount === 0) {
+        anomalies.push({
+          branch,
+          type:    'low_stock_no_reorder',
+          revenue: branchTotals[branch],
+          lowStockItems: stockInfo.lowStock.slice(0, 5).map(i => `${i.name} (${i.stock}/${i.minStock})`),
+          lowCount,
+          criticalPct,
+        });
+      }
+
+      // Dead stock: branch has full inventory but zero sales — hoarding without selling
+      if (!hasRevenue && totalItems > 0 && zeroCount === 0 && lowCount === 0) {
+        anomalies.push({
+          branch,
+          type:       'dead_stock',
+          totalItems,
+          revenue:    0,
+        });
+      }
+    }
+
+    // ── 4. Build prompt context strings ──────────────────────────────────────
+    const sortedBranches = Object.entries(branchTotals).sort((a, b) => b[1] - a[1]);
+    const branchCount    = sortedBranches.length;
+    const avgBranchRev   = branchCount > 0
+      ? sortedBranches.reduce((s, [, v]) => s + v, 0) / branchCount
+      : 0;
+
+    const topBranchesDetailed = sortedBranches
+      .slice(0, 8)
+      .map(([name, rev]) => {
+        const pctOfAvg = avgBranchRev > 0
+          ? (((rev - avgBranchRev) / avgBranchRev) * 100).toFixed(1)
+          : '0';
+        const flag = rev > avgBranchRev ? '▲ above avg' : '▼ below avg';
+        const stockNote = (() => {
+          const s = stockByBranch[name];
+          if (!s) return '';
+          if (s.zeroStock.length > 0) return ` | ⚠ ${s.zeroStock.length} items at ZERO stock`;
+          if (s.lowStock.length > 0)  return ` | ⚠ ${s.lowStock.length} items low stock`;
+          return '';
+        })();
+        return `  • ${name}: ₱${rev.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${flag} by ${Math.abs(pctOfAvg)}%)${stockNote}`;
+      })
+      .join('\n');
+
+    const dayEntries  = Object.entries(dayTotals);
+    const totalDayRev = dayEntries.reduce((s, [, v]) => s + v, 0);
+    const avgDayRev   = totalDayRev / 7;
+
+    const dayBreakdownDetailed = dayEntries
+      .map(([d, v]) => {
+        const pct = avgDayRev > 0
+          ? (((v - avgDayRev) / avgDayRev) * 100).toFixed(0)
+          : '0';
+        return `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${Number(pct) >= 0 ? '+' : ''}${pct}%)`;
+      })
       .join(', ');
 
-    // Build richer branch context
-const sortedBranches = Object.entries(branchTotals).sort((a, b) => b[1] - a[1]);
-const branchCount    = sortedBranches.length;
-const avgBranchRev   = branchCount > 0
-  ? sortedBranches.reduce((s, [, v]) => s + v, 0) / branchCount
-  : 0;
+    const peakDayEntry    = dayEntries.reduce((a, b) => b[1] > a[1] ? b : a, ['—', 0]);
+    const slowestDayEntry = dayEntries.reduce((a, b) => b[1] < a[1] ? b : a, ['—', Infinity]);
+    const slowestDropPct  = avgDayRev > 0
+      ? Math.round(((avgDayRev - slowestDayEntry[1]) / avgDayRev) * 100)
+      : 0;
+    const weeklyRunRate   = txCount > 0
+      ? Math.round((totalRevenue / txCount) * (txCount / 7) * 7)
+      : 0;
 
-const topBranchesDetailed = sortedBranches
-  .slice(0, 8)
-  .map(([name, rev]) => {
-    const pctOfAvg = avgBranchRev > 0
-      ? (((rev - avgBranchRev) / avgBranchRev) * 100).toFixed(1)
-      : '0';
-    const flag = rev > avgBranchRev ? '▲ above avg' : '▼ below avg';
-    return `  • ${name}: ₱${rev.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${flag} by ${Math.abs(pctOfAvg)}%)`;
-  })
-  .join('\n');
+    // Format anomalies for prompt
+    const anomalyBlock = anomalies.length === 0
+      ? '  None detected.'
+      : anomalies.map(a => {
+          if (a.type === 'ghost_sales') {
+            return `  • [GHOST SALES] ${a.branch}: ₱${a.revenue.toLocaleString('en-PH', { maximumFractionDigits: 0 })} in sales but ${a.zeroCount} items at ZERO stock. Selling: ${a.zeroStockItems.join(', ')}. This branch may be selling items it cannot fulfill, or stock records are not being updated. ${a.lowCount} additional items below minimum.`;
+          }
+          if (a.type === 'low_stock_no_reorder') {
+            return `  • [LOW STOCK / NOT REORDERING] ${a.branch}: Has ₱${a.revenue.toLocaleString('en-PH', { maximumFractionDigits: 0 })} in active sales but ${a.lowCount} items below minimum stock threshold and not at zero — suggesting the branch is not placing supply orders. Items: ${a.lowStockItems.join(', ')}.`;
+          }
+          if (a.type === 'dead_stock') {
+            return `  • [DEAD STOCK] ${a.branch}: Has ${a.totalItems} inventory items with adequate stock levels but generated ₱0 in sales this period. Possible causes: branch inactivity, menu mismatch, or staff not using the POS.`;
+          }
+          return '';
+        }).join('\n');
 
-const dayEntries  = Object.entries(dayTotals);
-const totalDayRev = dayEntries.reduce((s, [, v]) => s + v, 0);
-const avgDayRev   = totalDayRev / 7;
-
-const dayBreakdownDetailed = dayEntries
-  .map(([d, v]) => {
-    const pct = avgDayRev > 0
-      ? (((v - avgDayRev) / avgDayRev) * 100).toFixed(0)
-      : '0';
-    return `${d}: ₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })} (${Number(pct) >= 0 ? '+' : ''}${pct}%)`;
-  })
-  .join(', ');
-
-const peakDayEntry    = dayEntries.reduce((a, b) => b[1] > a[1] ? b : a, ['—', 0]);
-const slowestDayEntry = dayEntries.reduce((a, b) => b[1] < a[1] ? b : a, ['—', Infinity]);
-const slowestDropPct  = avgDayRev > 0
-  ? Math.round(((avgDayRev - slowestDayEntry[1]) / avgDayRev) * 100)
-  : 0;
-const weeklyRunRate   = txCount > 0
-  ? Math.round((totalRevenue / txCount) * (txCount / 7) * 7)
-  : 0;
-
-const prompt = `
+    // ── 5. Build Groq prompt ─────────────────────────────────────────────────
+    const prompt = `
 You are a prescriptive business analyst for iFranchise — a Filipino franchise management system (brands: Coffee Spot quick-service restaurants and iPharma Mart pharmacies).
 
-Your job is NOT to describe what happened. You must tell franchise managers WHAT SPECIFIC ACTIONS TO TAKE RIGHT NOW to improve revenue, cut costs, and fix underperforming branches.
+Your job is NOT to describe what happened. You must tell franchise managers WHAT SPECIFIC ACTIONS TO TAKE RIGHT NOW to improve revenue, cut costs, and fix underperforming branches. Pay special attention to the STOCK VS SALES ANOMALIES section — these are high-priority operational issues.
 
 Period: ${preset || 'this month'} | Scope: ${filterLabel || 'All Brands & Branches'}
 
@@ -3075,12 +3305,20 @@ COGS:         ₱${totalCogs.toLocaleString('en-PH', { maximumFractionDigits: 0 
 Transactions: ${txCount} | Avg order: ₱${avgOrder.toFixed(0)}
 Avg branch revenue: ₱${avgBranchRev.toLocaleString('en-PH', { maximumFractionDigits: 0 })}
 
-Branch performance vs branch average:
+Branch performance vs average (with stock warnings):
 ${topBranchesDetailed || '  No branch data'}
 
 Day-of-week vs daily average:
 ${dayBreakdownDetailed}
 Peak: ${peakDayEntry[0]} | Slowest: ${slowestDayEntry[0]} (${slowestDropPct}% below avg)
+
+═══ STOCK VS SALES ANOMALIES (HIGH PRIORITY) ═══
+${anomalyBlock}
+
+Anomaly types to act on:
+- GHOST SALES: Branch is recording sales for items with zero stock → risk of unfulfilled orders, customer complaints, possible data integrity issue
+- LOW STOCK / NOT REORDERING: Branch is actively selling but not restocking → stockout imminent, lost sales risk
+- DEAD STOCK: Branch has full inventory but no sales → waste risk, possible POS non-compliance or branch inactivity
 
 ═══ PRESCRIPTIVE RULES — FOLLOW STRICTLY ═══
 1. UNDERPERFORMING branches (below avg): prescribe specific fixes — staffing, promos, menu, or hours changes.
@@ -3088,8 +3326,9 @@ Peak: ${peakDayEntry[0]} | Slowest: ${slowestDayEntry[0]} (${slowestDropPct}% be
 3. SLOWEST day(s): prescribe a concrete promo (e.g. "Run a ₱99 bundle every Tuesday 2–5pm").
 4. THIN margins (below 20%): prescribe COGS reduction — supplier renegotiation, waste audit, portion control.
 5. LOW avg order (below ₱150 Coffee Spot / ₱200 iPharma): prescribe upselling scripts or bundle mechanics.
-6. Always include PESO ESTIMATES where data allows.
-7. Every recommendation must be IMMEDIATELY ACTIONABLE — no vague advice.
+6. STOCK ANOMALIES: For each anomaly, prescribe an immediate operational fix with a deadline (e.g. "Place supply order within 48 hours", "Audit POS records vs physical stock by end of week").
+7. Always include PESO ESTIMATES where data allows.
+8. Every recommendation must be IMMEDIATELY ACTIONABLE — no vague advice.
 
 Return ONLY valid JSON, no markdown, no extra text:
 {
@@ -3098,13 +3337,22 @@ Return ONLY valid JSON, no markdown, no extra text:
   "peakDay": "${peakDayEntry[0]}",
   "slowestDay": "${slowestDayEntry[0]}",
   "slowestDayDropPct": ${slowestDropPct},
-  "confidence": <0-100, higher when txCount > 50 and multiple branches have data>,
-  "summary": "<3 sentences: (1) performance verdict with key numbers, (2) biggest problem or opportunity with branch name, (3) single highest-impact action to take this week>",
+  "confidence": <0-100>,
+  "summary": "<3 sentences: (1) performance verdict with key numbers, (2) biggest stock/sales anomaly if any or biggest revenue opportunity, (3) single highest-impact action to take this week>",
+  "stockAnomalies": [
+    {
+      "branch": "<branch name>",
+      "anomalyType": "ghost_sales|low_stock_no_reorder|dead_stock",
+      "severity": "critical|warning|info",
+      "finding": "<1 sentence describing exactly what the data shows>",
+      "action": "<immediate corrective action with who, what, when, and expected peso impact>"
+    }
+  ],
   "recommendations": [
     {
       "branch": "<specific branch or 'All Branches'>",
       "type": "success|warning|info",
-      "text": "<WHO does WHAT by WHEN with expected peso impact. E.g. Branch manager at BGC to introduce a ₱149 drink+pastry bundle on Tuesdays — estimated +₱6,000/week based on current slow-day volume.>",
+      "text": "<WHO does WHAT by WHEN with expected peso impact>",
       "priority": "high|medium|low"
     },
     {
@@ -3134,12 +3382,12 @@ Return ONLY valid JSON, no markdown, no extra text:
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
-     body: JSON.stringify({
-  model: 'llama-3.3-70b-versatile',
-  messages: [{ role: 'user', content: prompt }],
-  max_tokens: 1200, 
-  temperature: 0.2,  
-}),
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1500,
+        temperature: 0.2,
+      }),
     });
 
     const data   = await response.json();
@@ -3691,11 +3939,6 @@ app.post("/api/verify-id", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to verify ID" });
   }
 });
-
-
-// setInterval(() => {
-//   console.log(`Pool: total=${pool.totalCount} idle=${pool.idleCount} waiting=${pool.waitingCount}`);
-// }, 10000);
 
 // ─── ROOT ─────────────────────────────────────────────────────
 app.get("/", (req, res) => {
