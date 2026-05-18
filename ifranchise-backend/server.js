@@ -480,7 +480,7 @@ app.get("/users", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch users" });
+    res.status(500).json({ error: "Failed to create user account." });
   }
 });
 
@@ -800,7 +800,7 @@ app.post("/send-credentials", async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Welcome, ${name}!</h2>
-          <p>Your account has been created. Here are your login credentials:</p>
+          <p>We're pleased to inform you that your franchise application has been reviewed and officially approved. Your Franchisync partner account is now active and ready to use.</p>
           <div style="background: #E8F5E9; padding: 15px; margin: 15px 0;">
             <p><strong>Email:</strong> ${to}</p>
             <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
@@ -826,19 +826,73 @@ app.post("/send-rejection", async (req, res) => {
       to: to,
       subject: "Update on Your Franchisync Application",
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2E7D32;">Hello, ${name}</h2>
-          <p>Thank you for your interest in joining the Franchisync network.</p>
-          <p>After careful review, we regret to inform you that your franchise application has not been approved at this time.</p>
-          <div style="background: #FEE2E2; padding: 15px; margin: 15px 0; border-left: 4px solid #DC2626;">
-            <p style="color: #DC2626; font-weight: bold; margin: 0;">Application Status: Rejected</p>
-          </div>
-          <p>If you have questions or would like to reapply in the future, feel free to reach out to us.</p>
-          <p>Thank you again for your interest.</p>
-          <p style="color: #5a7a65;">— The Franchisync Team</p>
-          <p>Visit us at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #2E7D32, #43A047); padding: 36px 32px; text-align: center;">
+      <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Franchisync</h1>
+      <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Franchise Application Update</p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding: 36px 32px;">
+      
+      <!-- Approved badge -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <div style="display: inline-block; background: #E8F5E9; border: 2px solid #A5D6A7; border-radius: 50px; padding: 10px 24px;">
+          <span style="color: #2E7D32; font-weight: 700; font-size: 15px;">✅ Application Approved</span>
         </div>
-      `,
+      </div>
+
+      <p style="margin: 0 0 10px; font-size: 20px; font-weight: 700; color: #1a1a1a;">Congratulations, ${name}!</p>
+      <p style="margin: 0 0 24px; font-size: 14px; color: #555; line-height: 1.7;">
+        We are pleased to inform you that your franchise application has been <strong style="color: #2E7D32;">approved</strong>. 
+        Your Franchisync account is now active. Below are your login credentials to get started.
+      </p>
+
+      <!-- Credentials box -->
+      <div style="background: #F9FDF9; border: 1.5px solid #C8E6C9; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px;">
+        <p style="margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #9CA3AF; letter-spacing: 1px; text-transform: uppercase;">Your Login Credentials</p>
+        <div style="border-bottom: 1px solid #E8F5E9; padding: 12px 0; display: flex;">
+          <span style="font-size: 13px; color: #6B7280; width: 80px; flex-shrink: 0;">Email</span>
+          <span style="font-size: 13px; font-weight: 600; color: #1a1a1a;">${to}</span>
+        </div>
+        <div style="padding: 12px 0 0;">
+          <span style="font-size: 13px; color: #6B7280; display: block; margin-bottom: 4px;">Temporary Password</span>
+          <span style="font-size: 20px; font-weight: 800; color: #2E7D32; letter-spacing: 4px; font-family: monospace;">${password}</span>
+        </div>
+      </div>
+
+      <!-- Warning -->
+      <div style="background: #FFF8E1; border: 1px solid #FFE082; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: flex; gap: 10px;">
+        <span style="font-size: 16px;">⚠️</span>
+        <p style="margin: 0; font-size: 12px; color: #E65100; font-weight: 600; line-height: 1.6;">
+          For your security, please log in and change your password immediately. Do not share your credentials with anyone.
+        </p>
+      </div>
+
+      <!-- CTA button -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <a href="https://franchisync.business" style="display: inline-block; background: linear-gradient(90deg, #368f3b, #218428); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 36px; border-radius: 10px; letter-spacing: 0.5px;">
+          Log In to My Account →
+        </a>
+      </div>
+
+      <p style="margin: 0; font-size: 13px; color: #6B7280; line-height: 1.7;">
+        If you have any questions, feel free to reach out to our support team. We look forward to working with you on your franchise journey.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #F9FDF9; border-top: 1px solid #E8F5E9; padding: 20px 32px; text-align: center;">
+      <p style="margin: 0; font-size: 11px; color: #9CA3AF; line-height: 1.7;">
+        © ${new Date().getFullYear()} Franchisync Business and Services Corporation<br/>
+        This is an automated message. Please do not reply to this email.
+      </p>
+    </div>
+
+  </div>
+`,
     });
     console.log("Rejection email sent:", result);
     res.json({ success: true });
