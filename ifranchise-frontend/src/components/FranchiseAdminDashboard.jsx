@@ -162,7 +162,7 @@ function AlertModal({ message, onClose, type = 'info' }) {
 export default function FranchiseAdminDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(
-    () => sessionStorage.getItem('fa_activeModule') || 'applications'
+    () => sessionStorage.getItem('fa_activeModule') || 'dashboard'
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -182,7 +182,6 @@ export default function FranchiseAdminDashboard() {
     else setUser(u);
   }, []);
 
-  
     useEffect(() => {
       fetch(`${process.env.REACT_APP_API_URL}/transactions`)
         .then(res => res.json()).then(data => setTransactions(data))

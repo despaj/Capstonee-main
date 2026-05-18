@@ -647,7 +647,7 @@ function ActivityLogPanel({ log, onClose }) {
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Administrator";
+  const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name  || "Unknown";
 
