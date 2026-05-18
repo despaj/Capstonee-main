@@ -141,7 +141,7 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
 
     const isWeb = req.headers["x-client"] === "web";
-    const mobileBlockedRoles = ["Administrator", "Staff"];
+    const mobileBlockedRoles = ["Super Admin", "Franchisee Operations Admin", "Sales Admin", "Staff"];
     if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       return res.status(403).json({ message: "Invalid credentials" });
 
@@ -757,6 +757,36 @@ app.post("/send-credentials", async (req, res) => {
   }
 });
 
+app.post("/send-rejection", async (req, res) => {
+  const { to, name } = req.body;
+  try {
+    const result = await resend.emails.send({
+      from: "Franchisync <acc@noreply.franchisync.xyz>",
+      to: to,
+      subject: "Update on Your Franchisync Application",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">Hello, ${name}</h2>
+          <p>Thank you for your interest in joining the Franchisync network.</p>
+          <p>After careful review, we regret to inform you that your franchise application has not been approved at this time.</p>
+          <div style="background: #FEE2E2; padding: 15px; margin: 15px 0; border-left: 4px solid #DC2626;">
+            <p style="color: #DC2626; font-weight: bold; margin: 0;">Application Status: Rejected</p>
+          </div>
+          <p>If you have questions or would like to reapply in the future, feel free to reach out to us.</p>
+          <p>Thank you again for your interest.</p>
+          <p style="color: #5a7a65;">— The Franchisync Team</p>
+          <p>Visit us at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
+        </div>
+      `,
+    });
+    console.log("Rejection email sent:", result);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Resend error:", err);
+    res.status(500).json({ error: "Failed to send rejection email" });
+  }
+});
+
 // ─── APPLICATIONS ────────────────────────────────────────────
 
 app.post("/check-duplicate", async (req, res) => {
@@ -1158,7 +1188,7 @@ app.get("/receipts", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
 
     const { role } = userResult.rows[0];
-    const isAdmin  = role === "Administrator";
+    const isAdmin  = role === "Super Admin";
 
     // Build dynamic WHERE clauses
     const conditions = [];
@@ -2193,7 +2223,7 @@ app.post("/announcements", async (req, res) => {
     if (userResult.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
 
-    if (userResult.rows[0].role !== "Administrator")
+    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin")
       return res.status(403).json({ error: "Only admin can post announcements" });
 
     const result = await pool.query(
@@ -2238,7 +2268,7 @@ app.put("/announcements/:id", async (req, res) => {
     if (userResult.rows.length === 0)
       return res.status(404).json({ error: "User not found" });
 
-    if (userResult.rows[0].role !== "Administrator")
+    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin")
       return res.status(403).json({ error: "Unauthorized" });
 
     const result = await pool.query(
@@ -2259,7 +2289,7 @@ app.delete("/announcements/:id", async (req, res) => {
 
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Administrator") return res.status(403).json({ error: "Unauthorized" });
+    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin") return res.status(403).json({ error: "Unauthorized" });
 
     // Save to history before deleting
     const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [req.params.id]);
