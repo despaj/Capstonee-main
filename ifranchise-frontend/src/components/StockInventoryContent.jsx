@@ -3,43 +3,40 @@ import * as XLSX from "xlsx";
 
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#6b8c77", border:"#daeee5",
-  bg:"#f4fbf7", white:"#ffffff", warn:"#d97706", warnBg:"#fffbeb",
-  ok:"#2e7d32", okBg:"#e8f5e9", red:"#dc2626", redBg:"#fef2f2",
+  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
+  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
+  ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
-/* ── shared style atoms ── */
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:8,
-  border:`1px solid ${C.border}`, background:C.white,
+  height:36, padding:"0 11px", borderRadius:9,
+  border:`1px solid ${C.border}`, background:C.bg,
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
-  transition:"border-color .15s",
 };
 const invLabelSt = {
-  display:"block", fontSize:11, fontWeight:700,
-  color:C.muted, marginBottom:5, letterSpacing:"0.04em",
+  display:"block", fontSize:11, fontWeight:800,
+  color:C.muted, marginBottom:5,
+  textTransform:"uppercase", letterSpacing:"0.07em",
 };
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:8,
+  height:36, padding:"0 16px", borderRadius:9,
   border:`1px solid ${C.border}`, background:C.white,
-  fontSize:13, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", whiteSpace:"nowrap", color:C.ink,
-  transition:"background .15s, border-color .15s",
+  fontSize:13, fontWeight:700, cursor:"pointer",
+  fontFamily:"inherit", whiteSpace:"nowrap",
 };
 const btnPrimarySt = {
   ...btnSt,
   background:`linear-gradient(135deg,${C.teal},${C.green})`,
   color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.25)",
+  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
 };
 const smallBtnSt = {
   display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 11px", borderRadius:6,
+  height:28, padding:"0 10px", borderRadius:7,
   fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:"transparent",
-  transition:"background .12s, color .12s",
+  fontFamily:"inherit", background:C.white,
 };
 
 const capitalizeName = (str) => str.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -47,63 +44,11 @@ const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 15;
-const EXPIRY_WARN_DAYS = 30;
 
 const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
   month:"short", day:"numeric", year:"numeric",
   hour:"2-digit", minute:"2-digit",
 });
-
-const fmtDate = (v) => {
-  try {
-    return new Date(v).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
-  } catch { return v; }
-};
-
-/* ── Brand-specific field definitions ── */
-const BRAND_EXTRA_FIELDS = {
-  iPharma: [
-    { key:"batch_number", label:"Batch No.",   type:"text",   width:110 },
-    { key:"mfg_date",     label:"Mfg Date",    type:"date",   width:110 },
-    { key:"exp_date",     label:"Exp Date",    type:"date",   width:150 },
-    { key:"supply_date",  label:"Supply Date", type:"date",   width:110 },
-  ],
-  "Coffee Spot": [
-    { key:"batch_number", label:"Batch No.",   type:"text",   width:110 },
-    { key:"mfg_date",     label:"Mfg Date",    type:"date",   width:110 },
-    { key:"exp_date",     label:"Exp Date",    type:"date",   width:150 },
-    { key:"supply_date",  label:"Supply Date", type:"date",   width:110 },
-    { key:"perishable",   label:"Perishable",  type:"yesno",  width:100 },
-  ],
-  "Food Caravan": [
-    { key:"batch_number", label:"Batch No.",   type:"text",   width:110 },
-    { key:"mfg_date",     label:"Mfg Date",    type:"date",   width:110 },
-    { key:"exp_date",     label:"Exp Date",    type:"date",   width:150 },
-    { key:"supply_date",  label:"Supply Date", type:"date",   width:110 },
-    { key:"perishable",   label:"Perishable",  type:"yesno",  width:100 },
-  ],
-  iFuel: [
-    { key:"fuel_type",         label:"Type",           type:"text",   width:100 },
-    { key:"tank_number",       label:"Tank No.",       type:"text",   width:90  },
-    { key:"exp_date",          label:"Exp Date",       type:"date",   width:150 },
-    { key:"supply_date",       label:"Supply Date",    type:"date",   width:110 },
-    { key:"gallons_delivered", label:"Gals Delivered", type:"number", width:120 },
-  ],
-};
-
-function getExtraFields(brandName) {
-  if (!brandName) return [];
-  for (const key of Object.keys(BRAND_EXTRA_FIELDS)) {
-    if (brandName.trim().toLowerCase() === key.toLowerCase()) return BRAND_EXTRA_FIELDS[key];
-  }
-  return [];
-}
-function defaultExtraValues(brandName) {
-  const fields = getExtraFields(brandName);
-  const obj = {};
-  fields.forEach(f => { obj[f.key] = f.type === "yesno" ? false : ""; });
-  return obj;
-}
 
 /* ── tiny inline SVG icons ── */
 const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
@@ -126,159 +71,54 @@ const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size}
 const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
 
-/* ── Brand accent colors (for brand column text only — no bg pill) ── */
+/* ── Brand badge color helper ── */
 function brandAccent(brandName) {
-  if (!brandName) return { color:"#00695c" };
+  if (!brandName) return { bg:"#e0f2f1", color:"#00695c" };
   const n = brandName.toLowerCase();
-  if (n.includes("ipharma"))      return { color:"#3949ab" };
-  if (n.includes("coffee"))       return { color:"#b45309" };
-  if (n.includes("food caravan")) return { color:"#b91c1c" };
-  if (n.includes("ifuel"))        return { color:"#1565c0" };
-  return { color:"#00695c" };
+  if (n.includes("ipharma"))       return { bg:"#e8eaf6", color:"#3949ab" };
+  if (n.includes("coffee"))        return { bg:"#fff3e0", color:"#e65100" };
+  if (n.includes("food caravan"))  return { bg:"#fce4ec", color:"#c62828" };
+  if (n.includes("ifuel"))         return { bg:"#e3f2fd", color:"#1565c0" };
+  return { bg:"#e0f2f1", color:"#00695c" };
 }
 
-/* ── Expiry cell — clean inline layout ── */
-function ExpiryCell({ value }) {
-  if (!value) return <span style={{ color:C.muted, fontSize:12 }}>—</span>;
-  try {
-    const now  = new Date(); now.setHours(0,0,0,0);
-    const warn = new Date(now); warn.setDate(now.getDate() + EXPIRY_WARN_DAYS);
-    const exp  = new Date(value); exp.setHours(0,0,0,0);
-    const days = Math.ceil((exp - now) / 86400000);
-    const fmt  = exp.toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" });
-
-    if (exp < now) {
-      return (
-        <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-          <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:C.redBg, color:C.red, letterSpacing:"0.03em" }}>EXPIRED</span>
-          <span style={{ fontSize:12, color:C.red, fontWeight:500 }}>{fmt}</span>
-        </span>
-      );
-    }
-    if (exp <= warn) {
-      return (
-        <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-          <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:C.warnBg, color:C.warn, letterSpacing:"0.03em" }}>{days}d left</span>
-          <span style={{ fontSize:12, color:C.warn, fontWeight:500 }}>{fmt}</span>
-        </span>
-      );
-    }
-    return <span style={{ fontSize:12, color:C.ink }}>{fmt}</span>;
-  } catch { return <span style={{ fontSize:12 }}>{value}</span>; }
-}
-
-/* ── Extra field cell — simplified, no aggressive colors ── */
-function ExtraFieldCell({ field, value }) {
-  if (field.key === "exp_date") return <ExpiryCell value={value}/>;
-
-  if (field.type === "yesno") {
-    const yes = value === true || value === "true" || value === 1 || value === "yes";
-    // Plain text, only "Yes" gets a subtle green tint
-    return (
-      <span style={{ fontSize:12, fontWeight:600, color: yes ? C.greenDk : C.muted }}>
-        {yes ? "Yes" : "No"}
-      </span>
-    );
-  }
-
-  if (!value || value === "") return <span style={{ color:C.muted, fontSize:12 }}>—</span>;
-
-  if (field.type === "date") return <span style={{ fontSize:12, color:C.ink }}>{fmtDate(value)}</span>;
-
-  if (field.key === "gallons_delivered") {
-    return <span style={{ fontSize:12, fontWeight:600, color:"#1565c0" }}>{Number(value).toLocaleString()} gal</span>;
-  }
-
-  return <span style={{ fontSize:12, color:C.ink }}>{value}</span>;
-}
-
-/* ── Extra Fields Form Section ── */
-function ExtraFieldsForm({ brandName, extraValues, onChange }) {
-  const fields = getExtraFields(brandName);
-  if (!fields.length) return null;
-
-  return (
-    <div style={{ marginTop:4, padding:"14px 16px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
-      <div style={{ fontSize:11, fontWeight:700, color:C.muted, marginBottom:12, letterSpacing:"0.04em" }}>{brandName.toUpperCase()} FIELDS</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-        {fields.map(f => (
-          <div key={f.key} style={f.key === "batch_number" || f.key === "fuel_type" ? { gridColumn:"1/-1" } : {}}>
-            <label style={invLabelSt}>{f.label}</label>
-            {f.type === "yesno" ? (
-              <div style={{ display:"flex", gap:8, marginTop:4 }}>
-                {["Yes","No"].map(opt => {
-                  const isYes = opt === "Yes";
-                  const active = isYes
-                    ? (extraValues[f.key] === true || extraValues[f.key] === "yes")
-                    : (extraValues[f.key] === false || extraValues[f.key] === "no" || !extraValues[f.key]);
-                  return (
-                    <button key={opt} type="button"
-                      onClick={() => onChange({ ...extraValues, [f.key]: isYes })}
-                      style={{
-                        flex:1, height:36, borderRadius:8, fontFamily:"inherit",
-                        fontSize:13, fontWeight:600, cursor:"pointer",
-                        border: active ? `1.5px solid ${isYes ? C.green : C.red}` : `1px solid ${C.border}`,
-                        background: active ? (isYes ? C.greenLt : "#fef2f2") : C.white,
-                        color: active ? (isYes ? C.greenDk : C.red) : C.muted,
-                      }}>
-                      {opt}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <input
-                type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                min={f.type === "number" ? "0" : undefined}
-                step={f.type === "number" ? "0.01" : undefined}
-                style={invInputSt}
-                value={extraValues[f.key] ?? ""}
-                onChange={e => onChange({ ...extraValues, [f.key]: e.target.value })}
-                placeholder={f.type === "date" ? "" : `Enter ${f.label.toLowerCase()}…`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ── UI MODAL ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   UI MODAL
+───────────────────────────────────────────────────────────────────────── */
 function UIModal({ modal, onClose, onConfirm }) {
   if (!modal) return null;
   const { type, title, message, lines, confirmLabel, cancelLabel } = modal;
   const iconMap = {
-    error:   <AlertCircleIcon size={26} color={C.red}/>,
+    error:   <AlertCircleIcon size={26} color="#dc2626"/>,
     success: <CheckCircleIcon size={26} color={C.green}/>,
     info:    <InfoIcon size={26} color="#1d4ed8"/>,
     confirm: <AlertCircleIcon size={26} color={C.warn}/>,
   };
-  const hc = {
-    error:   { bg:C.redBg,   border:"#fecaca",    titleColor:"#991b1b"  },
-    success: { bg:C.greenLt, border:C.greenMid,   titleColor:C.greenDk  },
-    info:    { bg:"#eff6ff",  border:"#bfdbfe",    titleColor:"#1e3a8a"  },
-    confirm: { bg:C.warnBg,  border:"#fed7aa",    titleColor:"#9a3412"  },
-  }[type] || { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" };
-
+  const headerColorMap = {
+    error:   { bg:"#fef2f2",  border:"#fecaca",      titleColor:"#991b1b"  },
+    success: { bg:C.greenLt,  border:C.greenMid,     titleColor:C.greenDk  },
+    info:    { bg:"#eff6ff",  border:"#bfdbfe",      titleColor:"#1e3a8a"  },
+    confirm: { bg:C.warnBg,   border:"#fed7aa",      titleColor:"#9a3412"  },
+  };
+  const hc = headerColorMap[type] || headerColorMap.info;
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
         <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}`, display:"flex", alignItems:"flex-start", gap:13 }}>
           <div style={{ flexShrink:0, marginTop:1 }}>{iconMap[type]}</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:15, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
-            {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.6, opacity:0.85 }}>{message}</div>}
+            <div style={{ fontSize:16, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
+            {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.55, opacity:0.85 }}>{message}</div>}
           </div>
-          <button onClick={onClose} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:`1px solid ${hc.border}`, background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:`1px solid ${hc.border}`, background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
             <XIcon size={13}/>
           </button>
         </div>
         {lines && lines.length > 0 && (
           <div style={{ maxHeight:180, overflowY:"auto", padding:"12px 24px", borderBottom:`1px solid ${C.border}` }}>
             {lines.map((l, i) => (
-              <div key={i} style={{ fontSize:12, color:l.warn?C.warn:C.muted, padding:"3px 0", display:"flex", alignItems:"flex-start", gap:7 }}>
-                <span style={{ marginTop:1, flexShrink:0, color:l.warn?C.warn:C.green }}>{l.warn?"–":"+"}</span>
+              <div key={i} style={{ fontSize:12, color:l.warn ? C.warn : C.muted, padding:"3px 0", display:"flex", alignItems:"flex-start", gap:7 }}>
+                <span style={{ marginTop:1, flexShrink:0, color:l.warn?"#e65100":C.green }}>{l.warn ? "–" : "+"}</span>
                 <span>{l.text}</span>
               </div>
             ))}
@@ -286,12 +126,12 @@ function UIModal({ modal, onClose, onConfirm }) {
         )}
         <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
           {type === "confirm" && (
-            <button onClick={onClose} style={{ ...btnSt }}>{cancelLabel||"Cancel"}</button>
+            <button onClick={onClose} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>{cancelLabel || "Cancel"}</button>
           )}
           {type === "confirm" ? (
-            <button onClick={onConfirm} style={{ ...btnSt, background:C.red, color:"#fff", border:"none" }}>{confirmLabel||"Confirm"}</button>
+            <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)" }}>{confirmLabel || "Confirm"}</button>
           ) : (
-            <button onClick={onClose} style={{ ...btnPrimarySt }}>{confirmLabel||"OK"}</button>
+            <button onClick={onClose} style={{ ...btnPrimarySt }}>{confirmLabel || "OK"}</button>
           )}
         </div>
       </div>
@@ -299,44 +139,51 @@ function UIModal({ modal, onClose, onConfirm }) {
   );
 }
 
-/* ── DELETE CONFIRM MODAL ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   DELETE CONFIRM MODAL
+───────────────────────────────────────────────────────────────────────── */
 function DeleteConfirmModal({ item, onConfirm, onCancel }) {
   if (!item) return null;
   return (
     <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid #fecaca`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-        <div style={{ background:C.redBg, padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
-          <div style={{ flexShrink:0, marginTop:1 }}><AlertCircleIcon size={26} color={C.red}/></div>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
+          <div style={{ flexShrink:0, marginTop:1 }}><AlertCircleIcon size={26} color="#dc2626"/></div>
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Ingredient</div>
-            <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
-              Are you sure you want to delete <strong>"{item.name}"</strong>?
+            <div style={{ fontSize:16, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Ingredient</div>
+            <div style={{ fontSize:13, color:C.ink, lineHeight:1.55 }}>
+              Are you sure you want to delete <strong style={{ color:C.ink }}>"{item.name}"</strong>?
             </div>
-            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:9, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
               This will move the ingredient to Delete History where it can be restored.
             </div>
           </div>
-          <button onClick={onCancel} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onCancel} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
             <XIcon size={13}/>
           </button>
         </div>
-        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:20 }}>
-          {[
-            { label:"Branch",   val:item.branch||"—"  },
-            { label:"Unit",     val:item.unit         },
-            { label:"Stock",    val:item.stock        },
-            { label:"Cost/Unit",val:`₱${Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}` },
-          ].map(x => (
-            <div key={x.label} style={{ fontSize:12 }}>
-              <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:3 }}>{x.label}</div>
-              <div style={{ fontWeight:700, color:C.ink }}>{x.val}</div>
-            </div>
-          ))}
+        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:16 }}>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Branch</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.branch || "—"}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Unit</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.unit}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Stock</div>
+            <div style={{ fontWeight:600, color:C.ink }}>{item.stock}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Cost/Unit</div>
+            <div style={{ fontWeight:700, color:C.green }}>₱{Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+          </div>
         </div>
         <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onCancel} style={{ ...btnSt }}>Cancel</button>
-          <button onClick={onConfirm} style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.25)" }}>
-            <TrashIcon size={13}/> Delete
+          <button onClick={onCancel} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
+          <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)", display:"inline-flex", alignItems:"center", gap:6 }}>
+            <TrashIcon size={13}/> Delete Ingredient
           </button>
         </div>
       </div>
@@ -344,19 +191,21 @@ function DeleteConfirmModal({ item, onConfirm, onCancel }) {
   );
 }
 
-/* ── IMPORT LOADING MODAL ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   IMPORT LOADING MODAL
+───────────────────────────────────────────────────────────────────────── */
 function ImportLoadingModal({ visible, progress }) {
   if (!visible) return null;
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ background:C.white, borderRadius:18, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
-        <div style={{ width:60, height:60, borderRadius:"50%", background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px" }}>
-          <UploadIcon size={28} color={C.green}/>
+      <div style={{ background:C.white, borderRadius:22, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px" }}>
+          <UploadIcon size={30} color={C.green}/>
         </div>
-        <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
+        <div style={{ fontSize:17, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
         <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
-        <div style={{ background:C.greenLt, borderRadius:999, height:6, overflow:"hidden", marginBottom:12 }}>
+        <div style={{ background:C.greenLt, borderRadius:999, height:8, overflow:"hidden", marginBottom:12 }}>
           <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
         </div>
         <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
@@ -372,7 +221,9 @@ function ImportLoadingModal({ visible, progress }) {
   );
 }
 
-/* ── BrandBranchFilter ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   BrandBranchFilter
+───────────────────────────────────────────────────────────────────────── */
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = useState("");
   const [branchQ, setBranchQ] = useState("");
@@ -391,16 +242,16 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   }, []);
 
   const selectedBrand    = brands.find(b => b.id === activeBrand);
-  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br=>typeof br==="string"?br:br.name) : [];
+  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br => typeof br==="string"?br:br.name) : [];
   const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
   const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
 
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
   const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
 
   return (
     <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-      <div ref={brandRef} style={{ position:"relative", minWidth:175 }}>
+      <div ref={brandRef} style={{ position:"relative", minWidth:180 }}>
         <div onClick={() => { setOpenB(v=>!v); setBrandQ(""); }}
           style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
           <FilterIcon color={C.green}/>
@@ -429,7 +280,7 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
         )}
       </div>
 
-      <div ref={branchRef} style={{ position:"relative", minWidth:185, opacity:activeBrand?1:0.45 }}>
+      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45 }}>
         <div onClick={() => { if(activeBrand){ setOpenBr(v=>!v); setBranchQ(""); } }}
           style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
           <StoreIcon size={12} color={activeBrand?C.green:C.muted}/>
@@ -462,66 +313,72 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   );
 }
 
-/* ── Pagination ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   Pagination
+───────────────────────────────────────────────────────────────────────── */
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
   return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
       <span style={{ fontSize:12, color:C.muted }}>
         Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
       </span>
       <div style={{ display:"flex", gap:4 }}>
         {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
         ))}
         {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
           <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
         ))}
         {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
         ))}
       </div>
     </div>
   );
 }
 
-/* ── DELETE HISTORY PANEL ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   DELETE HISTORY PANEL
+───────────────────────────────────────────────────────────────────────── */
 function DeleteHistoryPanel({ history, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+            <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>Delete History</h2>
             {history.length > 0 && (
-              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:C.red }}>{history.length} deleted</span>
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#dc2626" }}>
+                {history.length} deleted
+              </span>
             )}
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <XIcon size={15}/>
           </button>
         </div>
         {history.length > 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
             <span>Ingredient</span><span>Branch</span><span>Stock</span><span>Deleted At</span><span></span>
           </div>
         )}
         <div style={{ overflowY:"auto", flex:1 }}>
           {history.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13 }}>No deleted ingredients yet.</div>
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted ingredients yet.</div>
           ) : history.map((entry, i) => {
             const d = entry.data || {};
             return (
-              <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? `1px solid ${C.bg}` : "none" }}>
+              <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
                 <div>
-                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
-                  <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.brand||"—"}</div>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
+                  <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.brand || "—"}</div>
                 </div>
                 <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
                 <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock} {d.unit}</div>
                 <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}</div>
-                <button onClick={()=>onRestore(entry)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                <button onClick={() => onRestore(entry)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   <RestoreIcon/> Restore
                 </button>
               </div>
@@ -533,7 +390,9 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
   );
 }
 
-/* ── ACTIVITY LOG PANEL ── */
+/* ─────────────────────────────────────────────────────────────────────────
+   ACTIVITY LOG PANEL
+───────────────────────────────────────────────────────────────────────── */
 function ActivityLogPanel({ log, onClose }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -556,18 +415,18 @@ function ActivityLogPanel({ log, onClose }) {
       import: { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed",  label:"Imported"},
     };
     const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
   };
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:C.greenLt, color:C.greenDk }}>{filtered.length} entries</span>
+            <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>Activity Log</h2>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <XIcon size={15}/>
           </button>
         </div>
@@ -584,26 +443,208 @@ function ActivityLogPanel({ log, onClose }) {
             <option value="import">Imported</option>
           </select>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
           <span>Action</span><span>Ingredient</span><span>Branch</span><span>By</span><span>Timestamp</span>
         </div>
         <div style={{ overflowY:"auto", flex:1 }}>
           {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13 }}>No activity yet.</div>
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
           ) : filtered.map((entry, i) => (
-            <div key={entry.id||i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? `1px solid ${C.bg}` : "none" }}>
+            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
               <div>{actionBadge(entry.action)}</div>
               <div>
-                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.ingredientName}</div>
+                <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.ingredientName}</div>
                 {entry.changes && (
                   <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>
                 )}
               </div>
-              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch||"—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performedBy||"System"}</div>
+              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performedBy || "System"}</div>
               <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.timestamp ? fmtTs(entry.timestamp) : "—"}</div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BATCHES MODAL
+   FIX: saveBatch and deleteBatch now sync the parent ingredient's stock
+        by summing all batch stocks after every change.
+───────────────────────────────────────────────────────────────────────── */
+function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName }) {
+  const emptyBatch = { batch_number:"", stock:0, mfg_date:"", exp_date:"", supply_date:"", cost_per_unit:0, perishable:false, notes:"" };
+  const [form, setForm] = useState(emptyBatch);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  /* Helper: re-fetch all batches for this ingredient and update parent stock */
+  const syncIngredientStock = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+      const freshBatches = await res.json();
+      const totalStock = Array.isArray(freshBatches)
+        ? freshBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0)
+        : 0;
+      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...ingredient, stock: totalStock }),
+      });
+    } catch (err) {
+      console.warn("Failed to sync ingredient stock from batches:", err);
+    }
+  };
+
+  const saveBatch = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const url = editingBatch
+      ? `${apiUrl}/ingredient-batches/${editingBatch.id}`
+      : `${apiUrl}/ingredient-batches`;
+    const method = editingBatch ? "PUT" : "POST";
+    const body = editingBatch
+      ? { ...form }
+      : { ...form, ingredient_id: ingredient.id };
+    await fetch(url, { method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    // Sync parent stock after saving batch
+    await syncIngredientStock();
+    setForm(emptyBatch);
+    setEditingBatch(null);
+    setSaving(false);
+    onRefresh();
+  };
+
+  const deleteBatch = async (id) => {
+    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method:"DELETE" });
+    // Sync parent stock after deleting batch
+    await syncIngredientStock();
+    onRefresh();
+  };
+
+  const openEdit = (batch) => {
+    setEditingBatch(batch);
+    setForm({
+      batch_number:  batch.batch_number  || "",
+      stock:         batch.stock         || 0,
+      mfg_date:      batch.mfg_date      ? batch.mfg_date.split("T")[0]      : "",
+      exp_date:      batch.exp_date      ? batch.exp_date.split("T")[0]      : "",
+      supply_date:   batch.supply_date   ? batch.supply_date.split("T")[0]   : "",
+      cost_per_unit: batch.cost_per_unit || 0,
+      perishable:    batch.perishable    || false,
+      notes:         batch.notes         || "",
+    });
+  };
+
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:700, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ padding:"18px 24px", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontWeight:800, fontSize:16 }}>📦 Batches — {ingredient.name}</div>
+            <div style={{ fontSize:12, opacity:0.85 }}>{ingredient.branch} · Total stock: {batches.reduce((s,b)=>s+Number(b.stock||0),0)} {ingredient.unit}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:"50%", width:32, height:32, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+        </div>
+
+        <div style={{ overflowY:"auto", flex:1, padding:24, display:"flex", flexDirection:"column", gap:20 }}>
+          <div style={{ background:"#f0fdf5", border:"1.5px solid #c8e6c9", borderRadius:14, padding:18 }}>
+            <div style={{ fontWeight:800, fontSize:13, color:"#00695c", marginBottom:14 }}>
+              {editingBatch ? "✏️ Edit Batch" : "➕ Add New Batch"}
+            </div>
+            <form onSubmit={saveBatch}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Batch No.</label>
+                  <input style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.batch_number} onChange={e=>setForm(f=>({...f,batch_number:e.target.value}))} placeholder="e.g. A001"/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Stock *</label>
+                  <input type="number" min="0" required style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Cost/Unit (₱)</label>
+                  <input type="number" min="0" step="0.01" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.cost_per_unit} onChange={e=>setForm(f=>({...f,cost_per_unit:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Mfg Date</label>
+                  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.mfg_date} onChange={e=>setForm(f=>({...f,mfg_date:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Exp Date</label>
+                  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.exp_date} onChange={e=>setForm(f=>({...f,exp_date:e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Supply Date</label>
+                  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                    value={form.supply_date} onChange={e=>setForm(f=>({...f,supply_date:e.target.value}))}/>
+                </div>
+              </div>
+              <div style={{ marginBottom:10 }}>
+                <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Notes</label>
+                <input style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+                  value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Optional notes…"/>
+              </div>
+              <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                {editingBatch && (
+                  <button type="button" onClick={()=>{ setEditingBatch(null); setForm(emptyBatch); }}
+                    style={{ height:34, padding:"0 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                    Cancel
+                  </button>
+                )}
+                <button type="submit" disabled={saving}
+                  style={{ height:34, padding:"0 18px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
+                  {saving ? "Saving…" : editingBatch ? "Update Batch" : "Add Batch"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e", marginBottom:12 }}>
+              Existing Batches ({batches.length})
+            </div>
+            {loading ? (
+              <div style={{ textAlign:"center", padding:"24px 0", color:"#5a7a65" }}>Loading batches…</div>
+            ) : batches.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"24px 0", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No batches yet. Add your first batch above.</div>
+            ) : batches.map(batch => {
+              const exp     = batch.exp_date ? new Date(batch.exp_date) : null;
+              const expired = exp && exp < now;
+              const expWarn = exp && !expired && (exp - now) < 30 * 86400000;
+              return (
+                <div key={batch.id} style={{ border:`1.5px solid ${expired?"#fecaca":expWarn?"#fed7aa":"#e0f2f1"}`, borderRadius:12, padding:"12px 16px", marginBottom:8, background: expired?"#fef2f2":expWarn?"#fffbeb":"#f9fefb", display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <span style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>{batch.batch_number || "—"}</span>
+                      {expired && <span style={{ fontSize:10, fontWeight:800, background:"#fecaca", color:"#991b1b", padding:"2px 8px", borderRadius:20 }}>EXPIRED</span>}
+                      {expWarn && <span style={{ fontSize:10, fontWeight:800, background:"#fed7aa", color:"#9a3412", padding:"2px 8px", borderRadius:20 }}>EXPIRING SOON</span>}
+                    </div>
+                    <div style={{ display:"flex", gap:16, fontSize:12, color:"#5a7a65", flexWrap:"wrap" }}>
+                      <span>Stock: <strong style={{ color:"#0d2b1e" }}>{batch.stock}</strong></span>
+                      <span>Cost: <strong style={{ color:"#00897b" }}>₱{Number(batch.cost_per_unit||0).toFixed(2)}</strong></span>
+                      {batch.exp_date && <span>Exp: <strong style={{ color: expired?"#dc2626":expWarn?"#ea580c":"#0d2b1e" }}>{new Date(batch.exp_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</strong></span>}
+                      {batch.supply_date && <span>Supplied: {new Date(batch.supply_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                    </div>
+                    {batch.notes && <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{batch.notes}</div>}
+                  </div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={()=>openEdit(batch)} style={{ height:30, padding:"0 12px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", color:"#00897b", fontSize:12, fontWeight:700, cursor:"pointer" }}>Edit</button>
+                    <button onClick={()=>deleteBatch(batch.id)} style={{ height:30, padding:"0 12px", borderRadius:8, border:"1px solid #ffcdd2", background:"#fff", color:"#e53935", fontSize:12, fontWeight:700, cursor:"pointer" }}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -616,7 +657,7 @@ function ActivityLogPanel({ log, onClose }) {
 export default function StockInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
-  const userName   = user?.name   || "Unknown";
+  const userName   = user?.name  || "Unknown";
 
   const brandList = propBrands.length > 0 ? propBrands : [];
 
@@ -647,26 +688,29 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const showUiModal  = useCallback((opts) => setUiModal(opts), []);
   const closeUiModal = useCallback(() => setUiModal(null), []);
 
-  const [deleteTarget,      setDeleteTarget]      = useState(null);
-  const [importLoading,     setImportLoading]     = useState(false);
-  const [importProgress,    setImportProgress]    = useState({ percent:0, label:"Preparing…", current:0, total:0 });
-  const [deleteHistory,     setDeleteHistory]     = useState([]);
-  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [activityLog,       setActivityLog]       = useState([]);
-  const [showActivityLog,   setShowActivityLog]   = useState(false);
-  const [extraValues,       setExtraValues]       = useState({});
+  const [deleteTarget,          setDeleteTarget]          = useState(null);
+  const [importLoading,         setImportLoading]         = useState(false);
+  const [importProgress,        setImportProgress]        = useState({ percent:0, label:"Preparing…", current:0, total:0 });
+  const [deleteHistory,         setDeleteHistory]         = useState([]);
+  const [showDeleteHistory,     setShowDeleteHistory]     = useState(false);
+  const [activityLog,           setActivityLog]           = useState([]);
+  const [showActivityLog,       setShowActivityLog]       = useState(false);
+  const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
+  const [batches,               setBatches]               = useState([]);
+  const [batchLoading,          setBatchLoading]          = useState(false);
 
   const excelRef = useRef(null);
 
+  // FIX: stock removed from emptyForm — stock is now managed by batches only
   const emptyForm = useCallback(() => ({
     name:"", branch: isAdmin ? "" : userBranch, brand:"",
-    unit:"pcs", stock:0, min_stock:0, cost_per_unit:"",
-    listInShop: false, shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+    unit:"pcs", min_stock:0, cost_per_unit:"",
+    listInShop: false,
+    shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
   }), [isAdmin, userBranch]);
   const [form, setForm] = useState(emptyForm);
 
-  useEffect(() => { setExtraValues(defaultExtraValues(form.brand)); }, [form.brand]);
-
+  /* ── fetch ingredients ── */
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
@@ -682,40 +726,55 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`);
       const data = await res.json();
-      setDeleteHistory(Array.isArray(data) ? data.map(row => ({
-        id: row.id, data: row.ingredient_data ?? row.data ?? {},
-        deletedAt: row.deleted_at ?? row.deletedAt,
-        deletedBy: row.deleted_by ?? row.deletedBy,
-      })) : []);
-    } catch (err) { console.error(err); }
+      const mapped = Array.isArray(data)
+        ? data.map(row => ({
+            id:        row.id,
+            data:      row.ingredient_data ?? row.data ?? {},
+            deletedAt: row.deleted_at      ?? row.deletedAt,
+            deletedBy: row.deleted_by      ?? row.deletedBy,
+          }))
+        : [];
+      setDeleteHistory(mapped);
+    } catch (err) { console.error("Failed to fetch ingredient delete history:", err); }
   }, []);
 
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredient-activity-log`);
       const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data.map(row => ({
-        id: row.id, action: row.action,
-        ingredientName: row.ingredient_name ?? row.ingredientName,
-        branch: row.branch,
-        performedBy: row.performed_by ?? row.performedBy,
-        changes: row.changes,
-        timestamp: row.created_at ?? row.timestamp,
-      })) : []);
-    } catch (err) { console.error(err); }
+      const mapped = Array.isArray(data)
+        ? data.map(row => ({
+            id:             row.id,
+            action:         row.action,
+            ingredientName: row.ingredient_name ?? row.ingredientName,
+            branch:         row.branch,
+            performedBy:    row.performed_by    ?? row.performedBy,
+            changes:        row.changes,
+            timestamp:      row.created_at      ?? row.timestamp,
+          }))
+        : [];
+      setActivityLog(mapped);
+    } catch (err) { console.error("Failed to fetch ingredient activity log:", err); }
   }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
   useEffect(() => { setPage(0); }, [search, brand, branch, unitFilter, statusFilt]);
+  useEffect(() => {
+    if (!activeBatchIngredient) return;
+    setBatchLoading(true);
+    fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)
+      .then(r => r.json())
+      .then(d => { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); });
+  }, [activeBatchIngredient]);
 
   const logActivity = useCallback(async (action, ingredientName, branchName, changes = null) => {
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/ingredient-activity-log`, {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ action, ingredient_name:ingredientName, branch:branchName, performed_by:userName, changes }),
+        body: JSON.stringify({ action, ingredient_name: ingredientName, branch: branchName, performed_by: userName, changes }),
       });
-    } catch (err) { console.warn(err); }
+    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
   }, [userName]);
 
   /* ── import excel ── */
@@ -733,53 +792,62 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         wb.SheetNames.forEach(sheetName => {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
           rows.forEach(row => {
-            const name = capitalizeName(String(row.name||row.Name||row["INGREDIENT NAME"]||"").trim());
+            const name = capitalizeName(String(row.name || row.Name || row["INGREDIENT NAME"] || "").trim());
             if (!name) return;
-            const rowBranch = String(row.branch||row.Branch||"").trim()||"Unknown";
-            if (items.some(i => normalizeName(i.name)===normalizeName(name) && i.branch.trim().toLowerCase()===rowBranch.toLowerCase())) return;
-            const rawListInShop = row.list_in_shop??row["List In Shop"]??"";
-            const listInShop = rawListInShop===1||rawListInShop===true||String(rawListInShop).trim().toLowerCase()==="1"||String(rawListInShop).trim().toLowerCase()==="yes"||String(rawListInShop).trim().toLowerCase()==="true";
-            const rowBrand = String(row.brand||row.Brand||"").trim();
-            const extra = {};
-            getExtraFields(rowBrand).forEach(f => {
-              const v = row[f.key]??row[f.label]??"";
-              extra[f.key] = f.type==="yesno" ? (v===1||v===true||String(v).toLowerCase()==="yes"||String(v).toLowerCase()==="true") : v;
-            });
+            const rowBranch = String(row.branch || row.Branch || "").trim() || "Unknown";
+            const alreadyExists = items.some(
+              i => normalizeName(i.name) === normalizeName(name) && i.branch.trim().toLowerCase() === rowBranch.toLowerCase()
+            );
+            if (alreadyExists) return;
+            const rawListInShop = row.list_in_shop ?? row["List In Shop"] ?? "";
+            const listInShop = rawListInShop === 1 || rawListInShop === true
+              || String(rawListInShop).trim().toLowerCase() === "1"
+              || String(rawListInShop).trim().toLowerCase() === "yes"
+              || String(rawListInShop).trim().toLowerCase() === "true";
+            const rowBrand = String(row.brand || row.Brand || "").trim();
             rows_to_save.push({
-              name, branch:rowBranch, brand:rowBrand,
-              unit:          String(row.unit||row.Unit||"pcs").trim(),
-              stock:         parseFloat(row.stock||row.Stock||0)||0,
-              min_stock:     parseFloat(row.min_stock||row["Min Stock"]||0)||0,
-              cost_per_unit: parseFloat(row.cost_per_unit||row["Cost/Unit"]||0)||0,
+              name, branch: rowBranch, brand: rowBrand,
+              unit:          String(row.unit          || row.Unit          || "pcs").trim(),
+              stock:         parseFloat(row.stock     || row.Stock         || 0) || 0,
+              min_stock:     parseFloat(row.min_stock || row["Min Stock"]  || 0) || 0,
+              cost_per_unit: parseFloat(row.cost_per_unit || row["Cost/Unit"] || 0) || 0,
               listInShop,
-              shopPrice:    parseFloat(row.shop_price||row["Shop Price"]||0)||0,
-              shopUnit:     String(row.shop_unit||row["Shop Unit"]||"").trim(),
-              shopCategory: String(row.shop_category||row["Shop Category"]||"Coffee Spot").trim(),
-              extra_fields: extra,
+              shopPrice:    parseFloat(row.shop_price  || row["Shop Price"] || 0) || 0,
+              shopUnit:     String(row.shop_unit       || row["Shop Unit"]  || "").trim(),
+              shopCategory: String(row.shop_category   || row["Shop Category"] || "Coffee Spot").trim(),
             });
           });
         });
 
         setImportProgress({ percent:25, label:`Found ${rows_to_save.length} rows. Importing…`, current:0, total:rows_to_save.length });
-        let saved=0, shopSaved=0, skipped=0;
-        const skippedNames=[];
 
-        for (let idx=0; idx<rows_to_save.length; idx++) {
+        let saved = 0, shopSaved = 0, skipped = 0;
+        const skippedNames = [];
+
+        for (let idx = 0; idx < rows_to_save.length; idx++) {
           const item = rows_to_save[idx];
-          setImportProgress({ percent: 25+Math.round(((idx+1)/rows_to_save.length)*65), label:`Saving "${item.name}"…`, current:idx+1, total:rows_to_save.length });
+          const pct  = 25 + Math.round(((idx + 1) / rows_to_save.length) * 65);
+          setImportProgress({ percent: pct, label: `Saving "${item.name}"…`, current: idx + 1, total: rows_to_save.length });
           try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item) });
-            const d   = await res.json();
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+              method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item),
+            });
+            const d = await res.json();
             if (d.success) {
               saved++;
               await logActivity("import", item.name, item.branch, `stock=${item.stock} ${item.unit}, cost=₱${item.cost_per_unit}`);
-              if (item.listInShop && item.shopPrice>0) {
+              if (item.listInShop && item.shopPrice > 0) {
                 try {
                   const checkRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
                   const checkData = await checkRes.json();
-                  if (!checkData.some(s=>s.name.trim().toLowerCase()===item.name.toLowerCase()&&s.shop.trim().toLowerCase()===item.shopCategory.toLowerCase())) {
-                    const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock, shop:item.shopCategory, brand:item.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(item.name.slice(0,8)), is_visible:true }) });
-                    if ((await shopRes.json()).success) shopSaved++;
+                  const shopDup   = checkData.some(s => s.name.trim().toLowerCase() === item.name.toLowerCase() && s.shop.trim().toLowerCase() === item.shopCategory.toLowerCase());
+                  if (!shopDup) {
+                    const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+                      method:"POST", headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({ name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock, shop:item.shopCategory, brand:item.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(item.name.slice(0,8)), is_visible:true }),
+                    });
+                    const shopD = await shopRes.json();
+                    if (shopD.success) shopSaved++;
                   }
                 } catch {}
               }
@@ -788,105 +856,131 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         }
 
         setImportProgress({ percent:100, label:"Complete!", current:rows_to_save.length, total:rows_to_save.length });
-        await fetchItems(); await fetchActivityLog();
+        await fetchItems();
+        await fetchActivityLog();
+
         const summaryLines = [
           { text:`${rows_to_save.length} row(s) parsed from file` },
           { text:`${saved} ingredient(s) saved successfully` },
-          ...(shopSaved>0 ? [{ text:`${shopSaved} item(s) also added to Mobile Shop` }] : []),
-          ...(skipped>0 ? [{ text:`${skipped} item(s) failed or skipped`, warn:true }, ...skippedNames.map(n=>({ text:n, warn:true }))] : []),
+          ...(shopSaved > 0 ? [{ text:`${shopSaved} item(s) also added to Mobile Shop` }] : []),
+          ...(skipped > 0 ? [{ text:`${skipped} item(s) failed or skipped`, warn:true }, ...skippedNames.map(n => ({ text:n, warn:true }))] : []),
         ];
+
         setTimeout(() => {
-          setImportLoading(false); e.target.value="";
-          showUiModal({ type:skipped>0?"info":"success", title:"Import Complete", message:skipped>0?`${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`:`Successfully imported ${saved} ingredient(s).`, lines:summaryLines });
+          setImportLoading(false);
+          e.target.value = "";
+          showUiModal({
+            type: skipped > 0 ? "info" : "success",
+            title: "Import Complete",
+            message: skipped > 0
+              ? `${saved} ingredient(s) saved. ${skipped} item(s) were skipped.`
+              : `Successfully imported ${saved} ingredient(s) into stock inventory.`,
+            lines: summaryLines,
+          });
         }, 400);
-      } catch {
-        setImportLoading(false); e.target.value="";
-        showUiModal({ type:"error", title:"Import Failed", message:"An error occurred while processing the Excel file." });
+      } catch (err) {
+        setImportLoading(false);
+        e.target.value = "";
+        showUiModal({ type:"error", title:"Import Failed", message:"An error occurred while processing the Excel file. Please check the file format and try again." });
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  /* ── filtered + sorted ── */
+  /* ── filtered + sorted list ── */
   const filtered = useMemo(() => {
-    const q   = search.toLowerCase();
-    const now = new Date(); now.setHours(0,0,0,0);
-    const warnDate = new Date(now); warnDate.setDate(now.getDate()+EXPIRY_WARN_DAYS);
+    const q = search.toLowerCase();
     return [...items]
       .filter(i => {
-        if (q && !i.name.toLowerCase().includes(q) && !(i.branch||"").toLowerCase().includes(q)) return false;
-        if (branch && i.branch!==branch) return false;
+        if (q && !i.name.toLowerCase().includes(q) && !(i.branch || '').toLowerCase().includes(q)) return false;
+        if (branch && i.branch !== branch) return false;
         else if (brand && !branch) {
-          const b = brandList.find(x=>x.id===brand);
+          const b = brandList.find(x => x.id === brand);
           if (b) {
-            const names = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
+            const names = (b.branches || []).map(br => typeof br === 'string' ? br : br.name);
             if (!names.includes(i.branch)) return false;
           }
         }
-        if (unitFilter && i.unit!==unitFilter) return false;
-        if (statusFilt==="low" && Number(i.stock)>=Number(i.min_stock)) return false;
-        if (statusFilt==="ok"  && Number(i.stock)<Number(i.min_stock))  return false;
-        if (statusFilt==="expiring"||statusFilt==="expired") {
-          const expRaw = i.extra_fields?.exp_date;
-          if (!expRaw) return false;
-          const exp = new Date(expRaw); exp.setHours(0,0,0,0);
-          if (statusFilt==="expired")  return exp<now;
-          if (statusFilt==="expiring") return exp>=now && exp<=warnDate;
-        }
+        if (unitFilter && i.unit !== unitFilter) return false;
+        if (statusFilt === 'low' && Number(i.stock) >= Number(i.min_stock)) return false;
+        if (statusFilt === 'ok'  && Number(i.stock) <  Number(i.min_stock)) return false;
         return true;
       })
       .sort((a, b) => {
-        let va=a[sort.col]??"", vb=b[sort.col]??"";
-        if (typeof va==="string") va=va.toLowerCase();
-        if (typeof vb==="string") vb=vb.toLowerCase();
-        return sort.asc ? (va<vb?-1:va>vb?1:0) : (va>vb?-1:va<vb?1:0);
+        let va = a[sort.col] ?? '', vb = b[sort.col] ?? '';
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        return sort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
       });
   }, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
 
   const lowCount   = items.filter(i => Number(i.stock) < Number(i.min_stock)).length;
-  const totalValue = items.reduce((s, i) => s+(i.cost_per_unit||0)*(i.stock||0), 0);
-  const pageItems  = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
+  const totalValue = items.reduce((s, i) => s + (i.cost_per_unit||0)*(i.stock||0), 0);
+  const pageItems  = filtered.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
 
-  const activeBrandName = useMemo(() => brand ? (brandList.find(b=>b.id===brand)?.name||null) : null, [brand, brandList]);
-  const tableExtraFields = useMemo(() => getExtraFields(activeBrandName), [activeBrandName]);
-
-  /* ── save ── */
+  /* ── save (add / edit) ── */
   const saveItem = async e => {
     e.preventDefault();
-    const payload = { ...form, branch: isAdmin ? form.branch : userBranch, name: capitalizeName(form.name.trim()), extra_fields: extraValues };
+    // FIX: when adding, stock defaults to 0 (will be populated by batches)
+    const payload = {
+      ...form,
+      stock: editing ? (form.stock ?? 0) : 0,
+      branch: isAdmin ? form.branch : userBranch,
+      name: capitalizeName(form.name.trim()),
+    };
+
     if (!editing) {
-      const dup = items.find(i => normalizeName(i.name)===normalizeName(payload.name) && i.branch.trim().toLowerCase()===payload.branch.trim().toLowerCase());
-      if (dup) { showUiModal({ type:"error", title:"Duplicate Ingredient", message:`"${payload.name}" already exists in ${payload.branch}.` }); return; }
+      const duplicate = items.find(
+        i => normalizeName(i.name) === normalizeName(payload.name) && i.branch.trim().toLowerCase() === payload.branch.trim().toLowerCase()
+      );
+      if (duplicate) {
+        showUiModal({ type:"error", title:"Duplicate Ingredient", message:`"${payload.name}" already exists in ${payload.branch}. Please use a different name.` });
+        return;
+      }
     }
+
     const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
     const method = editing ? "PUT" : "POST";
+
     try {
       const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const d   = await res.json();
       if (d.success) {
         let changesStr = null;
         if (editing) {
-          const changed=[];
-          if (String(editing.stock)!==String(payload.stock)) changed.push(`stock: ${editing.stock}→${payload.stock}`);
-          if (String(editing.min_stock)!==String(payload.min_stock)) changed.push(`min: ${editing.min_stock}→${payload.min_stock}`);
-          if (String(editing.cost_per_unit)!==String(payload.cost_per_unit)) changed.push(`cost: ₱${editing.cost_per_unit}→₱${payload.cost_per_unit}`);
-          if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
-          changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
+          const changed = [];
+          if (String(editing.stock)         !== String(payload.stock))         changed.push(`stock: ${editing.stock} → ${payload.stock}`);
+          if (String(editing.min_stock)     !== String(payload.min_stock))     changed.push(`min: ${editing.min_stock} → ${payload.min_stock}`);
+          if (String(editing.cost_per_unit) !== String(payload.cost_per_unit)) changed.push(`cost: ₱${editing.cost_per_unit} → ₱${payload.cost_per_unit}`);
+          if (editing.unit !== payload.unit) changed.push(`unit: ${editing.unit} → ${payload.unit}`);
+          changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
         }
-        await logActivity(editing?"edit":"add", payload.name, payload.branch, changesStr);
+        await logActivity(editing ? "edit" : "add", payload.name, payload.branch, changesStr);
+
         if (!editing && form.listInShop && form.shopPrice) {
           try {
-            await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:payload.name, price:parseFloat(form.shopPrice)||0, unit:form.shopUnit||"", stock:parseInt(payload.stock)||0, shop:form.shopCategory, brand:payload.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)), is_visible:true, branches:[] }) });
+            await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+              method:"POST", headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({ name:payload.name, price:parseFloat(form.shopPrice)||0, unit:form.shopUnit||"", stock:0, shop:form.shopCategory, brand:payload.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)), is_visible:true, branches:[] }),
+            });
           } catch {}
         }
-        await fetchItems(); await fetchActivityLog();
+
+        await fetchItems();
+        await fetchActivityLog();
         closeModal();
-        showUiModal({ type:"success", title: editing?"Ingredient Updated":"Ingredient Added", message: editing?`"${payload.name}" has been updated.`:`"${payload.name}" has been added.` });
+        showUiModal({
+          type:"success",
+          title: editing ? "Ingredient Updated" : "Ingredient Added",
+          message: editing
+            ? `"${payload.name}" has been updated successfully.`
+            : `"${payload.name}" has been added. Add batches to build up its stock.`,
+        });
       } else {
-        showUiModal({ type:"error", title:"Failed to Save", message: d.error||"An unexpected error occurred." });
+        showUiModal({ type:"error", title:"Failed to Save", message: d.error || "An unexpected error occurred." });
       }
     } catch {
-      showUiModal({ type:"error", title:"Connection Error", message:"Failed to save. Please check your connection." });
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to save ingredient. Please check your connection and try again." });
     }
   };
 
@@ -894,95 +988,108 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    const item = deleteTarget; setDeleteTarget(null);
+    const item = deleteTarget;
+    setDeleteTarget(null);
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, { method:"DELETE" });
       const d   = await res.json();
       if (d.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ingredient_data:item, deleted_by:userName }) });
-        await fetchItems(); await fetchDeleteHistory();
-      } else { showUiModal({ type:"error", title:"Failed to Delete", message:d.error||"An unexpected error occurred." }); }
-    } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete." }); }
+        await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ ingredient_data: item, deleted_by: userName }),
+        });
+        await fetchItems();
+        await fetchDeleteHistory();
+      } else {
+        showUiModal({ type:"error", title:"Failed to Delete", message: d.error || "An unexpected error occurred." });
+      }
+    } catch {
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete ingredient. Please check your connection and try again." });
+    }
   };
 
   const handleRestore = async (entry) => {
     try {
       const d = entry.data;
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, extra_fields:d.extra_fields||{} }) });
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit }),
+      });
       const result = await res.json();
       if (result.success) {
         await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
         await logActivity("add", d.name, d.branch, "Restored from delete history");
-        await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
-        showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored.` });
-      } else { showUiModal({ type:"error", title:"Restore Failed", message:result.error||"Failed to restore." }); }
-    } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore." }); }
+        await fetchItems();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored to stock inventory.` });
+      } else {
+        showUiModal({ type:"error", title:"Restore Failed", message: result.error || "Failed to restore ingredient." });
+      }
+    } catch {
+      showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore ingredient. Please check your connection and try again." });
+    }
   };
 
   const openEdit = item => {
     setEditing(item);
-    setForm({ name:item.name, brand:item.brand||"", branch:item.branch||"", unit:item.unit||"pcs", stock:item.stock, min_stock:item.min_stock, cost_per_unit:item.cost_per_unit||"", listInShop:false, shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot" });
-    setExtraValues({ ...defaultExtraValues(item.brand), ...(item.extra_fields||{}) });
+    setForm({
+      name:          item.name,
+      brand:         item.brand  || "",
+      branch:        item.branch || "",
+      unit:          item.unit   || "pcs",
+      stock:         item.stock,          // keep stock field on edit for manual override
+      min_stock:     item.min_stock,
+      cost_per_unit: item.cost_per_unit || "",
+      listInShop:    false,
+      shopPrice:     "",
+      shopUnit:      "",
+      shopCategory:  "Coffee Spot",
+    });
     setShowModal(true);
   };
-  const closeModal = () => { setShowModal(false); setEditing(null); setForm(emptyForm()); setExtraValues({}); };
 
-  /* ── Table header components ── */
-  const SortTh = ({ col, label, minW, align="left" }) => {
+  const closeModal = () => { setShowModal(false); setEditing(null); setForm(emptyForm()); };
+
+  /* ── sortable table header ── */
+  const SortTh = ({ col, label, minW }) => {
     const active = sort.col === col;
     return (
-      <th onClick={() => { setSort(s=>({ col, asc:s.col===col?!s.asc:true })); setPage(0); }}
-        style={{ padding:"11px 16px", textAlign:align, fontWeight:600, fontSize:12, color:active?C.green:C.muted, letterSpacing:"0.02em", borderBottom:`1.5px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#fafffe", minWidth:minW }}>
+      <th onClick={() => { setSort(s => ({ col, asc: s.col===col?!s.asc:true })); setPage(0); }}
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", minWidth:minW }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
           {label}
-          {active ? (sort.asc ? <SortAscIcon/> : <SortDescIcon/>) : <span style={{ opacity:0.22 }}><SortDescIcon/></span>}
+          {active ? (sort.asc ? <SortAscIcon/> : <SortDescIcon/>) : <span style={{ opacity:0.25 }}><SortDescIcon/></span>}
         </span>
       </th>
     );
   };
-  const PlainTh = ({ label, minW, accent }) => (
-    <th style={{ padding:"11px 16px", textAlign:"left", fontWeight:600, fontSize:12, color:accent||C.muted, letterSpacing:"0.02em", borderBottom:`1.5px solid ${C.border}`, whiteSpace:"nowrap", background:"#fafffe", minWidth:minW }}>
-      {label}
-    </th>
-  );
 
-  /* ── Stat cards ── */
-  const now = new Date(); now.setHours(0,0,0,0);
-  const warnDate2 = new Date(now); warnDate2.setDate(now.getDate()+EXPIRY_WARN_DAYS);
-  const expiringCount = items.filter(i => { const r=i.extra_fields?.exp_date; if(!r) return false; const e=new Date(r);e.setHours(0,0,0,0); return e>=now&&e<=warnDate2; }).length;
-  const expiredCount  = items.filter(i => { const r=i.extra_fields?.exp_date; if(!r) return false; const e=new Date(r);e.setHours(0,0,0,0); return e<now; }).length;
-  const showExpiryCard = tableExtraFields.some(f=>f.key==="exp_date");
-
-  const statCards = [
-    { label:"Total Ingredients", value:items.length.toLocaleString(), sub:"Registered", accent:C.green },
-    { label:"Low Stock Alerts",  value:lowCount, sub:"Needs reorder", accent:"#d97706", highlight:lowCount>0?"#fffbeb":undefined },
-    { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis", accent:"#1565c0" },
-    ...(showExpiryCard ? [{ label:"Expiring / Expired", value:`${expiringCount} / ${expiredCount}`, sub:`Within ${EXPIRY_WARN_DAYS}d / Already expired`, accent:"#d97706", highlight:expiredCount>0?"#fef2f2":expiringCount>0?"#fffbeb":undefined }] : []),
-  ];
-
+  /* ── render ── */
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
-        .inv-row:hover td { background: #f4fbf7 !important; }
-        .edit-btn:hover  { background: #e8f5e9 !important; color: #00695c !important; }
-        .del-btn:hover   { background: #fef2f2 !important; color: #dc2626 !important; }
       `}</style>
 
-      {/* Stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:`repeat(${statCards.length},1fr)`, gap:12, marginBottom:18 }}>
-        {statCards.map((s,i) => (
-          <div key={i} style={{ background:s.highlight||C.white, border:s.highlight?`1.5px solid ${s.accent}33`:`1px solid ${C.border}`, borderRadius:14, padding:"16px 20px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:s.accent, marginBottom:6 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.1 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>{s.sub}</div>
+      {/* stat cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:12, marginBottom:18 }}>
+        {[
+          { label:"Total Ingredients", value:items.length.toLocaleString(),  sub:"Registered",   accent:C.green   },
+          { label:"Low Stock Alerts",  value:lowCount,                        sub:"Needs reorder", accent:"#e65100" },
+          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis", accent:"#1565c0" },
+        ].map((s, i) => (
+          <div key={i} style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Filter bar */}
-      <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:"14px 18px", marginBottom:16, boxShadow:"0 1px 6px rgba(0,140,60,0.04)" }}>
+      {/* filter bar */}
+      <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
           <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
             <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
@@ -997,50 +1104,42 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
             <option value="">All Units</option>
             {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
           </select>
-          <select value={statusFilt} onChange={e=>setStatusFilt(e.target.value)} style={{ ...invInputSt, width:170 }}>
+          <select value={statusFilt} onChange={e=>setStatusFilt(e.target.value)} style={{ ...invInputSt, width:140 }}>
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
-            {tableExtraFields.some(f=>f.key==="exp_date") && <option value="expiring">⚠ Expiring Soon</option>}
-            {tableExtraFields.some(f=>f.key==="exp_date") && <option value="expired">✕ Expired</option>}
           </select>
           <div style={{ flex:1 }}/>
-          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, borderColor:"#fca5a5", color:C.red }}>
+          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
             <HistoryIcon size={13}/> Delete History
-            {deleteHistory.length>0 && <span style={{ background:C.red, color:"#fff", fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>}
+            {deleteHistory.length > 0 && <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>}
           </button>
-          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, borderColor:C.green, color:C.greenDk }}>
+          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
             <ActivityIcon size={13}/> Activity Log
-            {activityLog.length>0 && <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>}
+            {activityLog.length > 0 && <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>}
           </button>
           <label style={{ ...btnSt, cursor:"pointer" }}>
             <FileIcon size={13}/> Import Excel
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
           </label>
-          <button onClick={()=>{ setEditing(null); setForm(emptyForm()); setExtraValues({}); setShowModal(true); }} style={btnPrimarySt}>
+          <button onClick={()=>{ setEditing(null); setForm(emptyForm()); setShowModal(true); }} style={btnPrimarySt}>
             <PlusIcon/> Add Ingredient
           </button>
         </div>
       </div>
 
-      {/* Table card */}
-      <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 2px 16px rgba(0,140,60,0.06)" }}>
-        {/* Table header bar */}
-        <div style={{ padding:"12px 20px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-          <span style={{ fontWeight:700, fontSize:13 }}>
-            Stock Ingredients
-            {activeBrandName && tableExtraFields.length>0 && (
-              <span style={{ marginLeft:10, fontSize:11, opacity:0.8, fontWeight:500 }}>— {activeBrandName} view</span>
-            )}
-          </span>
-          <span style={{ fontSize:12, opacity:0.85 }}>{filtered.length.toLocaleString()} items · {lowCount} low stock</span>
+      {/* table card */}
+      <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+          <span style={{ fontWeight:800, fontSize:13 }}>Stock Ingredients</span>
+          <span style={{ fontSize:12, opacity:0.9 }}>{filtered.length} items · {lowCount} low stock</span>
         </div>
 
         {loading ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:600 }}>Loading…</div>
-        ) : filtered.length===0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13 }}>
-            <div style={{ fontSize:"2.5rem", marginBottom:10 }}>📦</div>
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
+            <div style={{ fontSize:"2.5rem", marginBottom:10 }}></div>
             No ingredients found. Add your first ingredient above.
           </div>
         ) : (
@@ -1049,86 +1148,59 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                 <thead>
                   <tr>
-                    <SortTh col="name"         label="Ingredient" minW={160}/>
-                    <SortTh col="branch"        label="Branch"     minW={130}/>
-                    <SortTh col="brand"         label="Brand"      minW={110}/>
-                    <SortTh col="unit"          label="Unit"       minW={80} />
-                    <SortTh col="stock"         label="Stock"      minW={90}  align="right"/>
-                    <SortTh col="min_stock"     label="Min"        minW={70}  align="right"/>
-                    <SortTh col="cost_per_unit" label="Cost/Unit"  minW={100} align="right"/>
-                    {tableExtraFields.map(f=>(
-                      <PlainTh key={f.key} label={f.label} minW={f.width} accent={brandAccent(activeBrandName).color}/>
-                    ))}
-                    <th style={{ padding:"11px 16px", background:"#fafffe", borderBottom:`1.5px solid ${C.border}`, minWidth:120 }}/>
+                    <SortTh col="name"         label="Ingredient" minW={150}/>
+                    <SortTh col="branch"        label="Branch"     minW={120}/>
+                    <SortTh col="brand"         label="Brand"      minW={100}/>
+                    <SortTh col="unit"          label="Unit"       minW={70} />
+                    <SortTh col="stock"         label="Stock"      minW={80} />
+                    <SortTh col="min_stock"     label="Min Stock"  minW={80} />
+                    <SortTh col="cost_per_unit" label="Cost/Unit"  minW={90} />
+                    <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:140 }}/>
                   </tr>
                 </thead>
                 <tbody>
                   {pageItems.map(item => {
                     const low       = Number(item.stock) < Number(item.min_stock);
-                    const itemExtra = item.extra_fields||{};
+                    const itemBrand = item.brand || "";
                     return (
-                      <tr key={item.id} className="inv-row">
-                        {/* Ingredient name */}
-                        <td style={{ padding:"13px 16px", fontWeight:700, color:C.ink }}>
-                          {item.name}
-                        </td>
-
-                        {/* Branch — plain with icon */}
-                        <td style={{ padding:"13px 16px" }}>
-                          <span style={{ display:"inline-flex", alignItems:"center", gap:5, color:C.muted, fontSize:12, fontWeight:500 }}>
+                      <tr key={item.id} style={{ borderBottom:"1px solid #f2faf5" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
+                        <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
                             <StoreIcon size={11} color={C.green}/> {item.branch}
                           </span>
                         </td>
-
-                        {/* Brand — colored text, no pill */}
-                        <td style={{ padding:"13px 16px" }}>
-                          {item.brand
-                            ? <span style={{ fontSize:12, fontWeight:600, color:brandAccent(item.brand).color }}>{item.brand}</span>
-                            : <span style={{ color:C.muted, fontSize:12 }}>—</span>}
+                        <td style={{ padding:"10px 12px" }}>
+                          {itemBrand
+                            ? <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: brandAccent(itemBrand).bg, color: brandAccent(itemBrand).color }}>{itemBrand}</span>
+                            : <span style={{ color:C.muted }}>—</span>}
                         </td>
-
-                        {/* Unit — neutral, no pill */}
-                        <td style={{ padding:"13px 16px" }}>
-                          <span style={{ fontSize:12, fontWeight:500, color:C.muted }}>{item.unit}</span>
+                        <td style={{ padding:"10px 12px" }}>
+                          <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#f3e8ff", color:"#6a1b9a" }}>{item.unit}</span>
                         </td>
-
-                        {/* Stock — right-aligned, low badge only when actually low */}
-                        <td style={{ padding:"13px 16px", textAlign:"right" }}>
-                          {low ? (
-                            <span style={{ display:"inline-flex", alignItems:"center", gap:6, justifyContent:"flex-end" }}>
-                              <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4, background:C.warnBg, color:C.warn, letterSpacing:"0.03em" }}>LOW</span>
-                              <span style={{ fontWeight:700, color:C.warn }}>{item.stock}</span>
-                            </span>
-                          ) : (
-                            <span style={{ fontWeight:600, color:C.ink }}>{item.stock}</span>
-                          )}
+                        <td style={{ padding:"10px 12px" }}>
+                          <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
+                            {item.stock}
+                            {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
+                          </span>
                         </td>
-
-                        {/* Min stock — right-aligned, muted */}
-                        <td style={{ padding:"13px 16px", textAlign:"right", color:C.muted, fontSize:12 }}>{item.min_stock}</td>
-
-                        {/* Cost/unit — right-aligned, green */}
-                        <td style={{ padding:"13px 16px", textAlign:"right", fontWeight:700, color:C.greenDk, fontSize:13 }}>
+                        <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+                        <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>
                           ₱{Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
                         </td>
-
-                        {/* Extra brand fields */}
-                        {tableExtraFields.map(f=>(
-                          <td key={f.key} style={{ padding:"13px 16px" }}>
-                            <ExtraFieldCell field={f} value={itemExtra[f.key]}/>
-                          </td>
-                        ))}
-
-                        {/* Actions */}
-                        <td style={{ padding:"13px 16px" }}>
-                          <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
-                            <button className="edit-btn" onClick={()=>openEdit(item)}
-                              style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>
+                        <td style={{ padding:"10px 12px" }}>
+                          <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                            <button onClick={()=>openEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
                               <EditIcon/> Edit
                             </button>
-                            <button className="del-btn" onClick={()=>handleDeleteItem(item)}
-                              style={{ ...smallBtnSt, border:"1px solid #fecaca", color:"#e53935", background:C.white }}>
-                              <TrashIcon/>
+                            <button onClick={()=>handleDeleteItem(item)} style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", background:C.white }}>
+                              <TrashIcon/> Delete
+                            </button>
+                            <button onClick={() => { setActiveBatchIngredient(item); setBatches([]); }}
+                              style={{ ...smallBtnSt, border:`1px solid #1565c0`, color:"#1565c0", background:C.white }}>
+                              📦 Batches
                             </button>
                           </div>
                         </td>
@@ -1138,54 +1210,51 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                 </tbody>
               </table>
             </div>
-
-            {!activeBrandName && (
-              <div style={{ padding:"10px 20px", borderTop:`1px solid ${C.border}`, background:"#f9fefb", fontSize:11, color:C.muted, display:"flex", alignItems:"center", gap:6 }}>
-                <span>💡</span>
-                <span>Filter by brand to see brand-specific columns like Batch No., Exp Date, and more.</span>
-              </div>
-            )}
-
             <Pagination page={page} setPage={setPage} total={filtered.length} pageSize={PAGE_SIZE}/>
           </>
         )}
       </div>
 
-      {/* ADD / EDIT MODAL */}
+      {/* ── ADD/EDIT MODAL ── */}
       {showModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.3)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
           onClick={e=>{ if(e.target===e.currentTarget) closeModal(); }}>
-          <div style={{ background:C.white, borderRadius:18, padding:"26px 26px 20px", width:540, maxWidth:"95vw", maxHeight:"93vh", overflowY:"auto", boxShadow:"0 12px 48px rgba(0,0,0,0.16)" }}>
+          <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:540, maxWidth:"95vw", maxHeight:"93vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{editing ? "Edit Ingredient" : "Add Stock Ingredient"}</h2>
+              <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{editing ? "Edit Ingredient" : "Add Stock Ingredient"}</h2>
               <button onClick={closeModal} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
             </div>
             <form onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
               <div>
                 <label style={invLabelSt}>Ingredient Name *</label>
                 <input style={invInputSt} value={form.name}
-                  onChange={e=>setForm(f=>({...f,name:e.target.value.replace(/\b\w/g,c=>c.toUpperCase())}))}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value.replace(/\b\w/g, c => c.toUpperCase()) }))}
                   required placeholder="e.g. Coffee Beans"/>
               </div>
+
               <div>
                 <label style={invLabelSt}>Brand *</label>
-                <select style={invInputSt} value={form.brand} required onChange={e=>setForm(f=>({...f,brand:e.target.value,branch:""}))}>
+                <select style={invInputSt} value={form.brand} required
+                  onChange={e => setForm(f => ({ ...f, brand: e.target.value, branch: "" }))}>
                   <option value="">Select brand…</option>
-                  {brandList.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
+                  {brandList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                 </select>
               </div>
+
               {isAdmin ? (
                 <div>
                   <label style={invLabelSt}>Branch *</label>
                   {(() => {
-                    const sel = brandList.find(b=>b.name===form.brand);
-                    const brs = sel ? (sel.branches||[]).map(br=>typeof br==="string"?br:br.name) : [];
+                    const selectedBrandObj = brandList.find(b => b.name === form.brand);
+                    const filteredBranches = selectedBrandObj
+                      ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
+                      : [];
                     return (
-                      <select style={{ ...invInputSt, opacity:!form.brand?0.5:1, cursor:!form.brand?"not-allowed":"pointer" }}
+                      <select style={{ ...invInputSt, opacity: !form.brand ? 0.5 : 1, cursor: !form.brand ? "not-allowed" : "pointer" }}
                         value={form.branch} required disabled={!form.brand}
-                        onChange={e=>setForm(f=>({...f,branch:e.target.value}))}>
-                        <option value="">{!form.brand?"Select a brand first…":"Select branch…"}</option>
-                        {brs.map(br=><option key={br} value={br}>{br}</option>)}
+                        onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}>
+                        <option value="">{!form.brand ? "Select a brand first…" : "Select branch…"}</option>
+                        {filteredBranches.map(br => <option key={br} value={br}>{br}</option>)}
                       </select>
                     );
                   })()}
@@ -1196,6 +1265,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                   <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
                 </div>
               )}
+
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                 <div>
                   <label style={invLabelSt}>Unit *</label>
@@ -1209,27 +1279,31 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                     onChange={e=>setForm(f=>({...f,cost_per_unit:e.target.value}))} required placeholder="0.00"/>
                 </div>
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div>
-                  <label style={invLabelSt}>Current Stock *</label>
-                  <input type="number" style={invInputSt} value={form.stock} min="0" onChange={e=>setForm(f=>({...f,stock:e.target.value}))} required/>
+
+              {/* FIX: Only show stock field when editing (batches drive stock on new ingredients) */}
+              <div>
+  <label style={invLabelSt}>Minimum Stock *</label>
+  <input type="number" style={invInputSt} value={form.min_stock} min="0"
+    onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required/>
+</div>
+
+              {/* Info hint shown when adding a new ingredient */}
+              {!editing && (
+                <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:9, padding:"10px 14px", fontSize:12, color:"#1e40af", display:"flex", alignItems:"flex-start", gap:8 }}>
+                  <span style={{ fontSize:15, flexShrink:0 }}>ℹ️</span>
+                  <span>Stock starts at <strong>0</strong> and is automatically calculated from batches. Use <strong>📦 Batches</strong> on the ingredient row to add stock.</span>
                 </div>
-                <div>
-                  <label style={invLabelSt}>Minimum Stock *</label>
-                  <input type="number" style={invInputSt} value={form.min_stock} min="0" onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required/>
-                </div>
-              </div>
-              {form.brand && getExtraFields(form.brand).length>0 && (
-                <ExtraFieldsForm brandName={form.brand} extraValues={extraValues} onChange={setExtraValues}/>
               )}
+
+              {/* shop toggle — only on add */}
               {!editing && (
                 <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:form.listInShop?14:0 }}>
-                    <div onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}
-                      style={{ width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative", background:form.listInShop?`linear-gradient(135deg,${C.teal},${C.green})`:"#e0e0e0", transition:"background .2s", flexShrink:0 }}>
-                      <div style={{ position:"absolute", top:3, left:form.listInShop?21:3, width:16, height:16, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: form.listInShop ? 14 : 0 }}>
+                    <div onClick={() => setForm(f => ({ ...f, listInShop: !f.listInShop }))}
+                      style={{ width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative", background: form.listInShop ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0", transition:"background .2s", flexShrink:0 }}>
+                      <div style={{ position:"absolute", top:3, left: form.listInShop ? 21 : 3, width:16, height:16, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
                     </div>
-                    <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer" }} onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}>
+                    <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer" }} onClick={() => setForm(f => ({ ...f, listInShop: !f.listInShop }))}>
                       Also list in Mobile Shop Supplies
                     </label>
                   </div>
@@ -1257,6 +1331,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                   )}
                 </div>
               )}
+
               <div style={{ display:"flex", justifyContent:"flex-end", gap:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
                 <button type="button" onClick={closeModal} style={btnSt}>Cancel</button>
                 <button type="submit" style={btnPrimarySt}>Save Ingredient</button>
@@ -1266,11 +1341,42 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         </div>
       )}
 
-      <DeleteConfirmModal item={deleteTarget} onConfirm={confirmDelete} onCancel={()=>setDeleteTarget(null)}/>
+      {/* ── BATCHES MODAL ── */}
+      {activeBatchIngredient && (
+        <BatchesModal
+          ingredient={activeBatchIngredient}
+          batches={batches}
+          loading={batchLoading}
+          onClose={() => { setActiveBatchIngredient(null); fetchItems(); }}
+          onRefresh={() => {
+            setBatchLoading(true);
+            fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)
+              .then(r => r.json())
+              .then(d => { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); });
+          }}
+          apiUrl={process.env.REACT_APP_API_URL}
+          userName={userName}
+        />
+      )}
+
+      {/* ── DELETE CONFIRM MODAL ── */}
+      <DeleteConfirmModal item={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)}/>
+
+      {/* ── IMPORT LOADING MODAL ── */}
       <ImportLoadingModal visible={importLoading} progress={importProgress}/>
-      <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={()=>{ if(uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
-      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistory} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}
-      {showActivityLog   && <ActivityLogPanel   log={activityLog}       onClose={()=>setShowActivityLog(false)}/>}
+
+      {/* ── UI MODAL ── */}
+      <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={() => { if (uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
+
+      {/* ── DELETE HISTORY PANEL ── */}
+      {showDeleteHistory && (
+        <DeleteHistoryPanel history={deleteHistory} onRestore={handleRestore} onClose={() => setShowDeleteHistory(false)}/>
+      )}
+
+      {/* ── ACTIVITY LOG PANEL ── */}
+      {showActivityLog && (
+        <ActivityLogPanel log={activityLog} onClose={() => setShowActivityLog(false)}/>
+      )}
     </div>
   );
 }
