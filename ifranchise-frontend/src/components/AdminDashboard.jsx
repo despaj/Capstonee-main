@@ -1572,6 +1572,13 @@ const handleRestore = async (entry) => {
                 Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
               </button>
 
+              {/* <button
+  onClick={() => { setBrandForm(emptyBrand); setShowAddBrandModal(true); }}
+  style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #2E7D32", background:"#2E7D32", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+>
+  <Plus size={14}/> Add Brand
+</button> */}
+
               <button
                 onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
                 style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}

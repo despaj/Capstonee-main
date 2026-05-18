@@ -3082,16 +3082,23 @@ async function fetchReportWithComments(id) {
 app.post('/reports/submit', async (req, res) => {
   const { reportId, submittedBy } = req.body;
 
+  if (!reportId) return res.status(400).json({ error: 'reportId is required' });
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
   try {
-    await pool.query(
+    const result = await pool.query(
       `UPDATE reports 
        SET status = 'submitted', submitted_at = NOW(), expires_at = $1, submitted_by = $2
-       WHERE id = $3`,
+       WHERE id = $3
+       RETURNING id`,
       [expiresAt, submittedBy, reportId]
     );
+
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: 'Report not found — submit failed' });
+
     res.json({ success: true, expiresAt });
   } catch (err) {
     console.error(err);
@@ -3101,18 +3108,32 @@ app.post('/reports/submit', async (req, res) => {
 
 app.get('/reports/history', async (req, res) => {
   const { branch } = req.query;
+
   try {
     const result = await pool.query(
-      `SELECT id, period, content, submitted_at as "submittedAt", 
-              submitted_at AS "generatedDate", expires_at as "expiresAt",
-              status, remark
-       FROM reports
-       WHERE branch = $1 AND status = 'submitted' AND expires_at > NOW()
-       ORDER BY submitted_at DESC`,
+      `
+      SELECT
+        id,
+        period,
+        content,
+        submitted_at AS "submittedAt",
+        submitted_at AS "generatedDate",
+        expires_at AS "expiresAt",
+        status,
+        remark
+      FROM reports
+      WHERE LOWER(TRIM(branch)) = LOWER(TRIM($1))
+      AND status IN ('submitted', 'approved', 'returned')
+      AND expires_at IS NOT NULL
+      AND expires_at > NOW()
+      ORDER BY submitted_at DESC
+      `,
       [branch]
     );
+
     res.json(result.rows);
   } catch (err) {
+    console.error("GET /reports/history error:", err);
     res.status(500).json({ error: 'Failed to fetch history' });
   }
 });
@@ -3125,7 +3146,10 @@ app.get("/reports/export", async (req, res) => {
     let   idx        = 1;
 
     if (brand)  { conditions.push(`brand  = $${idx++}`); params.push(brand);  }
-    if (branch) { conditions.push(`branch = $${idx++}`); params.push(branch); }
+    if (branch) {
+  conditions.push(`LOWER(TRIM(r.branch)) = LOWER(TRIM($${idx++}))`);
+  params.push(branch);
+}
     if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
 
     const where  = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -3177,7 +3201,10 @@ app.get("/reports", async (req, res) => {
     let   idx        = 1;
  
     if (brand)  { conditions.push(`r.brand  = $${idx++}`); params.push(brand);  }
-    if (branch) { conditions.push(`r.branch = $${idx++}`); params.push(branch); }
+    if (branch) {
+  conditions.push(`LOWER(TRIM(r.branch)) = LOWER(TRIM($${idx++}))`);
+  params.push(branch);
+}
     if (status) { conditions.push(`r.status = $${idx++}`); params.push(status); }
     if (search) {
       conditions.push(`(r.id::text ILIKE $${idx} OR r.submitted_by ILIKE $${idx})`);
@@ -3223,30 +3250,60 @@ app.get("/reports", async (req, res) => {
 
 app.get("/generated-reports", async (req, res) => {
   try {
+    const { branch } = req.query;
+
+    if (!branch) {
+      return res.status(400).json({ error: "Branch is required" });
+    }
+
     const result = await pool.query(
-      `SELECT id, report_id AS "reportId", snapshot, saved_at AS "savedAt"
-       FROM generated_reports ORDER BY saved_at DESC`
+      `
+      SELECT
+        gr.id,
+        gr.report_id AS "reportId",
+        gr.snapshot,
+        gr.saved_at AS "savedAt"
+      FROM generated_reports gr
+      JOIN reports r ON r.id = gr.report_id
+      WHERE LOWER(TRIM(r.branch)) = LOWER(TRIM($1))
+      ORDER BY gr.saved_at DESC
+      `,
+      [branch]
     );
+
     res.json(result.rows);
   } catch (err) {
+    console.error("GET /generated-reports error:", err);
     res.status(500).json({ error: "Failed to fetch generated reports" });
   }
 });
 
 app.get("/reports/deleted", async (req, res) => {
   const { branch } = req.query;
+
   try {
     const result = await pool.query(
-      `SELECT id, period, submitted_by AS "submittedBy", 
-              deleted_at AS "deletedAt", expires_at AS "expiresAt",
-              submitted_at AS "generatedDate", content
-       FROM reports
-       WHERE branch = $1 AND status = 'deleted' AND expires_at > NOW()
-       ORDER BY deleted_at DESC`,
+      `
+      SELECT
+        id,
+        period,
+        submitted_by AS "submittedBy",
+        deleted_at AS "deletedAt",
+        expires_at AS "expiresAt",
+        submitted_at AS "generatedDate",
+        content
+      FROM reports
+      WHERE LOWER(TRIM(branch)) = LOWER(TRIM($1))
+      AND status = 'deleted'
+      AND expires_at > NOW()
+      ORDER BY deleted_at DESC
+      `,
       [branch]
     );
+
     res.json(result.rows);
   } catch (err) {
+    console.error("GET /reports/deleted error:", err);
     res.status(500).json({ error: "Failed to fetch deleted reports" });
   }
 });
@@ -3264,6 +3321,12 @@ app.post("/reports/:id/soft-delete", async (req, res) => {
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Report not found" });
+
+    // Remove from generated_reports so it never comes back on refetch
+    await pool.query(
+      `DELETE FROM generated_reports WHERE report_id = $1`,
+      [req.params.id]
+    );
 
     res.json({ success: true, expiresAt });
   } catch (err) {
@@ -3316,6 +3379,188 @@ app.post('/ai/report', async (req, res) => {
   } catch (err) {
     console.error('AI route error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/reports/:id", async (req, res) => {
+  try {
+    const report = await fetchReportWithComments(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found" });
+    res.json(report);
+  } catch (err) {
+    console.error("GET /reports/:id error:", err);
+    res.status(500).json({ error: "Failed to fetch report" });
+  }
+});
+
+app.patch("/reports/:id/approve", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE reports
+       SET status = 'approved', remark = NULL, updated_at = NOW()
+       WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Report not found" });
+ 
+    const report = await fetchReportWithComments(req.params.id);
+    res.json(report);
+  } catch (err) {
+    console.error("PATCH /reports/:id/approve error:", err);
+    res.status(500).json({ error: "Failed to approve report" });
+  }
+});
+ 
+app.patch("/reports/:id/return", async (req, res) => {
+  try {
+    const { remark } = req.body;
+    if (!remark?.trim())
+      return res.status(400).json({ error: "Return remark is required" });
+ 
+    const result = await pool.query(
+      `UPDATE reports
+       SET status = 'returned', remark = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING id`,
+      [remark.trim(), req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Report not found" });
+ 
+    const report = await fetchReportWithComments(req.params.id);
+    res.json(report);
+  } catch (err) {
+    console.error("PATCH /reports/:id/return error:", err);
+    res.status(500).json({ error: "Failed to return report" });
+  }
+});
+ 
+app.post("/reports/:id/comments", async (req, res) => {
+  try {
+    const { text, author = "Admin" } = req.body;
+    if (!text?.trim())
+      return res.status(400).json({ error: "Comment text is required" });
+ 
+    const check = await pool.query("SELECT id FROM reports WHERE id=$1", [req.params.id]);
+    if (check.rows.length === 0)
+      return res.status(404).json({ error: "Report not found" });
+ 
+    const result = await pool.query(
+      `INSERT INTO report_comments (report_id, text, author)
+       VALUES ($1, $2, $3)
+       RETURNING id, text, author, posted_at AS "postedAt"`,
+      [req.params.id, text.trim(), author]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("POST /reports/:id/comments error:", err);
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+
+app.post("/reports", async (req, res) => {
+  try {
+    const { brand, branch, period, submittedBy, role, content } = req.body;
+    if (!brand || !branch || !period || !submittedBy)
+      return res.status(400).json({ error: "brand, branch, period, and submittedBy are required" });
+
+    // Check for existing pending report with same branch + period
+    const existing = await pool.query(
+      `SELECT id FROM reports 
+       WHERE LOWER(TRIM(branch)) = LOWER(TRIM($1))
+AND period = $2
+AND status = 'pending'
+       LIMIT 1`,
+      [branch, period]
+    );
+
+    if (existing.rows.length > 0) {
+      // Update content instead of inserting a new row
+      const updated = await pool.query(
+        `UPDATE reports SET content = $1, submitted_by = $2, updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [content || "", submittedBy, existing.rows[0].id]
+      );
+      const report = await fetchReportWithComments(updated.rows[0].id);
+      return res.status(200).json({ success: true, report });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO reports (brand, branch, period, submitted_by, role, content)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [brand, branch, period, submittedBy, role || "Branch Manager", content || ""]
+    );
+    const report = await fetchReportWithComments(result.rows[0].id);
+    res.status(201).json({ success: true, report });
+  } catch (err) {
+    console.error("POST /reports error:", err);
+    res.status(500).json({ error: "Failed to submit report" });
+  }
+});
+
+app.post("/reports/:id/save", async (req, res) => { 
+  try {
+    const report = await fetchReportWithComments(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found" });
+
+    const existing = await pool.query(
+      `SELECT id FROM generated_reports WHERE report_id = $1`, [req.params.id]
+    );
+    if (existing.rows.length > 0)
+      return res.status(409).json({ error: "Report already saved" });
+
+    const snapshot = {
+  ...report,
+  content: report.content || '',
+};
+
+    const result = await pool.query(
+      `INSERT INTO generated_reports (report_id, snapshot, saved_at)
+       VALUES ($1, $2, NOW())
+       RETURNING id, report_id AS "reportId", saved_at AS "savedAt"`,
+       [req.params.id, JSON.stringify(snapshot)]  
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("POST /reports/:id/save error:", err);
+    res.status(500).json({ error: "Failed to save report" });
+  }
+});
+
+// DELETE /reports/:id/comments/:commentId
+app.delete("/reports/:id/comments/:commentId", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM report_comments
+       WHERE id = $1 AND report_id = $2 RETURNING id`,
+      [req.params.commentId, req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Comment not found" });
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error("DELETE /reports/:id/comments/:commentId error:", err);
+    res.status(500).json({ error: "Failed to delete comment" });
+  }
+});
+
+app.delete("/reports/:id", async (req, res) => {
+  try {
+    // Delete comments first (foreign key constraint)
+    await pool.query(`DELETE FROM report_comments WHERE report_id = $1`, [req.params.id]);
+    // Delete from generated_reports if saved
+    await pool.query(`DELETE FROM generated_reports WHERE report_id = $1`, [req.params.id]);
+    // Delete the report itself
+    const result = await pool.query(
+      `DELETE FROM reports WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Report not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /reports/:id error:", err);
+    res.status(500).json({ error: "Failed to delete report" });
   }
 });
 
@@ -3743,173 +3988,6 @@ Return ONLY valid JSON, no markdown, no extra text:
   } catch (err) {
     console.error('AI dashboard analysis error:', err);
     res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/reports/:id", async (req, res) => {
-  try {
-    const report = await fetchReportWithComments(req.params.id);
-    if (!report) return res.status(404).json({ error: "Report not found" });
-    res.json(report);
-  } catch (err) {
-    console.error("GET /reports/:id error:", err);
-    res.status(500).json({ error: "Failed to fetch report" });
-  }
-});
-
-app.patch("/reports/:id/approve", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE reports
-       SET status = 'approved', remark = NULL, updated_at = NOW()
-       WHERE id = $1 RETURNING id`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Report not found" });
- 
-    const report = await fetchReportWithComments(req.params.id);
-    res.json(report);
-  } catch (err) {
-    console.error("PATCH /reports/:id/approve error:", err);
-    res.status(500).json({ error: "Failed to approve report" });
-  }
-});
- 
-app.patch("/reports/:id/return", async (req, res) => {
-  try {
-    const { remark } = req.body;
-    if (!remark?.trim())
-      return res.status(400).json({ error: "Return remark is required" });
- 
-    const result = await pool.query(
-      `UPDATE reports
-       SET status = 'returned', remark = $1, updated_at = NOW()
-       WHERE id = $2 RETURNING id`,
-      [remark.trim(), req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Report not found" });
- 
-    const report = await fetchReportWithComments(req.params.id);
-    res.json(report);
-  } catch (err) {
-    console.error("PATCH /reports/:id/return error:", err);
-    res.status(500).json({ error: "Failed to return report" });
-  }
-});
- 
-app.post("/reports/:id/comments", async (req, res) => {
-  try {
-    const { text, author = "Admin" } = req.body;
-    if (!text?.trim())
-      return res.status(400).json({ error: "Comment text is required" });
- 
-    const check = await pool.query("SELECT id FROM reports WHERE id=$1", [req.params.id]);
-    if (check.rows.length === 0)
-      return res.status(404).json({ error: "Report not found" });
- 
-    const result = await pool.query(
-      `INSERT INTO report_comments (report_id, text, author)
-       VALUES ($1, $2, $3)
-       RETURNING id, text, author, posted_at AS "postedAt"`,
-      [req.params.id, text.trim(), author]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error("POST /reports/:id/comments error:", err);
-    res.status(500).json({ error: "Failed to add comment" });
-  }
-});
-
-app.post("/reports", async (req, res) => {
-  try {
-    const { brand, branch, period, submittedBy, role, content } = req.body;
-    if (!brand || !branch || !period || !submittedBy)
-      return res.status(400).json({ error: "brand, branch, period, and submittedBy are required" });
-
-    const result = await pool.query(
-      `INSERT INTO reports (brand, branch, period, submitted_by, role, content)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [brand, branch, period, submittedBy, role || "Branch Manager", content || ""]
-    );
-    const report = await fetchReportWithComments(result.rows[0].id);
-    res.status(201).json({ success: true, report });
-  } catch (err) {
-    console.error("POST /reports error:", err);
-    res.status(500).json({ error: "Failed to submit report" });
-  }
-});
-
-app.delete("/generated-reports/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM generated_reports WHERE id=$1", [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete" });
-  }
-});
-
-app.post("/reports/:id/save", async (req, res) => { 
-  try {
-    const report = await fetchReportWithComments(req.params.id);
-    if (!report) return res.status(404).json({ error: "Report not found" });
-
-    const existing = await pool.query(
-      `SELECT id FROM generated_reports WHERE report_id = $1`, [req.params.id]
-    );
-    if (existing.rows.length > 0)
-      return res.status(409).json({ error: "Report already saved" });
-
-    const snapshot = { ...report, content: req.body.content || '' };
-
-    const result = await pool.query(
-      `INSERT INTO generated_reports (report_id, snapshot, saved_at)
-       VALUES ($1, $2, NOW())
-       RETURNING id, report_id AS "reportId", saved_at AS "savedAt"`,
-      [req.params.id, JSON.stringify(report)]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error("POST /reports/:id/save error:", err);
-    res.status(500).json({ error: "Failed to save report" });
-  }
-});
-
-// DELETE /reports/:id/comments/:commentId
-app.delete("/reports/:id/comments/:commentId", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `DELETE FROM report_comments
-       WHERE id = $1 AND report_id = $2 RETURNING id`,
-      [req.params.commentId, req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Comment not found" });
-    res.json({ success: true, id: result.rows[0].id });
-  } catch (err) {
-    console.error("DELETE /reports/:id/comments/:commentId error:", err);
-    res.status(500).json({ error: "Failed to delete comment" });
-  }
-});
-
-app.delete("/reports/:id", async (req, res) => {
-  try {
-    // Delete comments first (foreign key constraint)
-    await pool.query(`DELETE FROM report_comments WHERE report_id = $1`, [req.params.id]);
-    // Delete from generated_reports if saved
-    await pool.query(`DELETE FROM generated_reports WHERE report_id = $1`, [req.params.id]);
-    // Delete the report itself
-    const result = await pool.query(
-      `DELETE FROM reports WHERE id = $1 RETURNING id`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Report not found" });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("DELETE /reports/:id error:", err);
-    res.status(500).json({ error: "Failed to delete report" });
   }
 });
 
