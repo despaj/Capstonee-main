@@ -480,7 +480,7 @@ app.get("/users", async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch users" });
+    res.status(500).json({ error: "Failed to create user account." });
   }
 });
 
@@ -800,7 +800,7 @@ app.post("/send-credentials", async (req, res) => {
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2E7D32;">Welcome, ${name}!</h2>
-          <p>Your account has been created. Here are your login credentials:</p>
+          <p>We're pleased to inform you that your franchise application has been reviewed and officially approved. Your Franchisync partner account is now active and ready to use.</p>
           <div style="background: #E8F5E9; padding: 15px; margin: 15px 0;">
             <p><strong>Email:</strong> ${to}</p>
             <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
@@ -826,19 +826,73 @@ app.post("/send-rejection", async (req, res) => {
       to: to,
       subject: "Update on Your Franchisync Application",
       html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2E7D32;">Hello, ${name}</h2>
-          <p>Thank you for your interest in joining the Franchisync network.</p>
-          <p>After careful review, we regret to inform you that your franchise application has not been approved at this time.</p>
-          <div style="background: #FEE2E2; padding: 15px; margin: 15px 0; border-left: 4px solid #DC2626;">
-            <p style="color: #DC2626; font-weight: bold; margin: 0;">Application Status: Rejected</p>
-          </div>
-          <p>If you have questions or would like to reapply in the future, feel free to reach out to us.</p>
-          <p>Thank you again for your interest.</p>
-          <p style="color: #5a7a65;">— The Franchisync Team</p>
-          <p>Visit us at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+    
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #2E7D32, #43A047); padding: 36px 32px; text-align: center;">
+      <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Franchisync</h1>
+      <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Franchise Application Update</p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding: 36px 32px;">
+      
+      <!-- Approved badge -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <div style="display: inline-block; background: #E8F5E9; border: 2px solid #A5D6A7; border-radius: 50px; padding: 10px 24px;">
+          <span style="color: #2E7D32; font-weight: 700; font-size: 15px;">✅ Application Approved</span>
         </div>
-      `,
+      </div>
+
+      <p style="margin: 0 0 10px; font-size: 20px; font-weight: 700; color: #1a1a1a;">Congratulations, ${name}!</p>
+      <p style="margin: 0 0 24px; font-size: 14px; color: #555; line-height: 1.7;">
+        We are pleased to inform you that your franchise application has been <strong style="color: #2E7D32;">approved</strong>. 
+        Your Franchisync account is now active. Below are your login credentials to get started.
+      </p>
+
+      <!-- Credentials box -->
+      <div style="background: #F9FDF9; border: 1.5px solid #C8E6C9; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px;">
+        <p style="margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #9CA3AF; letter-spacing: 1px; text-transform: uppercase;">Your Login Credentials</p>
+        <div style="border-bottom: 1px solid #E8F5E9; padding: 12px 0; display: flex;">
+          <span style="font-size: 13px; color: #6B7280; width: 80px; flex-shrink: 0;">Email</span>
+          <span style="font-size: 13px; font-weight: 600; color: #1a1a1a;">${to}</span>
+        </div>
+        <div style="padding: 12px 0 0;">
+          <span style="font-size: 13px; color: #6B7280; display: block; margin-bottom: 4px;">Temporary Password</span>
+          <span style="font-size: 20px; font-weight: 800; color: #2E7D32; letter-spacing: 4px; font-family: monospace;">${password}</span>
+        </div>
+      </div>
+
+      <!-- Warning -->
+      <div style="background: #FFF8E1; border: 1px solid #FFE082; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; display: flex; gap: 10px;">
+        <span style="font-size: 16px;">⚠️</span>
+        <p style="margin: 0; font-size: 12px; color: #E65100; font-weight: 600; line-height: 1.6;">
+          For your security, please log in and change your password immediately. Do not share your credentials with anyone.
+        </p>
+      </div>
+
+      <!-- CTA button -->
+      <div style="text-align: center; margin-bottom: 28px;">
+        <a href="https://franchisync.business" style="display: inline-block; background: linear-gradient(90deg, #368f3b, #218428); color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 36px; border-radius: 10px; letter-spacing: 0.5px;">
+          Log In to My Account →
+        </a>
+      </div>
+
+      <p style="margin: 0; font-size: 13px; color: #6B7280; line-height: 1.7;">
+        If you have any questions, feel free to reach out to our support team. We look forward to working with you on your franchise journey.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background: #F9FDF9; border-top: 1px solid #E8F5E9; padding: 20px 32px; text-align: center;">
+      <p style="margin: 0; font-size: 11px; color: #9CA3AF; line-height: 1.7;">
+        © ${new Date().getFullYear()} Franchisync Business and Services Corporation<br/>
+        This is an automated message. Please do not reply to this email.
+      </p>
+    </div>
+
+  </div>
+`,
     });
     console.log("Rejection email sent:", result);
     res.json({ success: true });
@@ -1435,6 +1489,212 @@ app.post("/api/extract-id", async (req, res) => {
     if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     console.error("Mindee OCR error:", err.message);
     res.status(500).json({ success: false, error: "Failed to extract ID data" });
+  }
+});
+
+app.post("/api/verify-id", async (req, res) => {
+  const { frontImage, backImage, idType } = req.body;
+
+  const ID_TYPE_MAP = {
+    "Philippine Passport":   ["PASSPORT", "REPUBLIKA NG PILIPINAS", "REPUBLIC OF THE PHILIPPINES", "PASAPORTE"],
+    "Driver's License":      ["DRIVER'S LICENSE", "DRIVING LICENSE", "LAND TRANSPORTATION OFFICE", "LTO", "D"],
+    "SSS ID":                ["SOCIAL SECURITY SYSTEM", "SOCIAL SECURITY CARD", "SSS", "I"],
+    "GSIS ID":               ["GOVERNMENT SERVICE INSURANCE", "GSIS"],
+    "PhilHealth ID":         ["PHILHEALTH", "PHILIPPINE HEALTH INSURANCE"],
+    "Pag-IBIG ID":           ["PAG-IBIG", "PAGIBIG", "HOME DEVELOPMENT MUTUAL FUND", "HDMF", "I"],
+    "PRC ID":                ["PROFESSIONAL REGULATION COMMISSION", "PRC"],
+    "Voter's ID":            ["COMMISSION ON ELECTIONS", "COMELEC", "VOTER"],
+    "National ID (PhilSys)": ["PHILSYS", "PHILIPPINE IDENTIFICATION SYSTEM", "NATIONAL ID"],
+    "Senior Citizen ID":     ["SENIOR CITIZEN", "OFFICE FOR SENIOR CITIZENS"],
+    "PWD ID":                ["PERSON WITH DISABILITY", "PWD"],
+    "UMID":                  ["UMID", "UNIFIED MULTI-PURPOSE ID"],
+  };
+
+  try {
+    const payload = {
+      document: frontImage.replace(/^data:image\/\w+;base64,/, ""),
+      authenticate: true,
+    };
+
+    if (backImage) {
+      payload.document_back = backImage.replace(/^data:image\/\w+;base64,/, "");
+    }
+
+    const response = await fetch("https://api2.idanalyzer.com/scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.ID_ANALYZER_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error?.message || "ID verification failed",
+      });
+    }
+
+    const data = result.data || {};
+    const authScore = result.authentication?.score ?? 1;
+
+    const ocrText = [
+      result.data?.ocrResult,
+      result.data?.ocrText,
+      result.fullText,
+      result.rawText,
+      ...Object.values(data).map(v =>
+        Array.isArray(v) ? v.map(i => i?.value || "").join(" ") : v?.value || ""
+      ),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toUpperCase();
+
+    console.log("OCR Text extracted:", ocrText);
+
+    const expectedKeywords = ID_TYPE_MAP[idType] || [];
+    const isCorrectIdType = expectedKeywords.some(keyword =>
+      ocrText.includes(keyword.toUpperCase())
+    );
+
+    console.log("ID type match:", isCorrectIdType, "| Selected:", idType);
+
+    if (!isCorrectIdType) {
+      return res.json({
+        success: true,
+        data: {
+          firstName: "", lastName: "", middleName: "",
+          dob: "", address: "", idNumber: "", expiryDate: null,
+          isValid: false, confidence: 0,
+          reason: `Wrong ID type. You selected "${idType}" but the scanned document does not match. Please upload the correct ID.`,
+        },
+      });
+    }
+
+    // ── Auth score check ─────────────────────────────────────────────
+    if (authScore < 0.5) {
+      return res.json({
+        success: true,
+        data: {
+          firstName: "", lastName: "", middleName: "",
+          dob: "", address: "", idNumber: "", expiryDate: null,
+          isValid: false,
+          confidence: authScore,
+          reason: "ID failed authenticity check. Please upload a clear, valid government-issued ID.",
+        },
+      });
+    }
+
+    // ── All checks passed — now extract fields with Mindee ────────────
+    try {
+      const tempPath = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
+      fs.writeFileSync(tempPath, Buffer.from(frontImage.replace(/^data:image\/\w+;base64,/, ""), "base64"));
+
+      const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
+      const inputSource  = new mindee.PathInput({ inputPath: tempPath });
+
+      const mindeeRes = await mindeeClient.enqueueAndGetResult(
+        mindee.v2.product.Extraction,
+        inputSource,
+        { modelId: process.env.MINDEE_ID_MODEL_ID }
+      );
+
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
+      const fields = mindeeRes.rawHttp.inference.result.fields;
+
+      const addrStreet = fields?.address?.fields?.street?.value      || "";
+      const addrCity   = fields?.address?.fields?.city?.value        || "";
+      const addrState  = fields?.address?.fields?.state?.value       || "";
+      const addrPostal = fields?.address?.fields?.postal_code?.value || "";
+
+      return res.json({
+        success: true,
+        data: {
+          firstName:  fields?.given_names?.value  || fields?.first_name?.value || "",
+          lastName:   fields?.surnames?.value     || "",
+          middleName: fields?.middle_name?.value  || "",
+          dob:        fields?.birth_date?.value   || fields?.date_of_birth?.value || "",
+          idNumber:   fields?.document_number?.value || fields?.id_number?.value || "",
+          expiryDate: fields?.date_of_expiry?.value  || "",
+          address:    [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", "),
+          isValid:    true,
+          confidence: authScore,
+          reason:     "ID verified successfully",
+        },
+      });
+
+    } catch (mindeeErr) {
+      console.error("Mindee extraction error:", mindeeErr.message);
+      return res.json({
+        success: true,
+        data: {
+          firstName: "", lastName: "", middleName: "",
+          dob: "", address: "", idNumber: "", expiryDate: null,
+          isValid: true,
+          confidence: authScore,
+          reason: "ID verified successfully",
+        },
+      });
+    }
+
+  } catch (err) {
+    console.error("ID Analyzer error:", err);
+    res.status(500).json({ success: false, error: "Failed to verify ID" });
+  }
+});
+
+app.post("/api/face-match", async (req, res) => {
+  const { faceImage, idImage } = req.body;
+
+  if (!faceImage || !idImage) {
+    return res.status(400).json({ success: false, error: "Both face and ID images are required." });
+  }
+
+  try {
+    const response = await fetch("https://api2.idanalyzer.com/face", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": process.env.ID_ANALYZER_API_KEY,
+      },
+      body: JSON.stringify({
+        face:     faceImage.replace(/^data:image\/\w+;base64,/, ""),
+        reference: idImage.replace(/^data:image\/\w+;base64,/, ""),
+      }),
+    });
+
+    const result = await response.json();
+    console.log("Face match result:", JSON.stringify(result, null, 2));
+
+    if (!result.success) {
+      return res.json({
+        success: true,
+        matched: false,
+        score: 0,
+        reason: result.error?.message || "Face match failed.",
+      });
+    }
+
+    const score   = result.scores?.faceCompare ?? result.confidence ?? result.score ?? 0;
+    const matched = score >= 0.5; // 70% confidence threshold
+
+    return res.json({
+      success: true,
+      matched,
+      score,
+      reason: matched
+        ? "Face matched successfully."
+        : "Face does not match the ID photo. Please retake your selfie.",
+    });
+
+  } catch (err) {
+    console.error("Face match error:", err);
+    res.status(500).json({ success: false, error: "Face match service failed." });
   }
 });
 
@@ -3921,296 +4181,6 @@ app.get('/paymongo/link-status/:linkId', async (req, res) => {
   }
 });
 
-const { Blob } = require("buffer"); // Node 18+ has this globally
-
-app.post("/api/verify-id", async (req, res) => {
-  const { frontImage, backImage, idType } = req.body;
-
-  const ID_TYPE_MAP = {
-    "Philippine Passport":   ["PASSPORT", "REPUBLIKA NG PILIPINAS", "REPUBLIC OF THE PHILIPPINES", "PASAPORTE"],
-    "Driver's License":      ["DRIVER'S LICENSE", "DRIVING LICENSE", "LAND TRANSPORTATION OFFICE", "LTO"],
-    "SSS ID":                ["SOCIAL SECURITY SYSTEM", "SOCIAL SECURITY CARD", "SSS"],
-    "GSIS ID":               ["GOVERNMENT SERVICE INSURANCE", "GSIS"],
-    "PhilHealth ID":         ["PHILHEALTH", "PHILIPPINE HEALTH INSURANCE"],
-    "Pag-IBIG ID":           ["PAG-IBIG", "PAGIBIG", "HOME DEVELOPMENT MUTUAL FUND", "HDMF"],
-    "PRC ID":                ["PROFESSIONAL REGULATION COMMISSION", "PRC"],
-    "Voter's ID":            ["COMMISSION ON ELECTIONS", "COMELEC", "VOTER"],
-    "National ID (PhilSys)": ["PHILSYS", "PHILIPPINE IDENTIFICATION SYSTEM", "NATIONAL ID"],
-    "Senior Citizen ID":     ["SENIOR CITIZEN", "OFFICE FOR SENIOR CITIZENS"],
-    "PWD ID":                ["PERSON WITH DISABILITY", "PWD"],
-    "UMID":                  ["UMID", "UNIFIED MULTI-PURPOSE ID"],
-  };
-
-  // Helper: convert base64 data URL → Blob for FormData
-  function base64ToBlob(dataUrl, defaultMime = "image/jpeg") {
-    const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
-    const mime = match ? match[1] : defaultMime;
-    const bytes = Buffer.from(match ? match[2] : dataUrl, "base64");
-    return new Blob([bytes], { type: mime });
-  }
-
-  try {
-    // ── Build multipart/form-data payload ────────────────────────────
-    const form = new FormData();
-    form.append("front_image", base64ToBlob(frontImage), "front.jpg");
-    if (backImage) {
-      form.append("back_image", base64ToBlob(backImage), "back.jpg");
-    }
-    // Optional Didit controls — adjust as needed:
-    form.append("perform_document_liveness", "false");
-    form.append("save_api_request", "true");
-
-    const response = await fetch("https://verification.didit.me/v3/id-verification/", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.DIDIT_API_KEY,
-      },
-      body: form,
-    });
-
-    const result = await response.json();
-
-    // Didit wraps everything under id_verification
-    const idv = result.id_verification;
-
-    if (!idv) {
-      console.error("Didit error response:", result);
-      return res.status(400).json({
-        success: false,
-        error: result.detail || result.message || "ID verification failed",
-      });
-    }
-
-    // ── Build OCR text blob for ID type matching ─────────────────────
-    // Didit returns structured fields, so we concatenate them for keyword matching
-    const ocrText = [
-      idv.document_type,
-      idv.issuing_state_name,
-      idv.nationality,
-      idv.full_name,
-      idv.address,
-      idv.formatted_address,
-      // Didit also returns raw MRZ / extra text in some responses
-      result.raw_text,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toUpperCase();
-
-    console.log("OCR Text extracted:", ocrText);
-
-    // ── Match against selected ID type keywords ──────────────────────
-    const expectedKeywords = ID_TYPE_MAP[idType] || [];
-    const isCorrectIdType = expectedKeywords.some((kw) =>
-      ocrText.includes(kw.toUpperCase())
-    );
-
-    console.log("ID type match:", isCorrectIdType, "| Selected:", idType);
-
-    if (!isCorrectIdType) {
-      return res.json({
-        success: true,
-        data: {
-          firstName: "", lastName: "", middleName: "",
-          dob: "", address: "", idNumber: "", expiryDate: null,
-          isValid: false, confidence: 0,
-          reason: `Wrong ID type. You selected "${idType}" but the scanned document does not match. Please upload the correct ID.`,
-        },
-      });
-    }
-
-    // ── Didit status check ("Approved" | "Caution" | "Declined") ─────
-    const status = idv.status; // "Approved", "Caution", or "Declined"
-    const isValid = status === "Approved";
-    // Didit doesn't return a 0–1 score on this endpoint, so we map status → confidence
-    const confidence = isValid ? 1 : status === "Caution" ? 0.6 : 0;
-
-    if (!isValid) {
-      return res.json({
-        success: true,
-        data: {
-          firstName:  idv.first_name      || "",
-          lastName:   idv.last_name       || "",
-          middleName: "",                        // Didit returns full_name; split if needed
-          dob:        idv.date_of_birth   || "",
-          address:    idv.address         || "",
-          idNumber:   idv.document_number || "",
-          expiryDate: idv.expiration_date || null,
-          isValid:    false,
-          confidence,
-          reason:     "ID failed authenticity check. Please upload a clear, valid government-issued ID.",
-        },
-      });
-    }
-
-    // ── All checks passed ────────────────────────────────────────────
-    res.json({
-      success: true,
-      data: {
-        firstName:  idv.first_name      || "",
-        lastName:   idv.last_name       || "",
-        middleName: "",
-        dob:        idv.date_of_birth   || "",
-        address:    idv.address         || "",
-        idNumber:   idv.document_number || "",
-        expiryDate: idv.expiration_date || null,
-        isValid:    true,
-        confidence: 1,
-        reason:     "ID verified successfully",
-      },
-    });
-
-  } catch (err) {
-    console.error("Didit error:", err);
-    res.status(500).json({ success: false, error: "Failed to verify ID" });
-  }
-});
-
-
-app.post("/api/didit/create-session", async (req, res) => {
-  const { userId } = req.body;
-
-  try {
-    const response = await fetch("https://verification.didit.me/v3/session/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.DIDIT_API_KEY,
-      },
-      body: JSON.stringify({
-        workflow_id: process.env.DIDIT_WORKFLOW_ID,
-        // Ties the session back to your user when the webhook fires
-        vendor_data: String(userId),
-        // Where Didit redirects the user after they finish
-        callback_url: `${process.env.APP_URL}/verification-complete`,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!data.session_id) {
-      console.error("Didit create session error:", data);
-      return res.status(500).json({ success: false, error: "Could not start verification" });
-    }
-
-    // Save session_id → userId mapping in your DB so you can look it up on webhook
-    await db.verificationSessions.create({
-      data: { sessionId: data.session_id, userId },
-    });
-
-    res.json({
-      success: true,
-      sessionId: data.session_id,
-      verificationUrl: data.session_url, // Send this to your frontend
-    });
-
-  } catch (err) {
-    console.error("Didit error:", err);
-    res.status(500).json({ success: false, error: "Failed to create verification session" });
-  }
-});
-
-app.post("/api/didit/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  // ── Verify the webhook signature ─────────────────────────────────
-  const signature = req.headers["x-signature"];
-  const expectedSig = crypto
-    .createHmac("sha256", process.env.DIDIT_WEBHOOK_SECRET)
-    .update(req.body)
-    .digest("hex");
-
-  if (signature !== expectedSig) {
-    console.warn("Didit webhook signature mismatch");
-    return res.status(401).json({ error: "Invalid signature" });
-  }
-
-  const event = JSON.parse(req.body);
-  const { session_id, status, vendor_data } = event;
-  const userId = vendor_data; // We stored userId here when creating the session
-
-  console.log(`Didit webhook: session=${session_id}, status=${status}, user=${userId}`);
-
-  // status is one of: "Approved", "Declined", "Caution", "Pending", "Expired"
-  if (status === "Approved" || status === "Caution") {
-    // Fetch full decision data (name, DOB, ID number, etc.)
-    const decisionRes = await fetch(
-      `https://verification.didit.me/v3/session/${session_id}/decision/`,
-      {
-        headers: { "x-api-key": process.env.DIDIT_API_KEY },
-      }
-    );
-    const decision = await decisionRes.json();
-    const idv = decision.kyc?.id_verification;
-
-    // Update your user record
-    await db.users.update({
-      where: { id: userId },
-      data: {
-        isVerified:        status === "Approved",
-        firstName:         idv?.first_name      || "",
-        lastName:          idv?.last_name        || "",
-        dob:               idv?.date_of_birth    || null,
-        idNumber:          idv?.document_number  || "",
-        idExpiryDate:      idv?.expiration_date  || null,
-        verificationStatus: status,
-      },
-    });
-  } else if (status === "Declined" || status === "Expired") {
-    await db.users.update({
-      where: { id: userId },
-      data: { verificationStatus: status, isVerified: false },
-    });
-  }
-
-  res.json({ received: true });
-});
-
-// app.get("/api/didit/session-status/:sessionId", async (req, res) => {
-//   const { sessionId } = req.params;
-
-//   const response = await fetch(
-//     `https://verification.didit.me/v3/session/${sessionId}/decision/`,
-//     {
-//       headers: { "x-api-key": process.env.DIDIT_API_KEY },
-//     }
-//   );
-
-//   const decision = await response.json();
-//   const idv = decision.kyc?.id_verification;
-
-//   res.json({
-//     status: decision.status,
-//     isValid: decision.status === "Approved",
-//     firstName:  idv?.first_name     || "",
-//     lastName:   idv?.last_name      || "",
-//     dob:        idv?.date_of_birth  || "",
-//     idNumber:   idv?.document_number || "",
-//     expiryDate: idv?.expiration_date || null,
-//   });
-// });
-
-app.get("/api/didit/session-status/:sessionId", async (req, res) => {
-  const { sessionId } = req.params;
-
-  const response = await fetch(
-    `https://verification.didit.me/v3/session/${sessionId}/decision/`,
-    {
-      headers: { "x-api-key": process.env.DIDIT_API_KEY },
-    }
-  );
-
-  const decision = await response.json();
-  const idv = decision.kyc?.id_verification;
-
-  res.json({
-    status: decision.status,
-    isValid: decision.status === "Approved",
-    firstName:  idv?.first_name     || "",
-    lastName:   idv?.last_name      || "",
-    dob:        idv?.date_of_birth  || "",
-    idNumber:   idv?.document_number || "",
-    expiryDate: idv?.expiration_date || null,
-  });
-});
 
 // ─── LOW STOCK NOTIFICATIONS ──────────────────────────────────
 app.post("/notifications/check-low-stock", async (req, res) => {

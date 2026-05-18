@@ -3634,20 +3634,22 @@ function FAApplicationsContent({ applications: initialApps }) {
   }, []);
 
   // ── Approve ─────────────────────────────────────────────────────────────
-  const handleApprove = async (id) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-        method:  "PUT",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ status: "approved" }),
-      });
-      setApplications(prev =>
-        prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
-      );
-    } catch {
-      alert("Failed to approve application.");
-    }
-  };
+const handleApprove = async (id) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ status: "approved" }),
+    });
+    setApplications(prev =>
+      prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
+    );
+    // Keep menuApp in sync so buttons disable immediately
+    setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
+  } catch {
+    alert("Failed to approve application.");
+  }
+};
 
 const handleReject = async (id) => {
   try {
@@ -3671,6 +3673,8 @@ const handleReject = async (id) => {
     setApplications(prev =>
       prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
     );
+    // Keep menuApp in sync so buttons disable immediately
+    setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
   } catch {
     alert("Failed to reject application.");
   }
@@ -4164,6 +4168,15 @@ const handleReject = async (id) => {
          </>
       )}
 
+      {alertModal && (
+  <AlertModal
+    open={!!alertModal}
+    type={alertModal.type}
+    message={alertModal.message}
+    onClose={() => setAlertModal(null)}
+  />
+)}
+
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
@@ -4560,7 +4573,16 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
       });
-      if (!res.ok) { const err = await res.json(); onAlert(err.error || 'Failed to create account.', 'error'); return; }
+      if (!res.ok) { const err = await res.json(); 
+        
+        if (err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
+          onAlert(`An account with the email "${email}" already exists. Please use a different email or check existing accounts.`, 'error');
+          } else {
+            onAlert(err.error || 'Failed to create account.', 'error');
+          }
+          return;
+        }
+
       await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: email, name, password: tempPassword }),
