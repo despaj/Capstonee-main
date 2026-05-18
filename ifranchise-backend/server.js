@@ -22,7 +22,7 @@ app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 app.use(cookieParser());
 app.use(cors({
-  origin: ["http://localhost:3000",  "https://www.franchisync.xyz",   "https://franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
+  origin: ["http://localhost:3000",  "https://www.franchisync.business",   "https://franchisync.business", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
   allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
   credentials: true
 }));
@@ -54,10 +54,7 @@ async function sendPushNotification(expoPushToken, title, body) {
   });
 }
 
-const isProduction = process.env.NODE_ENV === "production";
-
 function getOrCreateDeviceId(req, res) {
-  // First try the header (sent by frontend)
   const headerDeviceId = req.headers["x-device-id"];
   if (headerDeviceId) {
     console.log("🍪 Device ID from header:", headerDeviceId);
