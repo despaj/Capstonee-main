@@ -1627,7 +1627,7 @@ app.post("/api/face-match", async (req, res) => {
     }
 
     const score   = result.scores?.faceCompare ?? result.confidence ?? result.score ?? 0;
-    const matched = score >= 0.7; // 70% confidence threshold
+    const matched = score >= 0.5; // 70% confidence threshold
 
     return res.json({
       success: true,
