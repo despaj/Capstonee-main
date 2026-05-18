@@ -5,8 +5,9 @@ import welcome from "../assets/welcomepage.png";
 import AdminDashboard from "./AdminDashboard";
 import StaffDashboard from "./StaffDashboard";
 import FranchiseeDashboard from "./FranchiseeDashboard";
-import FranchisorDashboard from "./FranchisorDashboard";
 import ManagerDashboard from "./ManagerDashboard";
+import FranchiseAdminDashboard from "./FranchiseAdminDashboard";
+import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
   const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
@@ -89,7 +90,6 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
             ? `Resend OTP in ${resendTimer}s`
             : "Resend OTP"}
         </button>
-        
       </>
     );
   };
@@ -104,26 +104,22 @@ export default function AdminLogin() {
 
   const [step, setStep] = useState("login");
 
-  // Login OTP
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpEmail, setOtpEmail] = useState("");
   const otpRefs = useRef([]);
   const [otpMethod, setOtpMethod] = useState("email"); // email | sms
   const [maskedOtpPhone, setMaskedOtpPhone] = useState("");
 
-  // Forgot Password
   const [forgotEmail, setForgotEmail] = useState("");
   const [maskedPhone, setMaskedPhone] = useState("");
   const [isFetchingPhone, setIsFetchingPhone] = useState(false);
   const [choiceError, setChoiceError] = useState("");
 
-  // Shared forgot OTP state (email or sms path)
   const [forgotOtp, setForgotOtp] = useState(["", "", "", "", "", ""]);
   const forgotOtpRefs = useRef([]);
-  const [forgotOtpMethod, setForgotOtpMethod] = useState(""); // "email" | "sms"
+  const [forgotOtpMethod, setForgotOtpMethod] = useState("");
   const [forgotOtpError, setForgotOtpError] = useState("");
 
-  // Reset form
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetError, setResetError] = useState("");
@@ -165,9 +161,7 @@ export default function AdminLogin() {
   const [forgotOtpLockedUntil, setForgotOtpLockedUntil] = useState(null);
   const [forgotOtpLockRemaining, setForgotOtpLockRemaining] = useState("");
 
-  // ── Session check ──
   useEffect(() => {
-  // ✅ Check localStorage first (Remember Me), then sessionStorage (tab session)
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
 
   if (stored) {
@@ -678,9 +672,10 @@ const verifyForgotSmsOtp = async () => {
 
   if (loggedIn && userRole) {
     switch (userRole) {
-      case "Administrator": return <AdminDashboard onLogout={handleLogout} />;
+      case "Super Admin": return <AdminDashboard onLogout={handleLogout} />;
+      case "Franchisee Operations Admin": return <FranchiseAdminDashboard onLogout={handleLogout} />;
+      case "Sales Admin":     return <SalesAdmin onLogout={handleLogout} />;
       case "Franchisee":    return <FranchiseeDashboard onLogout={handleLogout} />;
-      case "Franchisor":    return <FranchisorDashboard onLogout={handleLogout} />;
       case "Manager":       return <ManagerDashboard onLogout={handleLogout} />;
       case "Staff":         return <StaffDashboard onLogout={handleLogout} />;
       default:

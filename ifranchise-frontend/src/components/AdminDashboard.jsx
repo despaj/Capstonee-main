@@ -1,10 +1,8 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD — Logic unchanged, UI updated to match FranchiseeDashboard
-// ─────────────────────────────────────────────────────────────────────────────
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import logo from '../assets/logo.png';
+import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
 import Receipts from './Receipts';
 import StockInventoryContent from './StockInventoryContent';
 import MenuInventoryContent from './MenuInventoryContent';
@@ -13,12 +11,11 @@ import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
-  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch, Menu,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar,Pin,  Megaphone, BarChart, RefreshCw, Eye, Clock, Info, Download,History, RotateCcw, UserPlus, CheckCircle,
   ChevronRight, Lock, Unlock, CheckCircle2,
 } from 'lucide-react';
 
-// ─── Design tokens (kept from original + Franchisee palette) ─────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
@@ -26,7 +23,8 @@ const C = {
   ok:"#2e7d32", okBg:"#e8f5e9",
 };
 
-// ─── Shared CSS (Franchisee-style) ───────────────────────────────────────────
+// const ROLE_LABEL = 'Administrator';
+
 const ADMIN_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -210,7 +208,7 @@ export default function AdminDashboard() {
       .then(res => res.json()).then(data => setTransactions(data))
       .catch(err => console.error("Failed to fetch transactions", err));
   }, []);
-  
+
   const [user, setUser] = useState(getUserFromStorage);
 
   useEffect(() => {
@@ -336,6 +334,11 @@ export default function AdminDashboard() {
           font-family:'Montserrat',sans-serif;
           font-weight:800; font-size:1.15rem; color:#0d2b1e;
           white-space:nowrap;
+        }.ad-role-chip {
+          font-size: 9px; font-weight: 800; text-transform: uppercase;
+          letter-spacing: .06em; padding: 2px 7px; border-radius: 20px;
+          background: linear-gradient(135deg,#e9cd30,#ffa875);
+          color: #3d2000; margin-top: 2px; display: inline-block;
         }
         .ad-toggle {
           background:none; border:none; cursor:pointer;
@@ -442,16 +445,18 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div className="ad-logo-mark">iF</div>
               <span className="ad-brand">iFranchise</span>
+              {/* <span className="ad-role-chip">{ROLE_LABEL}</span> */}
             </div>
           )}
           {sidebarCollapsed && (
             <div className="ad-logo-mark" style={{ margin: '0 auto' }}>iF</div>
           )}
-          {!sidebarCollapsed && (
-            <button className="ad-toggle" onClick={() => setSidebarCollapsed(true)}>
-              <X size={16} />
-            </button>
-          )}
+          <button
+            className="ad-toggle"
+            onClick={() => setSidebarCollapsed(prev => !prev)}
+          >
+            {sidebarCollapsed ? <Menu size={16} /> : <X size={16} />}
+          </button>
         </div>
 
         {sidebarCollapsed && (
@@ -512,7 +517,7 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ textAlign: 'right' }}>
               <div className="ad-user-name">{user?.name}</div>
-              <div className="ad-user-role">Admin — {user?.branch}</div>
+              <div className="ad-user-role">Super Admin — {user?.branch}</div>
             </div>
             <div className="ad-avatar">
               {user?.name ? user.name.trim()[0].toUpperCase() : 'A'}
@@ -3508,12 +3513,11 @@ alert(
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-
-<td style={{ padding:"10px 12px" }}>
-  <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-    {item.is_visible ? "Visible" : "Hidden"}
-  </span>
-</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                        {item.is_visible ? "Visible" : "Hidden"}
+                      </span>
+                    </td>
                       <td style={{ padding:"10px 12px" }}>
                         <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                           {/* Edit */}
@@ -3628,6 +3632,35 @@ function ApplicationsContent({ applications: initialApps }) {
       alert("Failed to approve application.");
     }
   };
+  
+  const handleReject = async (id) => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ status: "rejected" }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
+
+    const app = applications.find(a => a.id === id);
+    if (app?.email) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ to: app.email, name: app.name }),
+      });
+    }
+
+    setApplications(prev =>
+      prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
+    );
+  } catch {
+    alert("Failed to reject application.");
+  }
+};
+
+
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this application?")) return;
     try {
@@ -4204,7 +4237,26 @@ function ApplicationsContent({ applications: initialApps }) {
               >
                 <Check size={15} />
                 {menuApp.status === "approved" ? "Already Approved" : "Approve Application"}
-              </button>
+               </button>
+              <button
+                  onClick={() => { handleReject(menuApp.id); setMenuApp(null); }}
+                  disabled={menuApp.status === "rejected"}
+                  style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "12px 16px", borderRadius: 11, border: "none",
+                      background: menuApp.status === "rejected"
+                      ? "#e0e0e0"
+                      : "linear-gradient(135deg,#ef4444,#dc2626)",
+                      color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      opacity: menuApp.status === "rejected" ? 0.6 : 1,
+                  }}
+                  >
+                  <X size={15} />
+                  {menuApp.status === "rejected" ? "Already Rejected" : "Reject Application"}
+                </button>
             </div>
           </div>
         </div>
@@ -5135,11 +5187,8 @@ const generatePdfDoc = (report) => {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
+
 // USERS 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// ALERT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function AlertModal({ message, onClose, type = "info" }) {
   const isError = type === "error";
@@ -5445,7 +5494,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             <label style={bmLabel}>Role</label>
             <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
               <option value="">Select Role</option>
-              {['Administrator','Franchisee'].map(r => <option key={r}>{r}</option>)}
+              {['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee'].map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
             <div style={{ marginBottom:14 }}>
@@ -5797,7 +5846,6 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
           {[
             { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
-            { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
             { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
             { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
           ].map((s, i) => <BmStatCard key={i} {...s} />)}
@@ -5822,7 +5870,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
             style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
             <option value="all">All Roles</option>
-            {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+            {['Super Admin','Franchisee Operations Admin', 'Sales Admin', 'Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
 
           {/* Brand */}
@@ -5922,7 +5970,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
         {/* Modals */}
         {showAddModal  && <CreateAccountModal
           applicant={null}
-          roles={['Administrator','Franchisee']}
+          roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
           onClose={() => { setShowAddModal(false); resetForm(); }}
           onAlert={(message, type) => setAlertModal({ message, type })}
       />}
@@ -6005,7 +6053,7 @@ function CommunicationContent() {
     try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   });
 
-  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
+  const isAdminUser = (u) => u?.role?.toLowerCase() === "super admin";
 
   const PIN_KEY = "announcement_pins";
   useEffect(() => {
@@ -6650,7 +6698,6 @@ const emptyIcon =
   );
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MOBILE ORDERS
 // ── Status maps ───────────────────────────────────────────────────────────────
@@ -6697,6 +6744,7 @@ function normalizeOrder(o) {
     createdAt: o.created_at,
   };
 }
+
 function MobileOrdersContent() {
   const [orders,       setOrders]       = useState([]);
   const [loadingData,  setLoadingData]  = useState(true);
@@ -6706,13 +6754,15 @@ function MobileOrdersContent() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [search,       setSearch]       = useState("");
   const [viewOrder,    setViewOrder]    = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null); // { id, nextUiStatus, label }
-  const [openDropdown, setOpenDropdown] = useState(null); // order.id with open dropdown
-  const [activeTab,    setActiveTab]    = useState("active"); // "active" | "completed"
-  const printRef = useRef(null);
-const [printReceipts, setPrintReceipts] = useState([]);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [activeTab,    setActiveTab]    = useState("active");
 
-  // ── Close dropdown on outside click ───────────────────────────────────────
+  const [printReceipts, setPrintReceipts] = useState([]);
+  const printRef = useRef(null);
+
+  const [itemsModal, setItemsModal] = useState(null); 
+
   useEffect(() => {
     if (!openDropdown) return;
     const close = () => { setOpenDropdown(null); setDropdownRect(null); };
@@ -6738,12 +6788,55 @@ const [printReceipts, setPrintReceipts] = useState([]);
 
   useEffect(() => { fetchOrders(); }, []);
 
-  // ── Persist active tab so browser refresh stays on this view ──────────────
   useEffect(() => {
     localStorage.setItem("bm_active_tab", "mobile_orders");
   }, []);
 
-  // ── Status advance (actual API call) ──────────────────────────────────────
+  // ── Convert order → receipt shape for ReceiptPrintTemplate ───────────────
+  const orderToReceipt = (order) => ({
+    merchant:     order.customer,
+    date:         order.createdAt ? order.createdAt.slice(0, 10) : "",
+    currency:     "PHP",
+    total_amount: order.total,
+    brand:        order.brand,
+    branch:       order.branch,
+    address:      order.address,
+    phone:        order.phone,
+    reference_no: order.id,
+    lineItems: (order.items || []).map(item => ({
+      description: item.name,
+      quantity:    item.qty ?? item.quantity ?? 1,
+      unit_price:  item.price ?? 0,
+      total_price: (item.price ?? 0) * (item.qty ?? item.quantity ?? 1),
+    })),
+  });
+
+  // ── Print handler (mirrors Receipts.jsx handlePrint) ──────────────────────
+  const handlePrint = (order) => {
+    const receipt = orderToReceipt(order);
+    setPrintReceipts([receipt]);
+    setTimeout(() => {
+      const el = printRef.current;
+      if (!el) return;
+      el.setAttribute("data-print", "true");
+      el.style.display = "block";
+      document.body.appendChild(el);
+      const img = el.querySelector("img");
+      if (img && !img.complete) {
+        img.onload = () => {
+          window.print();
+          el.style.display = "none";
+          el.removeAttribute("data-print");
+        };
+      } else {
+        window.print();
+        el.style.display = "none";
+        el.removeAttribute("data-print");
+      }
+    }, 300);
+  };
+
+  // ── Status advance ────────────────────────────────────────────────────────
   const advanceStatus = async (id, nextUiStatus) => {
     const order = orders.find(o => o.id === id);
     if (!order) return;
@@ -6751,6 +6844,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
 
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
     if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
+    if (itemsModal?.id === id) setItemsModal(v => ({ ...v, status: nextUiStatus }));
 
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
@@ -6766,7 +6860,6 @@ const [printReceipts, setPrintReceipts] = useState([]);
     }
   };
 
-  // ── Request action → open confirm modal ───────────────────────────────────
   const requestAdvance = (id, nextUiStatus, label) => {
     setOpenDropdown(null);
     setConfirmModal({ id, nextUiStatus, label });
@@ -6828,7 +6921,6 @@ const [printReceipts, setPrintReceipts] = useState([]);
           onClick={e => e.stopPropagation()}
           style={{ background: "#fff", borderRadius: 18, padding: "28px 30px", maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.22)", border: "1px solid rgba(0,168,76,0.15)" }}
         >
-          {/* Icon */}
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: isDanger ? "#fef2f2" : "#f0fdf5", border: `1.5px solid ${isDanger ? "#fecaca" : "#d1eedd"}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
             {isDanger ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -6842,35 +6934,19 @@ const [printReceipts, setPrintReceipts] = useState([]);
               </svg>
             )}
           </div>
-
-          {/* Text */}
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: isDanger ? "#dc2626" : "#00897b", marginBottom: 6 }}>
             Confirm Action
           </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#0d2b1e", marginBottom: 6 }}>
-            {confirmModal.label}
-          </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#0d2b1e", marginBottom: 6 }}>{confirmModal.label}</div>
           <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 24 }}>
             Order <strong style={{ color: "#0d2b1e" }}>#{confirmModal.id}</strong>
             {order ? <span> · {order.customer}</span> : null}
           </div>
-
-          {/* Buttons */}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button
-              onClick={() => setConfirmModal(null)}
-              style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid #d1eedd", background: "#f8fffe", color: "#5a7a65", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
-            >
+            <button onClick={() => setConfirmModal(null)} style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid #d1eedd", background: "#f8fffe", color: "#5a7a65", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
               Cancel
             </button>
-            <button
-              onClick={confirmAdvance}
-              style={{
-                padding: "9px 22px", borderRadius: 9, border: "none",
-                background: isDanger ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "linear-gradient(135deg,#2E7D32,#00897b)",
-                color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
+            <button onClick={confirmAdvance} style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: isDanger ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
               Confirm
             </button>
           </div>
@@ -6879,11 +6955,11 @@ const [printReceipts, setPrintReceipts] = useState([]);
     );
   };
 
-  // ── Action Dropdown (position:fixed so it never clips or shifts layout) ────
+  // ── Action Dropdown ───────────────────────────────────────────────────────
   const [dropdownRect, setDropdownRect] = useState(null);
 
   const ActionButtons = ({ order }) => {
-    const flow = STATUS_FLOW[order.status];
+    const flow  = STATUS_FLOW[order.status];
     const isOpen = openDropdown === order.id;
     const btnRef = useRef(null);
 
@@ -6908,16 +6984,8 @@ const [printReceipts, setPrintReceipts] = useState([]);
 
     return (
       <div style={{ display: "inline-block" }} onClick={e => e.stopPropagation()}>
-        <button
-          ref={btnRef}
-          onClick={handleToggle}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c",
-          }}
-        >
+        <button ref={btnRef} onClick={handleToggle}
+          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
             <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
@@ -6930,32 +6998,12 @@ const [printReceipts, setPrintReceipts] = useState([]);
         </button>
 
         {isOpen && dropdownRect && (
-          <div
-            style={{
-              position: "fixed",
-              top: dropdownRect.top,
-              right: dropdownRect.right,
-              zIndex: 9999,
-              background: "#fff", border: "1px solid #d1eedd", borderRadius: 10,
-              boxShadow: "0 8px 28px rgba(0,0,0,0.13)", minWidth: 180, overflow: "hidden",
-            }}
-          >
+          <div style={{ position: "fixed", top: dropdownRect.top, right: dropdownRect.right, zIndex: 9999, background: "#fff", border: "1px solid #d1eedd", borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.13)", minWidth: 180, overflow: "hidden" }}>
             {actions.map(({ label, nextStatus, danger }) => (
-              <button
-                key={nextStatus}
-                onClick={() => requestAdvance(order.id, nextStatus, label)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  width: "100%", padding: "10px 14px",
-                  background: "transparent", border: "none",
-                  borderTop: danger ? "1px solid #fecaca" : "none",
-                  cursor: "pointer", fontFamily: "inherit",
-                  fontSize: 12, fontWeight: 700, textAlign: "left",
-                  color: danger ? "#dc2626" : "#0d2b1e",
-                }}
+              <button key={nextStatus} onClick={() => requestAdvance(order.id, nextStatus, label)}
+                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "transparent", border: "none", borderTop: danger ? "1px solid #fecaca" : "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left", color: danger ? "#dc2626" : "#0d2b1e" }}
                 onMouseEnter={e => e.currentTarget.style.background = danger ? "#fff5f5" : "#f0fdf5"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                 {danger ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -6974,6 +7022,122 @@ const [printReceipts, setPrintReceipts] = useState([]);
     );
   };
 
+  // ── Order Items Modal (with Print button) ─────────────────────────────────
+  const OrderItemsModal = () => {
+    if (!itemsModal) return null;
+    const order = itemsModal;
+    return (
+      <div
+        onClick={() => setItemsModal(null)}
+        style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}
+        >
+          {/* Modal header */}
+          <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <path d="M16 10a4 4 0 01-8 0"/>
+              </svg>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{order.id}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(order.createdAt)}</div>
+              </div>
+            </div>
+            <button onClick={() => setItemsModal(null)}
+              style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div style={{ padding: "22px 24px" }}>
+            {/* Customer */}
+            <div style={{ marginBottom: 14, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 5 }}>Customer</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{order.customer}</div>
+              {order.phone && <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{order.phone}</div>}
+            </div>
+
+            {/* Delivery Address */}
+            {order.address && (
+              <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2, flexShrink: 0 }}>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                </svg>
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{order.address}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Brand / Branch */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+              {[{ label: "Brand", value: order.brand }, { label: "Branch", value: order.branch }].map(({ label, value }, i) => (
+                <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{value || "—"}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Items table */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
+              {order.items.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#5a7a65", fontStyle: "italic", padding: "10px 12px" }}>No item details available.</div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      {["Item", "Qty", "Price", "Total"].map(h => (
+                        <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#ffffff", background: "linear-gradient(135deg,#2E7D32,#00897b)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.items.map((item, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "#f8fffe" : "#fff", borderBottom: "1px solid #e0f2f1" }}>
+                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#0d2b1e" }}>{item.name}</td>
+                        <td style={{ padding: "9px 10px", color: "#5a7a65", textAlign: "center" }}>{item.qty ?? item.quantity ?? 1}</td>
+                        <td style={{ padding: "9px 10px", color: "#5a7a65" }}>{fmtPeso(item.price)}</td>
+                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#00897b" }}>{fmtPeso((item.price ?? 0) * (item.qty ?? item.quantity ?? 1))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid #d1eedd" }}>
+                      <td colSpan={3} style={{ padding: "10px 10px", fontWeight: 800, textAlign: "right", color: "#00695c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em" }}>Total</td>
+                      <td style={{ padding: "10px 10px", fontWeight: 800, fontSize: 15, color: "#00897b" }}>{fmtPeso(order.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+
+            {/* Status + Print */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid #e0f2f1" }}>
+              <StatusBadge status={order.status} />
+              <button
+                onClick={() => { setItemsModal(null); handlePrint(order); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,140,60,0.25)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+                </svg>
+                Print Order
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Loading / Error states ────────────────────────────────────────────────
   if (loadingData) return (
     <div style={{ padding: 60, textAlign: "center", color: "#5a7a65", fontFamily: "'Montserrat',sans-serif" }}>
@@ -6984,8 +7148,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
   if (error) return (
     <div style={{ padding: 40, textAlign: "center", fontFamily: "'Montserrat',sans-serif" }}>
       <div style={{ color: "#dc2626", marginBottom: 12 }}>{error}</div>
-      <button onClick={fetchOrders}
-        style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, cursor: "pointer" }}>
+      <button onClick={fetchOrders} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, cursor: "pointer" }}>
         Retry
       </button>
     </div>
@@ -6995,12 +7158,35 @@ const [printReceipts, setPrintReceipts] = useState([]);
   const activeOrders    = filtered.filter(o => o.status !== "received" && o.status !== "rejected");
   const completedOrders = filtered.filter(o => o.status === "received" || o.status === "rejected");
 
+  // ── Items cell button (shared between both tables) ────────────────────────
+  const ItemsButton = ({ order, completed = false }) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); setItemsModal(order); }}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+        cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+        border: "1px solid #b2dfdb",
+        background: completed ? "#f0fdf5" : "#FFF7ED",
+        color: "#00695c",
+      }}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      {order.items.length}
+    </button>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Montserrat',sans-serif" }}>
 
-      {/* ── Confirmation Modal ── */}
+      {/* ── Modals ── */}
       <ConfirmModal />
+      <OrderItemsModal />
 
       {/* ── View Order Modal ── */}
       {viewOrder && (
@@ -7009,39 +7195,52 @@ const [printReceipts, setPrintReceipts] = useState([]);
           <div onClick={e => e.stopPropagation()}
             style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
 
-            {/* Modal header */}
             <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Package size={16} color="#fff" />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <path d="M16 10a4 4 0 01-8 0"/>
+                </svg>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{viewOrder.id}</div>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(viewOrder.createdAt)}</div>
                 </div>
               </div>
-              <button onClick={() => setViewOrder(null)}
-                style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={14} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {/* Print button in view modal header */}
+                <button
+                  onClick={() => { setViewOrder(null); handlePrint(viewOrder); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: 12, fontFamily: "inherit" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  Print
+                </button>
+                <button onClick={() => setViewOrder(null)}
+                  style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
 
             <div style={{ padding: "22px 24px" }}>
-              {/* Customer */}
               <div style={{ marginBottom: 18, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 6 }}>Customer</div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{viewOrder.customer}</div>
                 <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{viewOrder.phone}</div>
               </div>
 
-              {/* Delivery Address */}
               <div style={{ marginBottom: 18, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <MapPin size={14} color="#8a6a00" style={{ marginTop: 2, flexShrink: 0 }} />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2, flexShrink: 0 }}>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                </svg>
                 <div>
                   <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
                   <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{viewOrder.address || "—"}</div>
                 </div>
               </div>
 
-              {/* Brand / Branch */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
                 {[{ label: "Brand", value: viewOrder.brand }, { label: "Branch", value: viewOrder.branch }].map(({ label, value }, i) => (
                   <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
@@ -7051,7 +7250,6 @@ const [printReceipts, setPrintReceipts] = useState([]);
                 ))}
               </div>
 
-              {/* Items */}
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
                 {viewOrder.items.length === 0 ? (
@@ -7071,7 +7269,6 @@ const [printReceipts, setPrintReceipts] = useState([]);
                 </div>
               </div>
 
-              {/* Status & Actions */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <StatusBadge status={viewOrder.status} />
                 <ActionButtons order={viewOrder} />
@@ -7081,12 +7278,10 @@ const [printReceipts, setPrintReceipts] = useState([]);
         </div>
       )}
 
-      {/* ── Page header ── */}
- 
       {/* ── Stat cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
         <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
-        <BmStatCard label="Processing"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
+        <BmStatCard label="Processing"    value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
         <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
         <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
       </div>
@@ -7094,46 +7289,18 @@ const [printReceipts, setPrintReceipts] = useState([]);
       {/* ── Tab bar + Refresh ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid #d1eedd", borderRadius: 14, padding: 5, width: "fit-content", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
-          <button
-            onClick={() => setActiveTab("active")}
-            style={{
-              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
-              transition: "all .15s",
-              background: activeTab === "active" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-              color: activeTab === "active" ? "#fff" : "#5a7a65",
-              boxShadow: activeTab === "active" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
-            }}
-          >
-            Active Orders
-            <span style={{
-              padding: "1px 8px", borderRadius: 20, fontSize: 11,
-              background: activeTab === "active" ? "rgba(255,255,255,0.25)" : "rgba(0,168,76,0.12)",
-              color: activeTab === "active" ? "#fff" : "#00695c",
-            }}>
-              {activeOrders.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab("completed")}
-            style={{
-              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
-              transition: "all .15s",
-              background: activeTab === "completed" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-              color: activeTab === "completed" ? "#fff" : "#5a7a65",
-              boxShadow: activeTab === "completed" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
-            }}
-          >
-            Completed
-            <span style={{
-              padding: "1px 8px", borderRadius: 20, fontSize: 11,
-              background: activeTab === "completed" ? "rgba(255,255,255,0.25)" : "rgba(0,200,83,0.15)",
-              color: activeTab === "completed" ? "#fff" : "#00695c",
-            }}>
-              {completedOrders.length}
-            </span>
-          </button>
+          {[
+            { key: "active",    label: "Active Orders", count: activeOrders.length },
+            { key: "completed", label: "Completed",     count: completedOrders.length },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              style={{ padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, transition: "all .15s", background: activeTab === tab.key ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: activeTab === tab.key ? "#fff" : "#5a7a65", boxShadow: activeTab === tab.key ? "0 2px 10px rgba(0,180,90,0.28)" : "none" }}>
+              {tab.label}
+              <span style={{ padding: "1px 8px", borderRadius: 20, fontSize: 11, background: activeTab === tab.key ? "rgba(255,255,255,0.25)" : "rgba(0,168,76,0.12)", color: activeTab === tab.key ? "#fff" : "#00695c" }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
         <button onClick={fetchOrders}
           style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
@@ -7182,7 +7349,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
                     onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
                   >
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
                       <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
                       <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
                     </td>
@@ -7193,22 +7360,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
                       <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
                     </td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <button
-                        onClick={() => setViewOrder(order)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                          border: "1px solid #b2dfdb", background: "#FFF7ED", color: "#00695c",
-                        }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                          <line x1="3" y1="6" x2="21" y2="6"/>
-                          <path d="M16 10a4 4 0 01-8 0"/>
-                        </svg>
-                        {order.items.length}
-                      </button>
+                      <ItemsButton order={order} />
                     </td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
@@ -7262,7 +7414,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
                     onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
                   >
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
+                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
                       <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
                       <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
                     </td>
@@ -7273,22 +7425,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
                       <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
                     </td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <button
-                        onClick={() => setViewOrder(order)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                          border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65",
-                        }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                          <line x1="3" y1="6" x2="21" y2="6"/>
-                          <path d="M16 10a4 4 0 01-8 0"/>
-                        </svg>
-                        {order.items.length}
-                      </button>
+                      <ItemsButton order={order} completed />
                     </td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
                     <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
@@ -7301,6 +7438,8 @@ const [printReceipts, setPrintReceipts] = useState([]);
         </div>
       )}
 
+      {/* ── Print template (hidden, mirrors Receipts.jsx pattern) ── */}
+      <ReceiptPrintTemplate ref={printRef} receipts={printReceipts} />
     </div>
   );
 }
@@ -7824,9 +7963,8 @@ function ProfileContent({ user }) {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE ACCOUNT MODAL
-// ─────────────────────────────────────────────────────────────────────────────
+
+// APPLICATIONS CREATE ACCOUNT MODAL
 function generateTempPassword(length = 10) {
   const groups = [
     "ABCDEFGHJKLMNPQRSTUVWXYZ",
@@ -7842,7 +7980,7 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert, defaultRole = "", roles = ['Administrator','Franchisee'] }){
+function CreateAccountModal({ applicant, onClose, onAlert, defaultRole = "", roles = ['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee'] }){
   const [tempPassword] = useState(generateTempPassword());
   const [sending, setSending] = useState(false);
 
@@ -7990,6 +8128,7 @@ function CreateAccountModal({ applicant, onClose, onAlert, defaultRole = "", rol
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GCASH QR CONFIRMATION MODAL
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8268,12 +8407,12 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POS
 // ─────────────────────────────────────────────────────────────────────────────
-
 function POSContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Administrator";
+  const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
     const [filterBrand, setFilterBrand] = React.useState(null);
   const brandList = propBrands.length > 0 ? propBrands : [
@@ -9662,7 +9801,6 @@ const [gcashPaymentAmt,   setGcashPaymentAmt]   = React.useState(0);
   );
 }
 
-// ─── Add this entire block above function POSContent ─────────────────────────
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = React.useState("");
   const [branchQ, setBranchQ] = React.useState("");
