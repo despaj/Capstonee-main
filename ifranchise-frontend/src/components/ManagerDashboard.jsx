@@ -453,7 +453,432 @@ export default function FranchiseeDashboard() {
   );
 }
 
+function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
+  const [data,    setData]    = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [tab,     setTab]     = React.useState('top10'); // top10 | fast | slow | buyers | region
+
+  const fetch_ = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      if (filterBranch) {
+        params.set('branch', filterBranch);
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  React.useEffect(() => { fetch_(); }, [fetch_]);
+
+  const fmtPeso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const TABS = [
+    { id: 'top10',   label: 'Top 10 Products' },
+    { id: 'fast',    label: 'Fast Moving' },
+    { id: 'slow',    label: 'Slow Moving' },
+
+  ];
+
+  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
+
+  const maxQty = data
+    ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
+    : 1;
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BarChart2 size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
+          </div>
+        </div>
+        <button onClick={fetch_} disabled={loading}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Summary chips */}
+      {data && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Total Products', value: data.totalProducts },
+            { label: 'Fast Movers',    value: data.fastMoving?.length || 0,  color: '#059669', bg: '#d1fae5' },
+            { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
+          ].map((c, i) => (
+            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
+              color:      tab === t.id ? '#fff' : '#5a7a65',
+              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+          <div style={{ marginTop: 8 }}>Loading product analytics…</div>
+        </div>
+      )}
+
+      {/* TOP 10 / FAST / SLOW */}
+      {!loading && data && (tab === 'top10' || tab === 'fast' || tab === 'slow') && (() => {
+        const list = tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving;
+        if (!list?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No data for this filter.</div>;
+        const maxR = Math.max(1, ...list.map(p => p.totalRevenue));
+        return (
+          <div>
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
+            </div>
+            {list.map((p, i) => (
+              <div key={p.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['1','2','3'][i] : `${i+1}`}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
+                    {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
+                    {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
+                  </div>
+                </div>
+                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
+                <div style={{ paddingLeft: 8 }}>
+                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+    </div>
+  );
+}
+
+// ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
+function AIPredictivePanel({ transactions, filterLabel, preset }) {
+  const [analysis,  setAnalysis]  = React.useState(null);
+  const [loading,   setLoading]   = React.useState(false);
+  const [error,     setError]     = React.useState(null);
+  const [lastRun,   setLastRun]   = React.useState(null);
+
+  const fmtPeso = n =>
+    '₱' + Number(n || 0).toLocaleString('en-PH', {
+      minimumFractionDigits: 0, maximumFractionDigits: 0,
+    });
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) {
+      setError('No transaction data available for the current filter and date range.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString('en-PH', {
+          hour: '2-digit', minute: '2-digit',
+        }));
+      } else {
+        setError(data.error || 'Analysis failed.');
+      }
+    } catch (err) {
+      setError('Could not reach the AI service. Check your server connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const typeStyle = type => ({
+    success: { borderColor: '#3B6D11', bg: '#EAF3DE', color: '#27500A' },
+    warning: { borderColor: '#BA7517', bg: '#FAEEDA', color: '#633806' },
+    info:    { borderColor: '#185FA5', bg: '#E6F1FB', color: '#0C447C' },
+  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#5F5E5A' });
+
+  const anomalyConfig = anomalyType => ({
+    ghost_sales:          { label: 'Ghost sales',    dot: '#A32D2D', badgeBg: '#FCEBEB', badgeColor: '#791F1F' },
+    low_stock_no_reorder: { label: 'Not reordering', dot: '#BA7517', badgeBg: '#FAEEDA', badgeColor: '#633806' },
+    dead_stock:           { label: 'Dead stock',     dot: '#185FA5', badgeBg: '#E6F1FB', badgeColor: '#0C447C' },
+  }[anomalyType] || {   label: 'Anomaly',        dot: '#888780', badgeBg: '#F1EFE8', badgeColor: '#5F5E5A' });
+
+  const kpiAccent = (index, analysis) => {
+    if (index === 0) return analysis.projectedChange >= 0 ? '#3B6D11' : '#A32D2D';
+    if (index === 2) return '#BA7517';
+    if (index === 3) return analysis.confidence >= 80 ? '#3B6D11' : analysis.confidence >= 60 ? '#BA7517' : '#A32D2D';
+    return '#888780';
+  };
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid rgba(0,168,76,0.12)',
+      borderRadius: 18,
+      padding: '14px 18px',
+      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+      marginTop: 16,
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#185FA5', flexShrink: 0,
+          }}/>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
+              AI Prescriptive Analysis
+            </div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>
+              Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={runAnalysis}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 14px', borderRadius: 9,
+            border: '1px solid #185FA5',
+            background: loading ? '#f0f0f0' : '#E6F1FB',
+            color: loading ? '#9e9e9e' : '#0C447C',
+            fontSize: 12, fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {loading ? (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2}
+                style={{ animation: 'spin 0.8s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              Analyzing…
+            </>
+          ) : (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              {analysis ? 'Re-run analysis' : 'Run AI analysis'}
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ── Empty state ── */}
+      {!analysis && !loading && !error && (
+        <div style={{
+          padding: '28px 0', textAlign: 'center',
+          border: '1px dashed #b2dfdb', borderRadius: 12,
+          color: '#5a7a65',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            Ready to analyze your data
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            {transactions?.length
+              ? `${transactions.length} transactions loaded · ${filterLabel}`
+              : 'Select a date range and branch filter, then run the analysis'}
+          </div>
+        </div>
+      )}
+
+      {/* ── Error state ── */}
+      {error && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10,
+          background: '#FCEBEB', border: '1px solid #F7C1C1',
+          color: '#791F1F', fontSize: 12, fontWeight: 600,
+        }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Loading state ── */}
+      {loading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '28px 0', color: '#5a7a65', fontSize: 13,
+        }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
+            stroke="#185FA5" strokeWidth={2}
+            style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}>
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          Sending {transactions?.length} transactions to Groq…
+        </div>
+      )}
+
+      {/* ── Results ── */}
+      {analysis && !loading && (
+        <>
+
+          {/* KPI row — colored left-border accent */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 8, marginBottom: 14,
+          }}>
+            {[
+              {
+                label: 'Projected 7-day',
+                value: fmtPeso(analysis.projectedRevenue),
+                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior`,
+              },
+              {
+                label: 'Peak day',
+                value: analysis.peakDay || '—',
+                sub: 'Highest revenue expected',
+              },
+              {
+                label: 'Slowest day',
+                value: analysis.slowestDay || '—',
+                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below avg`,
+              },
+              {
+                label: 'Confidence',
+                value: `${analysis.confidence || 0}%`,
+                sub: analysis.confidence >= 80 ? 'High — strong data'
+                  : analysis.confidence >= 60 ? 'Medium — limited data'
+                  : 'Low — need more data',
+              },
+            ].map((card, i) => {
+              const accent = kpiAccent(i, analysis);
+              return (
+                <div key={i} style={{
+                  background: '#f8fffe',
+                  border: '1px solid #e0f2f1',
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
+                  }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
+                    {card.value}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
+                    {card.sub}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          
+          {/* Recommendations — 2-column grid */}
+          {analysis.recommendations?.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
+              }}>
+                Recommendations
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: analysis.recommendations.length > 2 ? '1fr 1fr' : '1fr',
+                gap: 6,
+              }}>
+                {analysis.recommendations.map((rec, i) => {
+                  const s = typeStyle(rec.type);
+                  return (
+                    <div key={i} style={{
+                      borderLeft: `2px solid ${s.borderColor}`,
+                      background: s.bg,
+                      borderRadius: '0 8px 8px 0',
+                      padding: '8px 12px',
+                    }}>
+                      <div style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: s.color, marginBottom: 3,
+                      }}>
+                        {rec.branch}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
+                        {rec.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+        </>
+      )}
+    </div>
+  );
+}
+
+
 const fmtShort = (n) => { if (n >= 1_000_000) return '₱' + (n / 1_000_000).toFixed(1) + 'M'; if (n >= 1_000) return '₱' + (n / 1_000).toFixed(0) + 'k'; return '₱' + n; };
+
  
 function FrDashboardContent({ transactions, brands, user }) {
   const userBranch = (user?.branch || '').trim();
@@ -946,42 +1371,20 @@ function FrDashboardContent({ transactions, brands, user }) {
           </div>
         ))}
       </div>
+  <AIPredictivePanel
+        transactions={myTransactions}
+        filterLabel={`${userBranch} — ${getRangeLabel()}`}
+        preset={preset}
+      />
+      <ProductAnalyticsPanel
+        preset={preset}
+        appliedRange={appliedRange}
+        rangeMode={rangeMode}
+        filterBranch={userBranch}
+        filterBrand={null}
+        selectedBrand={null}
+      />
  
-      {/* ── Recent transactions table ── */}
-      <div className="v-card">
-        <div style={{ background: 'var(--grad-dark)', padding: '14px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 800, fontSize: 14, color: '#fff', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Receipt size={14} color="#fff" /> Recent Transactions — {userBranch}
-          </span>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{myTransactions.length} total</span>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table className="v-table">
-            <thead>
-              <tr>{['#', 'Date', 'Cashier', 'Items', 'Total', 'Payment'].map(h => <th key={h}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {myTransactions.slice(0, 10).map(tx => (
-                <tr key={tx.id}>
-                  <td style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 12 }}>#{tx.id}</td>
-                  <td style={{ color: '#5a7a65', fontSize: 12 }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td style={{ fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
-                  <td style={{ color: '#5a7a65' }}>{(tx.items || []).length} item(s)</td>
-                  <td style={{ fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(tx.total)}</td>
-                  <td>
-                    <span className={`v-badge ${tx.payment_method === 'Cash' ? 'v-badge-green' : tx.payment_method === 'GCash' ? 'v-badge-blue' : 'v-badge-purple'}`}>
-                      {tx.payment_method}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {myTransactions.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: '36px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13, fontStyle: 'italic' }}>No transactions for this branch yet.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
