@@ -44,6 +44,7 @@ const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 15;
+const EXPIRY_WARN_DAYS = 30;
 
 const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
   month:"short", day:"numeric", year:"numeric",
@@ -132,28 +133,69 @@ function brandAccent(brandName) {
 
 /* ── Extra field badge renderer (for table cells) ── */
 function ExtraFieldCell({ field, value }) {
-  if (field.type === "yesno") {
-    const yes = value === true || value === "true" || value === 1 || value === "yes";
+  if (field.type === 'yesno') {
+    const yes = value === true || value === 'true' || value === 1 || value === 'yes';
     return (
       <span style={{
-        padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700,
-        background: yes ? "#e8f5e9" : "#fce4ec",
-        color: yes ? "#2e7d32" : "#c62828",
+        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+        background: yes ? '#e8f5e9' : '#fce4ec',
+        color: yes ? '#2e7d32' : '#c62828',
       }}>
-        {yes ? "Yes" : "No"}
+        {yes ? 'Yes' : 'No'}
       </span>
     );
   }
-  if (!value || value === "") return <span style={{ color:C.muted, fontSize:12 }}>—</span>;
-  if (field.type === "date") {
+  if (!value || value === '') return <span style={{ color: C.muted, fontSize: 12 }}>—</span>;
+
+  if (field.type === 'date') {
     try {
-      return <span style={{ fontSize:12, color:C.ink }}>{new Date(value).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" })}</span>;
-    } catch { return <span style={{ fontSize:12 }}>{value}</span>; }
+      const now      = new Date(); now.setHours(0, 0, 0, 0);
+      const warnDate = new Date(now); warnDate.setDate(now.getDate() + EXPIRY_WARN_DAYS);
+      const exp      = new Date(value); exp.setHours(0, 0, 0, 0);
+      const daysLeft = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+
+      const isExpDate  = field.key === 'exp_date';
+      const isExpired  = isExpDate && exp < now;
+      const isExpiring = isExpDate && exp >= now && exp <= warnDate;
+
+      const formatted = exp.toLocaleDateString('en-PH', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+
+      if (isExpired) {
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 800,
+              background: '#fce4ec', color: '#c62828',
+            }}>
+              ✕ Expired
+            </span>
+            <span style={{ fontSize: 11, color: '#c62828', fontWeight: 600 }}>{formatted}</span>
+          </span>
+        );
+      }
+      if (isExpiring) {
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 800,
+              background: '#fff3e0', color: '#e65100',
+            }}>
+              ⚠ {daysLeft}d left
+            </span>
+            <span style={{ fontSize: 11, color: '#e65100', fontWeight: 600 }}>{formatted}</span>
+          </span>
+        );
+      }
+      return <span style={{ fontSize: 12, color: C.ink }}>{formatted}</span>;
+    } catch { return <span style={{ fontSize: 12 }}>{value}</span>; }
   }
-  if (field.key === "gallons_delivered") {
-    return <span style={{ fontSize:12, fontWeight:700, color:"#1565c0" }}>{Number(value).toLocaleString()} gal</span>;
+
+  if (field.key === 'gallons_delivered') {
+    return <span style={{ fontSize: 12, fontWeight: 700, color: '#1565c0' }}>{Number(value).toLocaleString()} gal</span>;
   }
-  return <span style={{ fontSize:12, color:C.ink }}>{value}</span>;
+  return <span style={{ fontSize: 12, color: C.ink }}>{value}</span>;
 }
 
 /* ── Extra Fields Form Section ── */
@@ -647,7 +689,7 @@ function ActivityLogPanel({ log, onClose }) {
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Administrator";
+  const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name  || "Unknown";
 
@@ -888,27 +930,42 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
   /* ── filtered + sorted list ── */
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return [...items]
-      .filter(i => {
-        if (q && !i.name.toLowerCase().includes(q) && !(i.branch||"").toLowerCase().includes(q)) return false;
-        if (branch && i.branch !== branch) return false;
-        else if (brand && !branch) {
-          const b = brandList.find(x => x.id === brand);
-          if (b) { const names=(b.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
+  const q   = search.toLowerCase();
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const warnDate = new Date(now); warnDate.setDate(now.getDate() + EXPIRY_WARN_DAYS);
+
+  return [...items]
+    .filter(i => {
+      if (q && !i.name.toLowerCase().includes(q) && !(i.branch || '').toLowerCase().includes(q)) return false;
+      if (branch && i.branch !== branch) return false;
+      else if (brand && !branch) {
+        const b = brandList.find(x => x.id === brand);
+        if (b) {
+          const names = (b.branches || []).map(br => typeof br === 'string' ? br : br.name);
+          if (!names.includes(i.branch)) return false;
         }
-        if (unitFilter && i.unit !== unitFilter) return false;
-        if (statusFilt === "low" && Number(i.stock) >= Number(i.min_stock)) return false;
-        if (statusFilt === "ok"  && Number(i.stock) <  Number(i.min_stock)) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        let va = a[sort.col]??"", vb = b[sort.col]??"";
-        if (typeof va==="string") va=va.toLowerCase();
-        if (typeof vb==="string") vb=vb.toLowerCase();
-        return sort.asc ? (va<vb?-1:va>vb?1:0) : (va>vb?-1:va<vb?1:0);
-      });
-  }, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
+      }
+      if (unitFilter && i.unit !== unitFilter) return false;
+      if (statusFilt === 'low' && Number(i.stock) >= Number(i.min_stock)) return false;
+      if (statusFilt === 'ok'  && Number(i.stock) <  Number(i.min_stock)) return false;
+
+      if (statusFilt === 'expiring' || statusFilt === 'expired') {
+        const expRaw = i.extra_fields?.exp_date;
+        if (!expRaw) return false;
+        const exp = new Date(expRaw); exp.setHours(0, 0, 0, 0);
+        if (statusFilt === 'expired')  return exp < now;
+        if (statusFilt === 'expiring') return exp >= now && exp <= warnDate;
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      let va = a[sort.col] ?? '', vb = b[sort.col] ?? '';
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      return sort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+}, [items, search, brand, branch, unitFilter, statusFilt, sort, brandList]);
 
   const lowCount   = items.filter(i => Number(i.stock) < Number(i.min_stock)).length;
   const totalValue = items.reduce((s, i) => s + (i.cost_per_unit||0)*(i.stock||0), 0);
@@ -1087,19 +1144,64 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       `}</style>
 
       {/* stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:18 }}>
-        {[
-          { label:"Total Ingredients", value:items.length.toLocaleString(), sub:"Registered", accent:C.green },
-          { label:"Low Stock Alerts",  value:lowCount, sub:"Needs reorder", accent:"#e65100" },
-          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis", accent:"#1565c0" },
-        ].map((s,i) => (
-          <div key={i} style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
+      {(() => {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const warnDate = new Date(now); warnDate.setDate(now.getDate() + EXPIRY_WARN_DAYS);
+
+  const expiringCount = items.filter(i => {
+    const expRaw = i.extra_fields?.exp_date;
+    if (!expRaw) return false;
+    const exp = new Date(expRaw); exp.setHours(0, 0, 0, 0);
+    return exp >= now && exp <= warnDate;
+  }).length;
+
+  const expiredCount = items.filter(i => {
+    const expRaw = i.extra_fields?.exp_date;
+    if (!expRaw) return false;
+    const exp = new Date(expRaw); exp.setHours(0, 0, 0, 0);
+    return exp < now;
+  }).length;
+
+  // Only show the expiry card if the active brand filter has exp_date fields
+  const showExpiryCard = tableExtraFields.some(f => f.key === 'exp_date');
+
+  const statCards = [
+    { label: 'Total Ingredients', value: items.length.toLocaleString(),  sub: 'Registered',   accent: C.green   },
+    { label: 'Low Stock Alerts',  value: lowCount,                        sub: 'Needs reorder', accent: '#e65100' },
+    { label: 'Total Stock Value', value: '₱' + Number(totalValue).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), sub: 'Cost basis', accent: '#1565c0' },
+    ...(showExpiryCard ? [{
+      label:  'Expiring / Expired',
+      value:  `${expiringCount} / ${expiredCount}`,
+      sub:    `Within ${EXPIRY_WARN_DAYS} days / Already expired`,
+      accent: '#f59e0b',
+      highlight: expiredCount > 0 ? '#fce4ec' : expiringCount > 0 ? '#fff3e0' : undefined,
+    }] : []),
+  ];
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: `repeat(${statCards.length}, 1fr)`,
+      gap: 12,
+      marginBottom: 18,
+    }}>
+      {statCards.map((s, i) => (
+        <div key={i} style={{
+          background: s.highlight || C.white,
+          border: s.highlight ? `1.5px solid ${s.accent}44` : '1px solid rgba(0,168,76,0.13)',
+          borderRadius: 14,
+          padding: '14px 18px',
+          boxShadow: '0 1px 6px rgba(0,140,60,0.05)',
+          transition: 'border-color .2s',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.accent, marginBottom: 5 }}>{s.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{s.value}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{s.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+})()}
 
       {/* filter bar */}
       <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
@@ -1117,11 +1219,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
             <option value="">All Units</option>
             {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
           </select>
-          <select value={statusFilt} onChange={e=>setStatusFilt(e.target.value)} style={{ ...invInputSt, width:130 }}>
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
+          <select value={statusFilt} onChange={e=>setStatusFilt(e.target.value)} style={{ ...invInputSt, width:160 }}>
+  <option value="">All Status</option>
+  <option value="low">Low Stock</option>
+  <option value="ok">In Stock</option>
+  {tableExtraFields.some(f => f.key === 'exp_date') && (
+    <option value="expiring">⚠ Expiring Soon (30d)</option>
+  )}
+  {tableExtraFields.some(f => f.key === 'exp_date') && (
+    <option value="expired">✕ Expired</option>
+  )}
+</select>
           <div style={{ flex:1 }}/>
           <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
             <HistoryIcon size={13}/> Delete History
