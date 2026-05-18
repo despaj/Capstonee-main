@@ -544,171 +544,279 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOt
   );
 }
 
-// ─── ID SCANNER MODAL ─────────────────────────────────────────────────────────
+
 function IdScannerModal({ open, onComplete, onClose }) {
-  const [step, setStep] = useState("type");
+  const [step, setStep] = useState("type");       // type → front → back → face → processing → result
   const [idType, setIdType] = useState("");
   const [frontImg, setFrontImg] = useState(null);
   const [backImg, setBackImg] = useState(null);
-  const [zoom, setZoom] = useState(1);
+  const [faceImg, setFaceImg] = useState(null);
   const [ocrResult, setOcrResult] = useState(null);
   const [idValid, setIdValid] = useState(null);
-  const frontRef = useRef();
-  const backRef = useRef();
   const [isEditing, setIsEditing] = useState(false);
   const [editedOcr, setEditedOcr] = useState({});
   const [frontZoom, setFrontZoom] = useState(1);
   const [backZoom, setBackZoom] = useState(1);
   const [frontRotation, setFrontRotation] = useState(0);
-const [backRotation, setBackRotation] = useState(0);
+  const [backRotation, setBackRotation] = useState(0);
 
+  // Camera state
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [countdown, setCountdown] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const countdownRef = useRef(null);
+
+  const frontRef = useRef();
+  const backRef = useRef();
+
+  // ── Reset on close ──────────────────────────────────────────────
   useEffect(() => {
-  if (!open) {
-    setStep("type"); setIdType("");
-    setFrontZoom(1); 
-    setBackZoom(1); 
-    setFrontRotation(0); 
-    setBackRotation(0);
-    setOcrResult(null); 
-    setIdValid(null);
-    setIsEditing(false); 
-    setEditedOcr({});
-  }
-}, [open]);
+    if (!open) {
+      stopCamera();
+      setStep("type"); setIdType("");
+      setFrontImg(null); setBackImg(null); setFaceImg(null);
+      setFrontZoom(1); setBackZoom(1);
+      setFrontRotation(0); setBackRotation(0);
+      setOcrResult(null); setIdValid(null);
+      setIsEditing(false); setEditedOcr({});
+      setCameraError(""); setCountdown(null);
+    }
+  }, [open]);
+
+  // ── Camera helpers ──────────────────────────────────────────────
+  const startCamera = async () => {
+    setCameraError("");
+    setFaceImg(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch (err) {
+      setCameraError(
+        err.name === "NotAllowedError"
+          ? "Camera permission denied. Please allow camera access and try again."
+          : "Could not access camera. Please upload a selfie instead."
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCameraActive(false);
+    setCountdown(null);
+  };
+
+  const startCountdown = () => {
+    let count = 3;
+    setCountdown(count);
+    countdownRef.current = setInterval(() => {
+      count -= 1;
+      if (count === 0) {
+        clearInterval(countdownRef.current);
+        setCountdown(null);
+        capturePhoto();
+      } else {
+        setCountdown(count);
+      }
+    }, 1000);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    setFaceImg(dataUrl);
+    stopCamera();
+    auditLog.record("FACE_CAPTURED");
+  };
 
   const handleFile = (side, file) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       if (side === "front") setFrontImg(e.target.result);
-      else setBackImg(e.target.result);
+      else if (side === "back") setBackImg(e.target.result);
+      else if (side === "face") setFaceImg(e.target.result);
       auditLog.record("ID_IMAGE_UPLOADED", { side, idType, fileName: file.name, size: file.size });
     };
     reader.readAsDataURL(file);
   };
 
-const runOcr = async () => {
-  setStep("processing");
-  auditLog.record("OCR_STARTED", { idType });
+  const faceFileRef = useRef();
 
-  try {
-    // ── Step 1: Validate ID with ID Analyzer ──────────────────────────
-    const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ frontImage: frontImg, backImage: backImg, idType }),
-    });
+  // ── OCR / Verify ────────────────────────────────────────────────
+  const runOcr = async () => {
+    stopCamera();
+    setStep("processing");
+    auditLog.record("OCR_STARTED", { idType });
 
-    const verifyResult = await verifyRes.json();
-
-    if (!verifyResult.success || !verifyResult.data.isValid) {
-      setOcrResult({ reason: verifyResult.data?.reason || verifyResult.error });
-      setIdValid(false);
-      setStep("result");
-      return;
-    }
-
-    // ── Step 2: Extract data with Mindee ─────────────────────────────
-    const extractRes = await fetch(`${process.env.REACT_APP_API_URL}/api/extract-id`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ frontImage: frontImg, idType }),
-    });
-
-    const extractResult = await extractRes.json();
-
-    if (!extractResult.success) {
-      // Validation passed but extraction failed — still allow with empty fields
-      setOcrResult({
-        ...verifyResult.data,
-        firstName:  "",
-        lastName:   "",
-        middleName: "",
-        dob:        "",
-        address:    "",
-        idNumber:   "",
-        expiryDate: null,
-        reason:     "ID verified but could not extract data. Please fill in manually.",
+    try {
+      // Step 1: Verify ID with Didit (your existing /api/verify-id)
+      const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frontImage: frontImg,
+          backImage: backImg,
+          faceImage: faceImg,   // pass face along — your backend can use it for liveness
+          idType,
+        }),
       });
+
+      if (!verifyRes.ok) {
+        throw new Error(`Server error: ${verifyRes.status}`);
+      }
+
+      const verifyResult = await verifyRes.json();
+
+      // ── FIX: handle the response correctly ──────────────────────
+      // Your backend wraps data under verifyResult.data
+      if (!verifyResult.success || !verifyResult.data?.isValid) {
+        setOcrResult({ reason: verifyResult.data?.reason || verifyResult.error || "Verification failed." });
+        setIdValid(false);
+        setStep("result");
+        return;
+      }
+
+      // Step 2: Extract structured data with Mindee
+      const extractRes = await fetch(`${process.env.REACT_APP_API_URL}/api/extract-id`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ frontImage: frontImg, idType }),
+      });
+
+      if (!extractRes.ok) {
+        // Verification passed but extraction failed — still allow with manual entry
+        const data = verifyResult.data;
+        setOcrResult({
+          ...data,
+          reason: "ID verified but could not extract data. Please fill in manually.",
+        });
+        setEditedOcr({
+          lastName:   (data.lastName   || "").toUpperCase(),
+          firstName:  (data.firstName  || "").toUpperCase(),
+          middleName: (data.middleName || "").toUpperCase(),
+          dob:        data.dob        || "",
+          idNumber:   (data.idNumber   || "").toUpperCase(),
+          expiryDate: data.expiryDate || "",
+        });
+        setIdValid(true);
+        setStep("result");
+        return;
+      }
+
+      const extractResult = await extractRes.json();
+
+      if (!extractResult.success) {
+        const data = verifyResult.data;
+        setOcrResult({
+          ...data,
+          reason: "ID verified but could not extract data. Please fill in manually.",
+        });
+        setEditedOcr({
+          lastName:   (data.lastName   || "").toUpperCase(),
+          firstName:  (data.firstName  || "").toUpperCase(),
+          middleName: (data.middleName || "").toUpperCase(),
+          dob:        data.dob        || "",
+          idNumber:   (data.idNumber   || "").toUpperCase(),
+          expiryDate: data.expiryDate || "",
+        });
+        setIdValid(true);
+        setStep("result");
+        return;
+      }
+
+      // Step 3: Merge both results
+      const merged = {
+        ...verifyResult.data,
+        ...extractResult.data,
+        isValid: true,
+        confidence: verifyResult.data.confidence,
+        reason: "ID verified and data extracted successfully",
+      };
+
+      setOcrResult(merged);
+      setEditedOcr({
+        lastName:   (merged.lastName   || "").toUpperCase(),
+        firstName:  (merged.firstName  || "").toUpperCase(),
+        middleName: (merged.middleName || "").toUpperCase(),
+        dob:        merged.dob        || "",
+        idNumber:   (merged.idNumber   || "").toUpperCase(),
+        expiryDate: merged.expiryDate || "",
+      });
+      auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
       setIdValid(true);
       setStep("result");
-      return;
+
+    } catch (err) {
+      console.error("OCR error:", err);
+      auditLog.record("OCR_ERROR", { error: err.message });
+      setOcrResult({ reason: "Something went wrong. Please try again." });
+      setIdValid(false);
+      setStep("result");
     }
-
-    // ── Step 3: Merge both results ────────────────────────────────────
-    const merged = {
-      ...verifyResult.data,
-      ...extractResult.data,
-      isValid:    true,
-      confidence: verifyResult.data.confidence,
-      reason:     "ID verified and data extracted successfully",
-    };
-
-    setOcrResult(merged);
-  setEditedOcr({
-    lastName:   (merged.lastName   || "").toUpperCase(),
-    firstName:  (merged.firstName  || "").toUpperCase(),
-    middleName: (merged.middleName || "").toUpperCase(),
-    dob:        merged.dob        || "",
-    idNumber:   (merged.idNumber   || "").toUpperCase(),
-    expiryDate: merged.expiryDate || "",
-  });
-    auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
-    setIdValid(true);
-    setStep("result");
-
-  } catch (err) {
-    console.error("OCR error:", err);
-    auditLog.record("OCR_ERROR", { error: err.message });
-    setOcrResult({ reason: "Something went wrong. Please try again." });
-    setIdValid(false);
-    setStep("result");
-  }
-};
-
-const confirmAndFill = () => {
-  auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
-  
-  const formatDob = (raw) => {
-    if (!raw) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
-      const [dd, mm, yyyy] = raw.split("/");
-      return `${yyyy}-${mm}-${dd}`;
-    }
-    return raw;
   };
 
-  const merged = { ...ocrResult, ...editedOcr }; // editedOcr wins
-  const { address, ...mergedWithoutAddress } = merged; // destructure from merged
+  // ── Confirm & fill form ─────────────────────────────────────────
+  const confirmAndFill = () => {
+    auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
 
-  onComplete({ 
-    ocrResult: {
-      ...mergedWithoutAddress,              // ← now uses edited values
-      dob: formatDob(merged.dob),           // ← also uses edited dob
-    },
-    idType,
-    idValid,
-    frontImg,
-    backImg,
-  });
-  onClose();
-};
+    const formatDob = (raw) => {
+      if (!raw) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+        const [dd, mm, yyyy] = raw.split("/");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      return raw;
+    };
+
+    const merged = { ...ocrResult, ...editedOcr };
+    const { address, ...mergedWithoutAddress } = merged;
+
+    onComplete({
+      ocrResult: {
+        ...mergedWithoutAddress,
+        dob: formatDob(merged.dob),
+      },
+      idType,
+      idValid,
+      frontImg,
+      backImg,
+      faceImg,
+    });
+    onClose();
+  };
 
   if (!open) return null;
 
-const imgStyle = (zoom, rotation) => ({
-  width: "100%", height: 180, objectFit: "contain",
-  background: "#f0f0f0", borderRadius: 10,
-  border: "2px dashed #c8e6c9", cursor: "zoom-in",
-  transform: `scale(${zoom}) rotate(${rotation}deg)`,
-  transition: "transform .2s",
-  display: "block",
-});
+  // ── Step label map for progress bar ────────────────────────────
+  const STEPS = ["type", "front", "back", "face", "processing", "result"];
+  const STEP_LABELS = ["Select ID", "Front", "Back", "Face Scan", "Processing", "Result"];
+  const stepIdx = STEPS.indexOf(step);
 
   return (
     <div style={S.overlay}>
       <div style={{ ...S.modalBox, width: 560, maxWidth: "95vw", textAlign: "left", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+        
+        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#368f3b,#218428)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Shield size={18} color="#fff" />
@@ -720,17 +828,16 @@ const imgStyle = (zoom, rotation) => ({
           <button style={{ ...S.closeBtn, position: "static", marginLeft: "auto" }} onClick={onClose}><X size={18} /></button>
         </div>
 
-        {/* Progress Steps */}
+        {/* Progress bar — now 6 steps */}
         <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
-          {["Select ID","Scan Front","Scan Back","Processing","Result"].map((s, i) => {
-            const stepIdx = ["type","front","back","processing","result"].indexOf(step);
-            return (
-              <div key={s} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= stepIdx ? "linear-gradient(90deg,#368f3b,#218428)" : "#e5e7eb" }} />
-            );
-          })}
+          {STEP_LABELS.map((label, i) => (
+            <div key={label} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= stepIdx ? "linear-gradient(90deg,#368f3b,#218428)" : "#e5e7eb" }} />
+          ))}
         </div>
 
         <div style={{ overflowY: "auto", flex: 1 }}>
+
+          {/* ── Step: Select ID type ── */}
           {step === "type" && (
             <div>
               <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>Select your Government-Issued ID:</p>
@@ -752,6 +859,7 @@ const imgStyle = (zoom, rotation) => ({
             </div>
           )}
 
+          {/* ── Step: Front image ── */}
           {step === "front" && (
             <div>
               <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
@@ -760,15 +868,11 @@ const imgStyle = (zoom, rotation) => ({
               <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
                 Ensure good lighting. All text must be clearly visible. Accepted: JPG, PNG, PDF.
               </p>
-             <div style={{ position: "relative", marginBottom: 12 }}>
+              <div style={{ position: "relative", marginBottom: 12 }}>
                 <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: "2px dashed #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {frontImg
-                    ? <img src={frontImg} alt="Front ID" style={{
-                        maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
-                        transform: `scale(${frontZoom}) rotate(${frontRotation}deg)`,
-                        transition: "transform .2s",
-                      }} />
-                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                    ? <img src={frontImg} alt="Front ID" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", transform: `scale(${frontZoom}) rotate(${frontRotation}deg)`, transition: "transform .2s" }} />
+                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                         <Camera size={32} color="#9CA3AF" />
                         <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
                       </div>}
@@ -795,6 +899,7 @@ const imgStyle = (zoom, rotation) => ({
             </div>
           )}
 
+          {/* ── Step: Back image ── */}
           {step === "back" && (
             <div>
               <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
@@ -806,12 +911,8 @@ const imgStyle = (zoom, rotation) => ({
               <div style={{ position: "relative", marginBottom: 12 }}>
                 <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: "2px dashed #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {backImg
-                    ? <img src={backImg} alt="Back ID" style={{
-                        maxWidth: "100%", maxHeight: "100%", objectFit: "contain",
-                        transform: `scale(${backZoom}) rotate(${backRotation}deg)`,
-                        transition: "transform .2s",
-                      }} />
-                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "default" }}>
+                    ? <img src={backImg} alt="Back ID" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", transform: `scale(${backZoom}) rotate(${backRotation}deg)`, transition: "transform .2s" }} />
+                    : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                         <Camera size={32} color="#9CA3AF" />
                         <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
                       </div>}
@@ -831,14 +932,173 @@ const imgStyle = (zoom, rotation) => ({
                 <button onClick={() => backRef.current.click()} style={{ ...S.btn, ...S.btnOutline, flex: 1 }}>
                   <Upload size={14} style={{ marginRight: 6 }} /> Upload Image
                 </button>
-                <button disabled={!backImg} onClick={runOcr}
+                <button disabled={!backImg} onClick={() => setStep("face")}
                   style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: backImg ? 1 : 0.5 }}>
-                  Scan ID <Shield size={14} style={{ marginLeft: 6 }} />
+                  Next: Face Scan <ArrowRight size={14} style={{ marginLeft: 6 }} />
                 </button>
               </div>
             </div>
           )}
 
+          {/* ── Step: Face scan (NEW) ── */}
+          {step === "face" && (
+            <div>
+              <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 14 }}>Face Verification</p>
+              <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6B7280" }}>
+                Take a selfie or upload a photo. Make sure your face is well-lit and clearly visible.
+              </p>
+
+              {/* Camera / preview area */}
+              <div style={{
+                position: "relative",
+                width: "100%",
+                height: 260,              // ← slightly taller so face fits
+                borderRadius: 12,
+                // overflow: hidden       // ← REMOVE THIS — it clips the oval shadow
+                background: "#111",
+                border: "2px dashed #c8e6c9",
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                
+                {/* Live video feed */}
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    position: "absolute",   // ← position within container
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: 10,       // ← clip the video corners itself
+                    transform: "scaleX(-1)",
+                    display: cameraActive && !faceImg ? "block" : "none",
+                  }}
+                />
+
+                {/* Face oval overlay */}
+                {cameraActive && !faceImg && (
+                  <div style={{
+                    position: "absolute", top: "50%", left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: 130, height: 170,
+                    border: "3px solid rgba(46,125,50,0.85)",
+                    borderRadius: "50%",
+                    boxShadow: "0 0 0 9999px rgba(0,0,0,0.35)",
+                    pointerEvents: "none",
+                  }} />
+                )}
+
+                {/* Countdown overlay */}
+                {countdown !== null && (
+                  <div style={{
+                    position: "absolute", top: "50%", left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    width: 70, height: 70, borderRadius: "50%",
+                    background: "rgba(46,125,50,0.85)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 36, fontWeight: 800, color: "#fff",
+                  }}>
+                    {countdown}
+                  </div>
+                )}
+
+                {/* Captured photo */}
+                {faceImg && (
+                  <img
+                    src={faceImg}
+                    alt="Face capture"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: 10,
+                      transform: "scaleX(-1)",   // ← mirror to match preview
+                    }}
+                  />
+                )}
+
+                {/* Idle placeholder */}
+                {!cameraActive && !faceImg && !cameraError && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#222", border: "2px dashed #555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Camera size={28} color="#9CA3AF" />
+                    </div>
+                    <span style={{ fontSize: 12, color: "#9CA3AF" }}>Camera not started</span>
+                  </div>
+                )}
+
+                {/* Camera error */}
+                {cameraError && !faceImg && (
+                  <div style={{ padding: "16px 24px", textAlign: "center" }}>
+                    <p style={{ fontSize: 12, color: "#ef4444", fontWeight: 600, margin: "0 0 8px" }}>{cameraError}</p>
+                    <span style={{ fontSize: 11, color: "#9CA3AF" }}>Use the upload option below instead.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Hidden canvas for capture */}
+              <canvas ref={canvasRef} style={{ display: "none" }} />
+
+              {/* Camera controls */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                {!faceImg && !cameraActive && (
+                  <button onClick={startCamera} style={{ ...S.btn, ...S.btnSolid, flex: 1 }}>
+                    <Camera size={14} style={{ marginRight: 6 }} /> Open Camera
+                  </button>
+                )}
+                {cameraActive && !faceImg && (
+                  <>
+                    <button onClick={stopCamera} style={{ ...S.btn, ...S.btnOutline }}>
+                      Cancel
+                    </button>
+                    <button
+                      onClick={startCountdown}
+                      disabled={countdown !== null}
+                      style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: countdown !== null ? 0.6 : 1 }}
+                    >
+                      {countdown !== null ? `Taking photo in ${countdown}…` : "📸 Take Photo"}
+                    </button>
+                  </>
+                )}
+                {faceImg && (
+                  <button onClick={() => { setFaceImg(null); startCamera(); }} style={{ ...S.btn, ...S.btnOutline, flex: 1 }}>
+                    Retake Photo
+                  </button>
+                )}
+              </div>
+
+              {/* Upload fallback */}
+              <input ref={faceFileRef} type="file" accept="image/*" style={{ display: "none" }}
+                onChange={e => { stopCamera(); handleFile("face", e.target.files[0]); }} />
+              {!faceImg && (
+                <button onClick={() => faceFileRef.current.click()} style={{ ...S.btn, ...S.btnOutline, width: "100%", marginBottom: 10 }}>
+                  <Upload size={14} style={{ marginRight: 6 }} /> Upload Selfie Instead
+                </button>
+              )}
+
+              {/* Navigation */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { stopCamera(); setStep("back"); }} style={{ ...S.btn, ...S.btnOutline }}>← Back</button>
+                <button
+                  disabled={!faceImg}
+                  onClick={runOcr}
+                  style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: faceImg ? 1 : 0.5 }}
+                >
+                  Verify ID <Shield size={14} style={{ marginLeft: 6 }} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step: Processing ── */}
           {step === "processing" && (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
               <div style={{ width: 64, height: 64, border: "5px solid #c8e6c9", borderTop: "5px solid #2E7D32", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
@@ -847,6 +1107,7 @@ const imgStyle = (zoom, rotation) => ({
             </div>
           )}
 
+          {/* ── Step: Result ── (unchanged from your original) */}
           {step === "result" && ocrResult && (
             <div>
               <div style={{
@@ -855,9 +1116,7 @@ const imgStyle = (zoom, rotation) => ({
                 border: `1.5px solid ${idValid ? "#a5d6a7" : "#ef9a9a"}`,
                 display: "flex", alignItems: "center", gap: 10,
               }}>
-                {idValid
-                  ? <CheckCircle2 size={20} color="#2E7D32" />
-                  : <AlertCircle size={20} color="#c62828" />}
+                {idValid ? <CheckCircle2 size={20} color="#2E7D32" /> : <AlertCircle size={20} color="#c62828" />}
                 <div>
                   <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: idValid ? "#1b5e20" : "#b71c1c" }}>
                     {idValid ? "ID Validated Successfully" : "ID Validation Failed"}
@@ -874,9 +1133,7 @@ const imgStyle = (zoom, rotation) => ({
                     <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: "#374151" }}>Extracted Information (will auto-fill form):</p>
                     <button
                       onClick={() => {
-                        if (isEditing) {
-                          setOcrResult(prev => ({ ...prev, ...editedOcr })); // persist edits
-                        }
+                        if (isEditing) setOcrResult(prev => ({ ...prev, ...editedOcr }));
                         setIsEditing(e => !e);
                       }}
                       style={{ background: "none", border: "none", cursor: "pointer", color: isEditing ? "#2E7D32" : "#6B7280", padding: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600 }}
@@ -887,12 +1144,12 @@ const imgStyle = (zoom, rotation) => ({
                   </div>
                   <div style={{ background: "#f9fdf9", border: "1.5px solid #c8e6c9", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
                     {[
-                      ["Last Name",   "lastName"],
-                      ["First Name",  "firstName"],
-                      ["Middle Name", "middleName"],
+                      ["Last Name",     "lastName"],
+                      ["First Name",    "firstName"],
+                      ["Middle Name",   "middleName"],
                       ["Date of Birth", "dob"],
-                      ["ID Number",   "idNumber"],
-                      ["Expiry Date", "expiryDate"],
+                      ["ID Number",     "idNumber"],
+                      ["Expiry Date",   "expiryDate"],
                     ].map(([label, field]) => (
                       <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6", alignItems: "center" }}>
                         <span style={{ color: "#6B7280", width: 110, flexShrink: 0 }}>{label}</span>
@@ -926,24 +1183,18 @@ const imgStyle = (zoom, rotation) => ({
               {!idValid && (
                 <div>
                   {ocrResult?.reason && (
-                    <p style={{ 
-                      fontSize: 13, color: "#c62828", fontWeight: 600, 
-                      marginBottom: 12, padding: "10px 14px", 
-                      background: "#fdecea", borderRadius: 8 
-                    }}>
+                    <p style={{ fontSize: 13, color: "#c62828", fontWeight: 600, marginBottom: 12, padding: "10px 14px", background: "#fdecea", borderRadius: 8 }}>
                       Reason: {ocrResult.reason}
                     </p>
                   )}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => setStep("type")} 
-                      style={{ ...S.btn, ...S.btnSolid, width: "100%" }}>
-                      Try Again with a Valid ID
-                    </button>
-                  </div>
+                  <button onClick={() => setStep("type")} style={{ ...S.btn, ...S.btnSolid, width: "100%" }}>
+                    Try Again with a Valid ID
+                  </button>
                 </div>
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>

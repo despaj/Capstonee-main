@@ -22,7 +22,7 @@ app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 app.use(cookieParser());
 app.use(cors({
-  origin: ["http://localhost:3000",  "https://www.franchisync.xyz",   "https://franchisync.xyz", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
+  origin: ["http://localhost:3000",  "https://www.franchisync.business",   "https://franchisync.business", "https://franchisync.vercel.app", "http://localhost:8081", "http://192.168.1.194:8081"],
   allowedHeaders: ["Content-Type", "X-Client", "X-Device-ID"],
   credentials: true
 }));
@@ -54,17 +54,13 @@ async function sendPushNotification(expoPushToken, title, body) {
   });
 }
 
-const isProduction = process.env.NODE_ENV === "production";
-
 function getOrCreateDeviceId(req, res) {
-  // First try the header (sent by frontend)
   const headerDeviceId = req.headers["x-device-id"];
   if (headerDeviceId) {
     console.log("🍪 Device ID from header:", headerDeviceId);
     return headerDeviceId;
   }
 
-  // Fallback to cookie (for production/mobile)
   let deviceId = req.cookies?.device_id;
   if (!deviceId) {
     deviceId = crypto.randomUUID();
@@ -133,11 +129,7 @@ const rowToApplication = (row) => ({
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-   console.log("🍪 All cookies received:", req.cookies);
-  console.log("🍪 device_id cookie:", req.cookies?.device_id);
-
   const deviceId = getOrCreateDeviceId(req, res);
-   console.log("🔑 deviceId being used for lookup:", deviceId);
 
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
@@ -162,7 +154,6 @@ app.post("/login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    // Check trusted device — deviceId is guaranteed to be set above
     const device = await pool.query(
       `SELECT * FROM trusted_devices
        WHERE device_id = $1 AND user_id = $2 AND expires_at > NOW()`,
@@ -197,7 +188,7 @@ app.post("/send-otp-after-login", async (req, res) => {
 
     console.log("5. Attempting to send email...");
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: email,
       subject: "Your FranchiSync Login OTP",
       html: `
@@ -251,10 +242,6 @@ app.post("/verify-otp-login", async (req, res) => {
 
     const deviceId = getOrCreateDeviceId(req, res);
 
-    console.log("TRUST DEBUG — deviceId:", deviceId);
-    console.log("TRUST DEBUG — trustDevice:", trustDevice);
-    console.log("TRUST DEBUG — userId:", user.rows[0].id);
-
     if (trustDevice) {
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       try {
@@ -264,7 +251,6 @@ app.post("/verify-otp-login", async (req, res) => {
           ON CONFLICT (device_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
           [deviceId, user.rows[0].id, expiresAt]
         );
-        console.log("✅ Insert rowCount:", result.rowCount);
       } catch (dbErr) {
         console.error("❌ INSERT failed:", dbErr.code, dbErr.message, dbErr.detail, dbErr.constraint);
       }
@@ -657,7 +643,7 @@ app.post("/send-otp-password-change", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync  <noreply@franchisync.business>",
       to: email,
       subject: "OTP for Password Change",
       html: `
@@ -735,7 +721,7 @@ app.post("/send-forgot-password-otp", async (req, res) => {
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
-      from: "Franchisync <otp@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: email,  
       subject: "Password Reset OTP - FranchiSync",
       html: `
@@ -808,7 +794,7 @@ app.post("/send-credentials", async (req, res) => {
   console.log("to:", to, "name:", name, "password:", password);
   try {
     const result = await resend.emails.send({
-      from: "Franchisync <acc@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: to,
       subject: "Your Franchisync Account Credentials",
       html: `
@@ -820,7 +806,7 @@ app.post("/send-credentials", async (req, res) => {
             <p><strong>Temporary Password:</strong> <span style="letter-spacing: 2px;">${password}</span></p>
           </div>
           <p style="color: #e74c3c;">Please log in and change your password immediately.</p>
-          <p>Log in your account at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
+          <p>Log in your account at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
         </div>
       `,
     });
@@ -836,7 +822,7 @@ app.post("/send-rejection", async (req, res) => {
   const { to, name } = req.body;
   try {
     const result = await resend.emails.send({
-      from: "Franchisync <acc@noreply.franchisync.xyz>",
+      from: "Franchisync <noreply@franchisync.business>",
       to: to,
       subject: "Update on Your Franchisync Application",
       html: `
@@ -850,7 +836,7 @@ app.post("/send-rejection", async (req, res) => {
           <p>If you have questions or would like to reapply in the future, feel free to reach out to us.</p>
           <p>Thank you again for your interest.</p>
           <p style="color: #5a7a65;">— The Franchisync Team</p>
-          <p>Visit us at <a href="https://franchisync.xyz" style="color: #2E7D32; font-weight: bold;">franchisync.xyz</a></p>
+          <p>Visit us at <a href="https://franchisync.business" style="color: #2E7D32; font-weight: bold;">franchisync.business</a></p>
         </div>
       `,
     });
@@ -3935,6 +3921,8 @@ app.get('/paymongo/link-status/:linkId', async (req, res) => {
   }
 });
 
+const { Blob } = require("buffer"); // Node 18+ has this globally
+
 app.post("/api/verify-id", async (req, res) => {
   const { frontImage, backImage, idType } = req.body;
 
@@ -3953,47 +3941,57 @@ app.post("/api/verify-id", async (req, res) => {
     "UMID":                  ["UMID", "UNIFIED MULTI-PURPOSE ID"],
   };
 
+  // Helper: convert base64 data URL → Blob for FormData
+  function base64ToBlob(dataUrl, defaultMime = "image/jpeg") {
+    const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+    const mime = match ? match[1] : defaultMime;
+    const bytes = Buffer.from(match ? match[2] : dataUrl, "base64");
+    return new Blob([bytes], { type: mime });
+  }
+
   try {
-    const payload = {
-      document: frontImage.replace(/^data:image\/\w+;base64,/, ""),
-      authenticate: true,
-    };
-
+    // ── Build multipart/form-data payload ────────────────────────────
+    const form = new FormData();
+    form.append("front_image", base64ToBlob(frontImage), "front.jpg");
     if (backImage) {
-      payload.document_back = backImage.replace(/^data:image\/\w+;base64,/, "");
+      form.append("back_image", base64ToBlob(backImage), "back.jpg");
     }
+    // Optional Didit controls — adjust as needed:
+    form.append("perform_document_liveness", "false");
+    form.append("save_api_request", "true");
 
-    const response = await fetch("https://api2.idanalyzer.com/scan", {
+    const response = await fetch("https://verification.didit.me/v3/id-verification/", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": process.env.ID_ANALYZER_API_KEY,
+        "x-api-key": process.env.DIDIT_API_KEY,
       },
-      body: JSON.stringify(payload),
+      body: form,
     });
 
     const result = await response.json();
 
-    if (!result.success) {
+    // Didit wraps everything under id_verification
+    const idv = result.id_verification;
+
+    if (!idv) {
+      console.error("Didit error response:", result);
       return res.status(400).json({
         success: false,
-        error: result.error?.message || "ID verification failed",
+        error: result.detail || result.message || "ID verification failed",
       });
     }
 
-    const data = result.data || {};
-    const authScore = result.authentication?.score ?? 1;
-
-    // ── Extract all raw OCR text from the response ───────────────────
+    // ── Build OCR text blob for ID type matching ─────────────────────
+    // Didit returns structured fields, so we concatenate them for keyword matching
     const ocrText = [
-      result.data?.ocrResult,
-      result.data?.ocrText,
-      result.fullText,
-      result.rawText,
-      // also pull every string value from data fields as fallback
-      ...Object.values(data).map(v =>
-        Array.isArray(v) ? v.map(i => i?.value || "").join(" ") : v?.value || ""
-      ),
+      idv.document_type,
+      idv.issuing_state_name,
+      idv.nationality,
+      idv.full_name,
+      idv.address,
+      idv.formatted_address,
+      // Didit also returns raw MRZ / extra text in some responses
+      result.raw_text,
     ]
       .filter(Boolean)
       .join(" ")
@@ -4001,10 +3999,10 @@ app.post("/api/verify-id", async (req, res) => {
 
     console.log("OCR Text extracted:", ocrText);
 
-    // ── Match OCR text against selected ID type keywords ─────────────
+    // ── Match against selected ID type keywords ──────────────────────
     const expectedKeywords = ID_TYPE_MAP[idType] || [];
-    const isCorrectIdType = expectedKeywords.some(keyword =>
-      ocrText.includes(keyword.toUpperCase())
+    const isCorrectIdType = expectedKeywords.some((kw) =>
+      ocrText.includes(kw.toUpperCase())
     );
 
     console.log("ID type match:", isCorrectIdType, "| Selected:", idType);
@@ -4021,20 +4019,25 @@ app.post("/api/verify-id", async (req, res) => {
       });
     }
 
-    // ── Auth score check ─────────────────────────────────────────────
-    if (authScore < 0.5) {
+    // ── Didit status check ("Approved" | "Caution" | "Declined") ─────
+    const status = idv.status; // "Approved", "Caution", or "Declined"
+    const isValid = status === "Approved";
+    // Didit doesn't return a 0–1 score on this endpoint, so we map status → confidence
+    const confidence = isValid ? 1 : status === "Caution" ? 0.6 : 0;
+
+    if (!isValid) {
       return res.json({
         success: true,
         data: {
-          firstName:  data.firstName?.value      || "",
-          lastName:   data.lastName?.value       || "",
-          middleName: data.middleName?.value     || "",
-          dob:        data.dob?.value            || "",
-          address:    data.address1?.value       || "",
-          idNumber:   data.documentNumber?.value || "",
-          expiryDate: data.expiry?.value         || null,
+          firstName:  idv.first_name      || "",
+          lastName:   idv.last_name       || "",
+          middleName: "",                        // Didit returns full_name; split if needed
+          dob:        idv.date_of_birth   || "",
+          address:    idv.address         || "",
+          idNumber:   idv.document_number || "",
+          expiryDate: idv.expiration_date || null,
           isValid:    false,
-          confidence: authScore,
+          confidence,
           reason:     "ID failed authenticity check. Please upload a clear, valid government-issued ID.",
         },
       });
@@ -4044,25 +4047,170 @@ app.post("/api/verify-id", async (req, res) => {
     res.json({
       success: true,
       data: {
-        firstName:  data.firstName?.value      || "",
-        lastName:   data.lastName?.value       || "",
-        middleName: data.middleName?.value     || "",
-        dob:        data.dob?.value            || "",
-        address:    data.address1?.value       || "",
-        idNumber:   data.documentNumber?.value || "",
-        expiryDate: data.expiry?.value         || null,
+        firstName:  idv.first_name      || "",
+        lastName:   idv.last_name       || "",
+        middleName: "",
+        dob:        idv.date_of_birth   || "",
+        address:    idv.address         || "",
+        idNumber:   idv.document_number || "",
+        expiryDate: idv.expiration_date || null,
         isValid:    true,
-        confidence: authScore,
+        confidence: 1,
         reason:     "ID verified successfully",
       },
     });
 
   } catch (err) {
-    console.error("ID Analyzer error:", err);
+    console.error("Didit error:", err);
     res.status(500).json({ success: false, error: "Failed to verify ID" });
   }
 });
 
+
+app.post("/api/didit/create-session", async (req, res) => {
+  const { userId } = req.body;
+
+  try {
+    const response = await fetch("https://verification.didit.me/v3/session/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.DIDIT_API_KEY,
+      },
+      body: JSON.stringify({
+        workflow_id: process.env.DIDIT_WORKFLOW_ID,
+        // Ties the session back to your user when the webhook fires
+        vendor_data: String(userId),
+        // Where Didit redirects the user after they finish
+        callback_url: `${process.env.APP_URL}/verification-complete`,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.session_id) {
+      console.error("Didit create session error:", data);
+      return res.status(500).json({ success: false, error: "Could not start verification" });
+    }
+
+    // Save session_id → userId mapping in your DB so you can look it up on webhook
+    await db.verificationSessions.create({
+      data: { sessionId: data.session_id, userId },
+    });
+
+    res.json({
+      success: true,
+      sessionId: data.session_id,
+      verificationUrl: data.session_url, // Send this to your frontend
+    });
+
+  } catch (err) {
+    console.error("Didit error:", err);
+    res.status(500).json({ success: false, error: "Failed to create verification session" });
+  }
+});
+
+app.post("/api/didit/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  // ── Verify the webhook signature ─────────────────────────────────
+  const signature = req.headers["x-signature"];
+  const expectedSig = crypto
+    .createHmac("sha256", process.env.DIDIT_WEBHOOK_SECRET)
+    .update(req.body)
+    .digest("hex");
+
+  if (signature !== expectedSig) {
+    console.warn("Didit webhook signature mismatch");
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  const event = JSON.parse(req.body);
+  const { session_id, status, vendor_data } = event;
+  const userId = vendor_data; // We stored userId here when creating the session
+
+  console.log(`Didit webhook: session=${session_id}, status=${status}, user=${userId}`);
+
+  // status is one of: "Approved", "Declined", "Caution", "Pending", "Expired"
+  if (status === "Approved" || status === "Caution") {
+    // Fetch full decision data (name, DOB, ID number, etc.)
+    const decisionRes = await fetch(
+      `https://verification.didit.me/v3/session/${session_id}/decision/`,
+      {
+        headers: { "x-api-key": process.env.DIDIT_API_KEY },
+      }
+    );
+    const decision = await decisionRes.json();
+    const idv = decision.kyc?.id_verification;
+
+    // Update your user record
+    await db.users.update({
+      where: { id: userId },
+      data: {
+        isVerified:        status === "Approved",
+        firstName:         idv?.first_name      || "",
+        lastName:          idv?.last_name        || "",
+        dob:               idv?.date_of_birth    || null,
+        idNumber:          idv?.document_number  || "",
+        idExpiryDate:      idv?.expiration_date  || null,
+        verificationStatus: status,
+      },
+    });
+  } else if (status === "Declined" || status === "Expired") {
+    await db.users.update({
+      where: { id: userId },
+      data: { verificationStatus: status, isVerified: false },
+    });
+  }
+
+  res.json({ received: true });
+});
+
+// app.get("/api/didit/session-status/:sessionId", async (req, res) => {
+//   const { sessionId } = req.params;
+
+//   const response = await fetch(
+//     `https://verification.didit.me/v3/session/${sessionId}/decision/`,
+//     {
+//       headers: { "x-api-key": process.env.DIDIT_API_KEY },
+//     }
+//   );
+
+//   const decision = await response.json();
+//   const idv = decision.kyc?.id_verification;
+
+//   res.json({
+//     status: decision.status,
+//     isValid: decision.status === "Approved",
+//     firstName:  idv?.first_name     || "",
+//     lastName:   idv?.last_name      || "",
+//     dob:        idv?.date_of_birth  || "",
+//     idNumber:   idv?.document_number || "",
+//     expiryDate: idv?.expiration_date || null,
+//   });
+// });
+
+app.get("/api/didit/session-status/:sessionId", async (req, res) => {
+  const { sessionId } = req.params;
+
+  const response = await fetch(
+    `https://verification.didit.me/v3/session/${sessionId}/decision/`,
+    {
+      headers: { "x-api-key": process.env.DIDIT_API_KEY },
+    }
+  );
+
+  const decision = await response.json();
+  const idv = decision.kyc?.id_verification;
+
+  res.json({
+    status: decision.status,
+    isValid: decision.status === "Approved",
+    firstName:  idv?.first_name     || "",
+    lastName:   idv?.last_name      || "",
+    dob:        idv?.date_of_birth  || "",
+    idNumber:   idv?.document_number || "",
+    expiryDate: idv?.expiration_date || null,
+  });
+});
 
 // ─── LOW STOCK NOTIFICATIONS ──────────────────────────────────
 app.post("/notifications/check-low-stock", async (req, res) => {
