@@ -1040,10 +1040,10 @@ const runVerification = async () => {
                     pointerEvents: "none",
                   }}>
                     <div style={{
-                      width: 80, height: 80, borderRadius: "50%",
+                      width: 15, height: 15, borderRadius: "50%",
                       background: "rgba(46,125,50,0.88)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 42, fontWeight: 800, color: "#fff",
+                      fontSize: 25, fontWeight: 500, color: "#fff",
                       boxShadow: "0 0 0 8px rgba(46,125,50,0.25)",
                     }}>
                       {countdown}

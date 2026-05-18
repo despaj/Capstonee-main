@@ -1393,7 +1393,6 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   );
 }
 
-// ─── DashboardContent (rich UI from Code 1, logic wiring from Code 2) ─────────
 function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
 
@@ -1755,10 +1754,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ████████████  ALL OTHER COMPONENTS BELOW — UNCHANGED FROM CODE 2  ██████████
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ── DeleteConfirmModal ────────────────────────────────────────────────────────
 function DeleteConfirmModal({ target, onConfirm, onClose }) {
@@ -2684,6 +2679,21 @@ const Field = ({ label, error, children }) => (
 // APPLICATIONS CONTENT — Fixed delete history & restore
 // ─────────────────────────────────────────────────────────────────────────────
 
+function generateTempPassword(length = 10) {
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghjkmnpqrstuvwxyz",
+    "23456789",
+    "!@#$",
+  ];
+  const chars = groups.join("");
+  const password = [
+    ...groups.map(group => group[Math.floor(Math.random() * group.length)]),
+    ...Array.from({ length: Math.max(length - groups.length, 0) }, () => chars[Math.floor(Math.random() * chars.length)]),
+  ];
+  return password.sort(() => Math.random() - 0.5).join("");
+}
+
 function ApplicationsContent({ applications: initialApps }) {
   const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
@@ -2745,20 +2755,52 @@ function ApplicationsContent({ applications: initialApps }) {
   }, []);
 
   // ── Approve ─────────────────────────────────────────────────────────────
-  const handleApprove = async (id) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-        method:  "PUT",
+const handleApprove = async (id) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ status: "approved" }),
+    });
+    setApplications(prev =>
+      prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
+    );
+    // Keep menuApp in sync so buttons disable immediately
+    setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
+  } catch {
+    alert("Failed to approve application.");
+  }
+};
+
+const handleReject = async (id) => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ status: "rejected" }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
+
+    const app = applications.find(a => a.id === id);
+    if (app?.email) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ status: "approved" }),
+        body:    JSON.stringify({ to: app.email, name: app.name }),
       });
-      setApplications(prev =>
-        prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
-      );
-    } catch {
-      alert("Failed to approve application.");
     }
-  };
+
+    setApplications(prev =>
+      prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
+    );
+    // Keep menuApp in sync so buttons disable immediately
+    setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
+  } catch {
+    alert("Failed to reject application.");
+  }
+};
+
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this application?")) return;
     try {
@@ -3247,6 +3289,15 @@ function ApplicationsContent({ applications: initialApps }) {
          </>
       )}
 
+      {alertModal && (
+  <AlertModal
+    open={!!alertModal}
+    type={alertModal.type}
+    message={alertModal.message}
+    onClose={() => setAlertModal(null)}
+  />
+)}
+
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
@@ -3336,10 +3387,30 @@ function ApplicationsContent({ applications: initialApps }) {
                 <Check size={15} />
                 {menuApp.status === "approved" ? "Already Approved" : "Approve Application"}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <button
+                onClick={() => { handleReject(menuApp.id); setMenuApp(null); }}
+                disabled={menuApp.status === "rejected"}
+                style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "12px 16px", borderRadius: 11, border: "none",
+                    background: menuApp.status === "rejected"
+                    ? "#e0e0e0"
+                    : "linear-gradient(135deg,#ef4444,#dc2626)",
+                    color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                    fontSize: 13, fontWeight: 700,
+                    cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                    opacity: menuApp.status === "rejected" ? 0.6 : 1,
+                }}
+                >
+                <X size={15} />
+                {menuApp.status === "rejected" ? "Already Rejected" : "Reject Application"}
+                </button>
+
+                            </div>
+                        </div>
+                        </div>
+                )}
 
       {/* ── Main content ── */}
       <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
@@ -3587,6 +3658,121 @@ function ApplicationsContent({ applications: initialApps }) {
         </div>
       </div>
     </>
+  );
+}
+
+function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
+  const [sending, setSending] = useState(false);
+  const [brands, setBrands] = useState([]);
+  const [selectedBrandId, setSelectedBrandId] = useState('');
+  const [branches, setBranches] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState(roles?.[0] || 'Franchisee');
+
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
+      .then(d => setBrands(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setBrandsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBrandId) { setBranches([]); return; }
+    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
+    setBranches(brand?.branches || []);
+  }, [selectedBrandId, brands]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.fullName.value, email = form.email.value, phone = form.phone.value;
+    const role = selectedRole;    
+    const branch = form.branch.value;
+    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+    const brand = selectedBrand?.name || '';
+    const tempPassword = generateTempPassword();
+    setSending(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
+      });
+      if (!res.ok) { const err = await res.json(); 
+        
+        if (err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
+          onAlert(`An account with the email "${email}" already exists. Please use a different email or check existing accounts.`, 'error');
+          } else {
+            onAlert(err.error || 'Failed to create account.', 'error');
+          }
+          return;
+        }
+
+      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email, name, password: tempPassword }),
+      });
+      onAlert(`Account created and credentials sent to ${email}!`, 'success');
+      onClose();
+    } catch { onAlert('Something went wrong. Please try again.', 'error'); }
+    finally { setSending(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Create Franchisee Account</h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
+        </div>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Creating account for: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong></p>
+        <form onSubmit={handleSubmit}>
+          {[['Full Name', 'fullName', 'text', applicant?.name], ['Email Address', 'email', 'email', applicant?.email], ['Phone Number', 'phone', 'tel', applicant?.phone]].map(([label, name, type, def]) => (
+            <div key={name} style={{ marginBottom: 14 }}>
+              <label style={bmLabel}>{label}</label>
+              <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop: 4 }} />
+            </div>
+          ))}
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Role</label>
+            {roles && roles.length > 1 ? (
+          <select
+            value={selectedRole}
+            onChange={e => setSelectedRole(e.target.value)}
+            required
+            style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}
+          >
+            {roles.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        ) : (
+          <input
+            value={selectedRole}
+            disabled
+            style={{ ...bmInput, marginTop: 4, background: '#f5f5f5', cursor: 'not-allowed', opacity: 0.7 }}
+          />
+        )}
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Brand</label>
+            <select value={selectedBrandId} onChange={e => setSelectedBrandId(e.target.value)} required disabled={brandsLoading} style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}>
+              <option value="">{brandsLoading ? 'Loading…' : 'Select Brand'}</option>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Assigned Branch</label>
+            <select name="branch" required disabled={!selectedBrandId} style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}>
+              <option value="">{!selectedBrandId ? 'Select a brand first' : branches.length === 0 ? 'No branches available' : 'Select Branch'}</option>
+              {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+            </select>
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button type="submit" disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: sending ? 0.7 : 1 }}>
+              {sending ? 'Creating…' : '✉ Create & Send'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -4576,7 +4762,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             <label style={bmLabel}>Role</label>
             <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
               <option value="">Select Role</option>
-              {['Administrator','Franchisee'].map(r => <option key={r}>{r}</option>)}
+              {['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee'].map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
             <div style={{ marginBottom:14 }}>
@@ -4928,7 +5114,9 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
           {[
             { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
-            { label:'Administrators', value:users.filter(u=>u.role==='Administrator').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+            { label:'Super Admin', value:users.filter(u=>u.role==='Super Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+            { label:'Franchisee Operations Admin', value:users.filter(u=>u.role==='Franchisee Operations Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+            { label:'Sales Admin', value:users.filter(u=>u.role==='Sales Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
             { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
             { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
           ].map((s, i) => <BmStatCard key={i} {...s} />)}
@@ -4953,7 +5141,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
             style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
             <option value="all">All Roles</option>
-            {['Administrator','Franchisor','Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+            {['Super Admin','Franchisee Operations Admin', 'Sales Admin', 'Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
           </select>
 
           {/* Brand */}
@@ -5050,13 +5238,14 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           </div>
         </div>
 
-        {/* Modals */}
-        {showAddModal  && <CreateAccountModal
-          applicant={null}
-          roles={['Administrator','Franchisee']}
-          onClose={() => { setShowAddModal(false); resetForm(); }}
-          onAlert={(message, type) => setAlertModal({ message, type })}
-      />}
+       {showAddModal && (
+  <CreateAccountModal
+    applicant={null}
+    roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
+    onClose={() => { setShowAddModal(false); resetForm(); }}
+    onAlert={(message, type) => setAlertModal({ message, type })}
+  />
+)}
         {showEditModal && (
         <UserModal
           key="edit"
@@ -5136,7 +5325,7 @@ function CommunicationContent() {
     try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   });
 
-  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
+  const isAdminUser = (u) => u?.role?.toLowerCase() === "super admin";
 
   const PIN_KEY = "announcement_pins";
   useEffect(() => {
@@ -6958,169 +7147,7 @@ function ProfileContent({ user }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CREATE ACCOUNT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
-function generateTempPassword(length = 10) {
-  const groups = [
-    "ABCDEFGHJKLMNPQRSTUVWXYZ",
-    "abcdefghjkmnpqrstuvwxyz",
-    "23456789",
-    "!@#$",
-  ];
-  const chars = groups.join("");
-  const password = [
-    ...groups.map(group => group[Math.floor(Math.random() * group.length)]),
-    ...Array.from({ length: Math.max(length - groups.length, 0) }, () => chars[Math.floor(Math.random() * chars.length)]),
-  ];
-  return password.sort(() => Math.random() - 0.5).join("");
-}
 
-function CreateAccountModal({ applicant, onClose, onAlert, defaultRole = "", roles = ['Administrator','Franchisee'] }){
-  const [tempPassword] = useState(generateTempPassword());
-  const [sending, setSending] = useState(false);
-
-  const [brands, setBrands] = useState([]);
-  const [selectedBrandId, setSelectedBrandId] = useState("");
-  const [branches, setBranches] = useState([]);
-  const [brandsLoading, setBrandsLoading] = useState(true);
- 
-  useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-        const data = await res.json();
-        setBrands(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to fetch brands:", err);
-      } finally {
-        setBrandsLoading(false);
-      }
-    };
-    fetchBrands();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedBrandId) {
-      setBranches([]);
-      return;
-    }
-    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
-    setBranches(brand?.branches || []);
-  }, [selectedBrandId, brands]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const name   = form.fullName.value;
-    const email  = form.email.value;
-    const phone  = form.phone.value;
-    const role   = form.role.value;
-    const branch = form.branch.value;
-    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-    const brand = selectedBrand?.name || "";
-
-    setSending(true);
-    try {
-      const userRes = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
-      });
-      if (!userRes.ok) {
-        const err = await userRes.json();
-        onAlert(err.error || "Failed to create account.", "error");
-        setSending(false);
-        return;
-      }
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, name, password: tempPassword }),
-      });
-      onAlert(`Account created and credentials sent to ${email}!`, "success");
-      onClose();
-    } catch (err) {
-      onAlert("Something went wrong. Please try again.", "error");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-          <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>Create Account</h2>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
-        </div>
-        <p style={{ fontSize:13, color:C.muted, marginBottom:22 }}>Creating account for: <strong style={{ color:'#0d2b1e' }}>{applicant?.name}</strong></p>
-        <form onSubmit={handleSubmit}>
-          {[['Full Name','fullName','text',applicant?.name],['Email Address','email','email',applicant?.email],['Phone Number','phone','tel',applicant?.phone]].map(([label,name,type,def]) => (
-            <div key={name} style={{ marginBottom:14 }}>
-              <label style={bmLabel}>{label}</label>
-              <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop:4 }}/>
-            </div>
-          ))}
-<div style={{ marginBottom:14 }}>
-  <label style={bmLabel}>Role</label>
-  <select
-    name="role"
-    required
-    defaultValue={defaultRole}
-    disabled={roles.length === 1}   // lock it if only one option
-    style={{ ...bmInput, marginTop:4, appearance:'none', cursor: roles.length === 1 ? 'not-allowed' : 'pointer', opacity: roles.length === 1 ? 0.7 : 1 }}
-  >
-    {!defaultRole && <option value="">Select Role</option>}
-    {roles.map(r => <option key={r} value={r}>{r}</option>)}
-  </select>
-</div>
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Brand</label>
-            <select
-              name="brand"
-              required
-              value={selectedBrandId}
-              onChange={e => setSelectedBrandId(e.target.value)}
-              style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}
-              disabled={brandsLoading}>
-              <option value="">{brandsLoading ? "Loading brands..." : "Select Brand"}</option>
-              {brands.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Assigned Branch</label>
-            <select
-              name="branch"
-              required
-              style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}
-              disabled={!selectedBrandId}
-            >
-              <option value="">
-                {!selectedBrandId
-                  ? "Select a brand first"
-                  : branches.length === 0
-                    ? "No branches available"
-                    : "Select Branch"}
-              </option>
-              {branches.map(br => (
-                <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ marginBottom:14 }}>
-            <p style={{ fontSize:11, color:C.muted, margin:0 }}>A temporary password will be auto-generated and emailed to the applicant upon account creation.</p>
-          </div>
-          <div style={{ display:'flex', gap:10, marginTop:22 }}>
-            <button type="button" onClick={onClose}
-              style={{ flex:1, padding:'10px 0', borderRadius:10, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-            <button type="submit" disabled={sending}
-              style={{ flex:1, padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:800, cursor:sending?'not-allowed':'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.28)', opacity:sending?0.7:1 }}>
-              {sending ? "Creating..." : "✉ Create & Send"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 // ─────────────────────────────────────────────────────────────────────────────
 // GCASH QR CONFIRMATION MODAL
 // ─────────────────────────────────────────────────────────────────────────────
