@@ -143,20 +143,14 @@ app.post("/login", async (req, res) => {
     const mobileBlockedRoles = ["Super Admin", "Franchisee Operations Admin", "Sales Admin", "Staff"];
     if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
       return res.status(403).json({ message: "Invalid credentials" });
-
-// Block Administrator accounts from mobile (no X-Client: web header)
-const isWeb = req.headers["x-client"] === "web";
-const mobileBlockedRoles = ["Administrator", "Staff"];
-if (!isWeb && mobileBlockedRoles.includes(user.rows[0].role))
-  return res.status(403).json({ message: "Invalid credentials" });
-    const safeUser = {
-      id:     user.rows[0].id,
-      name:   user.rows[0].name,
-      email:  user.rows[0].email,
-      role:   user.rows[0].role,
-      branch: user.rows[0].branch,
-      brand:  user.rows[0].brand,
-    };
+        const safeUser = {
+          id:     user.rows[0].id,
+          name:   user.rows[0].name,
+          email:  user.rows[0].email,
+          role:   user.rows[0].role,
+          branch: user.rows[0].branch,
+          brand:  user.rows[0].brand,
+        };
 
     const device = await pool.query(
       `SELECT * FROM trusted_devices
