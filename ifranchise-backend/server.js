@@ -1997,25 +1997,45 @@ app.get("/ingredients", async (req, res) => {
 
 app.post("/ingredients", async (req, res) => {
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields,
+            // ADD these new fields:
+            list_in_shop, shop_price, shop_unit, shop_brand, shop_category } = req.body;
+
     if (!name || !unit)
       return res.status(400).json({ error: "Name and unit are required" });
+
     const result = await pool.query(
       `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [
-        name, branch || null, brand || null, unit,
-        parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-        parseFloat(cost_per_unit) || 0,
-        JSON.stringify(extra_fields || {}),
-      ]
+      [name, branch || null, brand || null, unit,
+       parseFloat(stock) || 0, parseFloat(min_stock) || 0,
+       parseFloat(cost_per_unit) || 0,
+       JSON.stringify(extra_fields || {})]
     );
-    res.json({ success: true, item: result.rows[0] });
+
+    const ingredient = result.rows[0];
+
+    // ── NEW: auto-create shop item if toggled on ──
+    if (list_in_shop && shop_price && shop_brand) {
+      const shopResult = await pool.query(
+        `INSERT INTO shop_items (name, price, unit, shop, brand, stock, is_visible, ingredient_id)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+         ON CONFLICT (ingredient_id) DO UPDATE
+           SET name=$1, price=$2, unit=$3, shop=$4, brand=$5, stock=$6
+         RETURNING *`,
+        [name, parseFloat(shop_price), shop_unit || unit,
+         shop_category || null, shop_brand,
+         parseFloat(stock) || 0, ingredient.id]
+      );
+    }
+
+    res.json({ success: true, item: ingredient });
   } catch (err) {
     console.error("POST /ingredients error:", err);
     res.status(500).json({ error: "Failed to add ingredient" });
   }
 });
+
 app.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
@@ -2920,6 +2940,23 @@ app.put("/orders/:id", async (req, res) => {
   "UPDATE orders SET status=$1 WHERE id=$2 RETURNING *",
   [status, req.params.id]
 );
+
+if (result.rows.length === 0)
+  return res.status(404).json({ error: "Order not found" });
+
+// ── Deduct shop_items stock when order is shipped ──
+if (status === "shipping") {
+  const orderItems = await pool.query(
+    "SELECT shop_item_id, quantity FROM order_items WHERE order_id = $1",
+    [req.params.id]
+  );
+  for (const item of orderItems.rows) {
+    await pool.query(
+      "UPDATE shop_items SET stock = stock - $1 WHERE id = $2",
+      [item.quantity, item.shop_item_id]
+    );
+  }
+}
 
 // ← check FIRST before using result
 if (result.rows.length === 0)
