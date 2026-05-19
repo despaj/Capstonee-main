@@ -1038,7 +1038,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
         {loading ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:600 }}>Loading…</div>
-        ) : filtered.length===0 ? (
+        ) : filtered.length===0 ? ( 
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13 }}>
             <div style={{ fontSize:"2.5rem", marginBottom:10 }}>📦</div>
             No ingredients found. Add your first ingredient above.
