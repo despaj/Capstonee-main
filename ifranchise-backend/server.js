@@ -2280,7 +2280,218 @@ app.post("/ingredient-activity-log", async (req, res) => {
     res.status(500).json({ error: "Failed to save activity log entry" });
   }
 });
+// ─── INGREDIENT BATCHES ───────────────────────────────────────
 
+app.get("/ingredient-batches", async (req, res) => {
+  try {
+    const { ingredient_id } = req.query;
+    if (!ingredient_id)
+      return res.status(400).json({ error: "ingredient_id is required" });
+
+    const result = await pool.query(
+      `SELECT * FROM ingredient_batches
+       WHERE ingredient_id = $1
+       ORDER BY supply_date DESC, created_at DESC`,
+      [ingredient_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredient-batches error:", err);
+    res.status(500).json({ error: "Failed to fetch batches" });
+  }
+});
+
+app.post("/ingredient-batches", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      ingredient_id, batch_number, stock,
+      mfg_date, exp_date, supply_date,
+      cost_per_unit, perishable, notes
+    } = req.body;
+
+    if (!ingredient_id)
+      return res.status(400).json({ error: "ingredient_id is required" });
+
+    await client.query("BEGIN");
+
+    // Insert the batch
+    const result = await client.query(
+      `INSERT INTO ingredient_batches
+         (ingredient_id, batch_number, stock, mfg_date, exp_date,
+          supply_date, cost_per_unit, perishable, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [
+        ingredient_id,
+        batch_number || null,
+        parseFloat(stock) || 0,
+        mfg_date    || null,
+        exp_date    || null,
+        supply_date || null,
+        parseFloat(cost_per_unit) || 0,
+        perishable  || false,
+        notes       || null,
+      ]
+    );
+
+    // Recalculate total stock on the parent ingredient
+    const totals = await client.query(
+      `SELECT COALESCE(SUM(stock), 0) AS total_stock,
+              MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+       FROM ingredient_batches
+       WHERE ingredient_id = $1`,
+      [ingredient_id]
+    );
+
+    const { total_stock, earliest_exp } = totals.rows[0];
+
+    await client.query(
+      `UPDATE ingredients
+       SET stock = $1,
+           extra_fields = extra_fields || jsonb_build_object('exp_date', $2::text),
+           updated_at = NOW()
+       WHERE id = $3`,
+      [total_stock, earliest_exp || null, ingredient_id]
+    );
+
+    await client.query("COMMIT");
+    res.json({ success: true, batch: result.rows[0], total_stock });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /ingredient-batches error:", err);
+    res.status(500).json({ error: "Failed to add batch" });
+  } finally {
+    client.release();
+  }
+});
+
+app.put("/ingredient-batches/:id", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      batch_number, stock, mfg_date,
+      exp_date, supply_date, cost_per_unit,
+      perishable, notes
+    } = req.body;
+
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `UPDATE ingredient_batches
+       SET batch_number  = $1,
+           stock         = $2,
+           mfg_date      = $3,
+           exp_date      = $4,
+           supply_date   = $5,
+           cost_per_unit = $6,
+           perishable    = $7,
+           notes         = $8,
+           updated_at    = NOW()
+       WHERE id = $9
+       RETURNING *`,
+      [
+        batch_number  || null,
+        parseFloat(stock) || 0,
+        mfg_date      || null,
+        exp_date      || null,
+        supply_date   || null,
+        parseFloat(cost_per_unit) || 0,
+        perishable    || false,
+        notes         || null,
+        req.params.id,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Batch not found" });
+    }
+
+    const ingredient_id = result.rows[0].ingredient_id;
+
+    // Recalculate parent stock + earliest expiry
+    const totals = await client.query(
+      `SELECT COALESCE(SUM(stock), 0) AS total_stock,
+              MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+       FROM ingredient_batches
+       WHERE ingredient_id = $1`,
+      [ingredient_id]
+    );
+
+    const { total_stock, earliest_exp } = totals.rows[0];
+
+    await client.query(
+      `UPDATE ingredients
+       SET stock = $1,
+           extra_fields = extra_fields || jsonb_build_object('exp_date', $2::text),
+           updated_at = NOW()
+       WHERE id = $3`,
+      [total_stock, earliest_exp || null, ingredient_id]
+    );
+
+    await client.query("COMMIT");
+    res.json({ success: true, batch: result.rows[0], total_stock });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("PUT /ingredient-batches/:id error:", err);
+    res.status(500).json({ error: "Failed to update batch" });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete("/ingredient-batches/:id", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Get ingredient_id before deleting
+    const before = await client.query(
+      "SELECT ingredient_id FROM ingredient_batches WHERE id = $1",
+      [req.params.id]
+    );
+    if (before.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Batch not found" });
+    }
+    const { ingredient_id } = before.rows[0];
+
+    await client.query(
+      "DELETE FROM ingredient_batches WHERE id = $1",
+      [req.params.id]
+    );
+
+    // Recalculate parent stock + earliest expiry after deletion
+    const totals = await client.query(
+      `SELECT COALESCE(SUM(stock), 0) AS total_stock,
+              MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+       FROM ingredient_batches
+       WHERE ingredient_id = $1`,
+      [ingredient_id]
+    );
+
+    const { total_stock, earliest_exp } = totals.rows[0];
+
+    await client.query(
+      `UPDATE ingredients
+       SET stock = $1,
+           extra_fields = extra_fields || jsonb_build_object('exp_date', $2::text),
+           updated_at = NOW()
+       WHERE id = $3`,
+      [total_stock, earliest_exp || null, ingredient_id]
+    );
+
+    await client.query("COMMIT");
+    res.json({ success: true, total_stock });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("DELETE /ingredient-batches/:id error:", err);
+    res.status(500).json({ error: "Failed to delete batch" });
+  } finally {
+    client.release();
+  }
+});
 // ─── BRANCHES ────────────────────────────────────────────────
 
 app.get("/branches", async (req, res) => {
@@ -2894,20 +3105,36 @@ app.post("/transactions", async (req, res) => {
       );
 
       for (const ing of recipe.rows) {
-        const deductAmount = parseFloat(ing.quantity) * parseInt(item.qty);
+  const deductAmount = parseFloat(ing.quantity) * parseInt(item.qty);
 
-        if (parseFloat(ing.stock) < deductAmount) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({
-            error: `Insufficient stock for ingredient: ${ing.name}. Available: ${ing.stock}, needed: ${deductAmount}`
-          });
-        }
+  // FIFO: fetch batches oldest-first (by supply_date, then created_at)
+  const batchRows = await client.query(
+    `SELECT id, stock FROM ingredient_batches
+     WHERE ingredient_id = $1 AND stock > 0
+     ORDER BY supply_date ASC NULLS LAST, created_at ASC`,
+    [ing.ingredient_id]
+  );
 
-        await client.query(
-          `UPDATE ingredients SET stock = stock - $1, updated_at = NOW() WHERE id = $2`,
-          [deductAmount, ing.ingredient_id]
-        );
-      }
+  let remaining = deductAmount;
+  for (const batch of batchRows.rows) {
+    if (remaining <= 0) break;
+    const deductFromBatch = Math.min(remaining, parseFloat(batch.stock));
+    await client.query(
+      `UPDATE ingredient_batches SET stock = stock - $1, updated_at = NOW() WHERE id = $2`,
+      [deductFromBatch, batch.id]
+    );
+    remaining -= deductFromBatch;
+  }
+
+  // Sync parent ingredient stock from sum of remaining batch stocks
+  await client.query(
+    `UPDATE ingredients
+     SET stock = (SELECT COALESCE(SUM(stock), 0) FROM ingredient_batches WHERE ingredient_id = $1),
+         updated_at = NOW()
+     WHERE id = $1`,
+    [ing.ingredient_id]
+  );
+}
 
       await client.query(
         `UPDATE inventory SET stock = stock - $1, updated_at = NOW() WHERE id = $2`,
