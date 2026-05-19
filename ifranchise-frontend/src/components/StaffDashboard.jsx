@@ -919,8 +919,7 @@ export function POSContent({ user }) {
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                     {[
                       { label: 'None',           pct: 0,    requiresAuth: false },
-                      { label: 'PWD',            pct: 20,   requiresAuth: true  },
-                      { label: 'Senior Citizen', pct: 20,   requiresAuth: true  },
+                      { label: 'PWD/Senior Citizen',            pct: 20,   requiresAuth: true  },
                       { label: 'Others',         pct: null, requiresAuth: true  },
                     ].map(d => {
                       const isActive = d.pct !== null ? discountPct === d.pct && discountType === d.label : discountType === 'Others';

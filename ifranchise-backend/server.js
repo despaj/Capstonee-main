@@ -4523,6 +4523,56 @@ app.get('/paymongo/link-status/:linkId', async (req, res) => {
   }
 });
 
+app.get("/api/psgc/regions", async (req, res) => {
+  try {
+    const response = await fetch("https://psgc.gitlab.io/api/regions/");
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load PSGC regions" });
+  }
+});
+
+app.get("/api/psgc/regions/:code/provinces", async (req, res) => {
+  try {
+    const response = await fetch(`https://psgc.gitlab.io/api/regions/${req.params.code}/provinces/`);
+    const data = await response.json();
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to load provinces" });
+  }
+});
+
+app.get("/api/psgc/regions/:code/cities-municipalities", async (req, res) => {
+  try {
+    const response = await fetch(`https://psgc.gitlab.io/api/regions/${req.params.code}/cities-municipalities/`);
+    const data = await response.json();
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to load cities" });
+  }
+});
+
+app.get("/api/psgc/provinces/:code/cities-municipalities", async (req, res) => {
+  try {
+    const response = await fetch(`https://psgc.gitlab.io/api/provinces/${req.params.code}/cities-municipalities/`);
+    const data = await response.json();
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to load cities" });
+  }
+});
+
+app.get("/api/psgc/cities-municipalities/:code/barangays", async (req, res) => {
+  try {
+    const response = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${req.params.code}/barangays/`);
+    const data = await response.json();
+    res.json(data);
+  } catch {
+    res.status(500).json({ error: "Failed to load barangays" });
+  }
+});
+
 
 // ─── LOW STOCK NOTIFICATIONS ──────────────────────────────────
 app.post("/notifications/check-low-stock", async (req, res) => {
