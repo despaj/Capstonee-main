@@ -13,8 +13,8 @@ import {
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
-  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
-  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown,
+  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon,
+  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
   Brain, PieChart, LineChart,
 } from 'lucide-react';
 
@@ -72,9 +72,16 @@ const smallBtnSt = {
   fontFamily:"inherit", background:C.white,
 };
 
-const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmtTs   = d => new Date(d).toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 
 const TrashIcon = ({ size=14, ...p }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+
+const ActivityIcon = ({ size=14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+  </svg>
+);
 
 const BmSection = ({ children, style = {} }) => (
   <div style={{
@@ -158,8 +165,13 @@ export default function AdminDashboard() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
+  
+    const [activityLog,     setActivityLog]     = useState([]);
+  
+  const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const handleLogout = () => setShowLogoutModal(true);
   const [transactions, setTransactions] = useState([]);
+ const [searchQuery, setSearchQuery]     = useState("");
 
   const getUserFromStorage = () => {
     const userString =
@@ -169,6 +181,31 @@ export default function AdminDashboard() {
     if (userString) return JSON.parse(userString);
     return null;
   };
+
+   const fetchAppDeleteHistory = async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history`);
+      const data = await res.json();
+      const mapped = Array.isArray(data)
+        ? data.map(row => ({
+            id:        row.id,
+            data:      row.application_data ?? row.data ?? {},
+            deletedAt: row.deleted_at       ?? row.deletedAt,
+          }))
+        : [];
+      setAppDeleteHistory(mapped);
+    } catch (err) {
+      console.error("Failed to fetch application delete history:", err);
+    }
+  };
+
+   const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
 
   const confirmLogout = async () => {
     try {
@@ -225,7 +262,11 @@ export default function AdminDashboard() {
   }, []);
 
   const [applications, setApplications] = useState([]);
-  useEffect(() => { fetchApplications(); }, []);
+  useEffect(() => {
+  fetchApplications();
+  fetchAppDeleteHistory();
+  fetchActivityLog();
+}, [fetchActivityLog]);
 
   const fetchApplications = async () => {
     try {
@@ -274,6 +315,7 @@ export default function AdminDashboard() {
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,         section: 'main' },
+     { id: 'activityLog', label: 'Activity Log', icon: <Activity size={20} />, section: 'main' },
     { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,          section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,       section: 'main' },
     { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />, section: 'main' },
@@ -294,6 +336,7 @@ export default function AdminDashboard() {
   const handleViewApplication = (applicant) => { setSelectedApplicant(applicant); setShowViewApplicationModal(true); };
 
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
+
 
   return (
     <div className="admin-dashboard-root">
@@ -488,6 +531,7 @@ export default function AdminDashboard() {
 
         <div className="ad-content">
           {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
+           {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'     && <MobileShopContent />}
@@ -560,6 +604,559 @@ export default function AdminDashboard() {
   );
 }
 
+
+
+// ── Config ───────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 20;
+
+const ACTION_META = {
+  create:  { color: '#00695c', bg: '#e0f2f1', label: 'Create'  },
+  update:  { color: '#1565c0', bg: '#e3f2fd', label: 'Update'  },
+  delete:  { color: '#c62828', bg: '#ffebee', label: 'Delete'  },
+  restore: { color: '#6a1b9a', bg: '#f3e5f5', label: 'Restore' },
+  approve: { color: '#2e7d32', bg: '#e8f5e9', label: 'Approve' },
+  reject:  { color: '#bf360c', bg: '#fbe9e7', label: 'Reject'  },
+  login:   { color: '#00695c', bg: '#e0f2f1', label: 'Login'   },
+  logout:  { color: '#5d4037', bg: '#efebe9', label: 'Logout'  },
+  export:  { color: '#1565c0', bg: '#e3f2fd', label: 'Export'  },
+  print:   { color: '#37474f', bg: '#eceff1', label: 'Print'   },
+  view:    { color: '#00695c', bg: '#e0f2f1', label: 'View'    },
+  import:  { color: '#6a1b9a', bg: '#f3e5f5', label: 'Import'  },
+};
+
+const MOCK_USERS = ['Admin User', 'Maria Santos', 'Jose Reyes', 'Ana Cruz', 'Carlo Dela Cruz'];
+const MOCK_DESCS = {
+  'Brand & Branch':   ['Added brand "Coffee Spot"', 'Edited branch "Makati"', 'Deleted brand "iPharma Draft"', 'Restored branch "Ortigas"'],
+  'User Management':  ['Created franchisee account', 'Updated user role to Sales Admin', 'Deleted user account', 'Restored deleted user'],
+  'Applications':     ['Approved franchise application #0031', 'Rejected application #0042', 'Deleted application', 'Restored application'],
+  'Menu Inventory':   ['Added menu item "Matcha Latte"', 'Updated price of "Espresso"', 'Deleted item "Frappuccino"', 'Imported 12 items via Excel'],
+  'Stock Inventory':  ['Added stock batch "Arabica Beans"', 'Updated reorder level', 'Deleted expired batch', 'Restocked 50 units'],
+  'Mobile Shop':      ['Added shop item "V60 Kit"', 'Edited item price', 'Hid shop item', 'Deleted item permanently'],
+  'Reports':          ['Approved report from Makati branch', 'Viewed report #00021', 'Downloaded report PDF', 'Marked report as reviewed'],
+  'Announcements':    ['Posted new announcement', 'Edited announcement title', 'Deleted announcement', 'Restored from delete history'],
+  'Profile':          ['Updated profile name', 'Changed password via OTP', 'Updated work email', 'Unlocked profile for editing'],
+  'Auth':             ['Logged in successfully', 'Logged out', 'Failed login attempt (wrong password)', 'Session expired'],
+};
+const MOCK_ACTIONS = Object.keys(ACTION_META);
+
+const MODULES = [
+  'Brand & Branch', 'User Management', 'Applications', 'Menu Inventory',
+  'Stock Inventory', 'Mobile Shop', 'Reports', 'Announcements', 'Profile', 'Auth',
+];
+
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const fmtRelative = (iso) => {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000)    return 'Just now';
+  if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const fmtFull = (iso) =>
+  new Date(iso).toLocaleString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+
+// ── Design tokens (matches your green dashboard) ──────────────────────────────
+const th = {
+  padding: '9px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
+  color: C.green, letterSpacing: '0.07em', textTransform: 'uppercase',
+  borderBottom: `2px solid ${C.border}`, background: '#f8fffe', whiteSpace: 'nowrap',
+};
+
+const td = (i) => ({
+  padding: '10px 12px', borderBottom: `1px solid #f0f8f0`,
+  background: i % 2 === 0 ? C.white : '#fafffe',
+  fontSize: 13, verticalAlign: 'middle', color: C.ink,
+});
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, color, icon: Icon }) {
+  return (
+    <div style={{
+      background: C.white, border: `1px solid rgba(0,168,76,0.12)`,
+      borderRadius: 18, padding: '18px 20px',
+      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.muted, marginBottom: 5 }}>{label}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: color || C.ink }}>{value}</div>
+        </div>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenLt, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={20} color={C.greenDk} />
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>
+    </div>
+  );
+}
+
+function ActionBadge({ action }) {
+  const m = ACTION_META[action] || { color: C.muted, bg: C.bg, label: action };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: m.bg, color: m.color }}>
+      {m.label}
+    </span>
+  );
+}
+
+function TimelineLine({ log, expanded, onToggle }) {
+  const am = ACTION_META[log.action] || { color: C.muted, bg: C.bg };
+  return (
+    <div style={{ display: 'flex', padding: '0 20px', position: 'relative' }}>
+      {/* vertical connector */}
+      <div style={{ position: 'absolute', left: 46, top: 38, bottom: 0, width: 1.5, background: C.border }} />
+      {/* dot */}
+      <div style={{ width: 28, height: 28, borderRadius: '50%', background: am.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 10, marginRight: 14, border: `1.5px solid ${am.color}33`, zIndex: 1 }}>
+        <Activity size={13} color={am.color} />
+      </div>
+      {/* body */}
+      <div style={{ flex: 1, paddingTop: 10, paddingBottom: 12, borderBottom: `1px solid #f0f8f0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{log.description}</span>
+          <ActionBadge action={log.action} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 11, background: '#e0f2f1', color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>{log.user_name}</span>
+          <span style={{ fontSize: 11, background: '#f0fdf5', color: C.muted, padding: '2px 8px', borderRadius: 20 }}>{log.module}</span>
+          <span style={{ fontSize: 11, color: C.muted }}>{fmtRelative(log.created_at)}</span>
+        </div>
+        <button
+          onClick={onToggle}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.green, fontWeight: 700, fontFamily: FONT, padding: 0, textDecoration: 'underline' }}
+        >
+          {expanded ? 'Hide details' : 'View details'}
+        </button>
+        {expanded && (
+          <div style={{ marginTop: 8, background: '#f8fffe', borderRadius: 10, border: `1px solid ${C.border}`, padding: '10px 14px', fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', marginBottom: log.meta?.field ? 10 : 0 }}>
+              {[
+                ['Event ID',  `#LOG-${String(log.id).padStart(5, '0')}`],
+                ['Timestamp', fmtFull(log.created_at)],
+                ['User',      log.user_name],
+                ['Role',      log.role],
+                ['Device',    log.device],
+                ['Branch',    log.branch],
+                ['Module',    log.module],
+              ].map(([lbl, val]) => (
+                <div key={lbl}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{lbl}</div>
+                  <div style={{ fontWeight: 600, color: C.ink }}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {log.meta?.field && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                  Field changed: <strong style={{ color: C.ink }}>{log.meta.field}</strong>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1, background: '#ffebee', color: '#b71c1c', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>− {log.meta.old}</div>
+                  <div style={{ flex: 1, background: '#e8f5e9', color: '#1b5e20', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>+ {log.meta.new}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Export ───────────────────────────────────────────────────────────────
+function ActivityLogContent({ user }) {
+  const [allLogs,     setAllLogs]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [view,        setView]        = useState('timeline'); // 'timeline' | 'table'
+  const [page,        setPage]        = useState(0);
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // Filters
+  const [search,   setSearch]   = useState('');
+  const [fModule,  setFModule]  = useState('');
+  const [fAction,  setFAction]  = useState('');
+  const [fUser,    setFUser]    = useState('');
+  const [fBranch,  setFBranch]  = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
+
+  // ── Load logs ─────────────────────────────────────────────────────────────
+ const loadLogs = useCallback(async () => {
+  setLoading(true);
+  try {
+    const endpoints = [
+      { url: 'inventory-activity-log',     module: 'Menu Inventory'   },
+      { url: 'shop-activity-log',          module: 'Mobile Shop'      },
+      { url: 'orders-activity-log',        module: 'Orders'           },
+      { url: 'users-activity-log',         module: 'User Management'  },
+      { url: 'applications-activity-log',  module: 'Applications'     },
+      { url: 'report-activity-log',       module: 'Reports'          },
+      { url: 'announcements-activity-log', module: 'Announcements'    },
+      { url: 'brands-activity-log',        module: 'Brand & Branch'   },
+    ];
+
+    const results = await Promise.all(
+      endpoints.map(({ url, module }) =>
+        fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+          .then(r => r.json())
+          .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
+            id:          row.id,
+            module,
+            action:      (row.action || 'update').toLowerCase(),
+            user_name:   row.performed_by || 'Admin',
+            role:        'Admin',
+            description: row.item_name || row.action || '—',
+            branch:      row.branch || '—',
+            device:      '—',
+            changes:     row.changes || null,
+            created_at:  row.created_at,
+            meta:        {},
+          })))
+          .catch(() => [])
+      )
+    );
+
+    const merged = results
+      .flat()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    setAllLogs(merged);
+  } catch (err) {
+    console.error('Failed to load activity logs:', err);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+  useEffect(() => { loadLogs(); }, [loadLogs]);
+
+  // ── Derived state ─────────────────────────────────────────────────────────
+  const uniqueUsers    = useMemo(() => [...new Set(allLogs.map(l => l.user_name))].sort(), [allLogs]);
+  const uniqueBranches = useMemo(() => [...new Set(allLogs.map(l => l.branch).filter(Boolean))].sort(), [allLogs]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return allLogs.filter(l => {
+      if (q && !l.description.toLowerCase().includes(q) && !l.user_name.toLowerCase().includes(q) && !l.module.toLowerCase().includes(q) && !l.action.toLowerCase().includes(q)) return false;
+      if (fModule  && l.module    !== fModule)  return false;
+      if (fAction  && l.action    !== fAction)  return false;
+      if (fUser    && l.user_name !== fUser)    return false;
+      if (fBranch  && l.branch    !== fBranch)  return false;
+      if (dateFrom && new Date(l.created_at) < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const t = new Date(dateTo);
+        t.setHours(23, 59, 59);
+        if (new Date(l.created_at) > t) return false;
+      }
+      return true;
+    });
+  }, [allLogs, search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems  = useMemo(() => {
+    const p = Math.min(page, totalPages - 1);
+    return filtered.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
+  }, [filtered, page, totalPages]);
+
+  // Stats
+  const todayStr   = new Date().toISOString().slice(0, 10);
+  const todayCount = allLogs.filter(l => l.created_at.startsWith(todayStr)).length;
+  const userCount  = new Set(allLogs.map(l => l.user_name)).size;
+
+  const hasFilters = search || fModule || fAction || fUser || fBranch || dateFrom || dateTo;
+
+  const clearAll = () => {
+    setSearch(''); setFModule(''); setFAction('');
+    setFUser(''); setFBranch(''); setDateFrom(''); setDateTo('');
+    setPage(0);
+  };
+
+  useEffect(() => { setPage(0); }, [search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
+
+  const toggleExpand = (id) => setExpandedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  // ── Export CSV ────────────────────────────────────────────────────────────
+  const exportCSV = () => {
+    const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Device'];
+    const rows   = filtered.map(l => [
+      `#LOG-${String(l.id).padStart(5, '0')}`,
+      fmtFull(l.created_at),
+      l.user_name, l.role, l.module, l.action, l.description,
+      l.branch || '', l.device,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a   = document.createElement('a');
+    a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  // ── Export PDF ────────────────────────────────────────────────────────────
+  const exportPDF = () => {
+    const doc   = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    let y       = 18;
+
+    doc.setFillColor(13, 43, 30);
+    doc.rect(0, 0, pageW, 28, 'F');
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+    doc.text('ACTIVITY AUDIT LOG', pageW / 2, 12, { align: 'center' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(160, 220, 190);
+    doc.text(`Generated ${fmtFull(new Date().toISOString())} · ${filtered.length} events`, pageW / 2, 22, { align: 'center' });
+    y = 36;
+
+    filtered.slice(0, 200).forEach((l) => {
+      if (y > 270) { doc.addPage(); y = 18; }
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+      doc.text(`#LOG-${String(l.id).padStart(5, '0')} · ${l.action.toUpperCase()} · ${l.module}`, 14, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+      doc.text(`${l.description}`, 14, y);
+      y += 4;
+      doc.setTextColor(140, 140, 140);
+      doc.text(`${fmtFull(l.created_at)}  ·  ${l.user_name}  ·  ${l.branch || ''}  ·  ${l.device}`, 14, y);
+      y += 7;
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
+      doc.line(14, y - 2, pageW - 14, y - 2);
+    });
+
+    const total = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+      doc.text(`Page ${i} of ${total}  ·  iFranchise Admin Audit Log`, pageW / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+    }
+    doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  // ── Select style helper ───────────────────────────────────────────────────
+  const selSt = {
+    height: 36, padding: '0 11px', borderRadius: 9,
+    border: `1px solid ${C.border}`, background: C.bg,
+    fontSize: 13, color: C.ink, fontFamily: FONT,
+    outline: 'none', appearance: 'none', cursor: 'pointer',
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .al-row-hover:hover td { background: #f0fdf5 !important; }
+      `}</style>
+
+      {/* ── Stats ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard label="Total Events" value={allLogs.length} sub="All time"      color={C.ink}   icon={Activity} />
+        <StatCard label="Today"        value={todayCount}     sub="Last 24 hours" color={C.green} icon={Clock}    />
+        <StatCard label="Active Users" value={userCount}      sub="Unique actors" color="#1565c0" icon={User}     />
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+
+          {/* Search */}
+          <div style={{ position: 'relative', flex: '1 1 220px' }}>
+            <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search events, users, modules…"
+              style={{ ...selSt, paddingLeft: 30, width: '100%', appearance: 'auto' }}
+            />
+          </div>
+
+          {/* Module */}
+          <select value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
+            <option value="">All modules</option>
+            {MODULES.map(m => <option key={m}>{m}</option>)}
+          </select>
+
+          {/* Action */}
+          <select value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
+            <option value="">All actions</option>
+            {Object.keys(ACTION_META).map(a => <option key={a} value={a}>{ACTION_META[a].label}</option>)}
+          </select>
+
+          {/* User */}
+          <select value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
+            <option value="">All users</option>
+            {uniqueUsers.map(u => <option key={u}>{u}</option>)}
+          </select>
+
+          {/* Branch */}
+          <select value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
+            <option value="">All branches</option>
+            {uniqueBranches.map(b => <option key={b}>{b}</option>)}
+          </select>
+
+          {/* Date range */}
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
+          <input type="date" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
+
+          {hasFilters && (
+            <button onClick={clearAll} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <X size={12} /> Clear
+            </button>
+          )}
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Download size={12} /> CSV
+            </button>
+            <button onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: C.grad, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <FileText size={12} /> PDF
+            </button>
+            <button onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} /> Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Log panel ── */}
+      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.12)`, borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
+
+        {/* Panel header */}
+        <div style={{ background: C.grad, padding: '13px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
+              {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
+            </div>
+          </div>
+          {/* View toggle */}
+          <div style={{ background: 'rgba(255,255,255,.15)', borderRadius: 10, padding: '3px 4px', display: 'flex', gap: 2 }}>
+            {['timeline', 'table'].map(v => (
+              <button
+                key={v}
+                onClick={() => { setView(v); setPage(0); }}
+                style={{
+                  padding: '6px 14px', borderRadius: 8, border: 'none',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
+                  background: view === v ? 'rgba(192, 250, 224, 0.9)' : 'transparent',
+                  color: view === v ? C.greenDk : '#dd9b9b',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Panel body */}
+        <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 14 }}>
+              <RefreshCw size={24} color={C.green} style={{ animation: 'spin 0.8s linear infinite', marginBottom: 10 }} />
+              <div>Loading audit log…</div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
+              No events match your filters.
+            </div>
+          ) : view === 'timeline' ? (
+            <div style={{ paddingTop: 8 }}>
+              {pageItems.map(log => (
+                <TimelineLine
+                  key={log.id}
+                  log={log}
+                  expanded={expandedIds.has(log.id)}
+                  onToggle={() => toggleExpand(log.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 860 }}>
+                <thead>
+                  <tr>
+                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Device'].map(h => (
+                      <th key={h} style={th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((log, i) => (
+                    <tr key={log.id} className="al-row-hover">
+                      <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>#LOG-{String(log.id).padStart(5, '0')}</td>
+                      <td style={{ ...td(i), fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFull(log.created_at)}</td>
+                      <td style={{ ...td(i), fontWeight: 700 }}>
+                        <div>{log.user_name}</div>
+                        <div style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>{log.role}</div>
+                      </td>
+                      <td style={td(i)}>
+                        <span style={{ background: C.greenLt, color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{log.module}</span>
+                      </td>
+                      <td style={td(i)}><ActionBadge action={log.action} /></td>
+                      <td style={{ ...td(i), maxWidth: 260 }}>
+                        <div>{log.description}</div>
+                        {log.meta?.field && (
+                          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                            {log.meta.field}: <span style={{ color: '#c62828' }}>{log.meta.old}</span> → <span style={{ color: '#2e7d32' }}>{log.meta.new}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.branch || '—'}</td>
+                      <td style={{ ...td(i), fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{log.device}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Pagination */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: `1px solid ${C.border}` }}>
+          <span style={{ fontSize: 12, color: C.muted }}>
+            Showing{' '}
+            <strong style={{ color: C.ink }}>{Math.min(page * PAGE_SIZE + 1, filtered.length)}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)}</strong>
+            {' '}of{' '}
+            <strong style={{ color: C.ink }}>{filtered.length}</strong>
+          </span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { label: '«', p: 0,              disabled: page === 0              },
+              { label: '‹', p: page - 1,       disabled: page === 0              },
+              ...Array.from({ length: totalPages }, (_, i) => i)
+                .filter(i => Math.abs(i - page) <= 2)
+                .map(i => ({ label: i + 1, p: i, disabled: false, active: i === page })),
+              { label: '›', p: page + 1,       disabled: page >= totalPages - 1  },
+              { label: '»', p: totalPages - 1, disabled: page >= totalPages - 1  },
+            ].map((btn, idx) => (
+              <button
+                key={idx}
+                onClick={() => setPage(btn.p)}
+                disabled={btn.disabled}
+                style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  cursor: btn.disabled ? 'not-allowed' : 'pointer',
+                  border: `1px solid ${btn.active ? C.green : C.border}`,
+                  background: btn.active ? C.grad : C.white,
+                  color: btn.active ? '#fff' : btn.disabled ? '#ccc' : C.ink,
+                  fontSize: 12, fontWeight: btn.active ? 800 : 500,
+                  fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Dashboard-specific constants ────────────────────────────────────────────
 const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1948,7 +2545,29 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
-  useEffect(() => { fetchBrands(); fetchDeleteHistory(); }, []);
+  
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
+
+  useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
   const fetchDeleteHistory = async () => {
     try {
@@ -2134,6 +2753,15 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
               <option value="all">All Regions</option>
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
+            <button onClick={() => setShowActivityLog(true)}
+  style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+  <ActivityIcon size={13}/> Activity Log
+  {activityLog.length > 0 && (
+    <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+      {activityLog.length}
+    </span>
+  )}
+</button>
             <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
               <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
@@ -2204,6 +2832,12 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
       {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
       {deleteTarget && <DeleteConfirmModal target={deleteTarget} onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch} onClose={() => setDeleteTarget(null)} />}
       {showHistory && <DeleteHistoryPanel history={deletedHistory} onRestore={handleRestore} onClose={() => setShowHistory(false)} />}
+        {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
     </div>
   );
 }
@@ -2215,30 +2849,36 @@ function MobileShopContent() {
     color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
   };
 
-  const [items,         setItems]         = useState([]);
-  const [errors,        setErrors]        = useState({});
-  const [loading,       setLoading]       = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [editingItem,   setEditingItem]   = useState(null); // holds the item being edited
-  const [editErrors,    setEditErrors]    = useState({});
-  const [editLoading,   setEditLoading]   = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-const [filterShop, setFilterShop] = useState("all");
-  const [newItem, setNewItem] = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"",  });
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [items,           setItems]           = useState([]);
+  const [errors,          setErrors]          = useState({});
+  const [loading,         setLoading]         = useState(false);
+  const [confirmDelete,   setConfirmDelete]   = useState(null);
+  const [editingItem,     setEditingItem]     = useState(null);
+  const [editErrors,      setEditErrors]      = useState({});
+  const [editLoading,     setEditLoading]     = useState(false);
+  const [searchQuery,     setSearchQuery]     = useState("");
+  const [filterShop,      setFilterShop]      = useState("all");
+  const [brands,          setBrands]          = useState([]);
+  const [newItem,         setNewItem]         = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"" });
+   const excelRef = useRef(null);
 
-  const excelRef = useRef(null);
-const [brands, setBrands] = useState([]);
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch shop activity log:", err); }
+}, []);
 
-useEffect(() => { fetchItems(); fetchBrands(); }, []);
-const filteredItems = items.filter(item => {
-  const q = searchQuery.toLowerCase();
-  if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
-  if (filterShop !== "all" && item.shop !== filterShop) return false;
-  return true;
-});
+  const fetchItems = async () => {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+    const data = await res.json();
+    setItems(data);
+  };
 
-const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
-const fetchBrands = async () => {
+  const fetchBrands = async () => {
   try {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
     const data = await res.json();
@@ -2246,17 +2886,30 @@ const fetchBrands = async () => {
   } catch { setBrands([]); }
 };
 
+useEffect(() => {
+  fetchItems();
+  fetchBrands();
+  fetchActivityLog();
+}, [fetchActivityLog]);
+
+
+const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
+
+// ✅ ADD THIS
+const filteredItems = items.filter(item => {
+  const q = searchQuery.toLowerCase();
+  if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
+  if (filterShop !== "all" && item.shop !== filterShop) return false;
+  return true;
+});
+
+
 // Derive flat branch list from selected brand
 const getBranchesForBrand = (brandName) => {
   const found = brands.find(b => b.name === brandName);
   if (!found) return [];
   return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
 };
-  const fetchItems = async () => {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-    const data = await res.json();
-    setItems(data);
-  };
 
   const validate = () => {
   const newErrors = {};
@@ -2280,13 +2933,22 @@ const getBranchesForBrand = (brandName) => {
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   };
-const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-  const addItem = async () => {
-  console.log("addItem called", newItem);  // ADD THIS
-  if (loading || !validate()) return;
-  console.log("passed validation");  // ADD THIS
 
-  // Duplicate check — same name + shop
+  const logActivity = useCallback(async (action, itemName, shopName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: shopName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
+
+const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
+
+const addItem = async () => {
+  if (loading || !validate()) return;
+
   const duplicate = items.find(
     i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
       && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
@@ -2297,23 +2959,26 @@ const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
   }
 
   setLoading(true);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-  name:      capitalize(newItem.name),
-  price:     Number(newItem.price),
-  unit:      newItem.unit,
-  image_url: newItem.image_url,
-  shop:      newItem.brand,
-  brand:     newItem.brand,
-  stock:     0,
-}),
-    });
-    setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"", stock:"", branches:[] });
-    setErrors({});
-    setLoading(false);
-    fetchItems();
-  };
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name:      capitalize(newItem.name),
+      price:     Number(newItem.price),
+      unit:      newItem.unit,
+      image_url: newItem.image_url,
+      shop:      newItem.brand,
+      brand:     newItem.brand,
+      stock:     0,
+    }),
+  });
+
+  await logActivity("add", capitalize(newItem.name), newItem.brand);
+  setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"", stock:"", branches:[] });
+  setErrors({});
+  setLoading(false);
+  fetchItems();
+};
 
   const saveEdit = async () => {
     if (editLoading || !validateEdit()) return;
@@ -2331,6 +2996,7 @@ const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
   is_visible: editingItem.is_visible,
 }),
     });
+    await logActivity("edit", capitalize(editingItem.name), editingItem.brand, `price: ₱${editingItem.price}`);
     setEditingItem(null);
     setEditErrors({});
     setEditLoading(false);
@@ -2389,7 +3055,10 @@ rows_to_save.push({
             }),
           });
           const d = await res.json();
-          if (d.success) saved++;
+            if (d.success) {
+              saved++;
+              await logActivity("import", item.name, item.shop, `price=₱${item.price}`); // ← add here
+            }
         } catch {}
       }
       e.target.value = "";
@@ -2404,7 +3073,14 @@ alert(
     reader.readAsArrayBuffer(file);
   };
 
-  const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
+  const deleteItem = async (id) => {
+    const deleted = items.find(i => i.id === id);
+    await logActivity("delete", deleted?.name, deleted?.shop); 
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, 
+      { method:"DELETE" }); 
+      setConfirmDelete(null); 
+      fetchItems(); 
+    };
   const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
 const Field = ({ label, error, children }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2577,33 +3253,46 @@ const Field = ({ label, error, children }) => (
           <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
           
         </div>
-        <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-  <div style={{ position: "relative" }}>
-    <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)" }} />
-    <input
-      type="text"
-      placeholder="Search items..."
-      value={searchQuery}
-      onChange={e => setSearchQuery(e.target.value)}
-      style={{ padding: "7px 12px 7px 28px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.bg, fontFamily: "inherit", outline: "none", width: 220 }}
-    />
-  </div>
-  <select
-    value={filterShop}
-    onChange={e => setFilterShop(e.target.value)}
-    style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.bg, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
-  >
-    <option value="all">All Shops</option>
-    {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
-  </select>
-  {(searchQuery || filterShop !== "all") && (
-    <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
-      style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
-      Clear
-    </button>
-  )}
-  <span style={{ marginLeft: "auto", fontSize: 12, color: "#5a7a65", fontWeight: 600 }}>{filteredItems.length} of {items.length} items</span>
-</div>
+      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ position:"relative" }}>
+          <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+          <input
+            type="text"
+            placeholder="Search items..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ padding:"7px 12px 7px 28px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", width:220 }}
+          />
+        </div>
+        <select
+          value={filterShop}
+          onChange={e => setFilterShop(e.target.value)}
+          style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+          <option value="all">All Shops</option>
+          {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+        </select>
+        {(searchQuery || filterShop !== "all") && (
+          <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
+            style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#5a7a65" }}>
+            Clear
+          </button>
+        )}
+
+        {/* ── Activity Log button ── */}
+        <button onClick={() => setShowActivityLog(true)}
+          style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          <ActivityIcon size={13}/> Activity Log
+          {activityLog.length > 0 && (
+            <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+              {activityLog.length}
+            </span>
+          )}
+        </button>
+
+        <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
+          {filteredItems.length} of {items.length} items
+        </span>
+      </div>
         {filteredItems.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
         ) : (
@@ -2635,11 +3324,11 @@ const Field = ({ label, error, children }) => (
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
 
-<td style={{ padding:"10px 12px" }}>
-  <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-    {item.is_visible ? "Visible" : "Hidden"}
-  </span>
-</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                        {item.is_visible ? "Visible" : "Hidden"}
+                      </span>
+                    </td>
                       <td style={{ padding:"10px 12px" }}>
                         <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                           {/* Edit */}
@@ -2669,6 +3358,91 @@ const Field = ({ label, error, children }) => (
           </div>
         )}
       </div>
+      {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
+    </div>
+  );
+}
+
+function InventoryActivityLogPanel({ log, onClose }) {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const filtered = log.filter(entry => {
+    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!entry.item_name?.toLowerCase().includes(q) &&
+          !(entry.performed_by || "").toLowerCase().includes(q) &&
+          !(entry.branch || "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const actionBadge = action => {
+    const map = {
+      add:    { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Added" },
+      edit:   { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Edited" },
+      import: { bg:"rgba(139,92,246,0.12)", color:"#7c3aed", label:"Imported" },
+      delete: { bg:"rgba(239,68,68,0.12)", color:"#dc2626", label:"Deleted" },
+    };
+    const s = map[action] || map.edit;
+    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={15}/>
+          </button>
+        </div>
+
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 200px" }}>
+            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
+            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
+              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
+          </div>
+          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
+            <option value="all">All Actions</option>
+            <option value="add">Added</option>
+            <option value="edit">Edited</option>
+            <option value="import">Imported</option>
+            <option value="delete">Deleted</option>
+          </select>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
+        </div>
+
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
+          ) : filtered.map((entry, i) => (
+            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
+              <div>{actionBadge(entry.action)}</div>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
+                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
+              </div>
+              <div style={{ fontSize:11, color:C.muted }}>{entry.branch || "—"}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.ink }}>{entry.performed_by || "System"}</div>
+              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2695,6 +3469,9 @@ function generateTempPassword(length = 10) {
 }
 
 function ApplicationsContent({ applications: initialApps }) {
+
+  const [activityLog,     setActivityLog]     = useState([]);
+const [showActivityLog, setShowActivityLog] = useState(false);
   const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
@@ -2711,6 +3488,24 @@ function ApplicationsContent({ applications: initialApps }) {
   const [filterStatus,    setFilterStatus]    = useState("all");
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
+
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
 
   const fetchApplications = async () => {
     try {
@@ -2752,7 +3547,9 @@ function ApplicationsContent({ applications: initialApps }) {
   useEffect(() => {
     fetchApplications();
     fetchAppDeleteHistory();
+    fetchActivityLog();
   }, []);
+  
 
   // ── Approve ─────────────────────────────────────────────────────────────
 const handleApprove = async (id) => {
@@ -2762,6 +3559,8 @@ const handleApprove = async (id) => {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ status: "approved" }),
     });
+     const app = applications.find(a => a.id === id);
+    await logActivity("edit", app?.name, app?.franchise, "status → approved"); // ← add here
     setApplications(prev =>
       prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
     );
@@ -2783,6 +3582,8 @@ const handleReject = async (id) => {
     if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
 
     const app = applications.find(a => a.id === id);
+    await logActivity("edit", app?.name, app?.franchise, "status → rejected");
+
     if (app?.email) {
       await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
         method:  "POST",
@@ -2809,8 +3610,9 @@ const handleReject = async (id) => {
       });
       const data = await res.json();
       if (data.success) {
+        const app = applications.find(a => a.id === id);
+        await logActivity("delete", app?.name, app?.franchise);
         setApplications(prev => prev.filter(a => a.id !== id));
-        // Re-fetch history — the backend saved it automatically on DELETE
         await fetchAppDeleteHistory();
       } else {
         alert(data.error || "Failed to delete application.");
@@ -2855,6 +3657,7 @@ const handleReject = async (id) => {
       const result = await res.json();
 
       if (result.success) {
+        await logActivity("add", d.name, d.franchise, "Restored from delete history"); // ← add here
         // Remove from delete history
         await fetch(
           `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
@@ -3487,6 +4290,21 @@ const handleReject = async (id) => {
               <option value="iFuel">iFuel</option>
             </select>
 
+            {/* Activity Log button */}
+              <button onClick={() => setShowActivityLog(true)}
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                <ActivityIcon size={13}/> Activity Log
+                {activityLog.length > 0 && (
+                  <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+                    {activityLog.length}
+                  </span>
+                )}
+              </button>
+
+              <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
+                {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
+              </span>
+
             {/* Clear */}
             {(searchQuery || filterStatus !== "all" || filterFranchise !== "all") && (
               <button
@@ -3656,6 +4474,12 @@ const handleReject = async (id) => {
             </table>
           </div>
         </div>
+        {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
       </div>
     </>
   );
@@ -3801,6 +4625,9 @@ function ReportsContent() {
   const [search,       setSearch]       = useState("");
   const [brandBranchFilter, setBrandBranchFilter] = useState({});
 
+  const [activityLog,     setActivityLog]     = useState([]);
+const [showActivityLog, setShowActivityLog] = useState(false);
+
   // modal states
   const [viewReport,    setViewReport]    = useState(null);
   const [approveReport, setApproveReport] = useState(null);
@@ -3812,6 +4639,24 @@ function ReportsContent() {
 
   const [filterBrand,  setFilterBrand]  = useState(null); // brand id (object ref)
   const [filterBranch, setFilterBranch] = useState(null);
+
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
 
   // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
@@ -3834,7 +4679,7 @@ function ReportsContent() {
     }
   }, [filterStatus, search]);
 
-  useEffect(() => { fetchReports(); }, [fetchReports]);
+  useEffect(() => { fetchReports(); fetchActivityLog(); }, [fetchReports, fetchActivityLog]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -3876,22 +4721,21 @@ function ReportsContent() {
 }, [reports]);
 
   // ── Approve ───────────────────────
-  const handleApprove = async (id) => {
-    setActionLoading(true);
-    try {
-      const res = await fetch(`${API}/reports/${id}/approve`, { method:"PATCH" });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      patchReport(updated);
-      setApproveReport(null);
-    } catch {
-      alert("Failed to approve report. Please try again.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+const handleApprove = async (report) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ status: "approved" }),
+    });
+    await logActivity("Approved", `Report #${report.id}`, report.branch, `brand: ${report.brand}`);
+    await fetchReports();
+  } catch {
+    alert("Failed to approve report.");
+  }
+};
 
-  // ── Export CSV ──────────────────────────────────────────────────
+  // ── Export CSV ─────────────────────────
   const handleExport = (brand) => {
     const params = new URLSearchParams();
     if (brand)                    params.set("brand",  brand);
@@ -4244,7 +5088,7 @@ const generatePdfDoc = (report) => {
               {/* ← ADD Approve here, only show if not already approved */}
               {viewReport.status !== "approved" && (
                 <button
-                  onClick={() => handleApprove(viewReport.id)}
+                  onClick={() => handleApprove(viewReport)}
                   disabled={actionLoading}
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
                   {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve
@@ -4357,6 +5201,15 @@ const generatePdfDoc = (report) => {
       style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
       <RefreshCw size={13}/> Refresh
     </button>
+    <button onClick={() => setShowActivityLog(true)}
+  style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+  <ActivityIcon size={13}/> Activity Log
+  {activityLog.length > 0 && (
+    <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+      {activityLog.length}
+    </span>
+  )}
+</button>
   </div>
 
   {/* Active filter chips — mirrors inventory pattern */}
@@ -4449,6 +5302,13 @@ const generatePdfDoc = (report) => {
           </BmSection>
         );
       })}
+
+      {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
     </div>
   );
 }
@@ -4826,6 +5686,8 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
   );
 
   function UsersContent() {
+    const [activityLog,     setActivityLog]     = useState([]);
+    const [showActivityLog, setShowActivityLog] = useState(false);
     const [users,        setUsers]        = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal,setShowEditModal]= useState(false);
@@ -4850,7 +5712,25 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
 
     const showAlert = (message, type = "info") => setAlertModal({ message, type });
 
-    useEffect(() => { fetchUsers(); }, []);
+    const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
+
+    useEffect(() => { fetchUsers();  fetchActivityLog(); }, [fetchActivityLog]);
 
     useEffect(() => {
     const fetchBrands = async () => {
@@ -4897,7 +5777,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           body: JSON.stringify({
             to: user.email,
             name: user.name,
-            password: "—",  // placeholder; see note below
+            password: "—", 
           }),
         });
         const data = await response.json();
@@ -4949,7 +5829,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             password: tempPassword,
           }),
         });
-
+        await logActivity("add", formData.name, formData.branch, `role: ${formData.role}`); // ← add here
         await fetchUsers();
         setShowAddModal(false);
         resetForm();
@@ -4987,6 +5867,8 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
       });
       const data = await response.json();
       if (data.success) {
+        await logActivity("edit", formData.name, formData.branch, `role: ${formData.role}`); // ← add here
+ 
         await fetchUsers();
         setShowEditModal(false);
         setEditingUser(null);
@@ -5017,6 +5899,8 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_data: user }),
   });
+  await logActivity("delete", user.name, user.branch, `role: ${user.role}`); // ← add here
+ 
   await fetchDeleteHistory();
           await fetchUsers();
           showAlert(`"${user.name}" has been deleted.`, "success");
@@ -5041,6 +5925,8 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
         await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
     method: "DELETE",
   });
+   await logActivity("add", entry.data.name, entry.data.branch, "Restored from delete history"); // ← add here
+ 
   await fetchDeleteHistory();
           await fetchUsers();
           setShowDeleteHistory(false);
@@ -5167,6 +6053,16 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             </button>
           )}
 
+          <button onClick={() => setShowActivityLog(true)}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            <ActivityIcon size={13}/> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+                {activityLog.length}
+              </span>
+            )}
+          </button>
+
         </div>
       </div>
 
@@ -5292,6 +6188,13 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
             onClose={() => setAlertModal(null)}
           />
         )}
+
+        {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
       </div>
     );
   }
@@ -5314,6 +6217,9 @@ function CommunicationContent() {
   const [searchQuery, setSearchQuery]     = useState("");
   const [viewingItem, setViewingItem]     = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
+  
+  const [activityLog,     setActivityLog]     = useState([]);
+const [showActivityLog, setShowActivityLog] = useState(false);
 
   const [alertModal,   setAlertModal]   = useState(null); // { message, type }
   const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm, itemName }
@@ -5359,7 +6265,25 @@ const fetchDeleteHistory = async () => {
   } catch (err) { console.error(err); }
 };
 
-useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); }, []);
+const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/announecements-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
+
+useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
   const fetchAnnouncements = async () => {
     setFetching(true);
@@ -5603,6 +6527,15 @@ const emptyIcon =
             <div style={commStyles.headerTitle}>Announcements</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => setShowActivityLog(true)}
+  style={{ ...commStyles.liveChip, height:36, padding:"0 16px", cursor:"pointer", fontFamily:"inherit", border:"1px solid rgba(255,255,255,0.3)", fontSize:13, fontWeight:700, color:"#d4df33" }}>
+  <ActivityIcon size={13}/> Activity Log
+  {activityLog.length > 0 && (
+    <span style={{ background:"rgba(255,255,255,0.18)", color:"#d4df33", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+      {activityLog.length}
+    </span>
+  )}
+</button>
             <div style={commStyles.liveChip}>
               <div style={commStyles.liveDot} />
               <span style={commStyles.liveTxt}>LIVE</span>
@@ -5966,6 +6899,13 @@ const emptyIcon =
           </div>
         </div>
       )}
+
+      {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
     </div>
   );
 }
@@ -6017,7 +6957,12 @@ function normalizeOrder(o) {
     createdAt: o.created_at,
   };
 }
+
 function MobileOrdersContent() {
+
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+
   const [orders,       setOrders]       = useState([]);
   const [loadingData,  setLoadingData]  = useState(true);
   const [error,        setError]        = useState(null);
@@ -6031,6 +6976,24 @@ function MobileOrdersContent() {
   const [activeTab,    setActiveTab]    = useState("active"); // "active" | "completed"
   const printRef = useRef(null);
 const [printReceipts, setPrintReceipts] = useState([]);
+
+const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, []);
 
   // ── Close dropdown on outside click ───────────────────────────────────────
   useEffect(() => {
@@ -6056,7 +7019,7 @@ const [printReceipts, setPrintReceipts] = useState([]);
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => { fetchOrders(); fetchActivityLog(); },  [fetchActivityLog]);
 
   // ── Persist active tab so browser refresh stays on this view ──────────────
   useEffect(() => {
@@ -6065,26 +7028,28 @@ const [printReceipts, setPrintReceipts] = useState([]);
 
   // ── Status advance (actual API call) ──────────────────────────────────────
   const advanceStatus = async (id, nextUiStatus) => {
-    const order = orders.find(o => o.id === id);
-    if (!order) return;
-    const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
+  const order = orders.find(o => o.id === id);
+  if (!order) return;
+  const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
 
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
-    if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
+  setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
+  if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
 
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: dbStatus }),
-      });
-      if (!res.ok) throw new Error("Update failed");
-    } catch (err) {
-      fetchOrders();
-      alert(`Could not update order: ${err.message}`);
-    }
-  };
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status: dbStatus }),
+    });
+    if (!res.ok) throw new Error("Update failed");
+    await logActivity("edit", `Order #${order.id}`, order.branch, `status → ${nextUiStatus}`); // ← add here
+    await fetchActivityLog();
+  } catch (err) {
+    fetchOrders();
+    alert(`Could not update order: ${err.message}`);
+  }
+};
 
   // ── Request action → open confirm modal ───────────────────────────────────
   const requestAdvance = (id, nextUiStatus, label) => {
@@ -6455,10 +7420,21 @@ const [printReceipts, setPrintReceipts] = useState([]);
             </span>
           </button>
         </div>
-        <button onClick={fetchOrders}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          ⟳ Refresh
-        </button>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={() => setShowActivityLog(true)}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            <ActivityIcon size={13}/> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+                {activityLog.length}
+              </span>
+            )}
+          </button>
+          <button onClick={fetchOrders}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            ⟳ Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── Active Orders Panel ── */}
@@ -6621,6 +7597,12 @@ const [printReceipts, setPrintReceipts] = useState([]);
         </div>
       )}
 
+      {showActivityLog && (
+  <InventoryActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+  />
+)}
     </div>
   );
 }

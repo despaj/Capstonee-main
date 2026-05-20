@@ -1980,6 +1980,225 @@ app.post("/inventory-activity-log", async (req, res) => {
   }
 });
 
+// ─── SHOP ACTIVITY LOG ───────────────────────────────────────────────────────
+
+app.get("/shop-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM shop_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /shop-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch shop activity log" });
+  }
+});
+
+app.post("/shop-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO shop_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /shop-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save shop activity log entry" });
+  }
+});
+
+// ─── ORDERS ACTIVITY LOG ─────────────────────────────────────────────────────
+
+app.get("/orders-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /orders-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch orders activity log" });
+  }
+});
+
+app.post("/orders-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO orders_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /orders-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save orders activity log entry" });
+  }
+});
+
+// ─── USERS ACTIVITY LOG ──────────────────────────────────────────────────────
+
+app.get("/users-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM users_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /users-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch users activity log" });
+  }
+});
+
+app.post("/users-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /users-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save users activity log entry" });
+  }
+});
+
+// ─── APPLICATIONS ACTIVITY LOG ───────────────────────────────────────────────
+
+app.get("/applications-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM applications_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /applications-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch applications activity log" });
+  }
+});
+
+app.post("/applications-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO applications_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /applications-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save applications activity log entry" });
+  }
+});
+
+app.get("/reports-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM reports_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /reports-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch applications activity log" });
+  }
+});
+
+app.post("/reports-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO reports_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /reports-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save applications activity log entry" });
+  }
+});
+
+app.get("/announcements-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM announcements_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /announcements-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch applications activity log" });
+  }
+});
+
+app.post("/announcements-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO announcements_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /announcements-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save applications activity log entry" });
+  }
+});
+
+app.get("/brands-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM brands_activity_log ORDER BY created_at DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /brands-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch applications activity log" });
+  }
+});
+
+app.post("/brands-activity-log", async (req, res) => {
+  try {
+    const { action, item_name, branch, performed_by, changes } = req.body;
+    await pool.query(
+      `INSERT INTO brands_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [action, item_name, branch || null, performed_by || "System", changes || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /brands-activity-log error:", err);
+    res.status(500).json({ error: "Failed to save applications activity log entry" });
+  }
+});
+
+app.get("/activity-logs", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT *, 'Inventory'    AS module FROM inventory_activity_log     UNION ALL
+      SELECT *, 'Mobile Shop'  AS module FROM shop_activity_log          UNION ALL
+      SELECT *, 'Orders'       AS module FROM orders_activity_log        UNION ALL
+      SELECT *, 'Users'        AS module FROM users_activity_log         UNION ALL
+      SELECT *, 'Applications' AS module FROM applications_activity_log  UNION ALL
+      SELECT *, 'Reports'      AS module FROM reports_activity_log       UNION ALL
+      SELECT *, 'Announcements'AS module FROM announcements_activity_log UNION ALL
+      SELECT *, 'Brands'       AS module FROM brands_activity_log
+      ORDER BY created_at DESC
+      LIMIT 500
+    `);
+    res.json({ logs: result.rows });
+  } catch (err) {
+    console.error("GET /activity-logs error:", err);
+    res.status(500).json({ error: "Failed to fetch activity logs" });
+  }
+});
+
+
 // ─── INGREDIENTS ─────────────────────────────────────────────
 
 app.get("/ingredients", async (req, res) => {
