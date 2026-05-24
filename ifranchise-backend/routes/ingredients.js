@@ -145,15 +145,28 @@ router.get("/ingredient-batches", async (req, res) => {
 router.post("/ingredient-batches", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, perishable, notes } = req.body;
-    if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
+    const { ingredient_id, stock, mfg_date, exp_date, supply_date, cost_per_unit, perishable, notes } = req.body;
+if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
 
-    await client.query("BEGIN");
-    const result = await client.query(
-      `INSERT INTO ingredient_batches (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, perishable, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [ingredient_id, batch_number || null, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null, parseFloat(cost_per_unit) || 0, perishable || false, notes || null]
-    );
+await client.query("BEGIN");
+
+// Count active + deleted batches to get a never-repeating sequence
+const countResult = await client.query(
+  `SELECT 
+    (SELECT COUNT(*) FROM ingredient_batches WHERE ingredient_id=$1) +
+    (SELECT COUNT(*) FROM ingredient_batch_delete_history WHERE ingredient_id=$1) AS total`,
+  [ingredient_id]
+);
+const total = parseInt(countResult.rows[0].total) || 0;
+const letter = String.fromCharCode(65 + Math.floor(total / 999));
+const num = (total % 999) + 1;
+const batch_number = `${letter}${String(num).padStart(3, "0")}`;
+
+const result = await client.query(
+  `INSERT INTO ingredient_batches (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, perishable, notes)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+  [ingredient_id, batch_number, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null, parseFloat(cost_per_unit) || 0, perishable || false, notes || null]
+);
 
     const totals = await client.query(
       `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
@@ -242,4 +255,42 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
   }
 });
 
+// Ingredient batch delete history
+router.get("/ingredient-batch-delete-history", async (req, res) => {
+  try {
+    const { ingredient_id } = req.query;
+    if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
+    const result = await pool.query(
+      "SELECT * FROM ingredient_batch_delete_history WHERE ingredient_id=$1 ORDER BY deleted_at DESC",
+      [ingredient_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch batch delete history" });
+  }
+});
+
+router.post("/ingredient-batch-delete-history", async (req, res) => {
+  try {
+    const { batch_data, ingredient_id, ingredient_name, deleted_by } = req.body;
+    await pool.query(
+      `INSERT INTO ingredient_batch_delete_history (batch_data, ingredient_id, ingredient_name, deleted_by)
+       VALUES ($1,$2,$3,$4)`,
+      [JSON.stringify(batch_data), ingredient_id, ingredient_name || null, deleted_by || "Unknown"]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("POST /ingredient-batch-delete-history error:", err);
+    res.status(500).json({ error: "Failed to save batch delete history" });
+  }
+});
+
+router.delete("/ingredient-batch-delete-history/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM ingredient_batch_delete_history WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete batch history entry" });
+  }
+});
 module.exports = router;
