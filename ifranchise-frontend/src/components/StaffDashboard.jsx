@@ -5,9 +5,6 @@ import {
   Printer, CreditCard, QrCode, Banknote, RefreshCw,
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 const fmtPeso = (n) =>
   '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -66,9 +63,6 @@ function Modal({ show, title, message, type = 'info', onConfirm, onCancel, confi
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PAYMONGO GCASH MODAL  — identical to admin POS
-// ─────────────────────────────────────────────────────────────────────────────
 function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
   const [step,      setStep]      = React.useState('loading');
   const [qrUrl,     setQrUrl]     = React.useState('');
@@ -231,140 +225,125 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RECEIPT PRINT — Legal landscape 2-copy (identical to admin POS)
-// ─────────────────────────────────────────────────────────────────────────────
 function ReceiptModal({ show, receipt, onClose, onNewSale }) {
   if (!show || !receipt) return null;
 
-  const handlePrint = () => {
-    const printWin = window.open('', '_blank', 'width=1360,height=860,resizable=yes');
+const handlePrint = () => {
+  const printWin = window.open('', '_blank', 'width=600,height=900,resizable=yes');
 
-    const copyHTML = (label) => `
-      <div class="copy">
-        <div class="copy-label">${label}</div>
-        <div class="center bold" style="font-size:12px">iFranchise Business and Services Corporation</div>
-        <div class="center bold" style="font-size:11px">FranchiSync</div>
-        <div class="center header" style="margin-top:5px">
-          Main Office: Blk 113 Bldg. Connecticut St.,<br>
-          Greenhills San Juan City, Philippines<br>
-          Contact No.: 09271820495<br>
-          Email: franchise.ordering@gmail.com
-        </div>
-        <div class="center header" style="margin-top:5px">
-          VAT Registered TIN: _______________<br>
-          Permit No.: _______________<br>
-          Serial No.: _______________
-        </div>
-        <div class="divider-dash"></div>
-        <div class="center bold" style="font-size:11px;margin-bottom:5px">SALES INVOICE</div>
-        <div class="header">
-          <div><b>Receipt No.:</b> ${receipt.receiptNo}</div>
-          <div><b>Transaction ID:</b> ${receipt.txnId}</div>
-          <div><b>Date:</b> ${receipt.date}</div>
-          <div><b>Time:</b> ${receipt.time}</div>
-          <div><b>Cashier:</b> ${receipt.cashier}</div>
-          <div><b>Branch:</b> ${receipt.branch}</div>
-          <div><b>Terminal No.:</b> 001</div>
-        </div>
-        <div class="divider-solid"></div>
-        <div class="item-row bold">
-          <span class="col-item">ITEM</span>
-          <span class="col-qty">QTY</span>
-          <span class="col-price">PRICE</span>
-          <span class="col-total">TOTAL</span>
-        </div>
-        <div class="divider-solid"></div>
-        ${(receipt.items || []).map(item => `
-          <div class="item-row">
-            <span class="col-item">${item.name}</span>
-            <span class="col-qty">${item.qty}</span>
-            <span class="col-price">P${Number(item.price).toFixed(2)}</span>
-            <span class="col-total">P${Number(item.subtotal).toFixed(2)}</span>
-          </div>
-        `).join('')}
-        <div class="divider-solid"></div>
-        <div class="row"><span>SUBTOTAL</span><span>P${Number(receipt.subtotal).toFixed(2)}</span></div>
-        ${receipt.vat_enabled ? `<div class="row"><span>VAT 12%</span><span>P${Number(receipt.vat_amt || 0).toFixed(2)}</span></div>` : ''}
-        ${receipt.discount_pct > 0 ? `<div class="row"><span>DISCOUNT (${receipt.discount_label || receipt.discount_pct + '%'})</span><span>-P${Number(receipt.discount_amt || 0).toFixed(2)}</span></div>` : ''}
-        <div class="divider-solid"></div>
-        <div class="row bold" style="font-size:10px"><span>TOTAL</span><span>P${Number(receipt.total).toFixed(2)}</span></div>
-        ${receipt.payment_method === 'Cash' ? `
-          <div class="row"><span>CASH</span><span>P${Number(receipt.cash_received).toFixed(2)}</span></div>
-          <div class="row"><span>CHANGE</span><span>P${Number(receipt.change_due).toFixed(2)}</span></div>
-        ` : ''}
-        ${receipt.is_split ? `
-          <div class="row"><span>GCASH</span><span>P${Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
-          ${receipt.gcash_ref ? `<div class="row"><span>GCash Ref</span><span>${receipt.gcash_ref}</span></div>` : ''}
-          <div class="row"><span>CASH</span><span>P${Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
-        ` : ''}
-        <div class="divider-dash"></div>
-        <div class="header">
-          <div><b>Payment Method:</b> ${receipt.payment_method}</div>
-          ${receipt.gcash_ref && !receipt.is_split ? `<div><b>GCash Ref #:</b> ${receipt.gcash_ref}</div>` : ''}
-          <div><b>Payment Status:</b> PAID</div>
-          <div><b>Processed By:</b> FranchiSync</div>
-          <div><b>Approval Status:</b> Verified</div>
-        </div>
-        <div class="divider-dash"></div>
-        <div class="center header">
-          THIS SERVES AS YOUR SALES INVOICE.<br>
-          Please keep this invoice for future reference.<br>
-          All franchise payments are subject to verification<br>
-          and approval by iFranchise Business and<br>
-          Services Corporation.<br><br>
-          For support: franchise.ordering@gmail.com<br>
-          (+63) 9271820495
-        </div>
+  const css = [
+    '* { margin: 0; padding: 0; box-sizing: border-box; }',
+    'body { font-family: "Courier New", monospace; background: #fff; color: #000; display: flex; justify-content: center; align-items: flex-start; padding: 8mm; min-height: 100vh; }',
+    '.page-wrapper { width: 100%; max-width: 94mm; }',
+    '.center { text-align: center; }',
+    '.bold { font-weight: 700; }',
+    '.row { display: flex; justify-content: space-between; font-size: 8.5px; line-height: 1.65; }',
+    '.item-row { display: flex; font-size: 8.5px; line-height: 1.65; }',
+    '.col-item { width: 44%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }',
+    '.col-qty { width: 10%; text-align: right; }',
+    '.col-price { width: 22%; text-align: right; }',
+    '.col-total { width: 22%; text-align: right; }',
+    '.divider-solid { border-top: 1px solid #000; margin: 3px 0; }',
+    '.divider-dash { border-top: 1px dashed #000; margin: 3px 0; }',
+    '.header { font-size: 8.5px; line-height: 1.7; }',
+    '@media print {',
+    '  body { background: #fff; display: block; padding: 4mm; }',
+    '  .page-wrapper { width: 100%; max-width: 100%; }',
+    '  @page { size: 110mm 220mm; margin: 4mm 5mm; }',
+    '}',
+  ].join('\n');
+
+  const bodyHTML = `
+    <div class="center bold" style="font-size:11.5px">iFranchise Business and Services Corporation</div>
+    <div class="center bold" style="font-size:10px">FranchiSync</div>
+    <div class="center header" style="margin-top:4px">
+      Main Office: Blk 113 Bldg. Connecticut St.,<br>
+      Greenhills San Juan City, Philippines<br>
+      Contact No.: 09271820495<br>
+      Email: franchise.ordering@gmail.com
+    </div>
+    <div class="center header" style="margin-top:4px">
+      VAT Registered TIN: _______________<br>
+      Permit No.: _______________<br>
+      Serial No.: _______________
+    </div>
+    <div class="divider-dash"></div>
+    <div class="center bold" style="font-size:10px;margin-bottom:4px">SALES INVOICE</div>
+    <div class="header">
+      <div><b>Receipt No.:</b> ${receipt.receiptNo}</div>
+      <div><b>Transaction ID:</b> ${receipt.txnId}</div>
+      <div><b>Date:</b> ${receipt.date}</div>
+      <div><b>Time:</b> ${receipt.time}</div>
+      <div><b>Cashier:</b> ${receipt.cashier}</div>
+      <div><b>Branch:</b> ${receipt.branch}</div>
+      <div><b>Terminal No.:</b> 001</div>
+    </div>
+    <div class="divider-solid"></div>
+    <div class="item-row bold">
+      <span class="col-item">ITEM</span>
+      <span class="col-qty">QTY</span>
+      <span class="col-price">PRICE</span>
+      <span class="col-total">TOTAL</span>
+    </div>
+    <div class="divider-solid"></div>
+    ${(receipt.items || []).map(item => `
+      <div class="item-row">
+        <span class="col-item">${item.name}</span>
+        <span class="col-qty">${item.qty}</span>
+        <span class="col-price">P${Number(item.price).toFixed(2)}</span>
+        <span class="col-total">P${Number(item.subtotal).toFixed(2)}</span>
       </div>
-    `;
+    `).join('')}
+    <div class="divider-solid"></div>
+    <div class="row"><span>SUBTOTAL</span><span>P${Number(receipt.subtotal).toFixed(2)}</span></div>
+    ${receipt.vat_enabled ? `<div class="row"><span>VAT 12%</span><span>P${Number(receipt.vat_amt || 0).toFixed(2)}</span></div>` : ''}
+    ${receipt.discount_pct > 0 ? `<div class="row"><span>DISCOUNT (${receipt.discount_label || receipt.discount_pct + '%'})</span><span>-P${Number(receipt.discount_amt || 0).toFixed(2)}</span></div>` : ''}
+    <div class="divider-solid"></div>
+    <div class="row bold" style="font-size:9.5px"><span>TOTAL</span><span>P${Number(receipt.total).toFixed(2)}</span></div>
+    ${receipt.payment_method === 'Cash' ? `
+      <div class="row"><span>CASH</span><span>P${Number(receipt.cash_received).toFixed(2)}</span></div>
+      <div class="row"><span>CHANGE</span><span>P${Number(receipt.change_due).toFixed(2)}</span></div>
+    ` : ''}
+    ${receipt.is_split ? `
+      <div class="row"><span>GCASH</span><span>P${Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
+      ${receipt.gcash_ref ? `<div class="row"><span>GCash Ref</span><span>${receipt.gcash_ref}</span></div>` : ''}
+      <div class="row"><span>CASH</span><span>P${Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
+    ` : ''}
+    <div class="divider-dash"></div>
+    <div class="header">
+      <div><b>Payment Method:</b> ${receipt.payment_method}</div>
+      ${receipt.gcash_ref && !receipt.is_split ? `<div><b>GCash Ref #:</b> ${receipt.gcash_ref}</div>` : ''}
+      <div><b>Payment Status:</b> PAID</div>
+      <div><b>Processed By:</b> FranchiSync</div>
+      <div><b>Approval Status:</b> Verified</div>
+    </div>
+    <div class="divider-dash"></div>
+    <div class="center header">
+      THIS SERVES AS YOUR SALES INVOICE.<br>
+      Please keep this invoice for future reference.<br>
+      All franchise payments are subject to verification<br>
+      and approval by iFranchise Business and<br>
+      Services Corporation.<br><br>
+      For support: franchise.ordering@gmail.com<br>
+      (+63) 9271820495
+    </div>
+  `;
 
-    const css = [
-      '* { margin: 0; padding: 0; box-sizing: border-box; }',
-      'body { font-family: Courier New, monospace; background: #f0f0f0; color: #000; display: flex; justify-content: center; align-items: flex-start; padding: 24px; min-height: 100vh; }',
-      '.page-wrapper { background: #fff; display: flex; flex-direction: row; align-items: flex-start; box-shadow: 0 2px 16px rgba(0,0,0,0.15); padding: 14px 10px; width: fit-content; }',
-      '.copy { width: 165mm; padding: 6px 10px; font-size: 10px; }',
-      '.cut-line { width: 1px; min-height: 100%; border-left: 1.5px dashed #555; margin: 0 10px; align-self: stretch; position: relative; }',
-      ".cut-line::after { content: 'CUT'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(90deg); font-size: 7px; color: #888; background: #fff; padding: 2px 4px; letter-spacing: 0.1em; white-space: nowrap; }",
-      '.copy-label { text-align: center; font-size: 9px; font-weight: 700; border: 1px solid #000; padding: 2px 4px; margin-bottom: 6px; letter-spacing: 0.06em; }',
-      '.center { text-align: center; }',
-      '.bold { font-weight: 700; }',
-      '.row { display: flex; justify-content: space-between; font-size: 9px; line-height: 1.65; }',
-      '.item-row { display: flex; font-size: 9px; line-height: 1.65; }',
-      '.col-item { width: 44%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }',
-      '.col-qty { width: 10%; text-align: right; }',
-      '.col-price { width: 22%; text-align: right; }',
-      '.col-total { width: 22%; text-align: right; }',
-      '.divider-solid { border-top: 1px solid #000; margin: 4px 0; }',
-      '.divider-dash { border-top: 1px dashed #000; margin: 4px 0; }',
-      '.header { font-size: 9px; line-height: 1.7; }',
-      '@media print {',
-      '  body { background: #fff; display: block; padding: 0; }',
-      '  .page-wrapper { box-shadow: none; padding: 0; width: 100%; }',
-      '  .copy { width: 48%; padding: 4px 8px; }',
-      '  .cut-line { width: 4px; margin: 0 4px; }',
-      '  @page { size: legal landscape; margin: 8mm 10mm; }',
-      '}',
-    ].join('\n');
+  const html = [
+    '<!DOCTYPE html><html><head>',
+    '<title>Sales Invoice - ' + receipt.receiptNo + '</title>',
+    '<style>' + css + '</style>',
+    '</head><body>',
+    '<div class="page-wrapper">',
+    bodyHTML,
+    '</div>',
+    '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>',
+    '</body></html>',
+  ].join('');
 
-    const html = [
-      '<!DOCTYPE html><html><head>',
-      '<title>Sales Invoice - ' + receipt.receiptNo + '</title>',
-      '<style>' + css + '</style>',
-      '</head><body>',
-      '<div class="page-wrapper">',
-      copyHTML('CUSTOMER COPY'),
-      '<div class="cut-line"></div>',
-      copyHTML('MERCHANT COPY'),
-      '</div>',
-      '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<' + '/script>',
-      '</body></html>',
-    ].join('');
-
-    printWin.document.write(html);
-    printWin.document.close();
-  };
-
+  printWin.document.write(html);
+  printWin.document.close();
+};
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20, overflowY: 'auto' }}>
       <div onClick={e => e.stopPropagation()}
@@ -422,10 +401,10 @@ function ReceiptModal({ show, receipt, onClose, onNewSale }) {
         </div>
         {/* Actions */}
         <div style={{ padding: '14px 22px', borderTop: '1px solid #e0f2f1', display: 'flex', gap: 10 }}>
-          <button onClick={handlePrint}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <Printer size={14} /> Print 2 Copies
-          </button>
+         <button onClick={handlePrint}
+  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+  <Printer size={14} /> Print Receipt
+</button>
           <button onClick={onNewSale}
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Check size={14} /> New Sale
@@ -919,7 +898,8 @@ export function POSContent({ user }) {
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                     {[
                       { label: 'None',           pct: 0,    requiresAuth: false },
-                      { label: 'PWD/Senior Citizen',            pct: 20,   requiresAuth: true  },
+                      { label: 'PWD',            pct: 20,   requiresAuth: true  },
+                      { label: 'Senior Citizen', pct: 20,   requiresAuth: true  },
                       { label: 'Others',         pct: null, requiresAuth: true  },
                     ].map(d => {
                       const isActive = d.pct !== null ? discountPct === d.pct && discountType === d.label : discountType === 'Others';

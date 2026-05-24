@@ -151,7 +151,7 @@ const bmActionBtn = (variant = "default") => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD SHELL (from Code 2 — unchanged)
+// ADMIN DASHBOARD SHELL 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -166,12 +166,12 @@ export default function AdminDashboard() {
   const [preset, setPreset] = useState("month");
   const [stats, setStats] = useState(null);
   
-    const [activityLog,     setActivityLog]     = useState([]);
+  const [activityLog,     setActivityLog]     = useState([]);
   
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const handleLogout = () => setShowLogoutModal(true);
   const [transactions, setTransactions] = useState([]);
- const [searchQuery, setSearchQuery]     = useState("");
+  const [searchQuery, setSearchQuery]     = useState("");
 
   const getUserFromStorage = () => {
     const userString =
@@ -515,13 +515,13 @@ export default function AdminDashboard() {
       <main className="ad-main">
         <div className="ad-topbar">
           <div>
-            <div className="ad-topbar-breadcrumb">iFranchise Admin → {moduleLabel}</div>
+            <div className="ad-topbar-breadcrumb">iFranchise Super Admin → {moduleLabel}</div>
             <h1 className="ad-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ textAlign: 'right' }}>
               <div className="ad-user-name">{user?.name}</div>
-              <div className="ad-user-role">Admin — {user?.branch}</div>
+              <div className="ad-user-role">Super Admin — {user?.branch}</div>
             </div>
             <div className="ad-avatar">
               {user?.name ? user.name.trim()[0].toUpperCase() : 'A'}
@@ -549,7 +549,7 @@ export default function AdminDashboard() {
           )}
           {activeModule === 'users'         && <UsersContent />}
           {activeModule === 'reports'       && <ReportsContent />}
-          {activeModule === 'communication' && <CommunicationContent />}
+          {activeModule === 'communication' && <CommunicationContent user={user}/>}
           {activeModule === 'brandBranch'   && <BrandManagementContent brands={brands} onBrandsChange={setBrands} />}
           {activeModule === 'profile'       && <ProfileContent user={user} />}
         </div>
@@ -6202,7 +6202,7 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOUNCEMENT — 
 // ─────────────────────────────────────────────────────────────────────────────
-function CommunicationContent() {
+function CommunicationContent({ user }){
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds]         = useState(new Set());
   const [fetching, setFetching]           = useState(true);
@@ -6219,11 +6219,10 @@ function CommunicationContent() {
   const [deleteHistory, setDeleteHistory] = useState([]);
   
   const [activityLog,     setActivityLog]     = useState([]);
-const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
 
-  const [alertModal,   setAlertModal]   = useState(null); // { message, type }
-  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm, itemName }
-
+  const [alertModal,   setAlertModal]   = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const showAlert   = (message, type = "info") => setAlertModal({ message, type });
   const showConfirm = (message, onConfirm, itemName = "") => setConfirmModal({ message, onConfirm, itemName });
 
@@ -6231,7 +6230,7 @@ const [showActivityLog, setShowActivityLog] = useState(false);
     try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   });
 
-  const isAdminUser = (u) => u?.role?.toLowerCase() === "super admin";
+  const isAdminUser = (u) => u?.role === "Super Admin";
 
   const PIN_KEY = "announcement_pins";
   useEffect(() => {
@@ -6249,8 +6248,6 @@ const fetchDeleteHistory = async () => {
   try {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history`);
     const data = await res.json();
-    
-    console.log("Delete history raw:", data); // 👈 add this temporarily
 
     setDeleteHistory(Array.isArray(data) ? data.map(e => ({
       id:        e.id,

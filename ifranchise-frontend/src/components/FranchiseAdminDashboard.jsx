@@ -413,9 +413,10 @@ export default function FranchiseAdminDashboard() {
     const s = localStorage.getItem('user') || localStorage.getItem('rememberedUser') || sessionStorage.getItem('user');
     return s ? JSON.parse(s) : null;
   };
+  
   const [user, setUser] = useState(getUserFromStorage);
   
-    const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
   useEffect(() => {
     const u = getUserFromStorage();
