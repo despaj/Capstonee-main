@@ -42,6 +42,7 @@ const smallBtnSt = {
 const capitalizeName = (str) => str.replace(/\b\w/g, (c) => c.toUpperCase());
 const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 
+
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 const PAGE_SIZE = 15;
 
@@ -469,229 +470,390 @@ function ActivityLogPanel({ log, onClose }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   BATCHES MODAL
-   FIX: saveBatch and deleteBatch now sync the parent ingredient's stock
-        by summing all batch stocks after every change.
-───────────────────────────────────────────────────────────────────────── */
-function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName }) {
-  const emptyBatch = { batch_number:"", stock:0, mfg_date:"", exp_date:"", supply_date:"", cost_per_unit:0, perishable:false, notes:"" };
-  const [form, setForm] = useState(emptyBatch);
-  const [editingBatch, setEditingBatch] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  /* Helper: re-fetch all batches for this ingredient and update parent stock */
-  const syncIngredientStock = async () => {
-    try {
-      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
-      const freshBatches = await res.json();
-      const totalStock = Array.isArray(freshBatches)
-        ? freshBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0)
-        : 0;
-      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...ingredient, stock: totalStock }),
-      });
-    } catch (err) {
-      console.warn("Failed to sync ingredient stock from batches:", err);
-    }
-  };
-
-  const saveBatch = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    const url = editingBatch
-      ? `${apiUrl}/ingredient-batches/${editingBatch.id}`
-      : `${apiUrl}/ingredient-batches`;
-    const method = editingBatch ? "PUT" : "POST";
-    const body = editingBatch
-      ? { ...form }
-      : { ...form, ingredient_id: ingredient.id };
-    await fetch(url, { method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-    // Sync parent stock after saving batch
-    await syncIngredientStock();
-    setForm(emptyBatch);
-    setEditingBatch(null);
-    setSaving(false);
-    onRefresh();
-  };
-
-  const deleteBatch = async (id) => {
-    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method:"DELETE" });
-    // Sync parent stock after deleting batch
-    await syncIngredientStock();
-    onRefresh();
-  };
-
-  const openEdit = (batch) => {
-    setEditingBatch(batch);
-    setForm({
-      batch_number:  batch.batch_number  || "",
-      stock:         batch.stock         || 0,
-      mfg_date:      batch.mfg_date      ? batch.mfg_date.split("T")[0]      : "",
-      exp_date:      batch.exp_date      ? batch.exp_date.split("T")[0]      : "",
-      supply_date:   batch.supply_date   ? batch.supply_date.split("T")[0]   : "",
-      cost_per_unit: batch.cost_per_unit || 0,
-      perishable:    batch.perishable    || false,
-      notes:         batch.notes         || "",
-    });
-  };
-
-  const now = new Date(); now.setHours(0,0,0,0);
-const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
-
-const getExpiryStatus = (exp_date, brand) => {
-  if (!exp_date) return null;
-  const exp = new Date(exp_date);
-  const msLeft = exp - now;
-  const isIPharma = (brand || "").toLowerCase().includes("ipharma");
-
-  if (isIPharma) {
-    if (msLeft < THREE_YEARS_MS)           return "expired";
-    if (msLeft < THREE_YEARS_MS + 7  * 86400000) return "critical";
-    if (msLeft < THREE_YEARS_MS + 30 * 86400000) return "warning";
-    return "ok";
-  } else {
-    if (msLeft < 0)               return "expired";
-    if (msLeft < 7  * 86400000)  return "critical";
-    if (msLeft < 30 * 86400000)  return "warning";
-    return "ok";
-  }
-};
-
-const statusStyle = {
-  expired:  { border:"#fecaca", bg:"#fef2f2", badge:"#fecaca",  badgeText:"#991b1b",  label:"EXPIRED",         dateColor:"#dc2626" },
-  critical: { border:"#fed7aa", bg:"#fff7ed", badge:"#fed7aa",  badgeText:"#9a3412",  label:"EXPIRING CRITICAL",dateColor:"#ea580c" },
-  warning:  { border:"#fef08a", bg:"#fefce8", badge:"#fef08a",  badgeText:"#854d0e",  label:"EXPIRING SOON",    dateColor:"#ca8a04" },
-  ok:       { border:"#e0f2f1", bg:"#f9fefb", badge:null,       badgeText:null,       label:null,               dateColor:"#0d2b1e" },
-};
-
+function BatchDeleteHistoryPanel({ history, onRestore, onClose }) {
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:700, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-        <div style={{ padding:"18px 24px", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div>
-            <div style={{ fontWeight:800, fontSize:16 }}>📦 Batches — {ingredient.name}</div>
-            <div style={{ fontSize:12, opacity:0.85 }}>{ingredient.branch} · Total stock: {batches.reduce((s,b)=>s+Number(b.stock||0),0)} {ingredient.unit}</div>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(5px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"26px 30px", width:"100%", maxWidth:660, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.20)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Batch Delete History</h2>
+            {history.length > 0 && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#dc2626" }}>
+                {history.length} deleted
+              </span>
+            )}
           </div>
-          <button onClick={onClose} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:"50%", width:32, height:32, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:"1px solid #fecaca", background:"#fef2f2", cursor:"pointer", color:"#dc2626", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={14}/>
+          </button>
         </div>
-
-        <div style={{ overflowY:"auto", flex:1, padding:24, display:"flex", flexDirection:"column", gap:20 }}>
-          <div style={{ background:"#f0fdf5", border:"1.5px solid #c8e6c9", borderRadius:14, padding:18 }}>
-            <div style={{ fontWeight:800, fontSize:13, color:"#00695c", marginBottom:14 }}>
-              {editingBatch ? "✏️ Edit Batch" : "➕ Add New Batch"}
+        {history.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 70px 100px 130px 90px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #fee2e2", fontSize:10, fontWeight:800, color:"#dc2626", textTransform:"uppercase", letterSpacing:"0.07em" }}>
+            <span>Batch No.</span><span>Stock</span><span>Exp Date</span><span>Deleted At</span><span></span>
+          </div>
+        )}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {history.length === 0 ? (
+            <div style={{ padding:"44px 0", textAlign:"center" }}>
+              <div style={{ fontSize:"2rem", marginBottom:10 }}>🗑️</div>
+              <div style={{ color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted batches yet.</div>
             </div>
-            <form onSubmit={saveBatch}>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>                <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Batch No.</label>
-                  <input style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
-                    value={form.batch_number} onChange={e=>setForm(f=>({...f,batch_number:e.target.value}))} placeholder="e.g. A001"/>
-                </div>
+          ) : history.map((entry, i) => {
+            const d = entry.data || {};
+            const expStr = d.exp_date ? new Date(d.exp_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) : "—";
+            return (
+              <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 70px 100px 130px 90px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? "1px solid #fff0f0" : "none" }}>
                 <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Count *</label>
-                  <input type="number" min="0" required style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
-                    value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))}/>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink }}>{d.batch_number || <span style={{ color:C.muted, fontStyle:"italic" }}>No batch #</span>}</div>
+                  {d.notes && <div style={{ fontSize:11, color:C.muted, marginTop:1 }}>{d.notes}</div>}
                 </div>
-               
-                <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Mfg Date</label>
-                  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
-                    value={form.mfg_date} onChange={e=>setForm(f=>({...f,mfg_date:e.target.value}))}/>
-                </div>
-                <div>
-  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Exp Date</label>
-  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:`1px solid ${form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" ? "#dc2626" : "#d1eedd"}`, fontSize:13, boxSizing:"border-box", background: form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" ? "#fef2f2" : "#fff" }}
-    value={form.exp_date} onChange={e=>setForm(f=>({...f,exp_date:e.target.value}))}/>
-  {form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" && (
-    <div style={{ marginTop:4, fontSize:11, fontWeight:700, color:"#dc2626" }}>
-      ⚠️ {ingredient.brand?.toLowerCase().includes("ipharma")
-        ? "Does not meet iPharma's 3-year shelf life requirement."
-        : "This expiry date is already in the past."}
-    </div>
-  )}
-</div>
-                <div>
-                  <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Supply Date</label>
-                  <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
-                    value={form.supply_date} onChange={e=>setForm(f=>({...f,supply_date:e.target.value}))}/>
-                </div>
-              </div>
-              <div style={{ marginBottom:10 }}>
-                <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Notes</label>
-                <input style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
-                  value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Optional notes…"/>
-              </div>
-              <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-                {editingBatch && (
-                  <button type="button" onClick={()=>{ setEditingBatch(null); setForm(emptyBatch); }}
-                    style={{ height:34, padding:"0 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                    Cancel
-                  </button>
-                )}
-                <button type="submit" disabled={saving}
-                  style={{ height:34, padding:"0 18px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                  {saving ? "Saving…" : editingBatch ? "Update Batch" : "Add Batch"}
+                <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{d.stock ?? "—"}</div>
+                <div style={{ fontSize:12, color:"#6b7280" }}>{expStr}</div>
+                <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}</div>
+                <button onClick={() => onRestore(entry)}
+                  style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  <RestoreIcon/> Restore
                 </button>
               </div>
-            </form>
-          </div>
-
-          <div>
-            <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e", marginBottom:12 }}>
-              Existing Batches ({batches.length})
-            </div>
-            {loading ? (
-              <div style={{ textAlign:"center", padding:"24px 0", color:"#5a7a65" }}>Loading batches…</div>
-            ) : batches.length === 0 ? (
-              <div style={{ textAlign:"center", padding:"24px 0", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No batches yet. Add your first batch above.</div>
-            ) : batches.map(batch => {
-              const status = getExpiryStatus(batch.exp_date, ingredient.brand);
-              const ss = statusStyle[status] || statusStyle.ok;
-              return (
-                <div key={batch.id} style={{ border:`1.5px solid ${ss.border}`, borderRadius:12, padding:"12px 16px", marginBottom:8, background:ss.bg, display:"flex", alignItems:"center", gap:12 }}>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                      <span style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>{batch.batch_number || "—"}</span>
-                      {ss.label && (
-                        <span style={{ fontSize:10, fontWeight:800, background:ss.badge, color:ss.badgeText, padding:"2px 8px", borderRadius:20 }}>
-                          {status === "expired" ? "🔴" : status === "critical" ? "🟠" : "🟡"} {ss.label}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display:"flex", gap:16, fontSize:12, color:"#5a7a65", flexWrap:"wrap" }}>
-                      <span>Stock: <strong style={{ color:"#0d2b1e" }}>{batch.stock}</strong></span>
-                      {batch.exp_date && (
-                        <span>Exp: <strong style={{ color:ss.dateColor }}>
-                          {new Date(batch.exp_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
-                        </strong></span>
-                      )}
-                      {batch.supply_date && <span>Supplied: {new Date(batch.supply_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</span>}
-                    </div>
-                    {status === "expired" && (
-                      <div style={{ marginTop:6, fontSize:11, fontWeight:700, color:"#dc2626", display:"flex", alignItems:"center", gap:5 }}>
-                        ⚠️ {ingredient.brand?.toLowerCase().includes("ipharma")
-                          ? "Item does not meet iPharma's 3-year shelf life requirement."
-                          : "This batch has already expired."}
-                      </div>
-                    )}
-                    {batch.notes && <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{batch.notes}</div>}
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>openEdit(batch)} style={{ height:30, padding:"0 12px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", color:"#00897b", fontSize:12, fontWeight:700, cursor:"pointer" }}>Edit</button>
-                    <button onClick={()=>deleteBatch(batch.id)} style={{ height:30, padding:"0 12px", borderRadius:8, border:"1px solid #ffcdd2", background:"#fff", color:"#e53935", fontSize:12, fontWeight:700, cursor:"pointer" }}>Delete</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
+
 /* ─────────────────────────────────────────────────────────────────────────
+   BATCHES MODA*/
+   function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName }) {
+  const emptyBatch = {stock:0, mfg_date:"", exp_date:"", supply_date:"", notes:"" };
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [form, setForm] = useState(emptyBatch);
+  const [saving, setSaving] = useState(false);
+   const [batchDeleteHistory, setBatchDeleteHistory] = useState([]);
+  const [showBatchHistory, setShowBatchHistory] = useState(false);
+
+  const fetchBatchHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`);
+      const data = await res.json();
+      setBatchDeleteHistory(Array.isArray(data) ? data.map(row => ({
+        id: row.id,
+        data: row.batch_data,
+        deletedAt: row.deleted_at,
+        deletedBy: row.deleted_by,
+      })) : []);
+    } catch (err) { console.warn("Failed to fetch batch delete history:", err); }
+  }, [apiUrl, ingredient.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchBatchHistory(); }, [fetchBatchHistory]); 
+
+  const now = new Date(); now.setHours(0,0,0,0);
+  const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
+
+  const getExpiryStatus = (exp_date, brand) => {
+    if (!exp_date) return null;
+    const exp = new Date(exp_date);
+    const msLeft = exp - now;
+    const isIPharma = (brand || "").toLowerCase().includes("ipharma");
+    if (isIPharma) {
+      if (msLeft < THREE_YEARS_MS)                       return "expired";
+      if (msLeft < THREE_YEARS_MS + 7  * 86400000)      return "critical";
+      if (msLeft < THREE_YEARS_MS + 30 * 86400000)      return "warning";
+      return "ok";
+    } else {
+      if (msLeft < 0)              return "expired";
+      if (msLeft < 7  * 86400000) return "critical";
+      if (msLeft < 30 * 86400000) return "warning";
+      return "ok";
+    }
+  };
+
+  const statusStyle = {
+    expired:  { border:"#fecaca", bg:"#fef2f2", badge:"#fecaca", badgeText:"#991b1b", label:"EXPIRED",          dateColor:"#dc2626" },
+    critical: { border:"#fed7aa", bg:"#fff7ed", badge:"#fed7aa", badgeText:"#9a3412", label:"EXPIRING CRITICAL", dateColor:"#ea580c" },
+    warning:  { border:"#fef08a", bg:"#fefce8", badge:"#fef08a", badgeText:"#854d0e", label:"EXPIRING SOON",     dateColor:"#ca8a04" },
+    ok:       { border:"#e0f2f1", bg:"#f9fefb", badge:null,      badgeText:null,      label:null,                dateColor:"#0d2b1e" },
+  };
+
+  const syncIngredientStock = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+      const freshBatches = await res.json();
+      const totalStock = Array.isArray(freshBatches)
+        ? freshBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0) : 0;
+      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+        method:"PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ ...ingredient, stock: totalStock }),
+      });
+    } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
+  };
+
+  const saveBatch = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const url    = editingBatch ? `${apiUrl}/ingredient-batches/${editingBatch.id}` : `${apiUrl}/ingredient-batches`;
+    const method = editingBatch ? "PUT" : "POST";
+    const body = editingBatch
+  ? { ...form }
+  : { stock: form.stock, mfg_date: form.mfg_date, exp_date: form.exp_date, supply_date: form.supply_date, notes: form.notes, ingredient_id: ingredient.id };
+    await fetch(url, { method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    await syncIngredientStock();
+    setForm(emptyBatch);
+    setEditingBatch(null);
+    setShowAddForm(false);
+    setSaving(false);
+    onRefresh();
+  };
+
+  const deleteBatch = async (id) => {
+    // Find the batch data before deleting
+    const batchToDelete = batches.find(b => b.id === id);
+    await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        batch_data: batchToDelete,
+        ingredient_id: ingredient.id,
+        ingredient_name: ingredient.name,
+        deleted_by: userName,
+      }),
+    });
+    await fetch(`${apiUrl}/ingredient-batches/${id}`, { method:"DELETE" });
+    await syncIngredientStock();
+    await fetchBatchHistory();
+    onRefresh();
+  };
+
+  const restoreBatch = async (entry) => {
+  const d = entry.data || {};
+  const res = await fetch(`${apiUrl}/ingredient-batches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ingredient_id: ingredient.id,
+      batch_number:  d.batch_number  || null,
+      stock:         d.stock         || 0,
+      mfg_date:      d.mfg_date      || null,
+      exp_date:      d.exp_date      || null,
+      supply_date:   d.supply_date   || null,
+      cost_per_unit: d.cost_per_unit || 0,
+      perishable:    d.perishable    || false,
+      notes:         d.notes         || null,
+    }),
+  });
+  const result = await res.json();
+  // FIX: check for `id` or any truthy result, not result.success
+  if (result && (result.id || result.success)) {
+    await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, { method: "DELETE" });
+    await fetchBatchHistory();
+    onRefresh();
+  }
+};
+
+  const openEdit = (batch) => {
+    setShowAddForm(false);
+    setEditingBatch(batch);
+    setForm({
+      stock:        batch.stock        || 0,
+      mfg_date:     batch.mfg_date     ? batch.mfg_date.split("T")[0]    : "",
+      exp_date:     batch.exp_date     ? batch.exp_date.split("T")[0]    : "",
+      supply_date:  batch.supply_date  ? batch.supply_date.split("T")[0] : "",
+      notes:        batch.notes        || "",
+    });
+  };
+
+  const cancelForm = () => {
+    setShowAddForm(false);
+    setEditingBatch(null);
+    setForm(emptyBatch);
+  };
+
+  
+
+  const BatchForm = ({ isEdit }) => (
+    <>
+      {isEdit && editingBatch && (
+      <div style={{ marginBottom:10, padding:"8px 12px", borderRadius:8, background:"#e0f2f1", border:"1px solid #c8e6c9", fontSize:12, color:"#00695c", fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+        <span>🔒</span> Batch {editingBatch.batch_number}
+      </div>
+    )}
+     <form onSubmit={saveBatch} style={{ background:"#f0fdf5", border:"1.5px solid #c8e6c9", borderRadius:12, padding:16, marginBottom:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+        {/* Batch No. read-only display */}
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Batch No.</label>
+          <div style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box", background:"#f5f5f5", color:"#5a7a65", display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:11, opacity:0.6 }}>🔒</span>
+            Auto-assigned on save
+          </div>
+</div>
+
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Count *</label>
+          <input type="number" min="0" required style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+            value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))}/>
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Mfg Date</label>
+          <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+            value={form.mfg_date} onChange={e=>setForm(f=>({...f,mfg_date:e.target.value}))}/>
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Exp Date</label>
+          <input type="date"
+            style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, fontSize:13, boxSizing:"border-box",
+              border:`1px solid ${form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" ? "#dc2626" : "#d1eedd"}`,
+              background: form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" ? "#fef2f2" : "#fff" }}
+            value={form.exp_date} onChange={e=>setForm(f=>({...f,exp_date:e.target.value}))}/>
+          {form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" && (
+            <div style={{ marginTop:4, fontSize:11, fontWeight:700, color:"#dc2626" }}>
+              ⚠️ {ingredient.brand?.toLowerCase().includes("ipharma")
+                ? "Does not meet iPharma's 3-year shelf life requirement."
+                : "This expiry date is already in the past."}
+            </div>
+          )}
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Supply Date</label>
+          <input type="date" style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+            value={form.supply_date} onChange={e=>setForm(f=>({...f,supply_date:e.target.value}))}/>
+        </div>
+        <div>
+          <label style={{ display:"block", fontSize:10, fontWeight:800, color:"#5a7a65", marginBottom:4, textTransform:"uppercase" }}>Notes</label>
+          <input style={{ width:"100%", height:34, padding:"0 10px", borderRadius:8, border:"1px solid #d1eedd", fontSize:13, boxSizing:"border-box" }}
+            value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Optional notes…"/>
+        </div>
+      </div>
+      <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+        <button type="button" onClick={cancelForm}
+          style={{ height:32, padding:"0 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", color:"#5a7a65" }}>
+          Cancel
+        </button>
+        <button type="submit" disabled={saving}
+          style={{ height:32, padding:"0 16px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+          {saving ? "Saving…" : isEdit ? "Update Batch" : "Add Batch"}
+        </button>
+      </div>
+    </form>
+    </>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:700, maxHeight:"88vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding:"18px 24px", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontWeight:800, fontSize:16 }}>📦 Batches — {ingredient.name}</div>
+            <div style={{ fontSize:12, opacity:0.85, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              {ingredient.branch} · Total stock: {batches.reduce((s,b)=>s+Number(b.stock||0),0)} {ingredient.unit}
+              <button onClick={() => setShowBatchHistory(true)}
+                style={{ display:"inline-flex", alignItems:"center", gap:5, background:"rgba(255,255,255,0.2)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:8, color:"#fff", fontSize:11, fontWeight:700, padding:"3px 10px", cursor:"pointer" }}>
+                <HistoryIcon size={11}/> Delete History
+                {batchDeleteHistory.length > 0 && (
+                  <span style={{ background:"#dc2626", borderRadius:20, fontSize:10, fontWeight:800, padding:"1px 6px" }}>{batchDeleteHistory.length}</span>
+                )}
+              </button>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {!showAddForm && !editingBatch && (
+              <button onClick={()=>{ setShowAddForm(true); setEditingBatch(null); setForm(emptyBatch); }}
+                style={{ display:"inline-flex", alignItems:"center", gap:5, height:32, padding:"0 14px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                <PlusIcon size={12}/> Add Batch
+              </button>
+            )}
+            <button onClick={onClose} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:"50%", width:32, height:32, cursor:"pointer", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY:"auto", flex:1, padding:24, display:"flex", flexDirection:"column", gap:12 }}>
+
+          {/* Add form — shown when + clicked */}
+          {showAddForm && <BatchForm isEdit={false}/>}
+
+          {/* Batch list */}
+          {loading ? (
+            <div style={{ textAlign:"center", padding:"24px 0", color:"#5a7a65" }}>Loading batches…</div>
+          ) : batches.length === 0 && !showAddForm ? (
+            <div style={{ textAlign:"center", padding:"40px 0", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>
+              No batches yet. Click <strong>+ Add Batch</strong> above to get started.
+            </div>
+          ) : batches.map(batch => {
+            const status = getExpiryStatus(batch.exp_date, ingredient.brand);
+            const ss = statusStyle[status] || statusStyle.ok;
+            const isEditingThis = editingBatch?.id === batch.id;
+
+            return (
+              <div key={batch.id}>
+                {/* Edit form inline */}
+                {isEditingThis ? (
+                  <BatchForm isEdit={true}/>
+                ) : (
+                  <div style={{ border:`1.5px solid ${ss.border}`, borderRadius:12, padding:"12px 16px", background:ss.bg, display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                        <span style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>
+  Batch {batch.batch_number || "—"}
+</span>
+                        {ss.label && (
+                          <span style={{ fontSize:10, fontWeight:800, background:ss.badge, color:ss.badgeText, padding:"2px 8px", borderRadius:20 }}>
+                            {status === "expired" ? "🔴" : status === "critical" ? "🟠" : "🟡"} {ss.label}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display:"flex", gap:16, fontSize:12, color:"#5a7a65", flexWrap:"wrap" }}>
+                        <span>Stock: <strong style={{ color:"#0d2b1e" }}>{batch.stock}</strong></span>
+                        {batch.exp_date && (
+                          <span>Exp: <strong style={{ color:ss.dateColor }}>
+                            {new Date(batch.exp_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}
+                          </strong></span>
+                        )}
+                        {batch.mfg_date && <span>Mfg: {new Date(batch.mfg_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                        {batch.supply_date && <span>Supplied: {new Date(batch.supply_date).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"})}</span>}
+                      </div>
+                      {status === "expired" && (
+                        <div style={{ marginTop:6, fontSize:11, fontWeight:700, color:"#dc2626", display:"flex", alignItems:"center", gap:5 }}>
+                          ⚠️ {ingredient.brand?.toLowerCase().includes("ipharma")
+                            ? "Item does not meet iPharma's 3-year shelf life requirement."
+                            : "This batch has already expired."}
+                        </div>
+                      )}
+                      {batch.notes && <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{batch.notes}</div>}
+                    </div>
+                    {/* Pencil + Trash icons */}
+                    <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                      <button onClick={()=>openEdit(batch)} title="Edit batch"
+                        style={{ width:30, height:30, borderRadius:8, border:"1px solid #d1eedd", background:"#fff", color:"#00897b", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <EditIcon size={13}/>
+                      </button>
+                      <button onClick={()=>deleteBatch(batch.id)} title="Delete batch"
+                        style={{ width:30, height:30, borderRadius:8, border:"1px solid #ffcdd2", background:"#fff", color:"#e53935", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <TrashIcon size={13}/>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {showBatchHistory && (
+        <BatchDeleteHistoryPanel
+          history={batchDeleteHistory}
+          onRestore={restoreBatch}
+          onClose={() => setShowBatchHistory(false)}
+        />
+      )}
+    </div>
+  );
+}
+    /* ─────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [] }) {
@@ -738,6 +900,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
   const [batches,               setBatches]               = useState([]);
   const [batchLoading,          setBatchLoading]          = useState(false);
+  const [showValue, setShowValue] = useState(true);
 
   const excelRef = useRef(null);
 
@@ -1118,14 +1281,33 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         {[
           { label:"Total Ingredients", value:items.length.toLocaleString(),  sub:"Registered",   accent:C.green   },
           { label:"Low Stock Alerts",  value:lowCount,                        sub:"Needs reorder", accent:"#e65100" },
-          { label:"Total Stock Value", value:"₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2}), sub:"Cost basis", accent:"#1565c0" },
-        ].map((s, i) => (
-          <div key={i} style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
-          </div>
-        ))}
+          { label:"Total Stock Value", 
+    value: showValue 
+      ? "₱"+Number(totalValue).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})
+      : "₱••••••••",
+    sub:"Cost basis", 
+    accent:"#1565c0",
+    action: (
+      <button
+        onClick={() => setShowValue(v => !v)}
+        style={{ position:"absolute", top:12, right:12, background:"none", border:"none", cursor:"pointer", color:"#1565c0", opacity:0.6, padding:2, display:"flex", alignItems:"center" }}
+        title={showValue ? "Hide value" : "Show value"}
+      >
+        {showValue
+          ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        }
+      </button>
+    )
+  },        
+].map((s, i) => (
+  <div key={i} style={{ background:C.white, border:"1px solid rgba(0,168,76,0.13)", borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)", position:"relative" }}>
+    {s.action && s.action}
+    <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
+    <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
+    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
+  </div>
+))}
       </div>
 
       {/* filter bar */}
@@ -1191,7 +1373,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
                     <SortTh col="name"         label="Ingredient" minW={150}/>
                     <SortTh col="branch"        label="Branch"     minW={120}/>
                     <SortTh col="brand"         label="Brand"      minW={100}/>
-                    <SortTh col="unit"          label="Unit"       minW={70} />
+                    <SortTh col="unit"          label="UoM"       minW={70} />
                     <SortTh col="stock"         label="Count"      minW={80} />
                     <SortTh col="min_stock"     label="Min Stock"  minW={80} />
                     <SortTh col="cost_per_unit" label="Cost/Unit"  minW={90} />
