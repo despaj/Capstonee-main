@@ -2014,6 +2014,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const branchRef = useRef(null);
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
+  const [showKpiValue, setShowKpiValue] = useState(true);
 
   useEffect(() => {
     const fn = (e) => {
@@ -2164,6 +2165,21 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
             style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
             onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
             onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+              <button
+      onClick={() => setShowKpiValue(v => !v)}
+      style={{
+        position:"absolute", top:14, right:14,
+        background:"none", border:"none", cursor:"pointer",
+        color:"#1565c0", opacity:0.6, padding:2,
+        display:"flex", alignItems:"center",
+      }}
+      title={showKpiValue ? "Hide values" : "Show values"}
+    >
+      {showKpiValue
+        ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      }
+    </button>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
@@ -2172,7 +2188,9 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
                 {kpiLoading && k.value == null
                   ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
                   : k.value != null
-                    ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>{fmtAmt(k.value)}</div>
+  ? <div style={{ fontSize:22, fontWeight:800, color:"#0d2b1e", letterSpacing:"-0.5px", fontFamily:FONT }}>
+      {showKpiValue ? fmtAmt(k.value) : "₱••••••••"}
+    </div>
                     : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
                 }
               </div>
