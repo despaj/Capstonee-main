@@ -1,0 +1,234 @@
+const express = require("express");
+const router = express.Router();
+const pool = require("../db");
+const { rowToApplication } = require("../utils/formatters");
+
+router.post("/check-duplicate", async (req, res) => {
+  const { email, mobile } = req.body;
+  try {
+    const result = await pool.query(
+      `SELECT id FROM applications WHERE email=$1 OR phone=$2
+       UNION
+       SELECT id FROM ipharma_applications WHERE email=$1 OR phone=$2
+       LIMIT 1`,
+      [email, mobile]
+    );
+    res.json({ exists: result.rows.length > 0 });
+  } catch (err) {
+    console.error("Duplicate check error:", err);
+    res.status(500).json({ exists: false });
+  }
+});
+
+router.get("/applications", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        'ip-' || id::text AS id,
+        name, email, phone, 'iPharma Mart' AS franchise,
+        status, date, address, dob, civil_status,
+        spouse_name, spouse_occupation, spouse_dob, dependents,
+        telephone, tin, education,
+        involvement, equity, investment, fund_source,
+        other_business, location, family_depend, market_area, start_date,
+        date_signed,
+        NULL AS payment_mode, NULL AS gender, NULL AS nationality,
+        NULL AS employment_type, NULL AS years_employer, NULL AS income,
+        NULL AS employer_name, NULL AS business_address,
+        NULL AS position, NULL AS business_nature,
+        id_type, id_image, letter_of_intent, created_at
+      FROM ipharma_applications
+
+      UNION ALL
+
+      SELECT
+        id::text AS id,
+        name, email, phone, franchise,
+        status, date, address, dob, civil_status,
+        spouse_name, spouse_occupation, NULL AS spouse_dob, dependents,
+        NULL AS telephone, NULL AS tin, NULL AS education,
+        NULL AS involvement, NULL AS equity, NULL AS investment, NULL AS fund_source,
+        NULL AS other_business, NULL AS location, NULL AS family_depend, NULL AS market_area, NULL AS start_date,
+        date_signed,
+        payment_mode, gender, nationality,
+        employment_type, years_employer, income,
+        employer_name, business_address, position, business_nature,
+        id_type, id_image, letter_of_intent, created_at
+      FROM applications
+
+      ORDER BY created_at DESC
+    `);
+    res.json(result.rows.map(rowToApplication));
+  } catch (err) {
+    console.error("Failed to fetch applications:", err);
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
+});
+
+router.get("/applications/:id", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM applications WHERE id=$1", [req.params.id]);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Application not found" });
+    res.json(rowToApplication(result.rows[0]));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch application" });
+  }
+});
+
+router.post("/applications", async (req, res) => {
+  try {
+    const b = req.body;
+    const result = await pool.query(
+      `INSERT INTO applications (
+        name, email, phone, franchise, payment_mode, status, date,
+        dob, civil_status, gender, nationality, address, dependents,
+        spouse_name, spouse_occupation,
+        employment_type, years_employer, income,
+        employer_name, business_address, position, business_nature,
+        signature, date_signed, id_type, id_image, letter_of_intent
+      ) VALUES (
+        $1,$2,$3,$4,$5,'pending',CURRENT_DATE,
+        $6,$7,$8,$9,$10,$11,$12,$13,
+        $14,$15,$16,$17,$18,$19,$20,
+        $21,$22,$23,$24,$25
+      ) RETURNING *`,
+      [
+        b.name, b.email, b.phone, b.franchise, b.paymentMode,
+        b.dob || null, b.civilStatus, b.gender, b.nationality, b.address,
+        b.dependents ? parseInt(b.dependents) : null,
+        b.spouseName || null, b.spouseOccupation || null,
+        b.employmentType, b.yearsEmployer ? parseInt(b.yearsEmployer) : null,
+        b.income ? parseFloat(b.income) : null,
+        b.employerName, b.businessAddress, b.position, b.businessNature,
+        b.signature || null, b.dateSigned || null,
+        b.idType || null, b.idImage || null, b.letterOfIntent || null,
+      ]
+    );
+    const app = rowToApplication(result.rows[0]);
+    res.json({ success: true, id: app.id, message: "Application submitted successfully", application: app });
+  } catch (err) {
+    console.error("Error submitting application:", err);
+    res.status(500).json({ success: false, error: "Failed to submit application" });
+  }
+});
+
+router.post("/ipharma-applications", async (req, res) => {
+  try {
+    const b = req.body;
+    const result = await pool.query(
+      `INSERT INTO ipharma_applications (
+        name, email, phone, telephone, status, date,
+        address, dob, civil_status, spouse_name, spouse_occupation, spouse_dob,
+        dependents, tin, education, involvement, equity, investment, fund_source,
+        other_business, location, family_depend, market_area, start_date,
+        signature, date_signed, id_type, id_image, letter_of_intent
+      ) VALUES (
+        $1,$2,$3,$4,'pending',$5,
+        $6,$7,$8,$9,$10,$11,
+        $12,$13,$14,$15,$16,$17,$18,
+        $19,$20,$21,$22,$23,
+        $24,$25,$26,$27,$28
+      ) RETURNING *`,
+      [
+        b.name, b.email, b.phone, b.telephone || null,
+        b.date || new Date().toISOString().split("T")[0],
+        b.address,
+        b.dob || null, b.maritalStatus, b.spouseName || null,
+        b.spouseOccupation || null, b.spouseDob || null,
+        b.dependents ? parseInt(b.dependents) : null,
+        b.tin || null,
+        b.education ? JSON.stringify(b.education) : null,
+        b.involvement || null, b.equity || null,
+        b.investment ? parseFloat(b.investment) : null,
+        b.fundSource || null,
+        b.otherBusiness || null, b.location || null,
+        b.familyDepend || null, b.marketArea || null,
+        b.startDate || null,
+        b.signature || null, b.dateSigned || null,
+        b.idType || null, b.idImage || null, b.letterOfIntent || null,
+      ]
+    );
+    res.json({ success: true, id: result.rows[0].id, message: "iPharma application submitted successfully" });
+  } catch (err) {
+    console.error("Error submitting iPharma application:", err);
+    res.status(500).json({ success: false, error: "Failed to submit application", details: err.message });
+  }
+});
+
+router.put("/applications/:id/status", async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+    const { status } = req.body;
+
+    const result = await pool.query(
+      `UPDATE ${sourceTable} SET status=$1 WHERE id=$2 RETURNING *`,
+      [status, id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+
+    res.json({ success: true, message: "Status updated", application: rowToApplication(result.rows[0]) });
+  } catch (err) {
+    console.error("Error updating status:", err);
+    res.status(500).json({ success: false, error: "Failed to update status" });
+  }
+});
+
+router.delete("/applications/:id", async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = isIpharma ? rawId.replace("ip-", "") : rawId;
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+
+    const existing = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
+    if (existing.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+
+    await pool.query(
+      "INSERT INTO application_delete_history (application_data) VALUES ($1)",
+      [JSON.stringify(existing.rows[0])]
+    );
+    await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
+    res.json({ success: true, message: "Application deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting application:", err);
+    res.status(500).json({ success: false, error: "Failed to delete application" });
+  }
+});
+
+router.get("/application-delete-history", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM application_delete_history ORDER BY deleted_at DESC");
+    res.json(result.rows.map(row => ({ id: row.id, data: row.application_data, deletedAt: row.deleted_at })));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch application delete history." });
+  }
+});
+
+router.post("/application-delete-history", async (req, res) => {
+  try {
+    await pool.query(
+      "INSERT INTO application_delete_history (application_data) VALUES ($1)",
+      [JSON.stringify(req.body.application_data)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save application delete history." });
+  }
+});
+
+router.delete("/application-delete-history/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM application_delete_history WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete application history entry." });
+  }
+});
+
+module.exports = router;

@@ -151,6 +151,12 @@ export default function AdminLogin() {
 
   const [rememberMe, setRememberMe] = useState(false);
 
+  const clearDashboardSessions = () => {
+  sessionStorage.removeItem('sa_activeModule');
+  sessionStorage.removeItem('fa_activeModule');
+  sessionStorage.removeItem('bm_activeModule');
+};
+
   const OTP_MAX_ATTEMPTS = 5;
   const OTP_LOCKOUT_DURATION = 2 * 60 * 60 * 1000;
 
@@ -164,6 +170,24 @@ export default function AdminLogin() {
   const [forgotOtpLockedUntil, setForgotOtpLockedUntil] = useState(null);
   const [forgotOtpLockRemaining, setForgotOtpLockRemaining] = useState("");
 
+  // ── Block browser back button when logged in ──
+useEffect(() => {
+  if (!loggedIn) return;
+
+  // Push a sentinel entry so there's something to intercept
+  window.history.pushState({ loggedIn: true }, "");
+
+  const handlePopState = () => {
+    if (loggedIn) {
+      // Re-push to keep them pinned — back button goes nowhere
+      window.history.pushState({ loggedIn: true }, "");
+    }
+  };
+
+  window.addEventListener("popstate", handlePopState);
+  return () => window.removeEventListener("popstate", handlePopState);
+}, [loggedIn]);
+
   useEffect(() => {
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
 
@@ -173,8 +197,9 @@ export default function AdminLogin() {
       if (user && user.role && user.sessionExpiry && Date.now() < user.sessionExpiry) {
         setLoggedIn(true);
         setUserRole(user.role);
+        // ← Add this
+        window.history.pushState({ loggedIn: true }, "");
       } else {
-        // Expired — clear both
         localStorage.removeItem("user");
         sessionStorage.removeItem("user");
       }
@@ -333,6 +358,7 @@ export default function AdminLogin() {
               ? localStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 30*24*60*60*1000 }))
               : sessionStorage.setItem("user", JSON.stringify({ ...user, sessionExpiry: Date.now() + 24*60*60*1000 }));
             sessionStorage.removeItem("tempUser");
+            clearDashboardSessions();
             setLoggedIn(true);
             setUserRole(user.role);
             return;
@@ -440,6 +466,7 @@ const verifyOtp = async () => {
         }));
       }
         sessionStorage.removeItem("tempUser");
+        clearDashboardSessions();
         setLoggedIn(true); 
         setUserRole(user.role);
       } catch { setOtpError("OTP verification failed"); 
@@ -675,9 +702,10 @@ const verifyForgotSmsOtp = async () => {
     localStorage.removeItem("rememberedUser");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("tempUser");
+    window.history.replaceState(null, "", window.location.href);
+    navigate("/"); 
     setLoggedIn(false);
     setUserRole(null);
-    setStep("login");
     setEmail("");
     setPassword("");
     setOtp(["", "", "", "", "", ""]);
@@ -797,6 +825,7 @@ const verifyForgotSmsOtp = async () => {
         {step === "login" && (
           <>
             <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+             <button type="button" className="back-btn" onClick={() => navigate("/")}>← Back</button>
             <h2 style={{ fontSize: "23px", color: "#0a8d1c", fontFamily: "Montserrat", fontWeight: 700, marginTop: 20 }}>LOGIN</h2>
             <p className="login-subtext">Enter your credentials below</p>
             {authError && <p className="error general">{authError}</p>}

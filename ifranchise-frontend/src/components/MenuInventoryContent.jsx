@@ -534,7 +534,7 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Administrator";
+  const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
 
