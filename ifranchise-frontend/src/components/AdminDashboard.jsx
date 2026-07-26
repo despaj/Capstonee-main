@@ -15,7 +15,7 @@ import {
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon,
   Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
-  Brain, PieChart, LineChart,
+  Brain, PieChart, LineChart, ShieldCheck
 } from 'lucide-react';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -2859,16 +2859,41 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
     </div>
   );
 }
+// ─────────────────────────────────────────────────────────────────────────
+// FIX #1 (root cause of "typing stops per letter"):
+// `Field` was previously defined INSIDE MobileShopContent(). That means a
+// brand-new Field function was created on every render, so React saw a new
+// component type each keystroke and unmounted/remounted the <input>,
+// killing focus after every character. Field now lives OUTSIDE the
+// component so its identity is stable across renders.
+// ─────────────────────────────────────────────────────────────────────────
+function Field({ label, error, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ fontSize: 13, fontWeight: 700, color: "#2c3e50" }}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <span style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function MobileShopContent() {
   const msInputStyle = {
     width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
     border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
     color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
+    fontFamily: "'Montserrat', sans-serif", // ensures typed text AND placeholder text use Montserrat
   };
 
   const [activityLog,     setActivityLog]     = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showAddModal,    setShowAddModal]    = useState(false); // NEW: controls Add Item modal
   const [items,           setItems]           = useState([]);
   const [errors,          setErrors]          = useState({});
   const [loading,         setLoading]         = useState(false);
@@ -2879,16 +2904,19 @@ function MobileShopContent() {
   const [searchQuery,     setSearchQuery]     = useState("");
   const [filterShop,      setFilterShop]      = useState("all");
   const [brands,          setBrands]          = useState([]);
-  const [newItem,         setNewItem]         = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"" });
-   const excelRef = useRef(null);
+  const [stockItems,      setStockItems]      = useState([]); // ingredients from Stock Inventory, used to populate Item Name per brand
+  const [newItem,         setNewItem]         = useState({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
+  const excelRef = useRef(null);
+  const addImageRef = useRef(null); // hidden file input for the Add Item photo picker
+  const editImageRef = useRef(null); // hidden file input for the Edit Item photo picker
 
   const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data : []);
-  } catch (err) { console.error("Failed to fetch shop activity log:", err); }
-}, []);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch shop activity log:", err); }
+  }, []);
 
   const fetchItems = async () => {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
@@ -2897,106 +2925,140 @@ function MobileShopContent() {
   };
 
   const fetchBrands = async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-    const data = await res.json();
-    setBrands(Array.isArray(data) ? data : []);
-  } catch { setBrands([]); }
-};
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const data = await res.json();
+      setBrands(Array.isArray(data) ? data : []);
+    } catch { setBrands([]); }
+  };
 
-useEffect(() => {
-  fetchItems();
-  fetchBrands();
-  fetchActivityLog();
-}, [fetchActivityLog]);
+  // Pulls the Stock Inventory's ingredient list, so we can offer the exact
+  // same product names (per brand) when adding a Mobile Shop item.
+  const fetchStockItems = async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
+      const data = await res.json();
+      setStockItems(Array.isArray(data) ? data : []);
+    } catch { setStockItems([]); }
+  };
 
+  useEffect(() => {
+    fetchItems();
+    fetchBrands();
+    fetchStockItems();
+    fetchActivityLog();
+  }, [fetchActivityLog]);
 
-const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
+  const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
 
-// ✅ ADD THIS
-const filteredItems = items.filter(item => {
-  const q = searchQuery.toLowerCase();
-  if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
-  if (filterShop !== "all" && item.shop !== filterShop) return false;
-  return true;
-});
+  const filteredItems = items.filter(item => {
+    const q = searchQuery.toLowerCase();
+    if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
+    if (filterShop !== "all" && item.shop !== filterShop) return false;
+    return true;
+  });
 
+  // Derive flat branch list from selected brand
+  const getBranchesForBrand = (brandName) => {
+    const found = brands.find(b => b.name === brandName);
+    if (!found) return [];
+    return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
+  };
 
-// Derive flat branch list from selected brand
-const getBranchesForBrand = (brandName) => {
-  const found = brands.find(b => b.name === brandName);
-  if (!found) return [];
-  return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
-};
+  // Unique, alphabetized product names from Stock Inventory for the selected brand.
+  // Matches case-insensitively, and falls back to a partial match (e.g. "iPharma"
+  // selecting ingredients tagged "iPharma Branch A") in case brand naming isn't 1:1.
+  const getStockNamesForBrand = (brandName) => {
+    if (!brandName) return [];
+    const target = brandName.trim().toLowerCase();
+    const exact = stockItems.filter(i => (i.brand || "").trim().toLowerCase() === target);
+    const pool = exact.length > 0
+      ? exact
+      : stockItems.filter(i => (i.brand || "").trim().toLowerCase().includes(target) || target.includes((i.brand || "").trim().toLowerCase()));
+    return [...new Set(pool.map(i => i.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  };
 
   const validate = () => {
-  const newErrors = {};
-  if (!newItem.brand) newErrors.brand = "Brand is required";
-  if (!newItem.name.trim()) newErrors.name = "Item name is required";
-  if (!newItem.price) newErrors.price = "Price is required";
-  else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-  if (!newItem.image_url.trim()) newErrors.image_url = "Image URL is required";
-  else { try { new URL(newItem.image_url); } catch { newErrors.image_url = "Invalid URL"; } }
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+    const newErrors = {};
+    if (!newItem.brand) newErrors.brand = "Brand is required";
+    if (!newItem.name.trim()) newErrors.name = "Item name is required";
+    if (!newItem.price) newErrors.price = "Price is required";
+    else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
+    if (newItem.stock !== "" && (isNaN(newItem.stock) || Number(newItem.stock) < 0)) newErrors.stock = "Stock must be 0 or more";
+    if (!newItem.image_url) newErrors.image_url = "Photo is required";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Reads a selected image file and stores it as a data URL in image_url
+  const handleImageSelect = (e, target /* "add" | "edit" */) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (target === "edit") setEditingItem(prev => ({ ...prev, image_url: ev.target.result }));
+      else setNewItem(prev => ({ ...prev, image_url: ev.target.result }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ""; // allow re-selecting the same file later
+  };
 
   const validateEdit = () => {
     const errs = {};
     if (!editingItem.name.trim()) errs.name = "Item name is required";
     if (!editingItem.price) errs.price = "Price is required";
     else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-    if (!editingItem.image_url.trim()) errs.image_url = "Image URL is required";
-    else { try { new URL(editingItem.image_url); } catch { errs.image_url = "Invalid URL"; } }
+    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const logActivity = useCallback(async (action, itemName, shopName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, item_name: itemName, branch: shopName, performed_by: "Admin", changes }),
+      });
+    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+  }, []);
+
+  const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
+
+  const addItem = async () => {
+    if (loading || !validate()) return;
+
+    const duplicate = items.find(
+      i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
+        && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
+    );
+    if (duplicate) {
+      alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
+      return;
+    }
+
+    setLoading(true);
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: shopName, performed_by: "Admin", changes }),
+      body: JSON.stringify({
+        name:      capitalize(newItem.name),
+        price:     Number(newItem.price),
+        unit:      "",
+        image_url: newItem.image_url,
+        shop:      newItem.brand,
+        brand:     newItem.brand,
+        stock:     Number(newItem.stock || 0),
+      }),
     });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
 
-const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-
-const addItem = async () => {
-  if (loading || !validate()) return;
-
-  const duplicate = items.find(
-    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
-      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
-  );
-  if (duplicate) {
-    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
-    return;
-  }
-
-  setLoading(true);
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name:      capitalize(newItem.name),
-      price:     Number(newItem.price),
-      unit:      newItem.unit,
-      image_url: newItem.image_url,
-      shop:      newItem.brand,
-      brand:     newItem.brand,
-      stock:     0,
-    }),
-  });
-
-  await logActivity("add", capitalize(newItem.name), newItem.brand);
-  setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"", stock:"", branches:[] });
-  setErrors({});
-  setLoading(false);
-  fetchItems();
-};
+    await logActivity("add", capitalize(newItem.name), newItem.brand);
+    setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
+    setErrors({});
+    setLoading(false);
+    setShowAddModal(false); // NEW: close modal on success
+    fetchItems();
+  };
 
   const saveEdit = async () => {
     if (editLoading || !validateEdit()) return;
@@ -3004,15 +3066,15 @@ const addItem = async () => {
     await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-  name:       capitalize(editingItem.name.trim()),
-  price:      Number(editingItem.price),
-  unit:       editingItem.unit || "",
-  image_url:  editingItem.image_url,
-  shop:       editingItem.brand,
-  brand:      editingItem.brand,
-  stock:      Number(editingItem.stock),
-  is_visible: editingItem.is_visible,
-}),
+        name:       capitalize(editingItem.name.trim()),
+        price:      Number(editingItem.price),
+        unit:       editingItem.unit || "",
+        image_url:  editingItem.image_url,
+        shop:       editingItem.brand,
+        brand:      editingItem.brand,
+        stock:      Number(editingItem.stock),
+        is_visible: editingItem.is_visible,
+      }),
     });
     await logActivity("edit", capitalize(editingItem.name), editingItem.brand, `price: ₱${editingItem.price}`);
     setEditingItem(null);
@@ -3031,28 +3093,28 @@ const addItem = async () => {
       wb.SheetNames.forEach(sheetName => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
         rows.forEach(row => {
-  const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-  const price = parseFloat(row.price || row.Price || 0) || 0;
-  if (!name || price <= 0) return;
+          const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
+          const price = parseFloat(row.price || row.Price || 0) || 0;
+          if (!name || price <= 0) return;
 
-  const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
+          const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
 
-  // Skip duplicates — same name + shop
-  const alreadyExists = items.some(
-    i => i.name.trim().toLowerCase() === name.toLowerCase()
-      && i.shop.trim().toLowerCase() === shop.toLowerCase()
-  );
-  if (alreadyExists) return;
+          // Skip duplicates — same name + shop
+          const alreadyExists = items.some(
+            i => i.name.trim().toLowerCase() === name.toLowerCase()
+              && i.shop.trim().toLowerCase() === shop.toLowerCase()
+          );
+          if (alreadyExists) return;
 
-rows_to_save.push({
-  name: capitalize(name.trim()), price,
-  unit:      String(row.unit      || row.Unit      || "").trim(),
-  stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-  shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
-  brand:     String(row.brand     || row.Brand     || "").trim(),
-  image_url: String(row.image_url || row["Image URL"] || "").trim(),
-  is_visible: true,
-});
+          rows_to_save.push({
+            name: capitalize(name.trim()), price,
+            unit:      String(row.unit      || row.Unit      || "").trim(),
+            stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
+            shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
+            brand:     String(row.brand     || row.Brand     || "").trim(),
+            image_url: String(row.image_url || row["Image URL"] || "").trim(),
+            is_visible: true,
+          });
         });
       });
       let saved = 0;
@@ -3062,30 +3124,30 @@ rows_to_save.push({
           const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name:      capitalize(item.name.trim()),
+              name:       capitalize(item.name.trim()),
               price:      item.price,
-  unit:       item.unit,
-  stock:      item.stock,
-  shop:       item.shop,
-  brand:      item.brand,
-  image_url:  item.image_url,
-  is_visible: item.is_visible,
+              unit:       item.unit,
+              stock:      item.stock,
+              shop:       item.shop,
+              brand:      item.brand,
+              image_url:  item.image_url,
+              is_visible: item.is_visible,
             }),
           });
           const d = await res.json();
-            if (d.success) {
-              saved++;
-              await logActivity("import", item.name, item.shop, `price=₱${item.price}`); // ← add here
-            }
+          if (d.success) {
+            saved++;
+            await logActivity("import", item.name, item.shop, `price=₱${item.price}`);
+          }
         } catch {}
       }
       e.target.value = "";
-     const skipped = rows_to_save.length - saved;
-alert(
-  `Parsed ${rows_to_save.length} row(s).\n` +
-  `✅ Saved: ${saved} item(s)\n` +
-  `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
-);
+      const skipped = rows_to_save.length - saved;
+      alert(
+        `Parsed ${rows_to_save.length} row(s).\n` +
+        `✅ Saved: ${saved} item(s)\n` +
+        `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
+      );
       fetchItems();
     };
     reader.readAsArrayBuffer(file);
@@ -3093,40 +3155,56 @@ alert(
 
   const deleteItem = async (id) => {
     const deleted = items.find(i => i.id === id);
-    await logActivity("delete", deleted?.name, deleted?.shop); 
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, 
-      { method:"DELETE" }); 
-      setConfirmDelete(null); 
-      fetchItems(); 
-    };
+    await logActivity("delete", deleted?.name, deleted?.shop);
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`,
+      { method:"DELETE" });
+    setConfirmDelete(null);
+    fetchItems();
+  };
+
   const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
-const Field = ({ label, error, children }) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-    <label
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#2c3e50"
-      }}
-    >
-      {label}
-    </label>
 
-    {children}
+  // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
+  const toolbarBtnSt = {
+    display:"inline-flex", alignItems:"center", gap:6,
+    height:36, padding:"0 16px", borderRadius:9,
+    fontSize:13, fontWeight:700, cursor:"pointer",
+    fontFamily:"inherit", whiteSpace:"nowrap", border:"none",
+  };
 
-    {error && (
-      <span
+  const closeAddModal = () => { setShowAddModal(false); setErrors({}); setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" }); };
+
+  // Shared "click to upload / preview / remove" photo picker used in Add and Edit modals
+  const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
+    <Field label="Photo *" error={error}>
+      <div
+        onClick={() => inputRef.current.click()}
         style={{
-          fontSize: 12,
-          color: "#e53935",
-          fontWeight: 600
-        }}
-      >
-        {error}
-      </span>
-    )}
-  </div>
-);
+          cursor:"pointer", borderRadius:8, background:C.bg, textAlign:"center",
+          border:`1.5px dashed ${error ? "#e53935" : C.border}`,
+          padding: value ? 8 : "20px 8px",
+        }}>
+        {value ? (
+          <div style={{ position:"relative", display:"inline-block" }}>
+            <img src={value} alt="preview"
+              style={{ width:84, height:84, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, display:"block" }}/>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              style={{ position:"absolute", top:-8, right:-8, width:20, height:20, borderRadius:"50%",
+                border:"none", background:"#e53935", color:"#fff", fontSize:11, lineHeight:1, cursor:"pointer" }}>
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div style={{ color:C.muted, fontSize:12, fontFamily:"'Montserrat', sans-serif" }}>
+            <div style={{ fontSize:20, marginBottom:4 }}>📷</div>
+            Click to upload photo
+          </div>
+        )}
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" onChange={onPick} style={{ display:"none" }}/>
+    </Field>
+  );
+
   return (
     <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
@@ -3135,30 +3213,43 @@ const Field = ({ label, error, children }) => (
       {editingItem && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
           <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            {/* Header */}
             <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Edit Item</span>
               <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
                 style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
             </div>
-            {/* Body */}
             <div style={{ padding:"20px 24px" }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-  <Field label="Brand *" error={editErrors.brand}>
-    <select
-      value={editingItem.brand || ""}
-      onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
-      style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
-      <option value="">Select brand…</option>
-      {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-    </select>
-  </Field>
-  <Field label="Item Name *" error={editErrors.name}>
-    <input value={editingItem.name} onChange={e => setEditingItem({...editingItem, name:e.target.value})}
-      style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-  </Field>
-  
-  <Field label="Price" error={editErrors.price}>
+                <Field label="Brand *" error={editErrors.brand}>
+                  <select
+                    value={editingItem.brand || ""}
+                    onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
+                    <option value="">Select brand…</option>
+                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Item Name *" error={editErrors.name}>
+                  {(() => {
+                    const stockNames = getStockNamesForBrand(editingItem.brand);
+                    // keep the item's current name selectable even if it's no longer in the stock list
+                    const options = editingItem.name && !stockNames.includes(editingItem.name)
+                      ? [editingItem.name, ...stockNames]
+                      : stockNames;
+                    return (
+                      <select
+                        value={editingItem.name}
+                        disabled={!editingItem.brand}
+                        onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
+                        style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}`,
+                          opacity: !editingItem.brand ? 0.6 : 1, cursor: !editingItem.brand ? "not-allowed" : "pointer" }}>
+                        {!editingItem.brand && <option value="">Select brand first…</option>}
+                        {options.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    );
+                  })()}
+                </Field>
+                <Field label="Price" error={editErrors.price}>
                   <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
                     style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
                 </Field>
@@ -3166,15 +3257,13 @@ const Field = ({ label, error, children }) => (
                   <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
                     style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
                 </Field>
-                <Field label="Image URL" error={editErrors.image_url}>
-                  <input value={editingItem.image_url || ""} onChange={e => setEditingItem({...editingItem, image_url:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
-                  {editingItem.image_url && !editErrors.image_url && (
-                    <img src={editingItem.image_url} alt="preview"
-                      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
-                      onError={e => (e.target.style.display="none")}/>
-                  )}
-                </Field>
+                <PhotoPicker
+                  value={editingItem.image_url}
+                  onPick={e => handleImageSelect(e, "edit")}
+                  onRemove={() => setEditingItem({ ...editingItem, image_url:"" })}
+                  inputRef={editImageRef}
+                  error={editErrors.image_url}
+                />
               </div>
               <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
                 <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
@@ -3194,123 +3283,149 @@ const Field = ({ label, error, children }) => (
         </div>
       )}
 
-      {/* ── Add New Item ────────────────────────────────────────────────── */}
-      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", marginBottom:24, overflow:"hidden" }}>
-        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Add New Item</span>
-        </div>
-        <div style={{ padding:"20px 24px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-            <Field label="Brand *" error={errors.brand}>
-  <select
-    value={newItem.brand}
-    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
-    <option value="">Select brand…</option>
-    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-  </select>
-</Field>
-<Field label="Item Name *" error={errors.name}>
-  <input value={newItem.name} onChange={e => setNewItem({...newItem, name:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-</Field>
-<Field label="Price *" error={errors.price}>
-  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
-</Field>
-<Field label="Unit (Optional)">
-  <input value={newItem.unit} onChange={e => setNewItem({...newItem, unit:e.target.value})}
-    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
-</Field>
-<Field label="Image URL *" error={errors.image_url}>
-  <input value={newItem.image_url} onChange={e => setNewItem({...newItem, image_url:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
-  {newItem.image_url && !errors.image_url && (
-    <img src={newItem.image_url} alt="preview"
-      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
-      onError={e => (e.target.style.display="none")}/>
-  )}
-</Field>
+      {/* ── Add New Item Modal (was a solo card — now a popup like Edit) ─── */}
+      {showAddModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
+            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Add New Item</span>
+              <button onClick={closeAddModal}
+                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+            </div>
+            <div style={{ padding:"20px 24px" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
+                <Field label="Brand *" error={errors.brand}>
+                  <select
+                    value={newItem.brand}
+                    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value, name:"" })}
+                    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
+                    <option value="">Select brand…</option>
+                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Item Name *" error={errors.name}>
+                  {(() => {
+                    const stockNames = getStockNamesForBrand(newItem.brand);
+                    return (
+                      <>
+                        <select
+                          value={newItem.name}
+                          disabled={!newItem.brand}
+                          onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                          style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}`,
+                            opacity: !newItem.brand ? 0.6 : 1, cursor: !newItem.brand ? "not-allowed" : "pointer" }}>
+                          <option value="">
+                            {!newItem.brand ? "Select brand first…" : stockNames.length === 0 ? "No products found for this brand" : "Select item…"}
+                          </option>
+                          {stockNames.map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        {newItem.brand && stockNames.length === 0 && (
+                          <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
+                            No matching products in Stock Inventory for this brand yet.
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </Field>
+                <Field label="Stock" error={errors.stock}>
+                  <input value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
+                </Field>
+                <Field label="Price *" error={errors.price}>
+                  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+                </Field>
+                <PhotoPicker
+                  value={newItem.image_url}
+                  onPick={e => handleImageSelect(e, "add")}
+                  onRemove={() => setNewItem({ ...newItem, image_url:"" })}
+                  inputRef={addImageRef}
+                  error={errors.image_url}
+                />
+              </div>
+
+              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
+                <button onClick={closeAddModal}
+                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button onClick={addItem} disabled={loading}
+                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
+                    background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
+                    color:C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
+                  {loading ? "Adding…" : "Add Item"}
+                </button>
+              </div>
+            </div>
           </div>
-
-          <div style={{ marginTop:"1.25rem", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            <label style={{
-              display:"inline-flex", alignItems:"center", gap:6,
-              height:36, padding:"0 16px", borderRadius:9,
-              border:`1px solid ${C.border}`, background:C.white,
-              fontSize:13, fontWeight:700, cursor:"pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap",
-            }}>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              Import Excel
-              <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-            </label>
-
-            <button onClick={addItem} disabled={loading}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:9, border:"none",
-                background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                color: C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-              {loading ? "Adding…" : <><span style={{ fontSize:15 }}>+</span> Add Item</>}
-            </button>
-          </div>
-
-          <p style={{ marginTop:10, fontSize:11, color:C.muted, fontStyle:"italic" }}>
-            Excel columns: <strong>name</strong>, <strong>price</strong> — <em>shop</em>, <em>brand</em>, <em>unit</em>, <em>stock</em>, <em>image_url</em> optional.
-          </p>
         </div>
-      </div>
+      )}
 
       {/* ── Shop Items Table ---*/}
       <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
           <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
-          
         </div>
-      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-        <div style={{ position:"relative" }}>
-          <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
-          <input
-            type="text"
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ padding:"7px 12px 7px 28px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", width:220 }}
-          />
-        </div>
-        <select
-          value={filterShop}
-          onChange={e => setFilterShop(e.target.value)}
-          style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-          <option value="all">All Shops</option>
-          {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
-        </select>
-        {(searchQuery || filterShop !== "all") && (
-          <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
-            style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#5a7a65" }}>
-            Clear
-          </button>
-        )}
 
-        {/* ── Activity Log button ── */}
-        <button onClick={() => setShowActivityLog(true)}
-          style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-          <ActivityIcon size={13}/> Activity Log
-          {activityLog.length > 0 && (
-            <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-              {activityLog.length}
-            </span>
+        {/* Toolbar: search, filter, and the three aligned action buttons */}
+        <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ position:"relative" }}>
+            <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ padding:"7px 12px 7px 28px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", width:220 }}
+            />
+          </div>
+          <select
+            value={filterShop}
+            onChange={e => setFilterShop(e.target.value)}
+            style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            <option value="all">All Shops</option>
+            {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+          </select>
+          {(searchQuery || filterShop !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
+              style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#5a7a65" }}>
+              Clear
+            </button>
           )}
-        </button>
 
-        <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
-          {filteredItems.length} of {items.length} items
-        </span>
-      </div>
+          {/* ── Add Item / Import Excel / Activity Log — aligned together ── */}
+          <button onClick={() => setShowAddModal(true)}
+            style={{ ...toolbarBtnSt, background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white, boxShadow:"0 2px 10px rgba(0,180,90,0.28)" }}>
+            <span style={{ fontSize:15 }}>+</span> Add Item
+          </button>
+
+          <label style={{ ...toolbarBtnSt, border:`1px solid ${C.border}`, background:C.white, color:C.ink }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Import Excel
+            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
+          </label>
+
+          <button onClick={() => setShowActivityLog(true)}
+            style={{ ...toolbarBtnSt, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk }}>
+            <ActivityIcon size={13}/> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+                {activityLog.length}
+              </span>
+            )}
+          </button>
+
+          <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
+            {filteredItems.length} of {items.length} items
+          </span>
+        </div>
+
         {filteredItems.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
         ) : (
@@ -3341,24 +3456,20 @@ const Field = ({ label, error, children }) => (
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                        {item.is_visible ? "Visible" : "Hidden"}
-                      </span>
-                    </td>
+                      <td style={{ padding:"10px 12px" }}>
+                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                          {item.is_visible ? "Visible" : "Hidden"}
+                        </span>
+                      </td>
                       <td style={{ padding:"10px 12px" }}>
                         <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                          {/* Edit */}
                           <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
                             style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
                             Edit
                           </button>
-                          {/* Hide/Show */}
                           <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
                             {item.is_visible ? "Hide" : "Show"}
                           </button>
-                          {/* Delete */}
                           <button onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
                             style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
                             <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
@@ -3377,11 +3488,11 @@ const Field = ({ label, error, children }) => (
         )}
       </div>
       {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
+        <InventoryActivityLogPanel
+          log={activityLog}
+          onClose={() => setShowActivityLog(false)}
+        />
+      )}
     </div>
   );
 }
@@ -6925,702 +7036,767 @@ const emptyIcon =
   );
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
-// MOBILE ORDERS
-// ── Status maps ───────────────────────────────────────────────────────────────
-const DB_TO_UI_STATUS = {
-  pending:   "pending",
-  shipping:  "in_transit",
-  received:  "received",
-  cancelled: "rejected",
-};
-const UI_TO_DB_STATUS = {
-  pending:    "pending",
-  accepted:   "pending",
-  in_transit: "shipping",
-  received:   "received",
-  rejected:   "cancelled",
-};
+// MOBILE ORDERS — e-commerce-style order review & fulfillment.
+// One place to act on an order: open it, see everything, act with guardrails.
+// Disposing an order deducts stock straight from the FIFO/FEFO batch queue
+// used by Stock Inventory, so both modules always agree on what's on hand.
+// No payment step — this only tracks the order → stock lifecycle.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/* ── Status maps ── */
+const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
+const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
 
 const STATUS_CONFIG = {
-  pending:    { label:"Processing",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  accepted:   { label:"Accepted",   bg:"#e1f5ee", color:"#085041", dot:"#0F6E56" },
-  in_transit: { label:"In Transit", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
-  received:   { label:"Received",   bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  rejected:   { label:"Rejected",   bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
+  pending:  { label:"Needs Review", bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  accepted: { label:"Accepted",     bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
+  disposed: { label:"Fulfilled",    bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  rejected: { label:"Rejected",     bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
 };
 
-const STATUS_FLOW = {
-  pending:    { nextAction:"Accept",        nextStatus:"accepted",   secondAction:"Reject", secondStatus:"rejected" },
-  accepted:   { nextAction:"Ship",          nextStatus:"in_transit" },
-  in_transit: { nextAction:"Mark Received", nextStatus:"received" },
-};
+const REJECT_REASONS = [
+  "Out of stock",
+  "Customer requested cancellation",
+  "Unable to fulfill in time",
+  "Duplicate order",
+  "Other",
+];
+
+/* ── FIFO / FEFO helpers — mirror Stock Inventory exactly ── */
+const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
+function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
+function getFifoMethod(brand) {
+  return isPharmaBrand(brand)
+    ? { method:"FEFO", queueLabel:"nearest expiry dispensed first" }
+    : { method:"FIFO", queueLabel:"oldest received batch used first" };
+}
+function sortBatchesByMethod(batches, brand) {
+  const { method } = getFifoMethod(brand);
+  return [...batches].sort((a, b) => {
+    if (method === "FEFO") {
+      const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+      const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+      return da - db;
+    }
+    const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+    const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+    return da - db;
+  });
+}
+
+const normalizeName = (str) => (str || "").trim().toLowerCase().replace(/s$/i, "");
 
 function normalizeOrder(o) {
   return {
-    id:        `ORD-${String(o.id).padStart(4, "0")}`,
-    _dbId:     o.id,
-    customer:  o.user_name ?? `User #${o.user_id}`,
-    phone:     o.phone  ?? "",
-    brand:     o.brand  ?? "",
-    branch:    o.branch ?? "",
-    address:   o.address ?? "",  
-    items:     Array.isArray(o.items) ? o.items : [],
-    total:     o.total_amount,
-    status:    DB_TO_UI_STATUS[o.status] ?? "pending",
+    id: `ORD-${String(o.id).padStart(4, "0")}`,
+    _dbId: o.id,
+    customer: o.user_name ?? `User #${o.user_id}`,
+    phone: o.phone ?? "",
+    brand: o.brand ?? "",
+    branch: o.branch ?? "",
+    address: o.address ?? "",
+    items: Array.isArray(o.items) ? o.items : [],
+    total: o.total_amount,
+    status: DB_TO_UI_STATUS[o.status] ?? "pending",
     createdAt: o.created_at,
   };
 }
 
-function MobileOrdersContent() {
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-PH", { month:"short", day:"numeric" });
+}
+
+
+const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
+
+/* ── tiny building blocks ── */
+const primaryBtn = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.25)" };
+const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
+const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#ef4444,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
+const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:`1px solid ${C.redBorder}`, background:C.redBg, color:C.red, fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"inherit" };
+
+function StatusBadge({ status, size="md" }) {
+  const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const small = size === "sm";
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding: small ? "2px 8px" : "4px 11px", borderRadius:20, fontSize: small ? 10.5 : 12, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+      {s.label}
+    </span>
+  );
+}
+
+/* ── Toast notifications (replaces alert()) ── */
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onClose, 3800);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  return (
+    <div style={{ position:"fixed", bottom:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:10,
+      maxWidth:360, padding:"13px 16px", borderRadius:12, background:"#fff",
+      border:`1px solid ${isErr ? C.redBorder : C.greenMid}`, boxShadow:"0 12px 32px rgba(0,0,0,0.16)", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+        background: isErr ? C.redBg : C.greenLt, color: isErr ? C.red : C.green }}>
+        {isErr ? <AlertTriangle size={14}/> : <Check size={14}/>}
+      </div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{toast.title}</div>
+        {toast.message && <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{toast.message}</div>}
+      </div>
+      <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:2 }}><X size={14}/></button>
+    </div>
+  );
+}
+
+/* ── Order progress stepper ── */
+function OrderStepper({ status }) {
+  const steps = [
+    { key:"pending",  label:"Placed" },
+    { key:"accepted", label:"Accepted" },
+    { key:"disposed", label:"Fulfilled" },
+  ];
+  const rejected = status === "rejected";
+  const activeIdx = rejected ? 0 : steps.findIndex(s => s.key === status);
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", padding:"14px 4px 4px" }}>
+      {steps.map((s, i) => {
+        const done = !rejected && i < activeIdx;
+        const current = !rejected && i === activeIdx;
+        const isLast = i === steps.length - 1;
+        // if rejected, only "Placed" ever completes — everything after shows as cut off
+        const showAsRejectedTail = rejected && i > 0;
+        return (
+          <React.Fragment key={s.key}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:64 }}>
+              <div style={{
+                width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:11, fontWeight:800,
+                background: showAsRejectedTail ? "#f3f4f6" : (done || current) ? `linear-gradient(135deg,${C.teal},${C.green})` : "#eef6f1",
+                color: showAsRejectedTail ? "#9ca3af" : (done || current) ? "#fff" : "#9db8a8",
+                border: current ? `2px solid ${C.green}` : "none",
+              }}>
+                {done ? <Check size={13}/> : i + 1}
+              </div>
+              <span style={{ fontSize:10.5, fontWeight:700, color: showAsRejectedTail ? "#9ca3af" : (done||current) ? C.ink : "#9db8a8", whiteSpace:"nowrap" }}>{s.label}</span>
+            </div>
+            {!isLast && (
+              <div style={{ flex:1, height:2, margin:"0 2px 18px", background: (!rejected && i < activeIdx) ? C.green : "#e5efe8" }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+      {rejected && (
+        <div style={{ marginLeft:10, display:"flex", alignItems:"center", gap:6, color:C.red, fontSize:11.5, fontWeight:800 }}>
+          <X size={14}/> Rejected
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Reason picker used for Reject / Cancel — required field, validated ── */
+function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }) {
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [touched, setTouched] = useState(false);
+  const valid = reason !== "";
+
+  return (
+    <div style={{ background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:12, padding:14 }}>
+      <div style={{ fontSize:12.5, fontWeight:800, color:"#7f1d1d", marginBottom:10 }}>{title}</div>
+      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Reason *</label>
+      <select value={reason} onChange={e => setReason(e.target.value)} onBlur={() => setTouched(true)}
+        style={{ width:"100%", height:36, borderRadius:8, border:`1px solid ${touched && !valid ? C.red : "#fecaca"}`, padding:"0 10px", fontSize:12.5, fontFamily:"inherit", marginBottom: touched && !valid ? 4 : 10, background:"#fff" }}>
+        <option value="">Select a reason…</option>
+        {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      {touched && !valid && <div style={{ fontSize:11, color:C.red, fontWeight:700, marginBottom:10 }}>Please choose a reason before continuing.</div>}
+      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Note (optional)</label>
+      <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add any extra context…"
+        style={{ width:"100%", height:56, borderRadius:8, border:"1px solid #fecaca", padding:"8px 10px", fontSize:12.5, fontFamily:"inherit", resize:"vertical", marginBottom:12, background:"#fff", boxSizing:"border-box" }}/>
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+        <button onClick={onCancel} disabled={saving} style={ghostBtn}>Back</button>
+        <button
+          onClick={() => { if (!valid) { setTouched(true); return; } onConfirm(reason, note); }}
+          disabled={saving}
+          style={{ ...dangerBtn, opacity: saving ? 0.6 : 1 }}>
+          {saving ? "Saving…" : confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Order card (e-commerce style) ── */
+function OrderCard({ order, onOpen }) {
+  const completed = order.status === "disposed" || order.status === "rejected";
+  const preview = order.items.slice(0, 2).map(i => `${i.qty}× ${i.name}`).join(", ");
+  const more = order.items.length > 2 ? ` +${order.items.length - 2} more` : "";
+
+  const ctaLabel = order.status === "pending" ? "Review Order" : order.status === "accepted" ? "Manage Order" : "View Details";
+
+  return (
+    <div onClick={() => onOpen(order)}
+      style={{ background:C.white, border:`1px solid ${completed ? "#e6efe9" : "rgba(0,168,76,0.16)"}`, borderRadius:16,
+        padding:16, cursor:"pointer", boxShadow:"0 2px 12px rgba(0,140,60,0.06)", opacity: completed ? 0.85 : 1,
+        transition:"transform .12s ease, box-shadow .12s ease", display:"flex", flexDirection:"column", gap:12 }}
+      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 10px 26px rgba(0,140,60,0.13)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 12px rgba(0,140,60,0.06)"; }}>
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>#{order.id}</div>
+          <div style={{ fontSize:11, color:C.muted, display:"flex", alignItems:"center", gap:4, marginTop:2 }}>
+            <Clock size={11}/> {timeAgo(order.createdAt)}
+          </div>
+        </div>
+        <StatusBadge status={order.status}/>
+      </div>
+
+      <div>
+        <div style={{ fontWeight:700, fontSize:13.5, color:C.ink }}>{order.customer}</div>
+        <div style={{ fontSize:11.5, color:C.muted, display:"flex", alignItems:"center", gap:4, marginTop:1 }}>
+          <Phone size={11}/> {order.phone || "—"}
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:10.5, fontWeight:700, background:C.greenLt, color:C.greenDk }}>{order.brand}</span>
+        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:10.5, fontWeight:700, background:"#f0f0f0", color:"#555" }}>{order.branch}</span>
+      </div>
+
+      <div style={{ fontSize:12, color:C.muted, borderTop:`1px dashed ${C.border}`, paddingTop:10, minHeight:18 }}>
+        <Package size={11} style={{ marginRight:4, verticalAlign:-1 }}/>
+        {preview || "No items"}{more}
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:2 }}>
+        <div>
+          <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Total</div>
+          <div style={{ fontSize:17, fontWeight:800, color:C.green }}>{fmtPeso1(order.total)}</div>
+        </div>
+        <button onClick={e => { e.stopPropagation(); onOpen(order); }}
+          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"9px 15px", borderRadius:10, border:"none", fontSize:12.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+            background: order.status === "pending" ? `linear-gradient(135deg,${C.teal},${C.green})` : order.status === "accepted" ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "#eef2f0",
+            color: completed ? C.muted : "#fff" }}>
+          {ctaLabel} <ChevronRight size={13}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Order Detail Drawer — the single place actions happen ── */
+function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState }) {
+  const [mode, setMode] = useState(null); // null | "reject" | "dispose"
+  const [accepting, setAccepting] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+
+  useEffect(() => { setMode(null); }, [order?.id]);
+
+  if (!order) return null;
+
+  const doAccept = async () => {
+    setAccepting(true);
+    try { await onAccept(order); } finally { setAccepting(false); }
+  };
+
+  const doReject = async (reason, note) => {
+    setRejecting(true);
+    try { await onReject(order, reason, note); setMode(null); } finally { setRejecting(false); }
+  };
+
+  const startDispose = () => { setMode("dispose"); onDisposeCheck(order); };
+
+  const dState = disposeState && disposeState.orderId === order.id ? disposeState : null;
+  const allOk = dState && dState.results.length > 0 && dState.results.every(r => r.sufficient);
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end" }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif" }}>
+
+        {/* Header */}
+        <div style={{ padding:"18px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div>
+              <div style={{ fontSize:17, fontWeight:800 }}>Order #{order.id}</div>
+              <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>Placed {fmtDate(order.createdAt)}</div>
+            </div>
+            <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <X size={14}/>
+            </button>
+          </div>
+          <OrderStepper status={order.status}/>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:"auto", padding:"18px 22px" }}>
+
+          {/* Customer */}
+          <SectionCard title="Customer">
+            <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>{order.customer}</div>
+            <div style={{ fontSize:12.5, color:C.muted, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Phone size={12}/> {order.phone || "—"}</div>
+          </SectionCard>
+
+          {order.address && (
+            <SectionCard title="Delivery Address" tint="amber">
+              <div style={{ display:"flex", gap:7, alignItems:"flex-start" }}>
+                <MapPin size={13} color="#8a6a00" style={{ marginTop:1, flexShrink:0 }}/>
+                <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{order.address}</div>
+              </div>
+            </SectionCard>
+          )}
+
+          <SectionCard title={`Items (${order.items.length})`}>
+            {order.items.length === 0 ? (
+              <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No item details available.</div>
+            ) : (
+              <div style={{ display:"grid", gap:6 }}>
+                {order.items.map((item, i) => (
+                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:12.5, color:C.ink }}>{item.name}</div>
+                      <div style={{ fontSize:11, color:C.muted }}>Qty {item.qty}</div>
+                    </div>
+                    <div style={{ fontWeight:700, fontSize:12.5, color:C.green }}>{fmtPeso1(item.price * item.qty)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
+              <div style={{ fontWeight:800, fontSize:13, color:C.ink }}>Total</div>
+              <div style={{ fontWeight:800, fontSize:16, color:C.green }}>{fmtPeso1(order.total)}</div>
+            </div>
+          </SectionCard>
+
+          {/* ── Actions ── */}
+          <div style={{ marginTop:6 }}>
+            {order.status === "pending" && mode !== "reject" && (
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={doAccept} disabled={accepting} style={{ ...primaryBtn, flex:1, opacity:accepting?0.6:1 }}>
+                  {accepting ? "Accepting…" : "Accept Order"}
+                </button>
+                <button onClick={() => setMode("reject")} style={dangerTextBtn}>Reject</button>
+              </div>
+            )}
+            {order.status === "pending" && mode === "reject" && (
+              <ReasonForm title="Reject this order" confirmLabel="Reject Order" saving={rejecting}
+                onCancel={() => setMode(null)} onConfirm={doReject}/>
+            )}
+
+            {order.status === "accepted" && mode !== "dispose" && mode !== "reject" && (
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={startDispose} style={{ ...primaryBtn, flex:1 }}>Check Stock &amp; Dispose</button>
+                <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
+              </div>
+            )}
+            {order.status === "accepted" && mode === "reject" && (
+              <ReasonForm title="Cancel this order" confirmLabel="Cancel Order" saving={rejecting}
+                onCancel={() => setMode(null)} onConfirm={doReject}/>
+            )}
+
+            {order.status === "accepted" && mode === "dispose" && (
+              <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:800, color:C.greenDk, marginBottom:10 }}>
+                  <ShieldCheck size={14}/> FIFO / FEFO stock check
+                </div>
+                {!dState || dState.checking ? (
+                  <div style={{ textAlign:"center", padding:"20px 0", color:C.muted, fontSize:12.5 }}>Checking available stock…</div>
+                ) : (
+                  <>
+                    <div style={{ display:"grid", gap:8, marginBottom:12 }}>
+                      {dState.results.map((r, i) => (
+                        <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"9px 11px", borderRadius:9,
+                          background: !r.matched ? C.redBg : r.sufficient ? C.greenLt : C.warnBg,
+                          border:`1px solid ${!r.matched ? C.redBorder : r.sufficient ? C.greenMid : C.warnBorder}` }}>
+                          <div style={{ minWidth:0 }}>
+                            <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</div>
+                            <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>
+                              {!r.matched ? "Not linked to a stock ingredient" : `Need ${r.qty}${r.unit?" "+r.unit:""} · ${r.available}${r.unit?" "+r.unit:""} on hand`}
+                            </div>
+                          </div>
+                          <span style={{ flexShrink:0, fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
+                            color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412",
+                            background: !r.matched ? "#fee2e2" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
+                            {!r.matched ? "UNMATCHED" : r.sufficient ? "OK" : "SHORT"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {!allOk && (
+                      <div style={{ display:"flex", gap:7, alignItems:"flex-start", background:C.warnBg, border:`1px solid ${C.warnBorder}`, borderRadius:9, padding:"9px 11px", marginBottom:12, fontSize:11.5, color:"#9a3412" }}>
+                        <AlertTriangle size={13} style={{ flexShrink:0, marginTop:1 }}/>
+                        <span>Some items can't be fulfilled yet. Top up stock via Receive Stock, then check again.</span>
+                      </div>
+                    )}
+                    <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+                      <button onClick={() => setMode(null)} disabled={dState.saving} style={ghostBtn}>Back</button>
+                      <button onClick={() => startDispose()} disabled={dState.saving} style={{ ...ghostBtn, borderColor:C.greenMid, color:C.greenDk }}>Re-check</button>
+                      <button onClick={() => onDisposeConfirm(order, dState.results)} disabled={!allOk || dState.saving}
+                        style={{ ...primaryBtn, cursor:(!allOk||dState.saving)?"not-allowed":"pointer", opacity:(!allOk||dState.saving)?0.55:1 }}>
+                        {dState.saving ? "Disposing…" : "Confirm Dispose"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {order.status === "disposed" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk }}>
+                <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                <span>This order was fulfilled and its items were deducted from the FIFO/FEFO stock queue.</span>
+              </div>
+            )}
+            {order.status === "rejected" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#7f1d1d" }}>
+                <X size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                <span>This order was rejected. No stock was deducted.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, children, tint }) {
+  const bg = tint === "amber" ? "#fffdf0" : "#f8fffe";
+  const border = tint === "amber" ? "#e8d5a3" : C.greenLt;
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.06em", color:C.muted, marginBottom:7 }}>{title}</div>
+      <div style={{ padding:"12px 13px", background:bg, borderRadius:12, border:`1px solid ${border}` }}>{children}</div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MAIN COMPONENT
+───────────────────────────────────────────────────────────────────────── */
+function MobileOrdersContent({ user }) {
+  const apiUrl   = process.env.REACT_APP_API_URL;
+  const userName = user?.name || "Admin";
 
   const [activityLog,     setActivityLog]     = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
-  const [orders,       setOrders]       = useState([]);
-  const [loadingData,  setLoadingData]  = useState(true);
-  const [error,        setError]        = useState(null);
-  const [filterBrand,  setFilterBrand]  = useState("all");
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [orders,      setOrders]      = useState([]);
+  const [ingredients, setIngredients] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error,       setError]       = useState(null);
+
   const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // all | pending | accepted | disposed | rejected
   const [viewOrder,    setViewOrder]    = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null); // { id, nextUiStatus, label }
-  const [openDropdown, setOpenDropdown] = useState(null); // order.id with open dropdown
-  const [activeTab,    setActiveTab]    = useState("active"); // "active" | "completed"
-  const printRef = useRef(null);
-const [printReceipts, setPrintReceipts] = useState([]);
+  const [disposeState, setDisposeState] = useState(null);  // { orderId, checking, results, saving }
+  const [toast,        setToast]        = useState(null);
 
-const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data : []);
-  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
-}, []);
+  const showToast = (type, title, message) => setToast({ type, title, message });
 
-const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/orders-activity-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
-    });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
+  /* ── activity log ── */
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${apiUrl}/orders-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+  }, [apiUrl]);
 
-  // ── Close dropdown on outside click ───────────────────────────────────────
-  useEffect(() => {
-    if (!openDropdown) return;
-    const close = () => { setOpenDropdown(null); setDropdownRect(null); };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [openDropdown]);
+  const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+    try {
+      await fetch(`${apiUrl}/orders-activity-log`, {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ action, item_name:itemName, branch:branchName, performed_by:userName, changes }),
+      });
+    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+  }, [apiUrl, userName]);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const logIngredientActivity = useCallback(async (ingredientName, branchName, changes) => {
+    try {
+      await fetch(`${apiUrl}/ingredient-activity-log`, {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ action:"dispose", ingredient_name:ingredientName, branch:branchName, performed_by:userName, changes }),
+      });
+    } catch (err) { console.warn("Ingredient activity log failed (non-fatal):", err); }
+  }, [apiUrl, userName]);
+
+  /* ── fetch orders + ingredients ── */
   const fetchOrders = async () => {
     setLoadingData(true);
     setError(null);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/orders`, { credentials:"include" });
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.map(normalizeOrder));
+    } catch (err) { setError(err.message); }
+    finally { setLoadingData(false); }
+  };
+
+  const fetchIngredients = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/ingredients`);
+      const d = await res.json();
+      setIngredients(Array.isArray(d) ? d : []);
+    } catch (err) { console.warn("Failed to fetch ingredients:", err); }
+  }, [apiUrl]);
+
+  useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
+
+  /* ── plain status change (accept / reject / cancel) ── */
+  const advanceStatus = async (order, nextUiStatus, changeNote) => {
+    const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
+    setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
+    try {
+      const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+        method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
+        body: JSON.stringify({ status:dbStatus }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      await logActivity("edit", `Order #${order.id}`, order.branch, changeNote || `status → ${nextUiStatus}`);
+      await fetchActivityLog();
     } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoadingData(false);
+      fetchOrders();
+      showToast("error", "Couldn't update order", err.message);
+      throw err;
     }
   };
 
-  useEffect(() => { fetchOrders(); fetchActivityLog(); },  [fetchActivityLog]);
-
-  // ── Persist active tab so browser refresh stays on this view ──────────────
-  useEffect(() => {
-    localStorage.setItem("bm_active_tab", "mobile_orders");
-  }, []);
-
-  // ── Status advance (actual API call) ──────────────────────────────────────
-  const advanceStatus = async (id, nextUiStatus) => {
-  const order = orders.find(o => o.id === id);
-  if (!order) return;
-  const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
-
-  setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
-  if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
-
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ status: dbStatus }),
-    });
-    if (!res.ok) throw new Error("Update failed");
-    await logActivity("edit", `Order #${order.id}`, order.branch, `status → ${nextUiStatus}`); // ← add here
-    await fetchActivityLog();
-  } catch (err) {
-    fetchOrders();
-    alert(`Could not update order: ${err.message}`);
-  }
-};
-
-  // ── Request action → open confirm modal ───────────────────────────────────
-  const requestAdvance = (id, nextUiStatus, label) => {
-    setOpenDropdown(null);
-    setConfirmModal({ id, nextUiStatus, label });
+  const handleAccept = async (order) => {
+    try {
+      await advanceStatus(order, "accepted", "Order accepted");
+      showToast("success", "Order accepted", `#${order.id} is ready to be fulfilled.`);
+    } catch {}
   };
 
-  const confirmAdvance = () => {
-    if (!confirmModal) return;
-    advanceStatus(confirmModal.id, confirmModal.nextUiStatus);
-    setConfirmModal(null);
+  const handleReject = async (order, reason, note) => {
+    try {
+      const changeNote = `${order.status === "accepted" ? "Cancelled" : "Rejected"} — ${reason}${note ? `: ${note}` : ""}`;
+      await advanceStatus(order, "rejected", changeNote);
+      showToast("success", "Order rejected", `#${order.id} was marked as rejected.`);
+    } catch {}
   };
 
-  const allBrands   = [...new Set(orders.map(o => o.brand))];
-  const allBranches = [...new Set(orders.map(o => o.branch))];
+  /* ── FIFO/FEFO matching + deduction ── */
+  const matchIngredient = useCallback((itemName, branch) => {
+    const target = normalizeName(itemName);
+    return (
+      ingredients.find(i => normalizeName(i.name) === target && i.branch === branch) ||
+      ingredients.find(i => normalizeName(i.name) === target) ||
+      null
+    );
+  }, [ingredients]);
 
-  const fmtPeso = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  const fetchBatchesFor = async (ingredientId) => {
+    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
+    const d = await res.json();
+    return Array.isArray(d) ? d : [];
+  };
 
+  const checkOrderStock = useCallback(async (order) => {
+    const results = [];
+    for (const item of order.items) {
+      const ing = matchIngredient(item.name, order.branch);
+      if (!ing) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
+      const batches = await fetchBatchesFor(ing.id);
+      const available = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      results.push({ ...item, matched:true, ingredientId:ing.id, brand:ing.brand, unit:ing.unit, available, sufficient: available >= Number(item.qty || 0) });
+    }
+    return results;
+  }, [matchIngredient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runDisposeCheck = async (order) => {
+    setDisposeState({ orderId:order.id, checking:true, results:[], saving:false });
+    const results = await checkOrderStock(order);
+    setDisposeState({ orderId:order.id, checking:false, results, saving:false });
+  };
+
+  const deductFromFifo = async (result, order) => {
+    let remaining = Number(result.qty || 0);
+    const batches = sortBatchesByMethod(await fetchBatchesFor(result.ingredientId), result.brand);
+    for (const b of batches) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, Number(b.stock || 0));
+      if (take <= 0) continue;
+      await fetch(`${apiUrl}/ingredient-batches/${b.id}`, {
+        method:"PUT", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ ...b, stock: Number(b.stock) - take }),
+      });
+      remaining -= take;
+    }
+    const freshBatches = await fetchBatchesFor(result.ingredientId);
+    const totalStock = freshBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
+    const ingredient = ingredients.find(i => i.id === result.ingredientId);
+    if (ingredient) {
+      await fetch(`${apiUrl}/ingredients/${result.ingredientId}`, {
+        method:"PUT", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ ...ingredient, stock: totalStock }),
+      });
+      await logIngredientActivity(ingredient.name, ingredient.branch, `-${result.qty} ${ingredient.unit} dispensed for Order #${order.id}`);
+    }
+  };
+
+  const handleDisposeConfirm = async (order, results) => {
+    setDisposeState(prev => ({ ...prev, saving:true }));
+    try {
+      for (const r of results) if (r.matched) await deductFromFifo(r, order);
+      await advanceStatus(order, "disposed", `Fulfilled — ${order.items.length} item(s) deducted from FIFO/FEFO stock`);
+      await fetchIngredients();
+      setDisposeState(null);
+      setViewOrder(null);
+      showToast("success", "Order fulfilled", `#${order.id} stock was deducted and the order is complete.`);
+    } catch (err) {
+      setDisposeState(prev => ({ ...prev, saving:false }));
+      showToast("error", "Dispose failed", err.message);
+    }
+  };
+
+  /* ── derived data ── */
   const filtered = orders.filter(o => {
-    if (filterBrand  !== "all" && o.brand  !== filterBrand)  return false;
-    if (filterBranch !== "all" && o.branch !== filterBranch) return false;
-    if (filterStatus !== "all" && o.status !== filterStatus) return false;
+    if (statusFilter !== "all" && o.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!o.id.toLowerCase().includes(q) && !o.customer.toLowerCase().includes(q)) return false;
     }
     return true;
-  });
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const counts = {
-    total:      orders.length,
-    pending:    orders.filter(o => o.status === "processing").length,
-    in_transit: orders.filter(o => o.status === "in_transit").length,
-    received:   orders.filter(o => o.status === "received").length,
+    total:    orders.length,
+    pending:  orders.filter(o => o.status === "pending").length,
+    accepted: orders.filter(o => o.status === "accepted").length,
+    disposed: orders.filter(o => o.status === "disposed").length,
   };
 
-  // ── Sub-components ────────────────────────────────────────────────────────
+  const FILTER_CHIPS = [
+    { key:"all",      label:"All Orders",   count:counts.total },
+    { key:"pending",  label:"Needs Review", count:counts.pending },
+    { key:"accepted", label:"Accepted",     count:counts.accepted },
+    { key:"disposed", label:"Fulfilled",    count:counts.disposed },
+    { key:"rejected", label:"Rejected",     count:orders.filter(o=>o.status==="rejected").length },
+  ];
 
-  const StatusBadge = ({ status }) => {
-    const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
-        {s.label}
-      </span>
-    );
-  };
-
-  // ── Confirmation Modal ────────────────────────────────────────────────────
-  const ConfirmModal = () => {
-    if (!confirmModal) return null;
-    const order = orders.find(o => o.id === confirmModal.id);
-    const isDanger = confirmModal.nextUiStatus === "rejected";
-    return (
-      <div
-        onClick={() => setConfirmModal(null)}
-        style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20 }}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{ background: "#fff", borderRadius: 18, padding: "28px 30px", maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.22)", border: "1px solid rgba(0,168,76,0.15)" }}
-        >
-          {/* Icon */}
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: isDanger ? "#fef2f2" : "#f0fdf5", border: `1.5px solid ${isDanger ? "#fecaca" : "#d1eedd"}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            {isDanger ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00897b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
-                <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
-                <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
-              </svg>
-            )}
-          </div>
-
-          {/* Text */}
-          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: isDanger ? "#dc2626" : "#00897b", marginBottom: 6 }}>
-            Confirm Action
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#0d2b1e", marginBottom: 6 }}>
-            {confirmModal.label}
-          </div>
-          <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 24 }}>
-            Order <strong style={{ color: "#0d2b1e" }}>#{confirmModal.id}</strong>
-            {order ? <span> · {order.customer}</span> : null}
-          </div>
-
-          {/* Buttons */}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button
-              onClick={() => setConfirmModal(null)}
-              style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid #d1eedd", background: "#f8fffe", color: "#5a7a65", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmAdvance}
-              style={{
-                padding: "9px 22px", borderRadius: 9, border: "none",
-                background: isDanger ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "linear-gradient(135deg,#2E7D32,#00897b)",
-                color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              Confirm
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Action Dropdown (position:fixed so it never clips or shifts layout) ────
-  const [dropdownRect, setDropdownRect] = useState(null);
-
-  const ActionButtons = ({ order }) => {
-    const flow = STATUS_FLOW[order.status];
-    const isOpen = openDropdown === order.id;
-    const btnRef = useRef(null);
-
-    if (!flow) return <span style={{ fontSize: 11, color: "#5a7a65", fontWeight: 600 }}>—</span>;
-
-    const actions = [
-      { label: flow.nextAction, nextStatus: flow.nextStatus, danger: false },
-      ...(flow.secondAction ? [{ label: flow.secondAction, nextStatus: flow.secondStatus, danger: true }] : []),
-    ];
-
-    const handleToggle = (e) => {
-      e.stopPropagation();
-      if (isOpen) {
-        setOpenDropdown(null);
-        setDropdownRect(null);
-      } else {
-        const rect = btnRef.current.getBoundingClientRect();
-        setDropdownRect({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-        setOpenDropdown(order.id);
-      }
-    };
-
-    return (
-      <div style={{ display: "inline-block" }} onClick={e => e.stopPropagation()}>
-        <button
-          ref={btnRef}
-          onClick={handleToggle}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c",
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
-            <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
-            <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
-          </svg>
-          Action
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-
-        {isOpen && dropdownRect && (
-          <div
-            style={{
-              position: "fixed",
-              top: dropdownRect.top,
-              right: dropdownRect.right,
-              zIndex: 9999,
-              background: "#fff", border: "1px solid #d1eedd", borderRadius: 10,
-              boxShadow: "0 8px 28px rgba(0,0,0,0.13)", minWidth: 180, overflow: "hidden",
-            }}
-          >
-            {actions.map(({ label, nextStatus, danger }) => (
-              <button
-                key={nextStatus}
-                onClick={() => requestAdvance(order.id, nextStatus, label)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  width: "100%", padding: "10px 14px",
-                  background: "transparent", border: "none",
-                  borderTop: danger ? "1px solid #fecaca" : "none",
-                  cursor: "pointer", fontFamily: "inherit",
-                  fontSize: 12, fontWeight: 700, textAlign: "left",
-                  color: danger ? "#dc2626" : "#0d2b1e",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = danger ? "#fff5f5" : "#f0fdf5"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                {danger ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                )}
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Loading / Error states ────────────────────────────────────────────────
+  /* ── loading / error states ── */
   if (loadingData) return (
-    <div style={{ padding: 60, textAlign: "center", color: "#5a7a65", fontFamily: "'Montserrat',sans-serif" }}>
-      Loading orders…
-    </div>
+    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
   );
-
   if (error) return (
-    <div style={{ padding: 40, textAlign: "center", fontFamily: "'Montserrat',sans-serif" }}>
-      <div style={{ color: "#dc2626", marginBottom: 12 }}>{error}</div>
-      <button onClick={fetchOrders}
-        style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, cursor: "pointer" }}>
-        Retry
-      </button>
+    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ color:C.red, marginBottom:12 }}>{error}</div>
+      <button onClick={fetchOrders} style={{ padding:"8px 20px", borderRadius:8, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, cursor:"pointer" }}>Retry</button>
     </div>
   );
 
-  // ── Derived tab lists ─────────────────────────────────────────────────────
-  const activeOrders    = filtered.filter(o => o.status !== "received" && o.status !== "rejected");
-  const completedOrders = filtered.filter(o => o.status === "received" || o.status === "rejected");
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: "'Montserrat',sans-serif" }}>
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        button:not(:disabled) { transition: filter .15s ease, transform .1s ease; }
+        button:not(:disabled):hover { filter: brightness(0.96); }
+        button:not(:disabled):active { transform: translateY(1px); }
+        select:focus, input:focus, textarea:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); outline:none; }
+      `}</style>
 
-      {/* ── Confirmation Modal ── */}
-      <ConfirmModal />
-
-      {/* ── View Order Modal ── */}
-      {viewOrder && (
-        <div onClick={() => setViewOrder(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
-
-            {/* Modal header */}
-            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Package size={16} color="#fff" />
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{viewOrder.id}</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(viewOrder.createdAt)}</div>
-                </div>
-              </div>
-              <button onClick={() => setViewOrder(null)}
-                style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={14} />
-              </button>
-            </div>
-
-            <div style={{ padding: "22px 24px" }}>
-              {/* Customer */}
-              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 6 }}>Customer</div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{viewOrder.customer}</div>
-                <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{viewOrder.phone}</div>
-              </div>
-
-              {/* Delivery Address */}
-              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <MapPin size={14} color="#8a6a00" style={{ marginTop: 2, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{viewOrder.address || "—"}</div>
-                </div>
-              </div>
-
-              {/* Brand / Branch */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-                {[{ label: "Brand", value: viewOrder.brand }, { label: "Branch", value: viewOrder.branch }].map(({ label, value }, i) => (
-                  <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 3 }}>{label}</div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Items */}
-              <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
-                {viewOrder.items.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#5a7a65", fontStyle: "italic", padding: "10px 12px" }}>No item details available.</div>
-                ) : viewOrder.items.map((item, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: i % 2 === 0 ? "#f8fffe" : "#fff", border: "1px solid #e0f2f1", marginBottom: 4 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65" }}>Qty: {item.qty}</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#00897b" }}>{fmtPeso(item.price * item.qty)}</div>
-                  </div>
-                ))}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop: 8 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>Total</div>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#00897b" }}>{fmtPeso(viewOrder.total)}</div>
-                </div>
-              </div>
-
-              {/* Status & Actions */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <StatusBadge status={viewOrder.status} />
-                <ActionButtons order={viewOrder} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Page header ── */}
- 
-      {/* ── Stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
-        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
-        <BmStatCard label="Processing"       value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
-        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
-        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+      {/* Header */}
+      <div style={{ marginBottom:18 }}>
+        <h1 style={{ margin:0, fontSize:20, fontWeight:800, color:C.ink }}>Orders</h1>
+        <div style={{ fontSize:12.5, color:C.muted, marginTop:3 }}>Review incoming orders, accept them, and fulfill from your FIFO/FEFO stock.</div>
       </div>
 
-      {/* ── Tab bar + Refresh ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid #d1eedd", borderRadius: 14, padding: 5, width: "fit-content", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
-          <button
-            onClick={() => setActiveTab("active")}
-            style={{
-              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
-              transition: "all .15s",
-              background: activeTab === "active" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-              color: activeTab === "active" ? "#fff" : "#5a7a65",
-              boxShadow: activeTab === "active" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
-            }}
-          >
-            Active Orders
-            <span style={{
-              padding: "1px 8px", borderRadius: 20, fontSize: 11,
-              background: activeTab === "active" ? "rgba(255,255,255,0.25)" : "rgba(0,168,76,0.12)",
-              color: activeTab === "active" ? "#fff" : "#00695c",
-            }}>
-              {activeOrders.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab("completed")}
-            style={{
-              padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7,
-              transition: "all .15s",
-              background: activeTab === "completed" ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-              color: activeTab === "completed" ? "#fff" : "#5a7a65",
-              boxShadow: activeTab === "completed" ? "0 2px 10px rgba(0,180,90,0.28)" : "none",
-            }}
-          >
-            Completed
-            <span style={{
-              padding: "1px 8px", borderRadius: 20, fontSize: 11,
-              background: activeTab === "completed" ? "rgba(255,255,255,0.25)" : "rgba(0,200,83,0.15)",
-              color: activeTab === "completed" ? "#fff" : "#00695c",
-            }}>
-              {completedOrders.length}
-            </span>
-          </button>
+      {/* Stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:20 }}>
+        <BmStatCard label="All Orders"    value={counts.total}    icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="Every order" />
+        <BmStatCard label="Needs Review"  value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Waiting on you" />
+        <BmStatCard label="Accepted"      value={counts.accepted} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)" sub="Ready to fulfill" />
+        <BmStatCard label="Fulfilled"     value={counts.disposed} icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Deducted from stock" />
+      </div>
+
+      {/* Search + filter chips */}
+      <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginBottom:18 }}>
+        <div style={{ position:"relative", flex:"1 1 220px", minWidth:200 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
+            style={{ width:"100%", height:38, padding:"0 14px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {FILTER_CHIPS.map(c => (
+            <button key={c.key} onClick={() => setStatusFilter(c.key)}
+              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:20, border:`1px solid ${statusFilter===c.key ? C.green : C.border}`,
+                background: statusFilter===c.key ? `linear-gradient(135deg,${C.teal},${C.green})` : "#fff",
+                color: statusFilter===c.key ? "#fff" : C.muted, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {c.label}
+              <span style={{ padding:"1px 7px", borderRadius:20, fontSize:10.5, background: statusFilter===c.key ? "rgba(255,255,255,0.25)" : C.greenLt, color: statusFilter===c.key ? "#fff" : C.greenDk }}>{c.count}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
           <button onClick={() => setShowActivityLog(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-                {activityLog.length}
-              </span>
-            )}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            <Layers size={13}/> Activity Log
+            {activityLog.length > 0 && <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>}
           </button>
           <button onClick={fetchOrders}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"1px solid #d1eedd", background:"#e0f2f1", color:"#00695c", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
             ⟳ Refresh
           </button>
         </div>
       </div>
 
-      {/* ── Active Orders Panel ── */}
-      {activeTab === "active" && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
-          <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}> Active Orders</span>
-            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{activeOrders.length} order{activeOrders.length !== 1 ? "s" : ""}</small>
+      {/* Order grid */}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"70px 20px", background:"#fff", borderRadius:18, border:`1px dashed ${C.border}` }}>
+          <Package size={34} color={C.muted} style={{ opacity:0.5, marginBottom:10 }}/>
+          <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:4 }}>No orders here</div>
+          <div style={{ fontSize:12.5, color:C.muted }}>
+            {statusFilter === "all" ? "New orders will show up here as soon as customers place them." : "Try a different filter or search term."}
           </div>
-          <div style={{ width: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "10%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status","Actions"].map(h => (
-                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
-                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No active orders</div>
-                    </td>
-                  </tr>
-                ) : activeOrders.map(order => (
-                  <tr key={order.id}
-                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
-                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
-                  >
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
-                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <button
-                        onClick={() => setViewOrder(order)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                          border: "1px solid #b2dfdb", background: "#FFF7ED", color: "#00695c",
-                        }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                          <line x1="3" y1="6" x2="21" y2="6"/>
-                          <path d="M16 10a4 4 0 01-8 0"/>
-                        </svg>
-                        {order.items.length}
-                      </button>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><ActionButtons order={order} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(270px, 1fr))", gap:16 }}>
+          {filtered.map(order => <OrderCard key={order.id} order={order} onOpen={setViewOrder}/>)}
         </div>
       )}
 
-      {/* ── Completed Orders Panel ── */}
-      {activeTab === "completed" && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
-          <div style={{ background: "linear-gradient(135deg,#309920,#3B6D11)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}>✓ Completed Orders</span>
-            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{completedOrders.length} order{completedOrders.length !== 1 ? "s" : ""}</small>
-          </div>
-          <div style={{ width: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "11%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status"].map(h => (
-                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {completedOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
-                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No completed orders</div>
-                    </td>
-                  </tr>
-                ) : completedOrders.map(order => (
-                  <tr key={order.id}
-                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
-                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
-                  >
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", color: "#374151", overflow: "hidden" }}>
-                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <button
-                        onClick={() => setViewOrder(order)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                          padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                          border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65",
-                        }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                          <line x1="3" y1="6" x2="21" y2="6"/>
-                          <path d="M16 10a4 4 0 01-8 0"/>
-                        </svg>
-                        {order.items.length}
-                      </button>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Detail drawer */}
+      {viewOrder && (
+        <OrderDrawer
+          order={orders.find(o => o.id === viewOrder.id) || viewOrder}
+          onClose={() => { setViewOrder(null); setDisposeState(null); }}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          onDisposeCheck={runDisposeCheck}
+          onDisposeConfirm={handleDisposeConfirm}
+          disposeState={disposeState}
+        />
       )}
+
+      <Toast toast={toast} onClose={() => setToast(null)}/>
 
       {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
+        <InventoryActivityLogPanel log={activityLog} onClose={() => setShowActivityLog(false)} />
+      )}
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PROFILE
 // ─────────────────────────────────────────────────────────────────────────────
