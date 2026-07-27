@@ -45,12 +45,12 @@ async function getLocation(ip) {
 
 async function logLogin(user, req) {
   const ip = getClientIp(req);
-  const location = await getLocation(ip); // now async
+  const location = await getLocation(ip);
   try {
     await pool.query(
-      `INSERT INTO users_activity_log (action, item_name, performed_by, changes, location, ip_address)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      ["Login", user.name, user.name, null, location, ip]
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      ["Login", user.name, user.branch || null, user.name, null, location, ip]
     );
   } catch (err) {
     console.error("Failed to log login activity:", err);

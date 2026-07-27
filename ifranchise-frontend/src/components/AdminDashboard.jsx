@@ -2498,7 +2498,7 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
+function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
   const [searchQuery,         setSearchQuery]         = useState("");
@@ -2531,15 +2531,21 @@ function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
 }, []);
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
-    });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
-
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          item_name: itemName,
+          branch: branchName,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          changes,
+        }),
+      });
+    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+  }, [user]);
   useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
   const fetchDeleteHistory = async () => {
@@ -6020,7 +6026,6 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
       }
     };
     
-
     const handleRestore = async (entry) => {
       try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
@@ -6032,7 +6037,7 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
         await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
     method: "DELETE",
   });
-   await logActivity("add", entry.data.name, entry.data.branch, "Restored from delete history"); // ← add here
+   await logActivity("login", user.name, user.branch || "—", null);
  
   await fetchDeleteHistory();
           await fetchUsers();
@@ -7504,12 +7509,20 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
   const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
     try {
-      await fetch(`${apiUrl}/orders-activity-log`, {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ action, item_name:itemName, branch:branchName, performed_by:userName, changes }),
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          item_name: itemName,
+          branch: branchName,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          changes,
+        }),
       });
     } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-  }, [apiUrl, userName]);
+  }, [user]);
 
   const logIngredientActivity = useCallback(async (ingredientName, branchName, changes) => {
     try {
