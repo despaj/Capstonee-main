@@ -38,7 +38,7 @@ router.post("/login", async (req, res) => {
     );
 
     if (device.rows.length > 0) {
-      console.log(`✅ Trusted device for ${email} — skipping OTP`);
+      console.log(`Trusted device for ${email} — skipping OTP`);
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -116,7 +116,7 @@ router.post("/verify-otp-login", async (req, res) => {
           [deviceId, user.rows[0].id, expiresAt]
         );
       } catch (dbErr) {
-        console.error("❌ INSERT failed:", dbErr.code, dbErr.message);
+        console.error("INSERT failed:", dbErr.code, dbErr.message);
       }
     }
 
