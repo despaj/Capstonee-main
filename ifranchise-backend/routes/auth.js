@@ -7,6 +7,7 @@ const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
 
 const geoip = require("geoip-lite");
+console.log(geoip.lookup("8.8.8.8"));
 
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
@@ -15,9 +16,13 @@ function getClientIp(req) {
 }
 
 function getLocation(ip) {
-  // strip IPv6 prefix that sometimes wraps IPv4 addresses (e.g. ::ffff:127.0.0.1)
   const cleanIp = ip?.replace("::ffff:", "");
+   if (!cleanIp || cleanIp === "127.0.0.1" || cleanIp === "::1" || cleanIp.startsWith("10.") || cleanIp.startsWith("192.168.")) {
+    return "Local/Private Network";
+  }
+  console.log("Resolving location for IP:", cleanIp); 
   const geo = geoip.lookup(cleanIp);
+  console.log("geoip result:", geo);
   return geo ? `${geo.city || "Unknown city"}, ${geo.country}` : "Unknown";
 }
 
@@ -250,7 +255,7 @@ router.post("/verify-sms-otp", async (req, res) => {
       branch: user.rows[0].branch,
       brand:  user.rows[0].brand,
     };
-    
+
     await logLogin(safeUser, req);
     return res.json({ success: true, user: safeUser });
   } catch (err) {

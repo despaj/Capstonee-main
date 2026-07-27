@@ -7,6 +7,7 @@ const pool = require("./db");
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+app.set("trust proxy", true);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use(cookieParser());
