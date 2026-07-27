@@ -22,13 +22,20 @@ async function getLocation(ip) {
   const geo = geoip.lookup(cleanIp);
   if (geo) return `${geo.city || "Unknown city"}, ${geo.country}`;
 
-  // fallback: free, no API key required, generous rate limit
   try {
-    const res = await fetch(`http://ip-api.com/json/${cleanIp}?fields=status,city,country`);
-    const data = await res.json();
-    if (data.status === "success") {
+    const res = await fetch(`https://ipwho.is/${cleanIp}`);
+    const text = await res.text();
+
+    if (!text) {
+      console.error("Empty response from ipwho.is");
+      return "Unknown";
+    }
+
+    const data = JSON.parse(text);
+    if (data.success) {
       return `${data.city || "Unknown city"}, ${data.country}`;
     }
+    console.error("ipwho.is lookup failed:", data.message);
   } catch (err) {
     console.error("Fallback geolocation failed:", err);
   }
