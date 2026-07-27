@@ -6,6 +6,35 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
 
+const geoip = require("geoip-lite");
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.socket.remoteAddress;
+}
+
+function getLocation(ip) {
+  // strip IPv6 prefix that sometimes wraps IPv4 addresses (e.g. ::ffff:127.0.0.1)
+  const cleanIp = ip?.replace("::ffff:", "");
+  const geo = geoip.lookup(cleanIp);
+  return geo ? `${geo.city || "Unknown city"}, ${geo.country}` : "Unknown";
+}
+
+async function logLogin(user, req) {
+  const ip = getClientIp(req);
+  const location = getLocation(ip);
+  try {
+    await pool.query(
+      `INSERT INTO users_activity_log (action, item_name, performed_by, changes, location, ip_address)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      ["Login", user.name, user.name, null, location, ip]
+    );
+  } catch (err) {
+    console.error("Failed to log login activity:", err);
+  }
+}
+
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
@@ -39,6 +68,7 @@ router.post("/login", async (req, res) => {
 
     if (device.rows.length > 0) {
       console.log(`Trusted device for ${email} — skipping OTP`);
+      await logLogin(safeUser, req);
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -120,6 +150,7 @@ router.post("/verify-otp-login", async (req, res) => {
       }
     }
 
+    await logLogin(safeUser, req);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
@@ -219,7 +250,8 @@ router.post("/verify-sms-otp", async (req, res) => {
       branch: user.rows[0].branch,
       brand:  user.rows[0].brand,
     };
-
+    
+    await logLogin(safeUser, req);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("SMS OTP verification error:", err);

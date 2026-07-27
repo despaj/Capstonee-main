@@ -15,6 +15,14 @@ const LOG_TABLES = [
   { route: "ingredient-activity-log",    table: "ingredient_activity_log" },
 ];
 
+const geoip = require("geoip-lite");
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.socket.remoteAddress;
+}
+
 for (const { route, table } of LOG_TABLES) {
   router.get(`/${route}`, async (req, res) => {
     try {
@@ -26,13 +34,28 @@ for (const { route, table } of LOG_TABLES) {
     }
   });
 
-  router.post(`/${route}`, async (req, res) => {
+ router.post(`/${route}`, async (req, res) => {
     try {
       const { action, item_name, branch, performed_by, changes } = req.body;
-      await pool.query(
-        `INSERT INTO ${table} (action, item_name, branch, performed_by, changes) VALUES ($1,$2,$3,$4,$5)`,
-        [action, item_name, branch || null, performed_by || "System", changes || null]
-      );
+
+      const ip = getClientIp(req);
+      const geo = geoip.lookup(ip);
+      const location = geo ? `${geo.city || "Unknown city"}, ${geo.country}` : null;
+
+      // only users_activity_log has the extra columns
+      if (table === "users_activity_log") {
+        await pool.query(
+          `INSERT INTO ${table} (action, item_name, branch, performed_by, changes, location, ip_address)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [action, item_name, branch || null, performed_by || "System", changes || null, location, ip]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO ${table} (action, item_name, branch, performed_by, changes) VALUES ($1,$2,$3,$4,$5)`,
+          [action, item_name, branch || null, performed_by || "System", changes || null]
+        );
+      }
+
       res.json({ success: true });
     } catch (err) {
       console.error(`POST /${route} error:`, err);

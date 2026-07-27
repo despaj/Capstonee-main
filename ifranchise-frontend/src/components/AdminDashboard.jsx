@@ -723,6 +723,9 @@ function TimelineLine({ log, expanded, onToggle }) {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 11, background: '#e0f2f1', color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>{log.user_name}</span>
           <span style={{ fontSize: 11, background: '#f0fdf5', color: C.muted, padding: '2px 8px', borderRadius: 20 }}>{log.module}</span>
+          {log.location && log.location !== '—' && (
+            <span style={{ fontSize: 11, background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: 20 }}>📍 {log.location}</span>
+          )}
           <span style={{ fontSize: 11, color: C.muted }}>{fmtRelative(log.created_at)}</span>
         </div>
         <button
@@ -739,6 +742,7 @@ function TimelineLine({ log, expanded, onToggle }) {
                 ['Timestamp', fmtFull(log.created_at)],
                 ['User',      log.user_name],
                 ['Role',      log.role],
+                ['Location',  log.location], 
                 ['Device',    log.device],
                 ['Branch',    log.branch],
                 ['Module',    log.module],
@@ -812,6 +816,7 @@ function ActivityLogContent({ user }) {
             description: row.item_name || row.action || '—',
             branch:      row.branch || '—',
             device:      '—',
+            location:    row.location || '—', 
             changes:     row.changes || null,
             created_at:  row.created_at,
             meta:        {},
@@ -885,12 +890,12 @@ function ActivityLogContent({ user }) {
 
   // ── Export CSV ────────────────────────────────────────────────────────────
   const exportCSV = () => {
-    const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Device'];
+    const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'];
     const rows   = filtered.map(l => [
       `#LOG-${String(l.id).padStart(5, '0')}`,
       fmtFull(l.created_at),
       l.user_name, l.role, l.module, l.action, l.description,
-      l.branch || '', l.device,
+      l.branch || '', l.location || '', l.device,
     ]);
     const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const a   = document.createElement('a');
@@ -922,7 +927,7 @@ function ActivityLogContent({ user }) {
       doc.text(`${l.description}`, 14, y);
       y += 4;
       doc.setTextColor(140, 140, 140);
-      doc.text(`${fmtFull(l.created_at)}  ·  ${l.user_name}  ·  ${l.branch || ''}  ·  ${l.device}`, 14, y);
+      doc.text(`${fmtFull(l.created_at)}  ·  ${l.user_name}  ·  ${l.branch || ''}  ·  ${l.location || ''}  ·  ${l.device}`, 14, y);
       y += 7;
       doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
       doc.line(14, y - 2, pageW - 14, y - 2);
@@ -1080,7 +1085,7 @@ function ActivityLogContent({ user }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 860 }}>
                 <thead>
                   <tr>
-                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Device'].map(h => (
+                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map(h => (
                       <th key={h} style={th}>{h}</th>
                     ))}
                   </tr>
@@ -1107,6 +1112,7 @@ function ActivityLogContent({ user }) {
                         )}
                       </td>
                       <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.branch || '—'}</td>
+                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.location || '—'}</td>
                       <td style={{ ...td(i), fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{log.device}</td>
                     </tr>
                   ))}

@@ -133,15 +133,12 @@ async function mindeeExtract(base64Image, modelId) {
     validateStatus: () => true,
   });
 
-  // Case 1: axios followed the redirect — this IS the final result already
   if (pollRes.data?.inference) {
     return pollRes.data;
   }
 
-  // Case 2: still wrapped in the job object, still processing
   if (pollRes.data?.job) {
     const status = pollRes.data.job.status;
-    console.log("Mindee job status:", status);
 
     if (pollRes.data.job.error) {
       throw new Error(pollRes.data.job.error?.message || "Mindee processing failed");
@@ -199,7 +196,7 @@ async function analyzeIdDocument(base64Image) {
       headers: { "Ocp-Apim-Subscription-Key": AZURE_DI_KEY },
     });
     result = await pollRes.json();
-    console.log("Azure DI status:", result.status); // keep for first run
+    console.log("Azure DI status:", result.status);
     if (result.status === "succeeded" || result.status === "failed") break;
   }
 
@@ -280,7 +277,6 @@ router.post("/api/verify-id", async (req, res) => {
     const analyzeResult = await analyzeIdDocument(frontImage);
 
     const ocrText = (analyzeResult?.content || "").toUpperCase();
-    console.log("Azure OCR text:", ocrText); // keep for first run
 
     const expectedKeywords = ID_TYPE_MAP[idType] || [];
     const isCorrectIdType = expectedKeywords.some((k) => ocrText.includes(k.toUpperCase()));
@@ -333,7 +329,7 @@ async function detectFace(base64Image) {
 
   const data = await response.json();
   console.log("Azure Face detect status:", response.status);
-  console.log("Azure Face detect response:", JSON.stringify(data)); // ADD THIS
+  console.log("Azure Face detect response:", JSON.stringify(data)); 
 
   if (!response.ok) {
     throw new Error(data?.error?.message || "Azure face detection failed");
