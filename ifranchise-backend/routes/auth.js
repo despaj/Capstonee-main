@@ -15,20 +15,30 @@ function getClientIp(req) {
   return req.socket.remoteAddress;
 }
 
-function getLocation(ip) {
+async function getLocation(ip) {
   const cleanIp = ip?.replace("::ffff:", "");
-   if (!cleanIp || cleanIp === "127.0.0.1" || cleanIp === "::1" || cleanIp.startsWith("10.") || cleanIp.startsWith("192.168.")) {
-    return "Local/Private Network";
-  }
-  console.log("Resolving location for IP:", cleanIp); 
+  if (!cleanIp) return "Unknown";
+
   const geo = geoip.lookup(cleanIp);
-  console.log("geoip result:", geo);
-  return geo ? `${geo.city || "Unknown city"}, ${geo.country}` : "Unknown";
+  if (geo) return `${geo.city || "Unknown city"}, ${geo.country}`;
+
+  // fallback: free, no API key required, generous rate limit
+  try {
+    const res = await fetch(`http://ip-api.com/json/${cleanIp}?fields=status,city,country`);
+    const data = await res.json();
+    if (data.status === "success") {
+      return `${data.city || "Unknown city"}, ${data.country}`;
+    }
+  } catch (err) {
+    console.error("Fallback geolocation failed:", err);
+  }
+
+  return "Unknown";
 }
 
 async function logLogin(user, req) {
   const ip = getClientIp(req);
-  const location = getLocation(ip);
+  const location = await getLocation(ip); // now async
   try {
     await pool.query(
       `INSERT INTO users_activity_log (action, item_name, performed_by, changes, location, ip_address)
