@@ -534,11 +534,12 @@ export default function AdminDashboard() {
            {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
-          {activeModule === 'mobileShop'     && <MobileShopContent />}
-          {activeModule === 'mobileOrders'   && <MobileOrdersContent />}
+          {activeModule === 'mobileShop'     && <MobileShopContent user={user} brands={brands}/>}
+          {activeModule === 'mobileOrders'   && <MobileOrdersContent user={user} brands={brands}/>}
           {activeModule === 'receipts'       && <Receipts />}
           {activeModule === 'applications'   && (
             <ApplicationsContent
+              user={user} brands={brands}
               applications={applications}
               onRefresh={fetchApplications}
               onView={handleViewApplication}
@@ -547,15 +548,14 @@ export default function AdminDashboard() {
               onCreateAccount={handleCreateAccount}
             />
           )}
-          {activeModule === 'users'         && <UsersContent />}
-          {activeModule === 'reports'       && <ReportsContent />}
-          {activeModule === 'communication' && <CommunicationContent user={user}/>}
+          {activeModule === 'users'         && <UsersContent user={user} brands={brands} />}
+          {activeModule === 'reports'       && <ReportsContent user={user} brands={brands} />}
+          {activeModule === 'communication' && <CommunicationContent user={user} brands={brands}/>}
           {activeModule === 'brandBranch'   && <BrandManagementContent brands={brands} onBrandsChange={setBrands} />}
           {activeModule === 'profile'       && <ProfileContent user={user} />}
         </div>
       </main>
 
-      {/* ── CREATE ACCOUNT MODAL ── */}
       {showCreateAccountModal && (
         <CreateAccountModal
           applicant={selectedApplicant}
@@ -563,7 +563,6 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* ── LOGOUT MODAL ── */}
       {showLogoutModal && (
         <div
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, backdropFilter:'blur(4px)' }}
@@ -588,7 +587,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── VIEW APPLICATION MODAL ── */}
       {showViewApplicationModal && (
         <ViewApplicationModal
           application={selectedApplicant}
@@ -604,9 +602,6 @@ export default function AdminDashboard() {
   );
 }
 
-
-
-// ── Config ───────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
 
 const ACTION_META = {
@@ -775,9 +770,7 @@ function TimelineLine({ log, expanded, onToggle }) {
 function ActivityLogContent({ user }) {
   const [allLogs,     setAllLogs]     = useState([]);
   const [loading,     setLoading]     = useState(true);
-  const [view,        setView]        = useState('timeline'); // 'timeline' | 'table'
   const [page,        setPage]        = useState(0);
-  const [expandedIds, setExpandedIds] = useState(new Set());
 
   // Filters
   const [search,   setSearch]   = useState('');
@@ -789,53 +782,53 @@ function ActivityLogContent({ user }) {
   const [dateTo,   setDateTo]   = useState('');
 
   // ── Load logs ─────────────────────────────────────────────────────────────
- const loadLogs = useCallback(async () => {
-  setLoading(true);
-  try {
-    const endpoints = [
-      { url: 'inventory-activity-log',     module: 'Menu Inventory'   },
-      { url: 'shop-activity-log',          module: 'Mobile Shop'      },
-      { url: 'orders-activity-log',        module: 'Orders'           },
-      { url: 'users-activity-log',         module: 'User Management'  },
-      { url: 'applications-activity-log',  module: 'Applications'     },
-      { url: 'report-activity-log',       module: 'Reports'          },
-      { url: 'announcements-activity-log', module: 'Announcements'    },
-      { url: 'brands-activity-log',        module: 'Brand & Branch'   },
-    ];
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const endpoints = [
+        { url: 'inventory-activity-log',     module: 'Menu Inventory'   },
+        { url: 'shop-activity-log',          module: 'Mobile Shop'      },
+        { url: 'orders-activity-log',        module: 'Orders'           },
+        { url: 'users-activity-log',         module: 'User Management'  },
+        { url: 'applications-activity-log',  module: 'Applications'     },
+        { url: 'reports-activity-log',       module: 'Reports'          },
+        { url: 'announcements-activity-log', module: 'Announcements'    },
+        { url: 'brands-activity-log',        module: 'Brand & Branch'   },
+      ];
 
-    const results = await Promise.all(
-      endpoints.map(({ url, module }) =>
-        fetch(`${process.env.REACT_APP_API_URL}/${url}`)
-          .then(r => r.json())
-          .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
-            id:          row.id,
-            module,
-            action:      (row.action || 'update').toLowerCase(),
-            user_name:   row.performed_by || 'Admin',
-            role:        'Admin',
-            description: row.item_name || row.action || '—',
-            branch:      row.branch || '—',
-            device:      '—',
-            location:    row.location || '—', 
-            changes:     row.changes || null,
-            created_at:  row.created_at,
-            meta:        {},
-          })))
-          .catch(() => [])
-      )
-    );
+      const results = await Promise.all(
+        endpoints.map(({ url, module }) =>
+          fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+            .then(r => r.json())
+            .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
+              id:          row.id,
+              module,
+              action:      (row.action || 'update').toLowerCase(),
+              user_name:   row.performed_by || 'Admin',
+              role:        'Admin',
+              description: row.item_name || row.action || '—',
+              branch:      row.branch || '—',
+              device:      '—',
+              location:    row.location || '—',
+              changes:     row.changes || null,
+              created_at:  row.created_at,
+              meta:        {},
+            })))
+            .catch(() => [])
+        )
+      );
 
-    const merged = results
-      .flat()
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const merged = results
+        .flat()
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    setAllLogs(merged);
-  } catch (err) {
-    console.error('Failed to load activity logs:', err);
-  } finally {
-    setLoading(false);
-  }
-}, []);
+      setAllLogs(merged);
+    } catch (err) {
+      console.error('Failed to load activity logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
@@ -881,12 +874,6 @@ function ActivityLogContent({ user }) {
   };
 
   useEffect(() => { setPage(0); }, [search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
-
-  const toggleExpand = (id) => setExpandedIds(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
 
   // ── Export CSV ────────────────────────────────────────────────────────────
   const exportCSV = () => {
@@ -969,7 +956,6 @@ function ActivityLogContent({ user }) {
       <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
 
-          {/* Search */}
           <div style={{ position: 'relative', flex: '1 1 220px' }}>
             <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
             <input
@@ -979,31 +965,26 @@ function ActivityLogContent({ user }) {
             />
           </div>
 
-          {/* Module */}
           <select value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
             <option value="">All modules</option>
             {MODULES.map(m => <option key={m}>{m}</option>)}
           </select>
 
-          {/* Action */}
           <select value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
             <option value="">All actions</option>
             {Object.keys(ACTION_META).map(a => <option key={a} value={a}>{ACTION_META[a].label}</option>)}
           </select>
 
-          {/* User */}
           <select value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
             <option value="">All users</option>
             {uniqueUsers.map(u => <option key={u}>{u}</option>)}
           </select>
 
-          {/* Branch */}
           <select value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
             <option value="">All branches</option>
             {uniqueBranches.map(b => <option key={b}>{b}</option>)}
           </select>
 
-          {/* Date range */}
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
           <input type="date" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
 
@@ -1031,34 +1012,14 @@ function ActivityLogContent({ user }) {
       <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.12)`, borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
 
         {/* Panel header */}
-        <div style={{ background: C.grad, padding: '13px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
-              {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
-            </div>
-          </div>
-          {/* View toggle */}
-          <div style={{ background: 'rgba(255,255,255,.15)', borderRadius: 10, padding: '3px 4px', display: 'flex', gap: 2 }}>
-            {['timeline', 'table'].map(v => (
-              <button
-                key={v}
-                onClick={() => { setView(v); setPage(0); }}
-                style={{
-                  padding: '6px 14px', borderRadius: 8, border: 'none',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
-                  background: view === v ? 'rgba(192, 250, 224, 0.9)' : 'transparent',
-                  color: view === v ? C.greenDk : '#dd9b9b',
-                  textTransform: 'capitalize',
-                }}
-              >
-                {v}
-              </button>
-            ))}
+        <div style={{ background: C.grad, padding: '13px 20px' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
+            {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
           </div>
         </div>
 
-        {/* Panel body */}
+        {/* Panel body — table only */}
         <div style={{ maxHeight: 600, overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 14 }}>
@@ -1069,20 +1030,9 @@ function ActivityLogContent({ user }) {
             <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
               No events match your filters.
             </div>
-          ) : view === 'timeline' ? (
-            <div style={{ paddingTop: 8 }}>
-              {pageItems.map(log => (
-                <TimelineLine
-                  key={log.id}
-                  log={log}
-                  expanded={expandedIds.has(log.id)}
-                  onToggle={() => toggleExpand(log.id)}
-                />
-              ))}
-            </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 860 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
                 <thead>
                   <tr>
                     {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map(h => (
@@ -2548,7 +2498,6 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-// ── BrandManagementContent ────────────────────────────────────────────────────
 function BrandManagementContent({ brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -2865,14 +2814,6 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────
-// FIX #1 (root cause of "typing stops per letter"):
-// `Field` was previously defined INSIDE MobileShopContent(). That means a
-// brand-new Field function was created on every render, so React saw a new
-// component type each keystroke and unmounted/remounted the <input>,
-// killing focus after every character. Field now lives OUTSIDE the
-// component so its identity is stable across renders.
-// ─────────────────────────────────────────────────────────────────────────
 function Field({ label, error, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2889,7 +2830,7 @@ function Field({ label, error, children }) {
   );
 }
 
-function MobileShopContent() {
+function MobileShopContent({ user, brands: propBrands = [] }) {
   const msInputStyle = {
     width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
     border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
@@ -2899,7 +2840,7 @@ function MobileShopContent() {
 
   const [activityLog,     setActivityLog]     = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
-  const [showAddModal,    setShowAddModal]    = useState(false); // NEW: controls Add Item modal
+  const [showAddModal,    setShowAddModal]    = useState(false);
   const [items,           setItems]           = useState([]);
   const [errors,          setErrors]          = useState({});
   const [loading,         setLoading]         = useState(false);
@@ -2910,11 +2851,11 @@ function MobileShopContent() {
   const [searchQuery,     setSearchQuery]     = useState("");
   const [filterShop,      setFilterShop]      = useState("all");
   const [brands,          setBrands]          = useState([]);
-  const [stockItems,      setStockItems]      = useState([]); // ingredients from Stock Inventory, used to populate Item Name per brand
+  const [stockItems,      setStockItems]      = useState([]);
   const [newItem,         setNewItem]         = useState({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
   const excelRef = useRef(null);
-  const addImageRef = useRef(null); // hidden file input for the Add Item photo picker
-  const editImageRef = useRef(null); // hidden file input for the Edit Item photo picker
+  const addImageRef = useRef(null); 
+  const editImageRef = useRef(null); 
 
   const fetchActivityLog = useCallback(async () => {
     try {
@@ -2938,8 +2879,6 @@ function MobileShopContent() {
     } catch { setBrands([]); }
   };
 
-  // Pulls the Stock Inventory's ingredient list, so we can offer the exact
-  // same product names (per brand) when adding a Mobile Shop item.
   const fetchStockItems = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
@@ -2964,16 +2903,12 @@ function MobileShopContent() {
     return true;
   });
 
-  // Derive flat branch list from selected brand
   const getBranchesForBrand = (brandName) => {
     const found = brands.find(b => b.name === brandName);
     if (!found) return [];
     return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
   };
 
-  // Unique, alphabetized product names from Stock Inventory for the selected brand.
-  // Matches case-insensitively, and falls back to a partial match (e.g. "iPharma"
-  // selecting ingredients tagged "iPharma Branch A") in case brand naming isn't 1:1.
   const getStockNamesForBrand = (brandName) => {
     if (!brandName) return [];
     const target = brandName.trim().toLowerCase();
@@ -3020,14 +2955,21 @@ function MobileShopContent() {
   };
 
   const logActivity = useCallback(async (action, itemName, shopName, changes = null) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, item_name: itemName, branch: shopName, performed_by: "Admin", changes }),
-      });
-    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-  }, []);
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: shopName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, [user]); 
 
   const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -3168,7 +3110,24 @@ function MobileShopContent() {
     fetchItems();
   };
 
-  const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
+  const toggleVisibility = async (id) => {
+  const item = items.find(i => String(i.id) === String(id));
+  if (!item) {
+    console.warn("toggleVisibility: item not found for id", id, items.map(i => i.id));
+  }
+  const newStatus = item ? !item.is_visible : null;
+
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method: "PUT" });
+
+  await logActivity(
+    newStatus ? "show" : "hide",
+    item?.name || "Unknown item",
+    item?.shop || "Unknown shop",
+    newStatus ? "Item made visible" : "Item hidden"
+  );
+
+  fetchItems();
+};
 
   // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
   const toolbarBtnSt = {
@@ -3581,12 +3540,6 @@ function InventoryActivityLogPanel({ log, onClose }) {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// APPLICATIONS — 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// APPLICATIONS CONTENT — Fixed delete history & restore
-// ─────────────────────────────────────────────────────────────────────────────
 
 function generateTempPassword(length = 10) {
   const groups = [
@@ -3603,10 +3556,10 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
-function ApplicationsContent({ applications: initialApps }) {
+function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
-const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
   const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
@@ -3634,13 +3587,20 @@ const [showActivityLog, setShowActivityLog] = useState(false);
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: branchName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
     });
   } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
+}, [user]);
 
   const fetchApplications = async () => {
     try {
@@ -4752,7 +4712,7 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
-function ReportsContent() {
+function ReportsContent({ user, brands: propBrands = [] }) {
   const [reports,      setReports]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
@@ -4785,15 +4745,21 @@ const [showActivityLog, setShowActivityLog] = useState(false);
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: branchName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
     });
   } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
+}, [user]);
 
-  // ── Fetch reports from API ──────────────────────────────────────
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -4855,7 +4821,6 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
   return Object.values(map);
 }, [reports]);
 
-  // ── Approve ───────────────────────
 const handleApprove = async (report) => {
   try {
     await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/status`, {
@@ -5281,7 +5246,7 @@ const generatePdfDoc = (report) => {
           </div>
           <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
             <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={() => handleApprove(approveReport.id)} disabled={actionLoading}
+            <button onClick={() => handleApprove(approveReport)} disabled={actionLoading}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"inherit", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
               {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve Report
             </button>
@@ -5820,7 +5785,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     </div>
   );
 
-  function UsersContent() {
+  function UsersContent({ user, brands: propBrands = [] }) {
     const [activityLog,     setActivityLog]     = useState([]);
     const [showActivityLog, setShowActivityLog] = useState(false);
     const [users,        setUsers]        = useState([]);
@@ -5857,13 +5822,20 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: branchName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
     });
   } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
+}, [user]);
 
     useEffect(() => { fetchUsers();  fetchActivityLog(); }, [fetchActivityLog]);
 
@@ -6337,7 +6309,7 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOUNCEMENT — 
 // ─────────────────────────────────────────────────────────────────────────────
-function CommunicationContent({ user }){
+function CommunicationContent({ user, brands: propBrands = [] }){
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds]         = useState(new Set());
   const [fetching, setFetching]           = useState(true);
@@ -6361,11 +6333,11 @@ function CommunicationContent({ user }){
   const showAlert   = (message, type = "info") => setAlertModal({ message, type });
   const showConfirm = (message, onConfirm, itemName = "") => setConfirmModal({ message, onConfirm, itemName });
 
-  const [commUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
-  });
+  // const [commUser] = useState(() => {
+  //   try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  // });
 
-  const isAdminUser = (u) => u?.role === "Super Admin";
+  const isAdminUser = (u) => u?.role === "Franchisee Operations Admin";
 
   const PIN_KEY = "announcement_pins";
   useEffect(() => {
@@ -6407,13 +6379,20 @@ const fetchActivityLog = useCallback(async () => {
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/announecements-activity-log`, {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, item_name: itemName, branch: branchName, performed_by: "Admin", changes }),
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: branchName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
     });
   } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, []);
+}, [user]);
 
 useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
@@ -6434,7 +6413,8 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
   }));
 
   const handlePin = (item) => {
-    if (!isAdminUser(commUser)) return;
+    if (!isAdminUser(user)) return;
+    console.log("DEBUG user:", user);
     const id = String(item.id);
     setPinnedIds(prev => {
       const next = new Set(prev);
@@ -6467,7 +6447,8 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!isAdminUser(commUser)) { showAlert("Only administrators can post announcements.", "error"); return; }
+    console.log("DEBUG handleSave user:", user, "title:", title, "content:", content);
+    if (!isAdminUser(user)) { showAlert("Only administrators can post announcements.", "error"); return; }
     if (!title.trim() || !content.trim()) { showAlert("Please fill in the title and content fields.", "error"); return; }
     try {
       const url    = editing
@@ -6480,13 +6461,14 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
         body: JSON.stringify({
           title, content,
           image_url: imageUrl.trim() || null,
-          userId: commUser.id, role: commUser.role,
+          userId: user.id, role: user.role,
         }),
       });
       const data = await res.json();
       if (!res.ok) { showAlert(data.error || "Failed to save.", "error"); return; }
       setModalVisible(false); setEditing(null); setTitle(""); setContent(""); setImageUrl(""); setImageError(false);
       fetchAnnouncements();
+      await logActivity(editing ? "edit" : "add", title, null, editing ? "Updated announcement" : null);
       showAlert(editing ? "Announcement updated successfully!" : "Announcement posted successfully!", "success");
     } catch (err) {
       console.error("Save error:", err);
@@ -6495,13 +6477,13 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
   };
 
   const handleDelete = (item) => {
-    if (!isAdminUser(commUser)) return;
+    if (!isAdminUser(user)) return;
     showConfirm(`You are about to delete this announcement. You can recover it from Delete History.`, async () => {
       try {
         const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
+          body: JSON.stringify({ userId: user.id, role: user.role }),
         });
         const data = await res.json();
         if (!res.ok) { showAlert(data.error || "Delete failed.", "error"); return; }
@@ -6511,6 +6493,8 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
         }
         if (viewingItem?.id === item.id) setViewingItem(null);
         fetchAnnouncements();
+        await logActivity("delete", item.title, null);
+
         fetchDeleteHistory();
         showAlert(`"${item.title}" has been deleted.`, "success");
       } catch (err) {
@@ -6529,7 +6513,7 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
           title: entry.data.title,
           content: entry.data.content,
           image_url: entry.data.image_url || null,
-          userId: commUser.id, role: commUser.role,
+          userId: user.id, role: user.role,
         }),
       });
       const data = await res.json();
@@ -6540,6 +6524,7 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
       });
 
       fetchAnnouncements();
+      await logActivity("add", entry.data.title, null, "Restored from delete history");
       fetchDeleteHistory();
       showAlert(`"${entry.data.title}" has been restored!`, "success");
     } catch (err) {
@@ -6549,7 +6534,7 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
   };
 
   const handleEdit = (item) => {
-    if (!isAdminUser(commUser)) return;
+    if (!isAdminUser(user)) return;
     setEditing(item);
     setTitle(item.title);
     setContent(item.content);
@@ -6677,7 +6662,7 @@ const emptyIcon =
               style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: searchVisible ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16 }}>
               {searchVisible ? "✕" : <Search size={16} color="#fff" />}
             </button>
-            {isAdminUser(commUser) && (
+            {isAdminUser(user) && (
               <button
                 onClick={() => { setEditing(null); setTitle(""); setContent(""); setImageUrl(""); setImageError(false); setModalVisible(true); }}
                 style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
@@ -6701,7 +6686,7 @@ const emptyIcon =
           { key: "all",           label: "All" },
           { key: "recent",        label: "Recent" },
           { key: "pinned",        label: "Pinned" },
-          ...(isAdminUser(commUser) ? [{ key: "deleteHistory", label: "🗑 Delete History" }] : []),
+          ...(isAdminUser(user) ? [{ key: "deleteHistory", label: "🗑 Delete History" }] : []),
         ].map(({ key, label }) => {
           const active = selectedTab === key;
           const isDelTab = key === "deleteHistory";
@@ -6841,7 +6826,7 @@ const emptyIcon =
                         </div>
                         <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
                       </div>
-                      {isAdminUser(commUser) && (
+                      {isAdminUser(user) && (
                         <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
                           <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
                             {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
@@ -6906,7 +6891,7 @@ const emptyIcon =
               )}
               <p style={{ fontSize: 14.5, color: "#1A3A2A", lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
 
-              {isAdminUser(commUser) && (
+              {isAdminUser(user) && (
                 <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
                   <button onClick={() => handlePin(viewingItem)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
                     {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
@@ -6925,7 +6910,7 @@ const emptyIcon =
       )}
 
       {/* ── CREATE / EDIT MODAL ── */}
-      {isAdminUser(commUser) && modalVisible && (
+      {isAdminUser(user) && modalVisible && (
         <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden", maxHeight: "92vh", overflowY: "auto" }}>
             <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -7042,15 +7027,6 @@ const emptyIcon =
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MOBILE ORDERS — e-commerce-style order review & fulfillment.
-// One place to act on an order: open it, see everything, act with guardrails.
-// Disposing an order deducts stock straight from the FIFO/FEFO batch queue
-// used by Stock Inventory, so both modules always agree on what's on hand.
-// No payment step — this only tracks the order → stock lifecycle.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/* ── Status maps ── */
 const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
 const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
 
@@ -7497,7 +7473,7 @@ function SectionCard({ title, children, tint }) {
 /* ─────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
-function MobileOrdersContent({ user }) {
+function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const apiUrl   = process.env.REACT_APP_API_URL;
   const userName = user?.name || "Admin";
 

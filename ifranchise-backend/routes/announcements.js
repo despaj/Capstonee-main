@@ -38,7 +38,7 @@ router.post("/announcements", async (req, res) => {
     const { title, content, userId } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin")
+    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Only admin can post announcements" });
 
     const result = await pool.query(
@@ -72,7 +72,7 @@ router.put("/announcements/:id", async (req, res) => {
     const { title, content, userId } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin")
+    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Unauthorized" });
 
     const result = await pool.query(
@@ -90,7 +90,7 @@ router.delete("/announcements/:id", async (req, res) => {
     const { userId } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
-    if (userResult.rows[0].role !== "Super Admin" && "Franchisee Operations Admin")
+    if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Unauthorized" });
 
     const ann = await pool.query("SELECT * FROM announcements WHERE id=$1", [req.params.id]);

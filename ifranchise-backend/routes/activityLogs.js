@@ -37,12 +37,13 @@ for (const { route, table } of LOG_TABLES) {
  router.post(`/${route}`, async (req, res) => {
     try {
       const { action, item_name, branch, performed_by, changes } = req.body;
+      console.log(`[DEBUG] POST /${route} req.body:`, req.body); // TEMP
+    console.log(`[DEBUG] branch for ${route}:`, branch);
 
       const ip = getClientIp(req);
       const geo = geoip.lookup(ip);
       const location = geo ? `${geo.city || "Unknown city"}, ${geo.country}` : null;
 
-      // only users_activity_log has the extra columns
       if (table === "users_activity_log") {
         await pool.query(
           `INSERT INTO ${table} (action, item_name, branch, performed_by, changes, location, ip_address)

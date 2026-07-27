@@ -4,6 +4,20 @@ const pool = require("../db");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+async function logUserActivity(action, item_name, branch, performed_by) {
+  console.log("[DEBUG] logUserActivity called with:", { action, item_name, branch, performed_by }); // TEMP
+  try {
+    await pool.query(
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [action, item_name, branch || null, performed_by || "System", null]
+    );
+    console.log("[DEBUG] activity log insert succeeded"); // TEMP
+  } catch (err) {
+    console.error("Failed to log user activity:", err);
+  }
+}
+
 router.get("/users", async (req, res) => {
   try {
     const result = await pool.query(
@@ -22,6 +36,10 @@ router.post("/users", async (req, res) => {
       "INSERT INTO users (name, email, password, role, branch) VALUES ($1,$2,$3,$4,$5) RETURNING *",
       [name, email, password, role, branch]
     );
+
+    console.log("[DEBUG] logging activity with branch:", branch);
+    await logUserActivity("Create", name, branch, req.body.performed_by || "System");
+
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error("POST /users error:", err);
@@ -59,6 +77,10 @@ router.put("/users/:id", async (req, res) => {
       params = [name, email, role, branch, req.params.id];
     }
     const result = await pool.query(query, params);
+
+    console.log("[DEBUG] logging activity with branch:", branch);
+    await logUserActivity("Update", name, branch, req.body.performed_by || "System");
+
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error("PUT /users/:id error:", err);

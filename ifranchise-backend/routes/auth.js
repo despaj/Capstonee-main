@@ -105,6 +105,7 @@ router.post("/send-otp-after-login", async (req, res) => {
   const { email } = req.body;
   try {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[DEBUG] OTP for ${email} (login):`, otp);
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
