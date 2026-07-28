@@ -1,5 +1,3 @@
-import { getBrowserLocation } from "../utils/geolocation";
-
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
@@ -9,7 +7,6 @@ const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
 
 const geoip = require("geoip-lite");
-console.log(geoip.lookup("8.8.8.8"));
 
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
@@ -17,7 +14,31 @@ function getClientIp(req) {
   return req.socket.remoteAddress;
 }
 
-async function getLocation(ip) {
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+      { headers: { "User-Agent": "iFranchise/1.0 (contact@franchisync.business)" } }
+    );
+    const data = await res.json();
+    if (data?.address) {
+      const a = data.address;
+      const city = a.city || a.town || a.municipality || a.village || "Unknown city";
+      const province = a.state || a.region || "";
+      return province ? `${city}, ${province}` : city;
+    }
+  } catch (err) {
+    console.error("Reverse geocode failed:", err);
+  }
+  return null;
+}
+
+async function getLocation(ip, latitude, longitude) {
+  if (latitude && longitude) {
+    const preciseLocation = await reverseGeocode(latitude, longitude);
+    if (preciseLocation) return preciseLocation;
+  }
+
   const cleanIp = ip?.replace("::ffff:", "");
   if (!cleanIp) return "Unknown";
 
@@ -27,17 +48,9 @@ async function getLocation(ip) {
   try {
     const res = await fetch(`https://ipwho.is/${cleanIp}`);
     const text = await res.text();
-
-    if (!text) {
-      console.error("Empty response from ipwho.is");
-      return "Unknown";
-    }
-
+    if (!text) return "Unknown";
     const data = JSON.parse(text);
-    if (data.success) {
-      return `${data.city || "Unknown city"}, ${data.country}`;
-    }
-    console.error("ipwho.is lookup failed:", data.message);
+    if (data.success) return `${data.city || "Unknown city"}, ${data.country}`;
   } catch (err) {
     console.error("Fallback geolocation failed:", err);
   }
