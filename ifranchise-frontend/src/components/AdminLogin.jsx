@@ -10,6 +10,28 @@ import FranchiseAdminDashboard from "./FranchiseAdminDashboard";
 import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (err) => {
+        console.warn("Geolocation denied or failed:", err.message);
+        resolve(null);
+      },
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
   const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
     // pass these as props since they're no longer in scope:
     trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
@@ -150,6 +172,7 @@ export default function AdminLogin() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [rememberMe, setRememberMe] = useState(false);
+  const [coords, setCoords] = useState(null);
 
   const clearDashboardSessions = () => {
   sessionStorage.removeItem('sa_activeModule');
@@ -327,21 +350,30 @@ useEffect(() => {
     return { isValid: errs.length === 0, errors: errs };
   };
 
-  // ── Login ──
   const login = async () => {
-    if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
-    setAuthError(""); setOtpError("");
-    const newErrors = {};
-    if (!email) newErrors.email = "Email is required";
-    if (!password) newErrors.password = "Password is required";
-    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
-     
-    setLoading("login");
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Client": "web",  "X-Device-ID": getOrCreateLocalDeviceId(), },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }), credentials: "include",
-      });
+  if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
+  setAuthError(""); setOtpError("");
+  const newErrors = {};
+  if (!email) newErrors.email = "Email is required";
+  if (!password) newErrors.password = "Password is required";
+  if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+
+  setLoading("login");
+  try {
+    const locationCoords = await getBrowserLocation();
+    setCoords(locationCoords);
+
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Client": "web", "X-Device-ID": getOrCreateLocalDeviceId() },
+      body: JSON.stringify({
+        email: email.trim(),
+        password: password.trim(),
+        latitude: locationCoords?.latitude || null,
+        longitude: locationCoords?.longitude || null,
+      }),
+      credentials: "include",
+    });
       const data = await res.json();
       if (!res.ok) { incrementAttempts(); setAuthError(data.message || "Invalid credentials"); return; }
       if (data.success) {
@@ -435,8 +467,16 @@ const verifyOtp = async () => {
   setLoading("otp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-      method: "POST", headers: { "Content-Type": "application/json",  "X-Device-ID": getOrCreateLocalDeviceId(), },
-      body: JSON.stringify({ email: otpEmail.trim(), otp: val, trustDevice: !!trustDevice }), credentials: "include",
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Device-ID": getOrCreateLocalDeviceId() },
+      body: JSON.stringify({
+        email: otpEmail.trim(),
+        otp: val,
+        trustDevice: !!trustDevice,
+        latitude: coords?.latitude || null,
+        longitude: coords?.longitude || null,
+      }),
+      credentials: "include",
     });
     const data = await res.json();
 
@@ -627,7 +667,13 @@ const verifyForgotSmsOtp = async () => {
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-sms-otp`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+      body: JSON.stringify({
+        email: forgotEmail.trim(),
+        otp: val,
+        latitude: coords?.latitude || null,
+        longitude: coords?.longitude || null,
+      }),
+      credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
