@@ -58,9 +58,9 @@ async function getLocation(ip, latitude, longitude) {
   return "Unknown";
 }
 
-async function logLogin(user, req) {
+async function logLogin(user, req, latitude, longitude) {
   const ip = getClientIp(req);
-  const location = await getLocation(ip);
+  const location = await getLocation(ip, latitude, longitude);
   try {
     await pool.query(
       `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address)
@@ -73,7 +73,7 @@ async function logLogin(user, req) {
 }
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, latitude, longitude } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
@@ -105,7 +105,7 @@ router.post("/login", async (req, res) => {
 
     if (device.rows.length > 0) {
       console.log(`Trusted device for ${email} — skipping OTP`);
-      await logLogin(safeUser, req);
+      await logLogin(safeUser, req, latitude, longitude); 
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -144,7 +144,7 @@ router.post("/send-otp-after-login", async (req, res) => {
 });
 
 router.post("/verify-otp-login", async (req, res) => {
-  const { email, otp, trustDevice } = req.body;
+  const { email, otp, trustDevice, latitude, longitude } = req.body;  
   try {
     if (!otpStore[email])
       return res.status(401).json({ message: "No OTP found for this email" });
@@ -188,7 +188,7 @@ router.post("/verify-otp-login", async (req, res) => {
       }
     }
 
-    await logLogin(safeUser, req);
+    await logLogin(safeUser, req, latitude, longitude); 
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
@@ -261,7 +261,7 @@ router.post("/api/send-otp", async (req, res) => {
 });
 
 router.post("/verify-sms-otp", async (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp, latitude, longitude } = req.body;
   try {
     if (!otpStore[email])
       return res.status(401).json({ message: "No OTP found for this email" });
@@ -289,7 +289,7 @@ router.post("/verify-sms-otp", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
-    await logLogin(safeUser, req);
+    await logLogin(safeUser, req, latitude, longitude); 
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("SMS OTP verification error:", err);
