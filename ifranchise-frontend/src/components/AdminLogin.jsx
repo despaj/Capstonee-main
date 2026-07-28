@@ -193,6 +193,8 @@ export default function AdminLogin() {
   const [forgotOtpLockedUntil, setForgotOtpLockedUntil] = useState(null);
   const [forgotOtpLockRemaining, setForgotOtpLockRemaining] = useState("");
 
+  const [resetToken, setResetToken] = useState("");
+
   // ── Block browser back button when logged in ──
 useEffect(() => {
   if (!loggedIn) return;
@@ -598,7 +600,8 @@ const verifyForgotEmailOtp = async () => {
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
+      credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
@@ -611,6 +614,7 @@ const verifyForgotEmailOtp = async () => {
       }
       return;
     }
+    setResetToken(data.resetToken || "");   // ← store the token
     setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
     setResetError(""); setNewPassword(""); setConfirmPassword("");
     setShowPasswordValidation(false); setPasswordErrors([]);
@@ -667,12 +671,7 @@ const verifyForgotSmsOtp = async () => {
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-sms-otp`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: forgotEmail.trim(),
-        otp: val,
-        latitude: coords?.latitude || null,
-        longitude: coords?.longitude || null,
-      }),
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
       credentials: "include",
     });
     const data = await res.json();
@@ -686,6 +685,7 @@ const verifyForgotSmsOtp = async () => {
       }
       return;
     }
+    setResetToken(data.resetToken || "");   // ← store the token
     setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
     setResetError(""); setNewPassword(""); setConfirmPassword("");
     setShowPasswordValidation(false); setPasswordErrors([]);
@@ -694,33 +694,32 @@ const verifyForgotSmsOtp = async () => {
   finally { setLoading(""); }
 };
 
-  // ── Reset Password ──
-  const resetPassword = async () => {
-    setResetError("");
-    if (!newPassword) { setResetError("Please enter a new password"); return; }
+const resetPassword = async () => {
+  setResetError("");
+  if (!newPassword) { setResetError("Please enter a new password"); return; }
 
-    setLoading("reset"); 
-    const check = validatePasswordStrength(newPassword);
-    if (!check.isValid) {
-      const msgs = { minLength: " at least 8 characters", uppercase: " at least 1 uppercase letter", lowercase: " at least 1 lowercase letter", number: " at least 1 number", specialChar: " at least 1 special character" };
-      setResetError("Password must contain" + check.errors.map((e) => msgs[e]).join("\n")); return;
-    }
-    if (newPassword === password) { setResetError("New password must be different from your current password"); return; }
-    if (newPassword !== confirmPassword) { setResetError("Passwords do not match"); return; }
-    setLoading("reset");
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim(), newPassword, method: forgotOtpMethod }),
-        credentials: "include",
-      });
-      const data = await res.json();
-      console.log("API response:", data);
-      if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
-      setStep("resetDone");
-    } catch { setResetError("Failed to reset password. Please try again."); }
-    finally { setLoading(""); }
-  };
+  setLoading("reset");
+  const check = validatePasswordStrength(newPassword);
+  if (!check.isValid) {
+    const msgs = { minLength: " at least 8 characters", uppercase: " at least 1 uppercase letter", lowercase: " at least 1 lowercase letter", number: " at least 1 number", specialChar: " at least 1 special character" };
+    setResetError("Password must contain" + check.errors.map((e) => msgs[e]).join("\n")); return;
+  }
+  if (newPassword === password) { setResetError("New password must be different from your current password"); return; }
+  if (newPassword !== confirmPassword) { setResetError("Passwords do not match"); return; }
+  setLoading("reset");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim(), newPassword, resetToken }),
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
+    setResetToken("");   // ← clear it once used
+    setStep("resetDone");
+  } catch { setResetError("Failed to reset password. Please try again."); }
+  finally { setLoading(""); }
+};
 
   const getOrCreateLocalDeviceId = () => {
   let deviceId = localStorage.getItem("device_id");
