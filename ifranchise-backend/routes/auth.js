@@ -7,6 +7,7 @@ const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
 
 const geoip = require("geoip-lite");
+const UAParser = require("ua-parser-js");
 
 const crypto = require("crypto");
 const resetTokenStore = require("../utils/resetTokenStore");
@@ -15,6 +16,14 @@ function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
   if (fwd) return fwd.split(",")[0].trim();
   return req.socket.remoteAddress;
+}
+
+function getDeviceLabel(req) {
+  const ua = req.headers["user-agent"] || "";
+  const parser = new UAParser(ua);
+  const browser = parser.getBrowser();
+  const os = parser.getOS();
+  return `${browser.name || "Unknown browser"} on ${os.name || "Unknown OS"}`;
 }
 
 async function reverseGeocode(lat, lon) {
@@ -64,14 +73,17 @@ async function getLocation(ip, latitude, longitude) {
 async function logLogin(user, req, latitude, longitude) {
   const ip = getClientIp(req);
   const location = await getLocation(ip, latitude, longitude);
+  const device = getDeviceLabel(req);
+  console.log("[DEBUG] device label:", device); // TEMP
   try {
     await pool.query(
-      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      ["Login", user.name, user.branch || null, user.name, null, location, ip]
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      ["Login", user.name, user.branch || null, user.name, null, location, ip, device]
     );
+    console.log("[DEBUG] login activity insert succeeded"); // TEMP
   } catch (err) {
-    console.error("Failed to log login activity:", err);
+    console.error("Failed to log login activity:", err); // ← this is the one to check
   }
 }
 
@@ -490,12 +502,17 @@ router.post("/reset-password", async (req, res) => {
     if (stored.token !== resetToken)
       return res.status(401).json({ message: "Invalid reset session. Please verify OTP again." });
 
-    delete resetTokenStore[email]; // consume token — one-time use
-
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     if (user.rows.length === 0) {
+      delete resetTokenStore[email];
       return res.status(404).json({ message: "User not found" });
     }
+
+    if (newPassword === user.rows[0].password) {
+      return res.status(400).json({ message: "New password must be different from your current password" });
+    }
+
+    delete resetTokenStore[email];
 
     const userId = user.rows[0].id;
     await pool.query("UPDATE users SET password=$1 WHERE email=$2", [newPassword, email]);
@@ -515,4 +532,5 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ message: "Failed to reset password" });
   }
 });
+
 module.exports = router;

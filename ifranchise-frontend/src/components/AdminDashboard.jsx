@@ -808,7 +808,7 @@ function ActivityLogContent({ user }) {
               role:        'Admin',
               description: row.item_name || row.action || '—',
               branch:      row.branch || '—',
-              device:      '—',
+              device:      row.device || '—', 
               location:    row.location || '—',
               changes:     row.changes || null,
               created_at:  row.created_at,
