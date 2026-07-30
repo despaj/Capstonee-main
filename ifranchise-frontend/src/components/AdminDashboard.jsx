@@ -15,7 +15,7 @@ import {
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon,
   Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
-  Brain, PieChart, LineChart, ShieldCheck
+  Brain, PieChart, LineChart, ShieldCheck, Bell, Printer
 } from 'lucide-react';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -149,7 +149,125 @@ const bmActionBtn = (variant = "default") => ({
     ? { background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }
     : { background: "#f0fdf5", color: "#00695c", border: "1.5px solid #b2dfdb" }),
 });
+function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
 
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const totalCount = notifications.reduce((s, n) => s + n.count, 0);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Notifications"
+        style={{
+          position: "relative", width: 42, height: 42, borderRadius: 14,
+          border: `1px solid ${open ? "rgba(0,168,76,0.4)" : "rgba(0,168,76,0.15)"}`,
+          background: open ? "rgba(0,168,76,0.08)" : "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", transition: "all .15s", boxShadow: "0 2px 8px rgba(0,140,60,0.06)",
+          flexShrink: 0,
+        }}
+      >
+        <Bell size={19} color={open ? "#00897b" : "#5a7a65"} />
+        {totalCount > 0 && (
+          <span style={{
+            position: "absolute", top: -4, right: -4,
+            minWidth: 18, height: 18, borderRadius: 9, padding: "0 4px",
+            background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff",
+            fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
+            border: "2px solid #fff", fontFamily: "'Montserrat',sans-serif",
+          }}>
+            {totalCount > 99 ? "99+" : totalCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 10px)", right: 0, width: 340, maxHeight: 440,
+          background: "#fff", borderRadius: 16, border: "1px solid rgba(0,168,76,0.15)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.16)", overflow: "hidden", zIndex: 3000,
+          fontFamily: "'Montserrat',sans-serif", display: "flex", flexDirection: "column",
+        }}>
+          <div style={{
+            padding: "14px 18px", background: "linear-gradient(135deg,#2E7D32,#00897b)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>Notifications</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>
+                {totalCount > 0 ? `${totalCount} item${totalCount !== 1 ? "s" : ""} need attention` : "You're all caught up"}
+              </div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onRefresh(); }}
+              title="Refresh"
+              style={{
+                width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.4)",
+                background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}
+            >
+              <RefreshCw size={13} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+            </button>
+          </div>
+
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {loading && notifications.length === 0 ? (
+              <div style={{ padding: "40px 0", textAlign: "center", color: "#5a7a65", fontSize: 13 }}>Loading…</div>
+            ) : notifications.length === 0 ? (
+              <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                  <Check size={20} color="#059669" />
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0d2b1e" }}>Nothing needs your attention</div>
+                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>New alerts will show up here.</div>
+              </div>
+            ) : notifications.map((n) => (
+              <div
+                key={n.id}
+                onClick={() => { onNavigate(n.module); setOpen(false); }}
+                style={{
+                  display: "flex", gap: 12, padding: "13px 18px", cursor: "pointer",
+                  borderBottom: "1px solid #f0f8f0", alignItems: "flex-start",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f6fef8"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, background: n.bg,
+                  border: `1px solid ${n.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  <n.icon size={16} color={n.color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{n.title}</span>
+                    <span style={{
+                      flexShrink: 0, fontSize: 10.5, fontWeight: 800, padding: "1px 8px", borderRadius: 20,
+                      background: n.bg, color: n.color, border: `1px solid ${n.border}`,
+                    }}>
+                      {n.count}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2, lineHeight: 1.45 }}>{n.message}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN DASHBOARD SHELL 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -260,7 +378,67 @@ export default function AdminDashboard() {
       .then(data => setBrands(Array.isArray(data) ? data : []))
       .catch(err => console.error("Failed to fetch brands:", err));
   }, []);
+// ── Notifications: aggregates things that need admin attention ──
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading,  setNotifLoading]  = useState(false);
 
+  const fetchNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    try {
+      const [appsRes, ordersRes, reportsRes, ingRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/applications`).then(r => r.json()).catch(() => []),
+        fetch(`${process.env.REACT_APP_API_URL}/orders`).then(r => r.json()).catch(() => []),
+        fetch(`${process.env.REACT_APP_API_URL}/reports`).then(r => r.json()).catch(() => []),
+        fetch(`${process.env.REACT_APP_API_URL}/ingredients`).then(r => r.json()).catch(() => []),
+      ]);
+
+      const items = [];
+
+      const pendingApps = (Array.isArray(appsRes) ? appsRes : []).filter(a => a.status === "pending");
+      if (pendingApps.length) items.push({
+        id: "apps", icon: FileCheck, module: "applications",
+        title: "Pending Applications",
+        message: `${pendingApps.length} application${pendingApps.length !== 1 ? "s" : ""} awaiting review`,
+        count: pendingApps.length, color: "#d97706", bg: "#fef9c3", border: "#fde68a",
+      });
+
+      const pendingOrders = (Array.isArray(ordersRes) ? ordersRes : []).filter(o => o.status === "pending");
+      if (pendingOrders.length) items.push({
+        id: "orders", icon: Package, module: "mobileOrders",
+        title: "Orders Need Review",
+        message: `${pendingOrders.length} order${pendingOrders.length !== 1 ? "s" : ""} waiting to be accepted`,
+        count: pendingOrders.length, color: "#0c447c", bg: "#e6f1fb", border: "#bfdbfe",
+      });
+
+      const pendingReports = (Array.isArray(reportsRes) ? reportsRes : []).filter(r => r.status === "pending");
+      if (pendingReports.length) items.push({
+        id: "reports", icon: BarChart2, module: "reports",
+        title: "Reports Awaiting Approval",
+        message: `${pendingReports.length} report${pendingReports.length !== 1 ? "s" : ""} submitted for review`,
+        count: pendingReports.length, color: "#6a1b9a", bg: "#f3e5f5", border: "#e9d5ff",
+      });
+
+      const lowStock = (Array.isArray(ingRes) ? ingRes : []).filter(i => Number(i.stock) < Number(i.min_stock));
+      if (lowStock.length) items.push({
+        id: "stock", icon: AlertTriangle, module: "stockInventory",
+        title: "Low Stock Alert",
+        message: `${lowStock.length} item${lowStock.length !== 1 ? "s" : ""} below minimum stock level`,
+        count: lowStock.length, color: "#c62828", bg: "#ffebee", border: "#fecaca",
+      });
+
+      setNotifications(items);
+    } catch (err) {
+      console.error("Failed to load notifications:", err);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const t = setInterval(fetchNotifications, 60000); // refresh every minute
+    return () => clearInterval(t);
+  }, [fetchNotifications]);
   const [applications, setApplications] = useState([]);
   useEffect(() => {
   fetchApplications();
@@ -519,6 +697,12 @@ export default function AdminDashboard() {
             <h1 className="ad-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <NotificationBell
+              notifications={notifications}
+              loading={notifLoading}
+              onRefresh={fetchNotifications}
+              onNavigate={(mod) => setActiveModule(mod)}
+            />
             <div style={{ textAlign: 'right' }}>
               <div className="ad-user-name">{user?.name}</div>
               <div className="ad-user-role">Super Admin — {user?.branch}</div>
@@ -7136,14 +7320,23 @@ const emptyIcon =
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MOBILE ORDERS — e-commerce-style order review & fulfillment.
+// One place to act on an order: open it, see everything, act with guardrails.
+// Disposing an order deducts stock straight from the FIFO/FEFO batch queue
+// used by Stock Inventory, so both modules always agree on what's on hand.
+// No payment step — this only tracks the order → stock lifecycle.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/* ── Status maps ── */
 const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
 const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
 
 const STATUS_CONFIG = {
-  pending:  { label:"Needs Review", bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  accepted: { label:"Accepted",     bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
-  disposed: { label:"Fulfilled",    bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  rejected: { label:"Rejected",     bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
+  pending:  { label:"Incoming",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  accepted: { label:"Accepted",  bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
+  disposed: { label:"Fulfilled", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  rejected: { label:"Rejected",  bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
 };
 
 const REJECT_REASONS = [
@@ -7155,7 +7348,6 @@ const REJECT_REASONS = [
 ];
 
 /* ── FIFO / FEFO helpers — mirror Stock Inventory exactly ── */
-const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
 function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
 function getFifoMethod(brand) {
   return isPharmaBrand(brand)
@@ -7207,14 +7399,17 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString("en-PH", { month:"short", day:"numeric" });
 }
 
-
 const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
+
+/* ── item image helper — tolerate whatever field name the backend sends ── */
+const itemImage = (item) => item.image || item.image_url || item.photo || item.photo_url || null;
 
 /* ── tiny building blocks ── */
 const primaryBtn = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.25)" };
 const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
 const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#ef4444,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
 const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:`1px solid ${C.redBorder}`, background:C.redBg, color:C.red, fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"inherit" };
+const printBtn = { padding:"10px 16px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:6 };
 
 function StatusBadge({ status, size="md" }) {
   const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
@@ -7239,7 +7434,8 @@ function Toast({ toast, onClose }) {
   return (
     <div style={{ position:"fixed", bottom:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:10,
       maxWidth:360, padding:"13px 16px", borderRadius:12, background:"#fff",
-      border:`1px solid ${isErr ? C.redBorder : C.greenMid}`, boxShadow:"0 12px 32px rgba(0,0,0,0.16)", fontFamily:"'Montserrat',sans-serif" }}>
+      border:`1px solid ${isErr ? C.redBorder : C.greenMid}`, boxShadow:"0 12px 32px rgba(0,0,0,0.16)", fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease" }}>
       <div style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
         background: isErr ? C.redBg : C.greenLt, color: isErr ? C.red : C.green }}>
         {isErr ? <AlertTriangle size={14}/> : <Check size={14}/>}
@@ -7269,7 +7465,6 @@ function OrderStepper({ status }) {
         const done = !rejected && i < activeIdx;
         const current = !rejected && i === activeIdx;
         const isLast = i === steps.length - 1;
-        // if rejected, only "Placed" ever completes — everything after shows as cut off
         const showAsRejectedTail = rejected && i > 0;
         return (
           <React.Fragment key={s.key}>
@@ -7280,13 +7475,14 @@ function OrderStepper({ status }) {
                 background: showAsRejectedTail ? "#f3f4f6" : (done || current) ? `linear-gradient(135deg,${C.teal},${C.green})` : "#eef6f1",
                 color: showAsRejectedTail ? "#9ca3af" : (done || current) ? "#fff" : "#9db8a8",
                 border: current ? `2px solid ${C.green}` : "none",
+                transition:"background .25s ease, color .25s ease",
               }}>
                 {done ? <Check size={13}/> : i + 1}
               </div>
               <span style={{ fontSize:10.5, fontWeight:700, color: showAsRejectedTail ? "#9ca3af" : (done||current) ? C.ink : "#9db8a8", whiteSpace:"nowrap" }}>{s.label}</span>
             </div>
             {!isLast && (
-              <div style={{ flex:1, height:2, margin:"0 2px 18px", background: (!rejected && i < activeIdx) ? C.green : "#e5efe8" }} />
+              <div style={{ flex:1, height:2, margin:"0 2px 18px", background: (!rejected && i < activeIdx) ? C.green : "#e5efe8", transition:"background .25s ease" }} />
             )}
           </React.Fragment>
         );
@@ -7308,7 +7504,7 @@ function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }
   const valid = reason !== "";
 
   return (
-    <div style={{ background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:12, padding:14 }}>
+    <div style={{ background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:12, padding:14, animation:"cardIn .18s ease" }}>
       <div style={{ fontSize:12.5, fontWeight:800, color:"#7f1d1d", marginBottom:10 }}>{title}</div>
       <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Reason *</label>
       <select value={reason} onChange={e => setReason(e.target.value)} onBlur={() => setTouched(true)}
@@ -7333,67 +7529,115 @@ function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }
   );
 }
 
-/* ── Order card (e-commerce style) ── */
+/* ── Order card — decluttered: one status line, one image+preview row, no extra pill row ── */
 function OrderCard({ order, onOpen }) {
   const completed = order.status === "disposed" || order.status === "rejected";
   const preview = order.items.slice(0, 2).map(i => `${i.qty}× ${i.name}`).join(", ");
   const more = order.items.length > 2 ? ` +${order.items.length - 2} more` : "";
+  const thumbs = order.items.slice(0, 3);
 
-  const ctaLabel = order.status === "pending" ? "Review Order" : order.status === "accepted" ? "Manage Order" : "View Details";
+  const ctaLabel = order.status === "pending" ? "Review" : order.status === "accepted" ? "Manage" : "View";
 
   return (
     <div onClick={() => onOpen(order)}
-      style={{ background:C.white, border:`1px solid ${completed ? "#e6efe9" : "rgba(0,168,76,0.16)"}`, borderRadius:16,
-        padding:16, cursor:"pointer", boxShadow:"0 2px 12px rgba(0,140,60,0.06)", opacity: completed ? 0.85 : 1,
-        transition:"transform .12s ease, box-shadow .12s ease", display:"flex", flexDirection:"column", gap:12 }}
-      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 10px 26px rgba(0,140,60,0.13)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 12px rgba(0,140,60,0.06)"; }}>
+      style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:14,
+        padding:14, cursor:"pointer", opacity: completed ? 0.85 : 1,
+        transition:"border-color .12s ease, transform .12s ease, box-shadow .12s ease",
+        display:"flex", flexDirection:"column", gap:10 }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = C.greenMid; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
 
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
-        <div>
-          <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>#{order.id}</div>
-          <div style={{ fontSize:11, color:C.muted, display:"flex", alignItems:"center", gap:4, marginTop:2 }}>
-            <Clock size={11}/> {timeAgo(order.createdAt)}
-          </div>
-        </div>
-        <StatusBadge status={order.status}/>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ fontWeight:800, fontSize:13.5, color:C.ink }}>#{order.id}</div>
+        <StatusBadge status={order.status} size="sm"/>
       </div>
 
       <div>
-        <div style={{ fontWeight:700, fontSize:13.5, color:C.ink }}>{order.customer}</div>
-        <div style={{ fontSize:11.5, color:C.muted, display:"flex", alignItems:"center", gap:4, marginTop:1 }}>
-          <Phone size={11}/> {order.phone || "—"}
+        <div style={{ fontWeight:700, fontSize:13, color:C.ink }}>{order.customer}</div>
+        <div style={{ fontSize:11, color:C.muted, marginTop:1 }}>{order.branch} · {timeAgo(order.createdAt)}</div>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        {thumbs.length > 0 && (
+          <div style={{ display:"flex", flexShrink:0 }}>
+            {thumbs.map((item, i) => (
+              <div key={i} style={{ width:26, height:26, borderRadius:7, overflow:"hidden", background:"#f0f0f0", border:"2px solid #fff",
+                marginLeft: i === 0 ? 0 : -8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={11} color={C.muted}/>}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ fontSize:11.5, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {preview || "No items"}{more}
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:10.5, fontWeight:700, background:C.greenLt, color:C.greenDk }}>{order.brand}</span>
-        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:10.5, fontWeight:700, background:"#f0f0f0", color:"#555" }}>{order.branch}</span>
-      </div>
-
-      <div style={{ fontSize:12, color:C.muted, borderTop:`1px dashed ${C.border}`, paddingTop:10, minHeight:18 }}>
-        <Package size={11} style={{ marginRight:4, verticalAlign:-1 }}/>
-        {preview || "No items"}{more}
-      </div>
-
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:2 }}>
-        <div>
-          <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Total</div>
-          <div style={{ fontSize:17, fontWeight:800, color:C.green }}>{fmtPeso1(order.total)}</div>
-        </div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+        <div style={{ fontSize:15, fontWeight:800, color:C.green }}>{fmtPeso1(order.total)}</div>
         <button onClick={e => { e.stopPropagation(); onOpen(order); }}
-          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"9px 15px", borderRadius:10, border:"none", fontSize:12.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-            background: order.status === "pending" ? `linear-gradient(135deg,${C.teal},${C.green})` : order.status === "accepted" ? "linear-gradient(135deg,#3b82f6,#2563eb)" : "#eef2f0",
-            color: completed ? C.muted : "#fff" }}>
-          {ctaLabel} <ChevronRight size={13}/>
+          style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+            background:"#fff", color:C.greenDk }}>
+          {ctaLabel} <ChevronRight size={12}/>
         </button>
       </div>
     </div>
   );
 }
 
+/* ── Half-page receipt slip — 8.5in × 4.25in landscape, sized for manual receipt pads ── */
+function ReceiptSlip({ order }) {
+  return (
+    <div className="receipt-page" style={{
+      width:"8.5in", height:"4.25in", padding:"0.28in 0.4in", boxSizing:"border-box",
+      fontFamily:"'Courier New', Courier, monospace", color:"#000", background:"#fff",
+      display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", borderBottom:"1px dashed #000", paddingBottom:6, marginBottom:6 }}>
+        <div>
+          <div style={{ fontSize:15, fontWeight:800 }}>{order.brand || "Order Receipt"}</div>
+          <div style={{ fontSize:10 }}>{order.branch}</div>
+        </div>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ fontSize:13, fontWeight:800 }}>#{order.id}</div>
+          <div style={{ fontSize:10 }}>{fmtDate(order.createdAt)}</div>
+        </div>
+      </div>
+      <div style={{ fontSize:11, marginBottom:6, lineHeight:1.5 }}>
+        <div><b>Customer:</b> {order.customer}</div>
+        <div><b>Phone:</b> {order.phone || "—"}</div>
+        {order.address && <div><b>Address:</b> {order.address}</div>}
+      </div>
+      <div style={{ flex:1, overflow:"hidden" }}>
+        <table style={{ width:"100%", fontSize:10.5, borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ borderBottom:"1px solid #000" }}>
+              <th style={{ textAlign:"left", padding:"2px 0" }}>Item</th>
+              <th style={{ textAlign:"center", padding:"2px 0", width:40 }}>Qty</th>
+              <th style={{ textAlign:"right", padding:"2px 0", width:70 }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((it, i) => (
+              <tr key={i}>
+                <td style={{ padding:"1.5px 0" }}>{it.name}</td>
+                <td style={{ textAlign:"center" }}>{it.qty}</td>
+                <td style={{ textAlign:"right" }}>{fmtPeso1(it.price * it.qty)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ borderTop:"1px dashed #000", paddingTop:6, display:"flex", justifyContent:"space-between", fontWeight:800, fontSize:13 }}>
+        <span>TOTAL</span>
+        <span>{fmtPeso1(order.total)}</span>
+      </div>
+      <div style={{ fontSize:9, textAlign:"center", marginTop:5, color:"#333" }}>Thank you for your order!</div>
+    </div>
+  );
+}
+
 /* ── Order Detail Drawer — the single place actions happen ── */
-function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState }) {
+function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState, onPrint }) {
   const [mode, setMode] = useState(null); // null | "reject" | "dispose"
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -7418,9 +7662,9 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
   const allOk = dState && dState.results.length > 0 && dState.results.every(r => r.sufficient);
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end", animation:"overlayIn .18s ease" }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif" }}>
+        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
 
         {/* Header */}
         <div style={{ padding:"18px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", flexShrink:0 }}>
@@ -7429,9 +7673,17 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
               <div style={{ fontSize:17, fontWeight:800 }}>Order #{order.id}</div>
               <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>Placed {fmtDate(order.createdAt)}</div>
             </div>
-            <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <X size={14}/>
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              {order.status === "accepted" && (
+                <button onClick={() => onPrint([order])} title="Print receipt"
+                  style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <Printer size={14}/>
+                </button>
+              )}
+              <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <X size={14}/>
+              </button>
+            </div>
           </div>
           <OrderStepper status={order.status}/>
         </div>
@@ -7460,12 +7712,17 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             ) : (
               <div style={{ display:"grid", gap:6 }}>
                 {order.items.map((item, i) => (
-                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
-                    <div>
-                      <div style={{ fontWeight:700, fontSize:12.5, color:C.ink }}>{item.name}</div>
-                      <div style={{ fontSize:11, color:C.muted }}>Qty {item.qty}</div>
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                      <div style={{ width:36, height:36, borderRadius:8, overflow:"hidden", flexShrink:0, background:"#f0f0f0", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={16} color={C.muted}/>}
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+                        <div style={{ fontSize:11, color:C.muted }}>Qty {item.qty}</div>
+                      </div>
                     </div>
-                    <div style={{ fontWeight:700, fontSize:12.5, color:C.green }}>{fmtPeso1(item.price * item.qty)}</div>
+                    <div style={{ fontWeight:700, fontSize:12.5, color:C.green, flexShrink:0 }}>{fmtPeso1(item.price * item.qty)}</div>
                   </div>
                 ))}
               </div>
@@ -7492,9 +7749,14 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             )}
 
             {order.status === "accepted" && mode !== "dispose" && mode !== "reject" && (
-              <div style={{ display:"flex", gap:10 }}>
-                <button onClick={startDispose} style={{ ...primaryBtn, flex:1 }}>Check Stock &amp; Dispose</button>
-                <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={startDispose} style={{ ...primaryBtn, flex:1 }}>Check Stock &amp; Dispose</button>
+                  <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
+                </div>
+                <button onClick={() => onPrint([order])} style={printBtn}>
+                  <Printer size={14}/> Print Receipt
+                </button>
               </div>
             )}
             {order.status === "accepted" && mode === "reject" && (
@@ -7503,7 +7765,7 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             )}
 
             {order.status === "accepted" && mode === "dispose" && (
-              <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:14 }}>
+              <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:14, animation:"cardIn .18s ease" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:800, color:C.greenDk, marginBottom:10 }}>
                   <ShieldCheck size={14}/> FIFO / FEFO stock check
                 </div>
@@ -7515,11 +7777,17 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
                       {dState.results.map((r, i) => (
                         <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"9px 11px", borderRadius:9,
                           background: !r.matched ? C.redBg : r.sufficient ? C.greenLt : C.warnBg,
-                          border:`1px solid ${!r.matched ? C.redBorder : r.sufficient ? C.greenMid : C.warnBorder}` }}>
-                          <div style={{ minWidth:0 }}>
-                            <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</div>
-                            <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>
-                              {!r.matched ? "Not linked to a stock ingredient" : `Need ${r.qty}${r.unit?" "+r.unit:""} · ${r.available}${r.unit?" "+r.unit:""} on hand`}
+                          border:`1px solid ${!r.matched ? C.redBorder : r.sufficient ? C.greenMid : C.warnBorder}`,
+                          animation:"cardIn .2s ease both", animationDelay:`${i*40}ms` }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+                            <div style={{ width:28, height:28, borderRadius:6, overflow:"hidden", flexShrink:0, background:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              {itemImage(r) ? <img src={itemImage(r)} alt={r.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={13} color={C.muted}/>}
+                            </div>
+                            <div style={{ minWidth:0 }}>
+                              <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</div>
+                              <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>
+                                {!r.matched ? "Not linked to a stock ingredient" : `Need ${r.qty}${r.unit?" "+r.unit:""} · ${r.available}${r.unit?" "+r.unit:""} on hand`}
+                              </div>
                             </div>
                           </div>
                           <span style={{ flexShrink:0, fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
@@ -7550,13 +7818,13 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             )}
 
             {order.status === "disposed" && (
-              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk }}>
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk, animation:"cardIn .2s ease" }}>
                 <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
                 <span>This order was fulfilled and its items were deducted from the FIFO/FEFO stock queue.</span>
               </div>
             )}
             {order.status === "rejected" && (
-              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#7f1d1d" }}>
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#7f1d1d", animation:"cardIn .2s ease" }}>
                 <X size={15} style={{ flexShrink:0, marginTop:1 }}/>
                 <span>This order was rejected. No stock was deducted.</span>
               </div>
@@ -7595,12 +7863,21 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const [error,       setError]       = useState(null);
 
   const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // all | pending | accepted | disposed | rejected
+  const [statusFilter, setStatusFilter] = useState("pending"); // default view: Incoming Orders, not All
   const [viewOrder,    setViewOrder]    = useState(null);
   const [disposeState, setDisposeState] = useState(null);  // { orderId, checking, results, saving }
   const [toast,        setToast]        = useState(null);
+  const [printQueue,   setPrintQueue]   = useState([]);      // orders currently queued for printing
+  const [massAccepting, setMassAccepting] = useState(false);
 
   const showToast = (type, title, message) => setToast({ type, title, message });
+
+  /* ── printing ── */
+  const triggerPrint = (ordersToPrint) => {
+    if (!ordersToPrint || ordersToPrint.length === 0) return;
+    setPrintQueue(ordersToPrint);
+    setTimeout(() => { window.print(); setPrintQueue([]); }, 80);
+  };
 
   /* ── activity log ── */
   const fetchActivityLog = useCallback(async () => {
@@ -7660,7 +7937,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
   useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
 
-  /* ── plain status change (accept / reject / cancel) ── */
+  /* ── plain status change (accept / reject / cancel) ──
+     Surfaces the real backend error instead of a generic "Update failed". */
   const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
@@ -7670,7 +7948,16 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
         body: JSON.stringify({ status:dbStatus }),
       });
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) {
+        let detail = "";
+        try {
+          const body = await res.json();
+          detail = body.error || body.message || JSON.stringify(body);
+        } catch {
+          detail = await res.text().catch(() => "");
+        }
+        throw new Error(detail || `Update failed (${res.status})`);
+      }
       await logActivity("edit", `Order #${order.id}`, order.branch, changeNote || `status → ${nextUiStatus}`);
       await fetchActivityLog();
     } catch (err) {
@@ -7693,6 +7980,30 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       await advanceStatus(order, "rejected", changeNote);
       showToast("success", "Order rejected", `#${order.id} was marked as rejected.`);
     } catch {}
+  };
+
+  /* ── mass accept + print: accepts every Incoming order, prints one receipt
+     per order sized for the half-page pad, then re-syncs so every view
+     (including whatever the customer mobile app polls) picks up the update. ── */
+  const handleMassAcceptAndPrint = async () => {
+    const pendingOrders = orders.filter(o => o.status === "pending");
+    if (pendingOrders.length === 0) return;
+    setMassAccepting(true);
+    const accepted = [];
+    for (const o of pendingOrders) {
+      try {
+        await advanceStatus(o, "accepted", "Order accepted (mass accept)");
+        accepted.push({ ...o, status:"accepted" });
+      } catch {
+        // individual failure already toasted by advanceStatus; continue with the rest
+      }
+    }
+    setMassAccepting(false);
+    if (accepted.length > 0) {
+      showToast("success", "Orders accepted", `${accepted.length} order(s) accepted — sending to print.`);
+      triggerPrint(accepted);
+    }
+    await fetchOrders();
   };
 
   /* ── FIFO/FEFO matching + deduction ── */
@@ -7783,15 +8094,14 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     total:    orders.length,
     pending:  orders.filter(o => o.status === "pending").length,
     accepted: orders.filter(o => o.status === "accepted").length,
-    disposed: orders.filter(o => o.status === "disposed").length,
+    rejected: orders.filter(o => o.status === "rejected").length,
   };
 
   const FILTER_CHIPS = [
-    { key:"all",      label:"All Orders",   count:counts.total },
-    { key:"pending",  label:"Needs Review", count:counts.pending },
-    { key:"accepted", label:"Accepted",     count:counts.accepted },
-    { key:"disposed", label:"Fulfilled",    count:counts.disposed },
-    { key:"rejected", label:"Rejected",     count:orders.filter(o=>o.status==="rejected").length },
+    { key:"all",      label:"All Orders",      count:counts.total },
+    { key:"pending",  label:"Incoming Orders", count:counts.pending },
+    { key:"accepted", label:"Accepted",        count:counts.accepted },
+    { key:"rejected", label:"Rejected",        count:counts.rejected },
   ];
 
   /* ── loading / error states ── */
@@ -7809,59 +8119,69 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes drawerIn { from { transform:translateX(100%); } to { transform:translateX(0); } }
+        @keyframes overlayIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes toastIn { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
         button:not(:disabled) { transition: filter .15s ease, transform .1s ease; }
         button:not(:disabled):hover { filter: brightness(0.96); }
         button:not(:disabled):active { transform: translateY(1px); }
         select:focus, input:focus, textarea:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); outline:none; }
+        #print-area { display:none; }
+        @media print {
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
+          #print-area { display:block !important; position: fixed; top:0; left:0; }
+          .receipt-page { page-break-after: always; }
+          @page { size: 8.5in 4.25in; margin: 0; }
+        }
       `}</style>
 
-      {/* Header */}
-      <div style={{ marginBottom:18 }}>
-        <h1 style={{ margin:0, fontSize:20, fontWeight:800, color:C.ink }}>Orders</h1>
-        <div style={{ fontSize:12.5, color:C.muted, marginTop:3 }}>Review incoming orders, accept them, and fulfill from your FIFO/FEFO stock.</div>
-      </div>
+      {/* Toolbar */}
+      <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:18 }}>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center",
+          background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:10 }}>
+          <div style={{ position:"relative", flex:"1 1 220px", minWidth:200 }}>
+            <Search size={15} color={C.muted} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
+              style={{ width:"100%", height:38, padding:"0 14px 0 36px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+          </div>
 
-      {/* Stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:20 }}>
-        <BmStatCard label="All Orders"    value={counts.total}    icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="Every order" />
-        <BmStatCard label="Needs Review"  value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Waiting on you" />
-        <BmStatCard label="Accepted"      value={counts.accepted} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)" sub="Ready to fulfill" />
-        <BmStatCard label="Fulfilled"     value={counts.disposed} icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Deducted from stock" />
-      </div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
+              fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background:"#fff", cursor:"pointer" }}>
+            {FILTER_CHIPS.map(c => (
+              <option key={c.key} value={c.key}>{c.label} ({c.count})</option>
+            ))}
+          </select>
 
-      {/* Search + filter chips */}
-      <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center", marginBottom:18 }}>
-        <div style={{ position:"relative", flex:"1 1 220px", minWidth:200 }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
-            style={{ width:"100%", height:38, padding:"0 14px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+          <button onClick={fetchOrders}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
+              background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            ⟳ Refresh
+          </button>
         </div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {FILTER_CHIPS.map(c => (
-            <button key={c.key} onClick={() => setStatusFilter(c.key)}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:20, border:`1px solid ${statusFilter===c.key ? C.green : C.border}`,
-                background: statusFilter===c.key ? `linear-gradient(135deg,${C.teal},${C.green})` : "#fff",
-                color: statusFilter===c.key ? "#fff" : C.muted, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              {c.label}
-              <span style={{ padding:"1px 7px", borderRadius:20, fontSize:10.5, background: statusFilter===c.key ? "rgba(255,255,255,0.25)" : C.greenLt, color: statusFilter===c.key ? "#fff" : C.greenDk }}>{c.count}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:8, flexWrap:"wrap" }}>
+          <button onClick={handleMassAcceptAndPrint} disabled={massAccepting || counts.pending === 0}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:"none",
+              background: (massAccepting || counts.pending === 0) ? "#e5e7eb" : `linear-gradient(135deg,${C.teal},${C.green})`,
+              color: (massAccepting || counts.pending === 0) ? "#9ca3af" : "#fff",
+              fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
+            <Printer size={13}/> {massAccepting ? "Accepting…" : `Accept & Print All (${counts.pending})`}
+          </button>
           <button onClick={() => setShowActivityLog(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`,
+              background:"#fff", color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
             <Layers size={13}/> Activity Log
             {activityLog.length > 0 && <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>}
-          </button>
-          <button onClick={fetchOrders}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-            ⟳ Refresh
           </button>
         </div>
       </div>
 
       {/* Order grid */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"70px 20px", background:"#fff", borderRadius:18, border:`1px dashed ${C.border}` }}>
+        <div style={{ textAlign:"center", padding:"70px 20px", background:"#fff", borderRadius:18, border:`1px dashed ${C.border}`, animation:"cardIn .2s ease" }}>
           <Package size={34} color={C.muted} style={{ opacity:0.5, marginBottom:10 }}/>
           <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:4 }}>No orders here</div>
           <div style={{ fontSize:12.5, color:C.muted }}>
@@ -7869,8 +8189,12 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
           </div>
         </div>
       ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(270px, 1fr))", gap:16 }}>
-          {filtered.map(order => <OrderCard key={order.id} order={order} onOpen={setViewOrder}/>)}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:14 }}>
+          {filtered.map((order, i) => (
+            <div key={order.id} style={{ animation:"cardIn .28s ease both", animationDelay:`${Math.min(i,10)*30}ms` }}>
+              <OrderCard order={order} onOpen={setViewOrder}/>
+            </div>
+          ))}
         </div>
       )}
 
@@ -7884,6 +8208,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
           onDisposeCheck={runDisposeCheck}
           onDisposeConfirm={handleDisposeConfirm}
           disposeState={disposeState}
+          onPrint={triggerPrint}
         />
       )}
 
@@ -7892,6 +8217,11 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       {showActivityLog && (
         <InventoryActivityLogPanel log={activityLog} onClose={() => setShowActivityLog(false)} />
       )}
+
+      {/* Hidden print target — only visible to the print engine (see @media print above) */}
+      <div id="print-area">
+        {printQueue.map(o => <ReceiptSlip key={o.id} order={o} />)}
+      </div>
     </div>
   );
 }
