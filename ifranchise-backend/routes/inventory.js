@@ -27,31 +27,10 @@ router.get("/inventory", async (req, res) => {
   }
 });
 
-router.post("/inventory", async (req, res) => {
-  try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
-    if (!branch) return res.status(400).json({ error: "Branch is required" });
-
-    const result = await pool.query(
-      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [name, category, branch, brand || null,
-       parseInt(stock) || 0, parseInt(min_stock ?? minStock) || 0,
-       parseFloat(cost) || 0, parseFloat(price) || 0, image_url || null]
-    );
-
-    const newItem = result.rows[0];
-    await logActivity("ADDED", newItem.id, newItem.name, { category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock, cost: newItem.cost, price: newItem.price });
-    res.json({ success: true, item: newItem });
-  } catch (err) {
-    console.error("POST /inventory error:", err);
-    res.status(500).json({ error: "Failed to add inventory item" });
-  }
-});
 
 router.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude } = req.body;
 
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -75,8 +54,12 @@ router.put("/inventory/:id", async (req, res) => {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
-    await logActivity("EDITED", updatedItem.id, updatedItem.name, { changes });
+    
+    await logActivity("update", updatedItem.name, req.body?.performed_by || "System",
+  changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude);
+
     res.json({ success: true, item: updatedItem });
+
   } catch (err) {
     console.error("PUT /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to update inventory item" });
@@ -84,6 +67,7 @@ router.put("/inventory/:id", async (req, res) => {
 });
 
 router.delete("/inventory/:id", async (req, res) => {
+  const { latitude, longitude } = req.body;
   try {
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -107,9 +91,12 @@ router.delete("/inventory/:id", async (req, res) => {
       ]
     );
 
-    await logActivity("DELETED", item.id, item.name, { category: item.category, branch: item.branch, stock: item.stock, cost: item.cost, price: item.price });
-    await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);
-    res.json({ success: true });
+    await logActivity("delete", item.name, req.body?.deleted_by || "System",
+  { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
+  req, item.branch, "Menu Inventory", latitude, longitude);
+
+    await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);  
+    res.json({ success: true });                               
   } catch (err) {
     console.error("DELETE /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to delete inventory item" });
@@ -156,36 +143,34 @@ router.get("/inventory/:id/ingredients", async (req, res) => {
   }
 });
 
-router.post("/inventory/:id/ingredients", async (req, res) => {
-  const client = await pool.connect();
+router.post("/inventory", async (req, res) => {
   try {
-    const { ingredients } = req.body;
-    await client.query("BEGIN");
-    await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [req.params.id]);
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, restored } = req.body;
+    if (!branch) return res.status(400).json({ error: "Branch is required" });
 
-    for (const ing of ingredients) {
-      await client.query(
-        `INSERT INTO product_ingredients (inventory_id, ingredient_id, quantity, unit) VALUES ($1,$2,$3,$4)`,
-        [req.params.id, ing.ingredient_id, parseFloat(ing.quantity), ing.unit]
-      );
-    }
-
-    const costResult = await client.query(
-      `SELECT SUM(pi.quantity * i.cost_per_unit) AS total_cost
-       FROM product_ingredients pi
-       JOIN ingredients i ON i.id = pi.ingredient_id
-       WHERE pi.inventory_id = $1`,
-      [req.params.id]
+    const result = await pool.query(
+      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [name, category, branch, brand || null,
+       parseInt(stock) || 0, parseInt(min_stock ?? minStock) || 0,
+       parseFloat(cost) || 0, parseFloat(price) || 0, image_url || null]
     );
-    const totalCost = parseFloat(costResult.rows[0].total_cost) || 0;
-    await client.query(`UPDATE inventory SET cost=$1, updated_at=NOW() WHERE id=$2`, [totalCost, req.params.id]);
-    await client.query("COMMIT");
-    res.json({ success: true, cost: totalCost });
+
+    const newItem = result.rows[0];
+
+    await logActivity(
+      restored ? "restore" : "create",
+      newItem.name,
+      req.body?.performed_by || "System",
+      { category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock, cost: newItem.cost, price: newItem.price,
+        ...(restored ? { note: "Restored from delete history" } : {}) },
+      req, branch, "Menu Inventory", latitude, longitude
+    );
+
+    res.json({ success: true, item: newItem });
   } catch (err) {
-    await client.query("ROLLBACK");
-    res.status(500).json({ error: "Failed to save recipe" });
-  } finally {
-    client.release();
+    console.error("POST /inventory error:", err);
+    res.status(500).json({ error: "Failed to add inventory item" });
   }
 });
 

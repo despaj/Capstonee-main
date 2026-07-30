@@ -78,6 +78,17 @@ const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0
 const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
 const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
 // ─── Chip ─────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
   return (
@@ -659,16 +670,6 @@ const emptyForm = useCallback(() => ({
     } catch (err) { console.error("Failed to fetch inventory activity log:", err); }
   }, []);
 
-  const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/inventory-activity-log`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ action, item_name:itemName, branch:branchName, performed_by:userName, changes }),
-      });
-    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-  }, [userName]);
-
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isAdmin) { fetchInventory(userBranch); return; }
@@ -731,13 +732,14 @@ const emptyForm = useCallback(() => ({
   const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
   const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
 
-  const handleAddItem = async e => {
-    e.preventDefault();
-    const branch    = isAdmin ? formData.branch : userBranch;
-    const duplicate = findDuplicate(formData.name, branch, inventory);
-    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
+const handleAddItem = async e => {
+  e.preventDefault();
+  const branch    = isAdmin ? formData.branch : userBranch;
+  const duplicate = findDuplicate(formData.name, branch, inventory);
+  if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
 
-    const payload = { ...formData, branch, min_stock:formData.minStock };
+  const coords = await getBrowserLocation();
+  const payload = { ...formData, branch, min_stock: formData.minStock, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -756,7 +758,6 @@ const emptyForm = useCallback(() => ({
             })
           });
         }
-        await logActivity("add", formData.name, branch);
         await refetch();
         await fetchActivityLog();
         setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
@@ -764,14 +765,15 @@ const emptyForm = useCallback(() => ({
     } catch { alert("Failed to add item"); }
   };
 
-  const handleEditItem = async e => {
-    e.preventDefault();
-    const branch     = isAdmin ? formData.branch : userBranch;
-    const otherItems = inventory.filter(i => i.id !== editingItem.id);
-    const duplicate  = findDuplicate(formData.name, branch, otherItems);
-    if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
+const handleEditItem = async e => {
+  e.preventDefault();
+  const branch     = isAdmin ? formData.branch : userBranch;
+  const otherItems = inventory.filter(i => i.id !== editingItem.id);
+  const duplicate  = findDuplicate(formData.name, branch, otherItems);
+  if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
 
-    const payload = { ...formData, branch, min_stock:formData.minStock };
+  const coords = await getBrowserLocation();
+  const payload = { ...formData, branch, min_stock: formData.minStock, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -797,7 +799,6 @@ const emptyForm = useCallback(() => ({
         if (editingItem.category          !== formData.category)         changed.push(`category: ${editingItem.category} → ${formData.category}`);
         const changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
 
-        await logActivity("edit", formData.name, branch, changesStr);
         await refetch();
         await fetchActivityLog();
         setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
@@ -807,61 +808,67 @@ const emptyForm = useCallback(() => ({
 
 const handleDeleteItem = async id => {
   try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, { method: "DELETE" });
-    const d   = await res.json();
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
+    });
+    const d = await res.json();
     if (d.success) {
       await refetch();
-      await fetchDeleteHistory(); 
+      await fetchDeleteHistory();
       await fetchActivityLog();
       setConfirmDeleteId(null);
     } else alert(d.error || "Failed to delete");
   } catch { alert("Failed to delete"); }
 };
 
-  const handleRestore = async (entry) => {
-    try {
-      const d    = entry.inventory_data;
-      const ings = entry.ingredients_data || [];
+const handleRestore = async (entry) => {
+  try {
+    const d    = entry.inventory_data;
+    const ings = entry.ingredients_data || [];
+    const coords = await getBrowserLocation();
 
-      // Re-create inventory item
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          name:      d.name,
-          category:  d.category,
-          branch:    d.branch,
-          brand:     d.brand,
-          stock:     d.stock,
-          min_stock: d.min_stock,
-          cost:      d.cost,
-          price:     d.price,
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        // Re-link all ingredients
-        if (ings.length > 0) {
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              ingredients: ings.map(ing => ({
-                ingredient_id: ing.stock_item_id,
-                quantity:      ing.qty_required,
-                unit:          ing.unit,
-              })),
-            }),
-          });
-        }
-        // Remove from delete history
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
-        await logActivity("add", d.name, d.branch, "Restored from delete history");
-        await refetch();
-        await fetchDeleteHistory();
-        await fetchActivityLog();
-        alert(`"${d.name}" has been restored with all ${ings.length} ingredient(s).`);
-      } else alert(result.error || "Failed to restore");
-    } catch { alert("Failed to restore item"); }
-  };
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        name:      d.name,
+        category:  d.category,
+        branch:    d.branch,
+        brand:     d.brand,
+        stock:     d.stock,
+        min_stock: d.min_stock,
+        cost:      d.cost,
+        price:     d.price,
+        performed_by: userName,
+        latitude:  coords?.latitude,
+        longitude: coords?.longitude,
+        restored:  true,          // ← new flag
+      }),
+    });
+    const result = await res.json();
+    if (result.success) {
+      if (ings.length > 0) {
+        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({
+            ingredients: ings.map(ing => ({
+              ingredient_id: ing.stock_item_id,
+              quantity:      ing.qty_required,
+              unit:          ing.unit,
+            })),
+          }),
+        });
+      }
+      await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
+      await refetch();
+      await fetchDeleteHistory();
+      await fetchActivityLog();
+      alert(`"${d.name}" has been restored with all ${ings.length} ingredient(s).`);
+    } else alert(result.error || "Failed to restore");
+  } catch { alert("Failed to restore item"); }
+};
 
   const openEditModal = item => {
     setEditingItem(item);
@@ -962,7 +969,6 @@ const handleDeleteItem = async id => {
           if (d.success) {
             saved++;
             currentInventory.push({ ...itemData, id:d.item.id });
-            await logActivity("import", item.name, item.branch, `stock=${item.stock}, cost=₱${item.cost}`);
             if (ingredients.length > 0) {
               const ingPayload = ingredients.map(ing => {
                 const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);

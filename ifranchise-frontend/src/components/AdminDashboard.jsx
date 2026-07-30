@@ -609,6 +609,8 @@ const ACTION_META = {
   update:  { color: '#1565c0', bg: '#e3f2fd', label: 'Update'  },
   delete:  { color: '#c62828', bg: '#ffebee', label: 'Delete'  },
   restore: { color: '#6a1b9a', bg: '#f3e5f5', label: 'Restore' },
+  hide:    { color: '#5d4037', bg: '#efebe9', label: 'Hide'    },
+  show:    { color: '#2e7d32', bg: '#e8f5e9', label: 'Show'    },
   approve: { color: '#2e7d32', bg: '#e8f5e9', label: 'Approve' },
   reject:  { color: '#bf360c', bg: '#fbe9e7', label: 'Reject'  },
   login:   { color: '#00695c', bg: '#e0f2f1', label: 'Login'   },
@@ -655,7 +657,6 @@ const fmtFull = (iso) =>
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
 
-// ── Design tokens (matches your green dashboard) ──────────────────────────────
 const th = {
   padding: '9px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
   color: C.green, letterSpacing: '0.07em', textTransform: 'uppercase',
@@ -782,53 +783,53 @@ function ActivityLogContent({ user }) {
   const [dateTo,   setDateTo]   = useState('');
 
   // ── Load logs ─────────────────────────────────────────────────────────────
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const endpoints = [
-        { url: 'inventory-activity-log',     module: 'Menu Inventory'   },
-        { url: 'shop-activity-log',          module: 'Mobile Shop'      },
-        { url: 'orders-activity-log',        module: 'Orders'           },
-        { url: 'users-activity-log',         module: 'User Management'  },
-        { url: 'applications-activity-log',  module: 'Applications'     },
-        { url: 'reports-activity-log',       module: 'Reports'          },
-        { url: 'announcements-activity-log', module: 'Announcements'    },
-        { url: 'brands-activity-log',        module: 'Brand & Branch'   },
-      ];
+const loadLogs = useCallback(async () => {
+  setLoading(true);
+  try {
+    const endpoints = [
+      'inventory-activity-log',
+      'shop-activity-log',
+      'orders-activity-log',
+      'users-activity-log',
+      'applications-activity-log',
+      'reports-activity-log',
+      'announcements-activity-log',
+      'brands-activity-log',
+    ];
 
-      const results = await Promise.all(
-        endpoints.map(({ url, module }) =>
-          fetch(`${process.env.REACT_APP_API_URL}/${url}`)
-            .then(r => r.json())
-            .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
-              id:          row.id,
-              module,
-              action:      (row.action || 'update').toLowerCase(),
-              user_name:   row.performed_by || 'Admin',
-              role:        'Admin',
-              description: row.item_name || row.action || '—',
-              branch:      row.branch || '—',
-              device:      row.device || '—', 
-              location:    row.location || '—',
-              changes:     row.changes || null,
-              created_at:  row.created_at,
-              meta:        {},
-            })))
-            .catch(() => [])
-        )
-      );
+    const results = await Promise.all(
+      endpoints.map(url =>
+        fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+          .then(r => r.json())
+          .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
+            id:          row.id,
+            module:      row.module || 'General',   // ← read from the row now, not the endpoint
+            action:      (row.action || 'update').toLowerCase(),
+            user_name:   row.performed_by || 'Admin',
+            role:        'Admin',
+            description: row.item_name || row.action || '—',
+            branch:      row.branch || '—',
+            device:      row.device || '—',
+            location:    row.location || '—',
+            changes:     row.changes || null,
+            created_at:  row.created_at,
+            meta:        {},
+          })))
+          .catch(() => [])
+      )
+    );
 
-      const merged = results
-        .flat()
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const merged = results
+      .flat()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-      setAllLogs(merged);
-    } catch (err) {
-      console.error('Failed to load activity logs:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    setAllLogs(merged);
+  } catch (err) {
+    console.error('Failed to load activity logs:', err);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
@@ -2844,6 +2845,20 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     fontFamily: "'Montserrat', sans-serif", // ensures typed text AND placeholder text use Montserrat
   };
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { console.log("[DEBUG] geolocation not supported"); resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log("[DEBUG] got coords:", position.coords.latitude, position.coords.longitude);
+        resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      },
+      (err) => { console.log("[DEBUG] geolocation error:", err.code, err.message); resolve(null); },
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
   const [activityLog,     setActivityLog]     = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showAddModal,    setShowAddModal]    = useState(false);
@@ -2960,88 +2975,80 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     return Object.keys(errs).length === 0;
   };
 
-  const logActivity = useCallback(async (action, itemName, shopName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        item_name: itemName,
-        branch: shopName,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        changes,
-      }),
-    });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, [user]); 
-
   const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
-  const addItem = async () => {
-    if (loading || !validate()) return;
+const addItem = async () => {
+  if (loading || !validate()) return;
 
-    const duplicate = items.find(
-      i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
-        && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
-    );
-    if (duplicate) {
-      alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
-      return;
-    }
+  const duplicate = items.find(
+    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
+      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
+  );
+  if (duplicate) {
+    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
+    return;
+  }
 
-    setLoading(true);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name:      capitalize(newItem.name),
-        price:     Number(newItem.price),
-        unit:      "",
-        image_url: newItem.image_url,
-        shop:      newItem.brand,
-        brand:     newItem.brand,
-        stock:     Number(newItem.stock || 0),
-      }),
-    });
+  setLoading(true);
+  const coords = await getBrowserLocation();
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name:      capitalize(newItem.name),
+      price:     Number(newItem.price),
+      unit:      "",
+      image_url: newItem.image_url,
+      shop:      newItem.brand,
+      brand:     newItem.brand,
+      stock:     Number(newItem.stock || 0),
+      performed_by: user?.name || "System",
+      latitude:  coords?.latitude,
+      longitude: coords?.longitude,
+    }),
+  });
 
-    await logActivity("add", capitalize(newItem.name), newItem.brand);
-    setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-    setErrors({});
-    setLoading(false);
-    setShowAddModal(false); // NEW: close modal on success
-    fetchItems();
-  };
+  setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
+  setErrors({});
+  setLoading(false);
+  setShowAddModal(false);
+  fetchItems();
+  fetchActivityLog();
+};
 
-  const saveEdit = async () => {
-    if (editLoading || !validateEdit()) return;
-    setEditLoading(true);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name:       capitalize(editingItem.name.trim()),
-        price:      Number(editingItem.price),
-        unit:       editingItem.unit || "",
-        image_url:  editingItem.image_url,
-        shop:       editingItem.brand,
-        brand:      editingItem.brand,
-        stock:      Number(editingItem.stock),
-        is_visible: editingItem.is_visible,
-      }),
-    });
-    await logActivity("edit", capitalize(editingItem.name), editingItem.brand, `price: ₱${editingItem.price}`);
-    setEditingItem(null);
-    setEditErrors({});
-    setEditLoading(false);
-    fetchItems();
-  };
+const saveEdit = async () => {
+  if (editLoading || !validateEdit()) return;
+  setEditLoading(true);
+  const coords = await getBrowserLocation();
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name:       capitalize(editingItem.name.trim()),
+      price:      Number(editingItem.price),
+      unit:       editingItem.unit || "",
+      image_url:  editingItem.image_url,
+      shop:       editingItem.brand,
+      brand:      editingItem.brand,
+      stock:      Number(editingItem.stock),
+      is_visible: editingItem.is_visible,
+      performed_by: user?.name || "System",
+      latitude:  coords?.latitude,
+      longitude: coords?.longitude,
+    }),
+  });
+  setEditingItem(null);
+  setEditErrors({});
+  setEditLoading(false);
+  fetchItems();
+  fetchActivityLog();
+};
 
   const importExcel = e => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async ev => {
+      const coords = await getBrowserLocation();
       const wb = XLSX.read(ev.target.result, { type: "array" });
       const rows_to_save = [];
       wb.SheetNames.forEach(sheetName => {
@@ -3071,27 +3078,30 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
           });
         });
       });
-      let saved = 0;
-      for (const item of rows_to_save) {
-        try {
-          const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name:       capitalize(item.name.trim()),
-              price:      item.price,
-              unit:       item.unit,
-              stock:      item.stock,
-              shop:       item.shop,
-              brand:      item.brand,
-              image_url:  item.image_url,
-              is_visible: item.is_visible,
-            }),
-          });
+       let saved = 0;
+        for (const item of rows_to_save) {
+          try {
+            const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name:       capitalize(item.name.trim()),
+                price:      item.price,
+                unit:       item.unit,
+                stock:      item.stock,
+                shop:       item.shop,
+                brand:      item.brand,
+                image_url:  item.image_url,
+                is_visible: item.is_visible,
+                performed_by: user?.name || "System",
+                latitude:  coords?.latitude,
+                longitude: coords?.longitude,
+                imported:  true,
+              }),
+            });
           const d = await res.json();
           if (d.success) {
             saved++;
-            await logActivity("import", item.name, item.shop, `price=₱${item.price}`);
           }
         } catch {}
       }
@@ -3099,7 +3109,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       const skipped = rows_to_save.length - saved;
       alert(
         `Parsed ${rows_to_save.length} row(s).\n` +
-        `✅ Saved: ${saved} item(s)\n` +
+        `Saved: ${saved} item(s)\n` +
         `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
       );
       fetchItems();
@@ -3107,32 +3117,27 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     reader.readAsArrayBuffer(file);
   };
 
-  const deleteItem = async (id) => {
-    const deleted = items.find(i => i.id === id);
-    await logActivity("delete", deleted?.name, deleted?.shop);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`,
-      { method:"DELETE" });
-    setConfirmDelete(null);
-    fetchItems();
-  };
-
-  const toggleVisibility = async (id) => {
-  const item = items.find(i => String(i.id) === String(id));
-  if (!item) {
-    console.warn("toggleVisibility: item not found for id", id, items.map(i => i.id));
-  }
-  const newStatus = item ? !item.is_visible : null;
-
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method: "PUT" });
-
-  await logActivity(
-    newStatus ? "show" : "hide",
-    item?.name || "Unknown item",
-    item?.shop || "Unknown shop",
-    newStatus ? "Item made visible" : "Item hidden"
-  );
-
+const deleteItem = async (id) => {
+  const coords = await getBrowserLocation();
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+  });
+  setConfirmDelete(null);
   fetchItems();
+  fetchActivityLog();
+};
+
+const toggleVisibility = async (id) => {
+  const coords = await getBrowserLocation();
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+  });
+  fetchItems();
+  fetchActivityLog();
 };
 
   // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
@@ -3483,16 +3488,22 @@ function InventoryActivityLogPanel({ log, onClose }) {
     return true;
   });
 
-  const actionBadge = action => {
-    const map = {
-      add:    { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Added" },
-      edit:   { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Edited" },
-      import: { bg:"rgba(139,92,246,0.12)", color:"#7c3aed", label:"Imported" },
-      delete: { bg:"rgba(239,68,68,0.12)", color:"#dc2626", label:"Deleted" },
-    };
-    const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+const actionBadge = (action) => {
+  const map = {
+    add:      { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Added"     },
+    edit:     { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8",  label:"Edited"    },
+    update:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8",  label:"Updated"   },
+    import:   { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed",  label:"Imported"  },
+    receive:  { bg:"rgba(245,158,11,0.14)",  color:"#b45309",  label:"Received"  },
+    approve:  { bg:"rgba(16,185,129,0.14)",  color:"#059669",  label:"Approved"  },
+    reject:   { bg:"rgba(239,68,68,0.14)",   color:"#dc2626",  label:"Rejected"  },
+    delete:   { bg:"rgba(239,68,68,0.14)",   color:"#dc2626",  label:"Deleted"   }, 
+    restore:  { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Restored"  }, 
+    create:   { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Submitted" }, 
   };
+  const s = map[action] || map.edit;
+  return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+};
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
@@ -3513,12 +3524,13 @@ function InventoryActivityLogPanel({ log, onClose }) {
             <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
               style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
           </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
+          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:130, height:32, fontSize:12 }}>
             <option value="all">All Actions</option>
-            <option value="add">Added</option>
-            <option value="edit">Edited</option>
-            <option value="import">Imported</option>
+            <option value="create">Submitted</option>
+            <option value="approve">Approved</option>
+            <option value="reject">Rejected</option>
             <option value="delete">Deleted</option>
+            <option value="restore">Restored</option>
           </select>
         </div>
 
@@ -3562,6 +3574,102 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
+function ActivityLogPanel({ log, onClose, title = "Activity Log" }) {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const filtered = log.filter(entry => {
+    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!entry.item_name?.toLowerCase().includes(q) &&
+          !(entry.performed_by || "").toLowerCase().includes(q) &&
+          !(entry.branch || "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const ACTION_STYLES = {
+    add:      { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Added"     },
+    create:   { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Created"   },
+    edit:     { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Edited"    },
+    update:   { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Updated"   },
+    import:   { bg:"rgba(139,92,246,0.12)", color:"#7c3aed", label:"Imported"  },
+    receive:  { bg:"rgba(245,158,11,0.14)", color:"#b45309", label:"Received"  },
+    approve:  { bg:"rgba(16,185,129,0.14)", color:"#059669", label:"Approved"  },
+    reject:   { bg:"rgba(239,68,68,0.14)",  color:"#dc2626", label:"Rejected"  },
+    delete:   { bg:"rgba(239,68,68,0.14)",  color:"#dc2626", label:"Deleted"   },
+    restore:  { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Restored"  },
+    show:     { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Shown"     },
+    hide:     { bg:"rgba(107,114,128,0.14)",color:"#4b5563", label:"Hidden"    },
+  };
+  const FALLBACK_STYLE = { bg:"rgba(107,114,128,0.12)", color:"#4b5563" };
+
+  const actionBadge = (action) => {
+    const s = ACTION_STYLES[action] || { ...FALLBACK_STYLE, label: action ? action[0].toUpperCase()+action.slice(1) : "—" };
+    return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+  };
+
+  const availableActions = Array.from(new Set(log.map(e => e.action).filter(Boolean))).sort();
+
+  const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
+    month:"short", day:"numeric", year:"numeric",
+    hour:"2-digit", minute:"2-digit",
+  });
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>{title}</h2>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:"#00695c" }}>{filtered.length} entries</span>
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:"1px solid #b2dfdb", background:"#e0f2f1", cursor:"pointer", color:"#00897b", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <X size={15}/>
+          </button>
+        </div>
+
+        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 200px" }}>
+            <Search size={12} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+            <input type="text" placeholder="Search name, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
+              style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px 9px 28px", height:32, fontSize:12, borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontFamily:"inherit", outline:"none" }}/>
+          </div>
+          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}
+            style={{ width:150, height:32, fontSize:12, borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+            <option value="all">All Actions</option>
+            {availableActions.map(a => (
+              <option key={a} value={a}>{ACTION_STYLES[a]?.label || (a[0].toUpperCase()+a.slice(1))}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"90px 1fr 120px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:"#00897b", textTransform:"uppercase", letterSpacing:"0.07em" }}>
+          <span>Action</span><span>Name</span><span>Branch</span><span>By</span><span>Timestamp</span>
+        </div>
+
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
+          ) : filtered.map((entry, i) => (
+            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"90px 1fr 120px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
+              <div>{actionBadge(entry.action)}</div>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
+                {entry.changes && <div style={{ fontSize:10, color:"#9ca3af", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
+              </div>
+              <div style={{ fontSize:11, color:"#5a7a65", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performed_by || "System"}</div>
+              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
@@ -3591,23 +3699,6 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
-const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        item_name: itemName,
-        branch: branchName,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        changes,
-      }),
-    });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, [user]);
-
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
@@ -3617,6 +3708,17 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
       console.error("Failed to fetch applications:", err);
     }
   };
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
 
   const filteredApps = applications.filter(app => {
   const q = searchQuery.toLowerCase();
@@ -3655,36 +3757,44 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
   // ── Approve ─────────────────────────────────────────────────────────────
 const handleApprove = async (id) => {
   try {
+    const coords = await getBrowserLocation();
     await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
       method:  "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ status: "approved" }),
+      body:    JSON.stringify({
+        status: "approved",
+        performed_by: user?.name || "System",  
+        latitude: coords?.latitude,      
+        longitude: coords?.longitude,  
+      }),
     });
-     const app = applications.find(a => a.id === id);
-    await logActivity("edit", app?.name, app?.franchise, "status → approved"); // ← add here
     setApplications(prev =>
       prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
     );
-    // Keep menuApp in sync so buttons disable immediately
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
+    await fetchActivityLog(); 
   } catch {
-    alert("Failed to approve application.");
+    showAlert("Failed to approve application.", "error");
   }
 };
 
 const handleReject = async (id) => {
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
       method:  "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ status: "rejected" }),
+      body:    JSON.stringify({
+        status: "rejected",
+        performed_by: user?.name || "System", 
+        latitude: coords?.latitude,  
+        longitude: coords?.longitude,  
+      }),
     });
     const data = await res.json();
-    if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
+    if (!res.ok) { showAlert(data.error || "Failed to reject application.", "error"); return; }
 
     const app = applications.find(a => a.id === id);
-    await logActivity("edit", app?.name, app?.franchise, "status → rejected");
-
     if (app?.email) {
       await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
         method:  "POST",
@@ -3696,85 +3806,78 @@ const handleReject = async (id) => {
     setApplications(prev =>
       prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
     );
-    // Keep menuApp in sync so buttons disable immediately
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
+    await fetchActivityLog();
   } catch {
-    alert("Failed to reject application.");
+    showAlert("Failed to reject application.", "error");
   }
 };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this application?")) return;
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-      if (data.success) {
-        const app = applications.find(a => a.id === id);
-        await logActivity("delete", app?.name, app?.franchise);
-        setApplications(prev => prev.filter(a => a.id !== id));
-        await fetchAppDeleteHistory();
-      } else {
-        alert(data.error || "Failed to delete application.");
-      }
-    } catch {
-      alert("Failed to delete application.");
+const handleDelete = async (id) => {
+  if (!window.confirm("Delete this application?")) return;
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deleted_by: user?.name || "System", 
+        latitude: coords?.latitude,   
+        longitude: coords?.longitude,   
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setApplications(prev => prev.filter(a => a.id !== id));
+      await fetchAppDeleteHistory();
+      await fetchActivityLog();
+    } else {
+      showAlert(data.error || "Failed to delete application.", "error");
     }
-  };
+  } catch {
+    showAlert("Failed to delete application.", "error");
+  }
+};
 
-  const handleRestoreApplication = async (entry) => {
-    try {
-      const d = entry.data; // raw DB row — snake_case keys
+const handleRestoreApplication = async (entry) => {
+  try {
+    const d = entry.data;
+    const coords = await getBrowserLocation();
 
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name:             d.name,
-          email:            d.email,
-          phone:            d.phone,
-          franchise:        d.franchise,
-          paymentMode:      d.payment_mode,
-          dob:              d.dob,
-          civilStatus:      d.civil_status,
-          gender:           d.gender,
-          nationality:      d.nationality,
-          address:          d.address,
-          dependents:       d.dependents,
-          spouseName:       d.spouse_name,
-          spouseOccupation: d.spouse_occupation,
-          employmentType:   d.employment_type,
-          yearsEmployer:    d.years_employer,
-          income:           d.income,
-          employerName:     d.employer_name,
-          businessAddress:  d.business_address,
-          position:         d.position,
-          businessNature:   d.business_nature,
-          signature:        d.signature,
-          dateSigned:       d.date_signed,
-        }),
-      });
-      const result = await res.json();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: d.name, email: d.email, phone: d.phone, franchise: d.franchise,
+        paymentMode: d.payment_mode, dob: d.dob, civilStatus: d.civil_status,
+        gender: d.gender, nationality: d.nationality, address: d.address,
+        dependents: d.dependents, spouseName: d.spouse_name, spouseOccupation: d.spouse_occupation,
+        employmentType: d.employment_type, yearsEmployer: d.years_employer, income: d.income,
+        employerName: d.employer_name, businessAddress: d.business_address,
+        position: d.position, businessNature: d.business_nature,
+        signature: d.signature, dateSigned: d.date_signed,
+        performed_by: user?.name || "System",
+        latitude: coords?.latitude, 
+        longitude: coords?.longitude,  
+        restored: true,  
+      }),
+    });
+    const result = await res.json();
 
-      if (result.success) {
-        await logActivity("add", d.name, d.franchise, "Restored from delete history"); // ← add here
-        // Remove from delete history
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
-          { method: "DELETE" }
-        );
-        await fetchAppDeleteHistory();
-        await fetchApplications();
-        alert(`"${d.name}" has been restored.`);
-      } else {
-        alert(result.error || "Failed to restore.");
-      }
-    } catch (err) {
-      console.error("Restore error:", err);
-      alert("Failed to restore application.");
+    if (result.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
+      await fetchAppDeleteHistory();
+      await fetchApplications();
+      await fetchActivityLog();
+      showAlert(`"${d.name}" has been restored.`, "success");
+    } else {
+      showAlert(result.error || "Failed to restore.", "error");
     }
-  };
+  } catch (err) {
+    console.error("Restore error:", err);
+    showAlert("Failed to restore application.", "error");
+  }
+};
 
   // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
@@ -4575,10 +4678,11 @@ const handleReject = async (id) => {
             </table>
           </div>
         </div>
-        {showActivityLog && (
-  <InventoryActivityLogPanel
+       {showActivityLog && (
+  <ActivityLogPanel
     log={activityLog}
     onClose={() => setShowActivityLog(false)}
+    title="Application Activity Log"
   />
 )}
       </div>
