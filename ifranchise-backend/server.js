@@ -17,7 +17,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// Cleanup job
 setInterval(async () => {
   await pool.query(`DELETE FROM reports WHERE expires_at < NOW() AND status = 'submitted'`);
   console.log("Cleaned up expired reports");

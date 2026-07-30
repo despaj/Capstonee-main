@@ -735,7 +735,7 @@ export default function AdminDashboard() {
           {activeModule === 'users'         && <UsersContent user={user} brands={brands} />}
           {activeModule === 'reports'       && <ReportsContent user={user} brands={brands} />}
           {activeModule === 'communication' && <CommunicationContent user={user} brands={brands}/>}
-          {activeModule === 'brandBranch'   && <BrandManagementContent brands={brands} onBrandsChange={setBrands} />}
+          {activeModule === 'brandBranch'   && <BrandManagementContent user={user} brands={brands} onBrandsChange={setBrands} />} 
           {activeModule === 'profile'       && <ProfileContent user={user} />}
         </div>
       </main>
@@ -2541,8 +2541,7 @@ function DeleteConfirmModal({ target, onConfirm, onClose }) {
   );
 }
 
-// ── DeleteHistoryPanel ────────────────────────────────────────────────────────
-function DeleteHistoryPanel({ history, onRestore, onClose }) {
+function DeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
@@ -2558,7 +2557,7 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
           {history.length === 0 ? (
             <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af", fontSize: 13, fontStyle: "italic" }}>No deleted items yet.</div>
           ) : history.map((entry, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none" }}>
+            <div key={entry.id ?? i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none" }}>
               <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", background: entry.type === "brand" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)", color: entry.type === "brand" ? "#2563eb" : "#059669" }}>
                 {entry.type === "brand" ? "Brand" : "Branch"}
               </span>
@@ -2566,8 +2565,29 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
                 <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</div>
                 <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>{fmt(entry.deletedAt)}{entry.type === "brand" && entry.data?.branches?.length > 0 ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included` : ""}{entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}</div>
               </div>
-              <button onClick={() => onRestore(entry)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #00897b", background: "#e0f2f1", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
-                <RotateCcw size={12} /> Restore
+              <button
+                onClick={() => onRestore(entry)}
+                disabled={restoringId !== null}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "7px 14px", borderRadius: 9,
+                  border: "1.5px solid #00897b",
+                  background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
+                  color: "#00695c", fontSize: 12, fontWeight: 700,
+                  cursor: restoringId !== null ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0,
+                  opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
+                }}
+              >
+                {restoringId === entry.id ? (
+                  <>
+                    <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={12} /> Restore
+                  </>
+                )}
               </button>
             </div>
           ))}
@@ -2682,6 +2702,81 @@ function BranchFormFields({ form, setForm, brands }) {
     </div>
   );
 }
+function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
+  if (!target) return null;
+  const isBrand = target.type === "brand";
+
+  return (
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete {isBrand ? "brand" : "branch"}?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 6 }}>
+          You are about to delete <strong>"{target.name}"</strong>
+          {!isBrand && target.brandName ? ` under ${target.brandName}` : ""}.
+        </p>
+        {isBrand && target.branchCount > 0 && (
+          <p style={{ textAlign: "center", fontSize: 12.5, color: "#dc2626", fontWeight: 600, lineHeight: 1.6, marginBottom: 6 }}>
+            This will also remove {target.branchCount} associated branch{target.branchCount === 1 ? "" : "es"}.
+          </p>
+        )}
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            <Trash2 size={14} /> {deleting ? "Deleting…" : `Delete ${isBrand ? "Brand" : "Branch"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
@@ -2696,42 +2791,45 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [selectedBrand,       setSelectedBrand]       = useState(null);
   const [selectedBranch,      setSelectedBranch]      = useState(null);
   const [deleteTarget,        setDeleteTarget]        = useState(null);
+  const [deleting,            setDeleting]            = useState(false); 
   const [deletedHistory,      setDeletedHistory]      = useState([]);
   const [showHistory,         setShowHistory]         = useState(false);
+  const [restoringId,         setRestoringId]         = useState(null); 
+  const [alertModal,          setAlertModal]          = useState(null); 
   const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
   const emptyBranch = { name: "", brand_id: "", region: "", manager: "", contact: "", address: "", concept: "" };
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
-  
   const [activityLog,     setActivityLog]     = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
-  const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data : []);
-  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
-}, []);
+  const showAlert = (message, type = "info") => setAlertModal({ message, type });
 
-const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  useEffect(() => {
+    if (!alertModal) return;
+    const timer = setTimeout(() => setAlertModal(null), 3000);
+    return () => clearTimeout(timer);
+  }, [alertModal]);
+
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  const fetchActivityLog = useCallback(async () => {
     try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          item_name: itemName,
-          branch: branchName,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          changes,
-        }),
-      });
-    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-  }, [user]);
-  useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+  }, []);
 
   const fetchDeleteHistory = async () => {
     try {
@@ -2755,106 +2853,278 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
     finally { setLoading(false); }
   };
 
+  useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
+
   const handleAddBrand = async (e) => {
     e.preventDefault();
     const duplicate = brands.some((b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase());
-    if (duplicate) { alert(`A brand named "${brandForm.name}" already exists.`); return; }
+    if (duplicate) { showAlert(`A brand named "${brandForm.name}" already exists.`, "error"); return; }
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandForm) });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...brandForm,
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowAddBrandModal(false); setBrandForm(emptyBrand); }
-      else alert(data.error || "Failed to add brand");
-    } catch { alert("Failed to add brand"); }
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowAddBrandModal(false);
+        setBrandForm(emptyBrand);
+        showAlert(`"${brandForm.name}" has been added.`, "success");
+      } else showAlert(data.error || "Failed to add brand", "error");
+    } catch { showAlert("Failed to add brand", "error"); }
   };
 
   const handleEditBrand = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandForm) });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...brandForm,
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowEditBrandModal(false); setSelectedBrand(null); }
-      else alert(data.error || "Failed to update brand");
-    } catch { alert("Failed to update brand"); }
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowEditBrandModal(false);
+        setSelectedBrand(null);
+        showAlert(`"${brandForm.name}" has been updated.`, "success");
+      } else showAlert(data.error || "Failed to update brand", "error");
+    } catch { showAlert("Failed to update brand", "error"); }
   };
 
   const handleDeleteBrand = async () => {
+    if (!deleteTarget) return;
     const { id, name } = deleteTarget;
     const brand = brands.find((b) => b.id === id);
-    const brandToSave = { name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email || null, contact_phone: brand.contact_phone || null, description: brand.description || null, branches: (brand.branches || []).map(br => ({ name: br.name, region: br.region || null, manager: br.manager || null, contact: br.contact || null, address: br.address || null, concept: br.concept || null })) };
+    const brandToSave = {
+      name: brand.name,
+      categories: brand.categories || [],
+      contact_email: brand.contact_email || null,
+      contact_phone: brand.contact_phone || null,
+      description: brand.description || null,
+      branches: (brand.branches || []).map(br => ({
+        name: br.name, region: br.region || null, manager: br.manager || null,
+        contact: br.contact || null, address: br.address || null, concept: br.concept || null,
+      })),
+    };
+    setDeleting(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'brand', name, brand_name: null, data: brandToSave }) });
-        await fetchBrands(); await fetchDeleteHistory(); setDeleteTarget(null);
-      } else alert(data.error || "Failed to delete brand");
-    } catch { alert("Failed to delete brand"); }
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'brand', name, brand_name: null, data: brandToSave }),
+        });
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showAlert(`"${name}" has been deleted.`, "success");
+      } else showAlert(data.error || "Failed to delete brand", "error");
+    } catch { showAlert("Failed to delete brand", "error"); }
+    finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleAddBranch = async (e) => {
     e.preventDefault();
     const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
-    const duplicate   = parentBrand?.branches?.some((br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
-    if (duplicate) { alert(`A branch named "${branchForm.name}" already exists under this brand.`); return; }
+    const duplicate = parentBrand?.branches?.some((br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
+    if (duplicate) { showAlert(`A branch named "${branchForm.name}" already exists under this brand.`, "error"); return; }
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branchForm) });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...branchForm,
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowAddBranchModal(false); setBranchForm(emptyBranch); }
-      else alert(data.error || "Failed to add branch");
-    } catch { alert("Failed to add branch"); }
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowAddBranchModal(false);
+        setBranchForm(emptyBranch);
+        showAlert(`"${branchForm.name}" has been added.`, "success");
+      } else showAlert(data.error || "Failed to add branch", "error");
+    } catch { showAlert("Failed to add branch", "error"); }
   };
 
   const handleEditBranch = async (e) => {
     e.preventDefault();
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branchForm) });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...branchForm,
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const text = await res.text();
       const data = JSON.parse(text);
-      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
-      else alert(data.error || "Failed to update branch");
-    } catch { alert("Failed to update branch"); }
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowEditBranchModal(false);
+        setSelectedBranch(null);
+        showAlert(`"${branchForm.name}" has been updated.`, "success");
+      } else showAlert(data.error || "Failed to update branch", "error");
+    } catch { showAlert("Failed to update branch", "error"); }
   };
 
+  // UPDATED: now tracks `deleting` and uses the toast instead of alert()
   const handleDeleteBranch = async () => {
+    if (!deleteTarget) return;
     const { id, name, brandName } = deleteTarget;
     const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+    setDeleting(true);
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
       if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'branch', name, brand_name: brandName, data: branch }) });
-        await fetchBrands(); await fetchDeleteHistory(); setDeleteTarget(null);
-      } else alert(data.error || "Failed to delete branch");
-    } catch { alert("Failed to delete branch"); }
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'branch', name, brand_name: brandName, data: branch }),
+        });
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showAlert(`"${name}" has been deleted.`, "success");
+      } else showAlert(data.error || "Failed to delete branch", "error");
+    } catch { showAlert("Failed to delete branch", "error"); }
+    finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
   };
 
   const handleRestore = async (entry) => {
+    setRestoringId(entry.id);
     try {
+      const coords = await getBrowserLocation();
       if (entry.type === "brand") {
         const { branches, ...brandFields } = entry.data;
         const branchList = Array.isArray(branches) ? branches : [];
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(brandFields) });
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...brandFields,
+            performed_by: user?.name || "System",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        });
         const data = await res.json();
-        if (!data.success) { alert(data.error || "Failed to restore brand"); return; }
-        const newBrandId = data.id;
+        if (!data.success) { showAlert(data.error || "Failed to restore brand", "error"); return; }
+        const newBrandId = data.brand?.id;
         for (const br of branchList) {
           const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-          await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: branchFields.name, region: branchFields.region || null, manager: branchFields.manager || null, contact: branchFields.contact || null, address: branchFields.address || null, concept: branchFields.concept || null, brand_id: newBrandId }) });
+          await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: branchFields.name,
+              region: branchFields.region || null,
+              manager: branchFields.manager || null,
+              contact: branchFields.contact || null,
+              address: branchFields.address || null,
+              concept: branchFields.concept || null,
+              brand_id: newBrandId,
+              performed_by: user?.name || "System",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+              restored: true,
+            }),
+          });
         }
         await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
-        await fetchBrands(); await fetchDeleteHistory();
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showAlert(`"${brandFields.name}" has been restored.`, "success");
       } else {
         const parentBrand = brands.find((b) => b.name === entry.brandName);
-        if (!parentBrand) { alert(`Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.`); return; }
+        if (!parentBrand) { showAlert(`Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.`, "error"); return; }
         const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: branchFields.name, region: branchFields.region || null, manager: branchFields.manager || null, contact: branchFields.contact || null, address: branchFields.address || null, concept: branchFields.concept || null, brand_id: parentBrand.id }) });
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: branchFields.name,
+            region: branchFields.region || null,
+            manager: branchFields.manager || null,
+            contact: branchFields.contact || null,
+            address: branchFields.address || null,
+            concept: branchFields.concept || null,
+            brand_id: parentBrand.id,
+            performed_by: user?.name || "System",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true, 
+          }),
+        });
         const data = await res.json();
         if (data.success) {
           await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
-          await fetchBrands(); await fetchDeleteHistory();
-        } else alert(data.error || "Failed to restore branch");
+          await fetchBrands();
+          await fetchDeleteHistory();
+          await fetchActivityLog();
+          showAlert(`"${branchFields.name}" has been restored.`, "success");
+        } else showAlert(data.error || "Failed to restore branch", "error");
       }
-    } catch (err) { console.error("Restore error:", err); alert("Failed to restore: " + err.message); }
+    } catch (err) {
+      console.error("Restore error:", err);
+      showAlert("Failed to restore: " + err.message, "error");
+    } finally {
+      setRestoringId(null);
+    }
   };
 
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
@@ -2883,7 +3153,7 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
 
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; }`}</style>
+      <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
       <div className="bm-root">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
           {[
@@ -2918,14 +3188,14 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <button onClick={() => setShowActivityLog(true)}
-  style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-  <ActivityIcon size={13}/> Activity Log
-  {activityLog.length > 0 && (
-    <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-      {activityLog.length}
-    </span>
-  )}
-</button>
+              style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              <ActivityIcon size={13}/> Activity Log
+              {activityLog.length > 0 && (
+                <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
+                  {activityLog.length}
+                </span>
+              )}
+            </button>
             <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
               <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
@@ -2994,17 +3264,35 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
       {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
       {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
       {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-      {deleteTarget && <DeleteConfirmModal target={deleteTarget} onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch} onClose={() => setDeleteTarget(null)} />}
-      {showHistory && <DeleteHistoryPanel history={deletedHistory} onRestore={handleRestore} onClose={() => setShowHistory(false)} />}
-        {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
+
+      <BrandDeleteConfirmModal
+        target={deleteTarget}
+        deleting={deleting}
+        onConfirm={deleteTarget?.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
+      {showHistory && (
+        <DeleteHistoryPanel
+          history={deletedHistory}
+          onRestore={handleRestore}
+          restoringId={restoringId}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {showActivityLog && (
+        <InventoryActivityLogPanel
+          log={activityLog}
+          onClose={() => setShowActivityLog(false)}
+        />
+      )}
+
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
     </div>
   );
 }
+
 function Field({ label, error, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -3854,6 +4142,74 @@ function ActivityLogPanel({ log, onClose, title = "Activity Log" }) {
   );
 }
 
+function ApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
+  if (!app) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete application?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete the application from <strong>"{app.name}"</strong>{app.email ? ` (${app.email})` : ""}.
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete Application"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
@@ -3862,6 +4218,7 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
   const [alertModal, setAlertModal] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
   
   const showAlert = (message, type = "info") =>
   setAlertModal({ message, type });
@@ -3874,6 +4231,9 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [filterStatus,    setFilterStatus]    = useState("all");
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);    
 
   const fetchActivityLog = useCallback(async () => {
   try {
@@ -3936,6 +4296,14 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
     fetchAppDeleteHistory();
     fetchActivityLog();
   }, []);
+
+  useEffect(() => {
+  if (!alertModal) return;
+  const timer = setTimeout(() => {
+    setAlertModal(null);
+  }, 3000);
+  return () => clearTimeout(timer);
+}, [alertModal]);
   
 
   // ── Approve ─────────────────────────────────────────────────────────────
@@ -3997,33 +4365,44 @@ const handleReject = async (id) => {
   }
 };
 
-const handleDelete = async (id) => {
-  if (!window.confirm("Delete this application?")) return;
+const handleDelete = (id) => {
+  const app = applications.find(a => a.id === id);
+  if (app) setDeleteTarget(app);
+};
+
+const confirmDeleteApplication = async () => {
+  if (!deleteTarget) return;
+  setDeleting(true);
   try {
     const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        deleted_by: user?.name || "System", 
-        latitude: coords?.latitude,   
-        longitude: coords?.longitude,   
+        deleted_by: user?.name || "System",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       }),
     });
     const data = await res.json();
     if (data.success) {
-      setApplications(prev => prev.filter(a => a.id !== id));
+      setApplications(prev => prev.filter(a => a.id !== deleteTarget.id));
       await fetchAppDeleteHistory();
       await fetchActivityLog();
+      showAlert(`"${deleteTarget.name}" has been deleted.`, "success");
     } else {
       showAlert(data.error || "Failed to delete application.", "error");
     }
   } catch {
     showAlert("Failed to delete application.", "error");
+  } finally {
+    setDeleting(false);
+    setDeleteTarget(null);
   }
 };
 
 const handleRestoreApplication = async (entry) => {
+  setRestoringId(entry.id);
   try {
     const d = entry.data;
     const coords = await getBrowserLocation();
@@ -4060,6 +4439,8 @@ const handleRestoreApplication = async (entry) => {
   } catch (err) {
     console.error("Restore error:", err);
     showAlert("Failed to restore application.", "error");
+  } finally {
+    setRestoringId(null);
   }
 };
 
@@ -4090,6 +4471,13 @@ const handleRestoreApplication = async (entry) => {
         month: "short", day: "numeric", year: "numeric",
         hour: "2-digit", minute: "2-digit",
       });
+
+      <style>{`
+  @keyframes toast-slide-in {
+    from { transform: translateX(30px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+`}</style>
 
     return (
       <div
@@ -4178,18 +4566,29 @@ const handleRestoreApplication = async (entry) => {
                       Deleted: {entry.deletedAt ? fmt(entry.deletedAt) : "—"}
                     </div>
                   </div>
-
                   <button
                     onClick={() => handleRestoreApplication(entry)}
+                    disabled={restoringId !== null}
                     style={{
                       display: "flex", alignItems: "center", gap: 5,
                       padding: "7px 14px", borderRadius: 9,
-                      border: "1.5px solid #00897b", background: "#e0f2f1",
+                      border: "1.5px solid #00897b",
+                      background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
                       color: "#00695c", fontSize: 12, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                      cursor: restoringId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit", whiteSpace: "nowrap",
+                      opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                     }}
                   >
-                    <RotateCcw size={12} /> Restore
+                    {restoringId === entry.id ? (
+                      <>
+                        <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw size={12} /> Restore
+                      </>
+                    )}
                   </button>
                 </div>
               );
@@ -4205,6 +4604,13 @@ const handleRestoreApplication = async (entry) => {
     <>
       {/* ── Delete History Modal (rendered at root level, NOT inside table) */}
       <DeleteHistoryModal />
+
+      <ApplicationConfirmModal
+        app={deleteTarget}
+        deleting={deleting}
+        onConfirm={confirmDeleteApplication}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
 
       {/* ── View Application Modal ── */}
       {viewApp && ( 
@@ -4480,14 +4886,7 @@ const handleRestoreApplication = async (entry) => {
          </>
       )}
 
-      {alertModal && (
-  <AlertModal
-    open={!!alertModal}
-    type={alertModal.type}
-    message={alertModal.message}
-    onClose={() => setAlertModal(null)}
-  />
-)}
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
 
       {accountApp && (
         <CreateAccountModal
@@ -4842,14 +5241,9 @@ const handleRestoreApplication = async (entry) => {
                           <Pencil size={11} />
                         </button>
                         {/* Delete */}
-                        <button
+                       <button
                           onClick={() => handleDelete(app.id)}
-                          style={{
-                            ...smallBtnSt,
-                            border: "1.5px solid #fecaca",
-                            background: "#fee2e2", color: "#dc2626",
-                            height: 28, padding: "0 12px",
-                          }}
+                          style={{ ...smallBtnSt, border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626", height: 28, padding: "0 12px" }}
                           title="Delete"
                         >
                           <Trash2 size={11} />
@@ -5767,9 +6161,6 @@ function AlertModal({ message, onClose, type = "info" }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DELETE CONFIRM MODAL (user-flavored)
-// ─────────────────────────────────────────────────────────────────────────────
 function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
   return (
     <div
@@ -5836,10 +6227,7 @@ function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// USER DELETE HISTORY PANEL
-// ─────────────────────────────────────────────────────────────────────────────
-function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
+function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
  const fmt = (d) =>
   new Date(d).toLocaleString("en-PH", {
     month: "short", day: "numeric", year: "numeric",
@@ -5924,7 +6312,7 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
           ) : (
             history.map((entry, i) => (
               <div
-                key={i}
+                key={entry.id ?? i}
                 style={{
                   display: "grid", gridTemplateColumns: "1fr 1fr 80px 90px 90px",
                   gap: 8, alignItems: "center",
@@ -5955,16 +6343,27 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
                 {/* Restore */}
                 <button
                   onClick={() => onRestore(entry)}
+                  disabled={restoringId !== null}
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
                     padding: "7px 12px", borderRadius: 9,
-                    border: "1.5px solid #00897b", background: "#e0f2f1",
+                    border: "1.5px solid #00897b",
+                    background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
                     color: "#00695c", fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
-                    whiteSpace: "nowrap",
+                    cursor: restoringId !== null ? "not-allowed" : "pointer",
+                    fontFamily: "inherit", whiteSpace: "nowrap",
+                    opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                   }}
                 >
-                  <RotateCcw size={12} /> Restore
+                  {restoringId === entry.id ? (
+                    <>
+                      <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw size={12} /> Restore
+                    </>
+                  )}
                 </button>
               </div>
             ))
@@ -6079,6 +6478,74 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     </div>
   );
 
+function UserConfirmModal({ user, onConfirm, onClose, deleting }) {
+  if (!user) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete user?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete <strong>"{user.name}"</strong> ({user.email}).
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete User"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
   function UsersContent({ user, brands: propBrands = [] }) {
     const [activityLog,     setActivityLog]     = useState([]);
     const [showActivityLog, setShowActivityLog] = useState(false);
@@ -6100,11 +6567,28 @@ function UserDeleteHistoryPanel({ history, onRestore, onClose }) {
     const [searchQuery,  setSearchQuery]  = useState('');
 
     const [deleteTarget,      setDeleteTarget]      = useState(null); 
+    const [deleting,          setDeleting]          = useState(false);
+    const [restoringId,       setRestoringId]       = useState(null);
     const [deleteHistory,     setDeleteHistory]     = useState([]); 
     const [showDeleteHistory, setShowDeleteHistory] = useState(false);
     const [alertModal,        setAlertModal]        = useState(null);  
 
-    const showAlert = (message, type = "info") => setAlertModal({ message, type });
+    const showAlert = (message, type = "info") =>
+  setAlertModal({ title: message, type });
+
+
+    const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
+// DELETE the old logActivity function entirely
 
     const fetchActivityLog = useCallback(async () => {
   try {
@@ -6203,142 +6687,170 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
       return { isValid: errors.length === 0, errors };
     };
 
-  const handleAddUser = async (e) => {
-    e.preventDefault();
-    const tempPassword = generateTempPassword();
-    const passwordCheck = validatePasswordStrength(tempPassword);
+const handleAddUser = async (e) => {
+  e.preventDefault();
+  const tempPassword = generateTempPassword();
+  const passwordCheck = validatePasswordStrength(tempPassword);
+  if (!passwordCheck.isValid) {
+    showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+    return;
+  }
+
+  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+  const coords = await getBrowserLocation();
+  const payload = {
+    ...formData,
+    password: tempPassword,
+    brand: selectedBrand?.name || "",
+    performed_by: user?.name || "System",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+  };
+
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: formData.email, name: formData.name, password: tempPassword }),
+      });
+      await fetchUsers();
+      await fetchActivityLog();
+      setShowAddModal(false);
+      resetForm();
+      showAlert("User added & credentials sent!", "success");
+    } else {
+      showAlert(data.error || "Failed to add user.", "error");
+    }
+  } catch (error) {
+    console.error("Error adding user:", error);
+    showAlert("Failed to add user.", "error");
+  }
+};
+
+const handleEditUser = async (e) => {
+  e.preventDefault();
+
+  if (formData.password) {
+    const passwordCheck = validatePasswordStrength(formData.password);
     if (!passwordCheck.isValid) {
       showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
       return;
     }
+  }
 
-    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-    const payload = { ...formData, password: tempPassword, brand: selectedBrand?.name || "" };
-
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: formData.email,
-            name: formData.name,
-            password: tempPassword,
-          }),
-        });
-        await logActivity("add", formData.name, formData.branch, `role: ${formData.role}`); // ← add here
-        await fetchUsers();
-        setShowAddModal(false);
-        resetForm();
-        showAlert("User added & credentials sent!", "success");
-      } else {
-        showAlert(data.error || "Failed to add user.", "error");
-      }
-    } catch (error) {
-      console.error("Error adding user:", error);
-      showAlert("Failed to add user.", "error");
-    }
+  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+  const coords = await getBrowserLocation();
+  const payload = {
+    ...formData,
+    brand: selectedBrand?.name || formData.brand || "",
+    performed_by: user?.name || "System",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
   };
 
-    const handleEditUser = async (e) => {
-    e.preventDefault();
-
-    if (formData.password) { // ← this guard is missing in your current code
-      const passwordCheck = validatePasswordStrength(formData.password);
-      if (!passwordCheck.isValid) {
-        showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
-        return;
-      }
+  try {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (data.success) {
+      await fetchUsers();
+      await fetchActivityLog();
+      setShowEditModal(false);
+      setEditingUser(null);
+      resetForm();
+      showAlert("User updated successfully!", "success");
+    } else {
+      showAlert(data.error || "Failed to update user.", "error");
     }
+  } catch (error) {
+    console.error("Error updating user:", error);
+    showAlert("Failed to update user.", "error");
+  }
+};
 
-    const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-    const payload = {
-      ...formData,
-      brand: selectedBrand?.name || formData.brand || "",
-    };
-
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await logActivity("edit", formData.name, formData.branch, `role: ${formData.role}`); // ← add here
- 
-        await fetchUsers();
-        setShowEditModal(false);
-        setEditingUser(null);
-        resetForm();
-        showAlert("User updated successfully!", "success");
-      } else {
-        showAlert(data.error || "Failed to update user.", "error");
-      }
-    } catch (error) {
-      console.error("Error updating user:", error);
-      showAlert("Failed to update user.", "error");
-    }
-  };
-
-    // Step 1: open confirm modal
     const handleDeleteUser = (user) => setDeleteTarget(user);
 
-    // Step 2: confirmed — call API, push to history
-    const confirmDelete = async () => {
-      const user = deleteTarget;
-      setDeleteTarget(null);
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, { method: "DELETE" });
-        const data = await response.json();
-        if (data.success) {
-          await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_data: user }),
-  });
-  await logActivity("delete", user.name, user.branch, `role: ${user.role}`); // ← add here
- 
-  await fetchDeleteHistory();
-          await fetchUsers();
-          showAlert(`"${user.name}" has been deleted.`, "success");
-        } else {
-          showAlert(data.error || "Failed to delete user.", "error");
-        }
-      } catch (error) {
-        console.error("Error deleting user:", error);
-        showAlert("Failed to delete user.", "error");
-      }
-    };
+const confirmDelete = async () => {
+  if (!deleteTarget) return;
+  setDeleting(true);
+  const targetUser = deleteTarget;
+  try {
+    const coords = await getBrowserLocation();
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+    });
+    const data = await response.json();
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_data: targetUser }),
+      });
+      await fetchDeleteHistory();
+      await fetchUsers();
+      await fetchActivityLog();
+      showAlert(`"${targetUser.name}" has been deleted.`, "success");
+    } else {
+      showAlert(data.error || "Failed to delete user.", "error");
+    }
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    showAlert("Failed to delete user.", "error");
+  } finally {
+    setDeleting(false);
+    setDeleteTarget(null);
+  }
+};
     
-    const handleRestore = async (entry) => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...entry.data, password: entry.data.password || "" }),
-        });
-        const data = await response.json();
-        if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, {
-    method: "DELETE",
-  });
-   await logActivity("login", user.name, user.branch || "—", null);
- 
-  await fetchDeleteHistory();
-          await fetchUsers();
-          setShowDeleteHistory(false);
-          showAlert(`"${entry.data.name}" has been restored.`, "success");
-        } else {
-          showAlert(data.error || "Failed to restore user.", "error");
-        }
-      } catch (error) {
-        console.error("Error restoring user:", error);
-        showAlert("Failed to restore user.", "error");
-      }
-    };
+const handleRestore = async (entry) => {
+  setRestoringId(entry.id);
+  try {
+    const coords = await getBrowserLocation();
+    const d = entry.user_data || entry.data || {};
+
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: d.name,
+        email: d.email,
+        role: d.role,
+        branch: d.branch,
+        brand: d.brand || "",
+        password: entry.data.password, 
+        performed_by: user?.name || "System",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        restored: true,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, { method: "DELETE" });
+      await fetchDeleteHistory();
+      await fetchUsers();
+      await fetchActivityLog();
+      showAlert(`"${d.name}" has been restored.`, "success");
+    } else {
+      showAlert(data.error || "Failed to restore user.", "error");
+    }
+  } catch (err) {
+    console.error("Restore error:", err);
+    showAlert("Failed to restore user.", "error");
+  } finally {
+    setRestoringId(null);
+  }
+};
 
     const openEditModal = (user) => {
       setEditingUser(user);
@@ -6539,7 +7051,7 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
     applicant={null}
     roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
     onClose={() => { setShowAddModal(false); resetForm(); }}
-    onAlert={(message, type) => setAlertModal({ message, type })}
+   onAlert={(message, type) => setAlertModal({ title: message, type })} 
   />
 )}
         {showEditModal && (
@@ -6576,19 +7088,20 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
         {showDeleteHistory && (
           <UserDeleteHistoryPanel
             history={deleteHistory}
+            restoringId={restoringId}          
             onRestore={handleRestore}
             onClose={() => setShowDeleteHistory(false)}
           />
         )}
 
-        {alertModal && (
-          <AlertModal
-            message={alertModal.message}
-            type={alertModal.type}
-            onClose={() => setAlertModal(null)}
-          />
-        )}
+        <UserConfirmModal
+          user={deleteTarget}
+          deleting={deleting}
+          onConfirm={confirmDelete}
+          onClose={() => { if (!deleting) setDeleteTarget(null); }}
+        />
 
+        <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
         {showActivityLog && (
   <InventoryActivityLogPanel
     log={activityLog}
@@ -7422,29 +7935,51 @@ function StatusBadge({ status, size="md" }) {
   );
 }
 
-/* ── Toast notifications (replaces alert()) ── */
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onClose, 3800);
+    const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
   if (!toast) return null;
   const isErr = toast.type === "error";
   return (
-    <div style={{ position:"fixed", bottom:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:10,
-      maxWidth:360, padding:"13px 16px", borderRadius:12, background:"#fff",
-      border:`1px solid ${isErr ? C.redBorder : C.greenMid}`, boxShadow:"0 12px 32px rgba(0,0,0,0.16)", fontFamily:"'Montserrat',sans-serif",
-      animation:"toastIn .22s ease" }}>
-      <div style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
-        background: isErr ? C.redBg : C.greenLt, color: isErr ? C.red : C.green }}>
-        {isErr ? <AlertTriangle size={14}/> : <Check size={14}/>}
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr ? <AlertTriangle size={16}/> : <Check size={16}/>}
       </div>
       <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:C.ink }}>{toast.title}</div>
-        {toast.message && <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{toast.message}</div>}
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
       </div>
-      <button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", padding:2 }}><X size={14}/></button>
+      <button onClick={onClose} style={{
+        background:"none", border:"none",
+        color: isErr ? "#991b1b" : "#3f5f4f",
+        cursor:"pointer", padding:2, flexShrink:0,
+      }}>
+        <X size={14}/>
+      </button>
     </div>
   );
 }
@@ -8254,7 +8789,6 @@ function ProfileContent({ user }) {
   const showAlert   = (message, type = "info") => setAlertModal({ message, type });
   const showConfirm = (message, onConfirm)     => setConfirmModal({ message, onConfirm });
 
-  // ── Keep formData in sync with user prop without re-rendering on every keystroke ──
   const formDataRef = React.useRef(formData);
   const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;

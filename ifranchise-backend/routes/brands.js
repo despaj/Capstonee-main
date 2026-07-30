@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { logActivity } = require("../utils/activityLogger");
 
 router.get("/brands", async (req, res) => {
   try {
@@ -18,13 +19,24 @@ router.get("/brands", async (req, res) => {
 
 router.post("/brands", async (req, res) => {
   try {
-    const { name, region, contact_email, contact_phone, description, categories } = req.body;
+    const { name, region, contact_email, contact_phone, description, categories, performed_by, latitude, longitude, restored } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Brand name is required" });
     const result = await pool.query(
       "INSERT INTO brands (name, region, contact_email, contact_phone, description, categories) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
       [name.trim(), region, contact_email, contact_phone, description, categories || []]
     );
-    res.json({ success: true, brand: result.rows[0] });
+    const brand = result.rows[0];
+
+    await logActivity(
+      restored ? "restore" : "create", brand.name, performed_by || "System",
+      {
+        contact_email: brand.contact_email, contact_phone: brand.contact_phone, categories: brand.categories,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req, brand.name, "Brand Management", latitude, longitude
+    );
+
+    res.json({ success: true, brand });
   } catch (err) {
     if (err.code === "23505") return res.status(400).json({ error: "Brand already exists" });
     res.status(500).json({ error: "Failed to add brand" });
@@ -32,21 +44,44 @@ router.post("/brands", async (req, res) => {
 });
 
 router.put("/brands/:id", async (req, res) => {
-  const { name, region, contact_email, contact_phone, description, categories } = req.body;
+  const { name, region, contact_email, contact_phone, description, categories, performed_by, latitude, longitude } = req.body;
   try {
+    const before = await pool.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
+    const oldBrand = before.rows[0];
+
     const result = await pool.query(
       "UPDATE brands SET name=$1, region=$2, contact_email=$3, contact_phone=$4, description=$5, categories=$6 WHERE id=$7 RETURNING *",
       [name, region, contact_email, contact_phone, description, categories || [], req.params.id]
     );
-    res.json({ success: true, brand: result.rows[0] });
+    const brand = result.rows[0];
+
+    await logActivity(
+      "update", brand.name, performed_by || "System",
+      { from: oldBrand, to: brand },
+      req, brand.name, "Brand Management", latitude, longitude
+    );
+
+    res.json({ success: true, brand });
   } catch (err) {
     res.status(500).json({ error: "Failed to update brand" });
   }
 });
 
 router.delete("/brands/:id", async (req, res) => {
+  const { performed_by, latitude, longitude } = req.body || {};
   try {
+    const existing = await pool.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
+    const brand = existing.rows[0];
     await pool.query("DELETE FROM brands WHERE id=$1", [req.params.id]);
+
+    if (brand) {
+      await logActivity(
+        "delete", brand.name, performed_by || "System",
+        { contact_email: brand.contact_email, contact_phone: brand.contact_phone },
+        req, brand.name, "Brand Management", latitude, longitude
+      );
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete brand" });
@@ -64,13 +99,26 @@ router.get("/branches", async (req, res) => {
 
 router.post("/branches", async (req, res) => {
   try {
-    const { name, brand_id, region, manager, contact, address, concept } = req.body;
+    const { name, brand_id, region, manager, contact, address, concept, performed_by, latitude, longitude, restored } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Branch name is required" });
     const result = await pool.query(
       "INSERT INTO branches (name, brand_id, region, manager, contact, address, concept) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
       [name.trim(), brand_id, region, manager, contact, address, concept || null]
     );
-    res.json({ success: true, branch: result.rows[0] });
+    const branch = result.rows[0];
+    const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [brand_id]);
+    const brandName = brandRes.rows[0]?.name || null;
+
+    await logActivity(
+      restored ? "restore" : "create", branch.name, performed_by || "System",
+      {
+        region: branch.region, manager: branch.manager, brand: brandName,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req, brandName, "Brand Management", latitude, longitude
+    );
+
+    res.json({ success: true, branch });
   } catch (err) {
     if (err.code === "23505") return res.status(400).json({ error: "Branch already exists" });
     res.status(500).json({ error: "Failed to add branch" });
@@ -78,21 +126,48 @@ router.post("/branches", async (req, res) => {
 });
 
 router.put("/branches/:id", async (req, res) => {
-  const { name, brand_id, region, manager, contact, address, concept } = req.body;
+  const { name, brand_id, region, manager, contact, address, concept, performed_by, latitude, longitude } = req.body;
   try {
+    const before = await pool.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
+    const oldBranch = before.rows[0];
+
     const result = await pool.query(
       "UPDATE branches SET name=$1, brand_id=$2, region=$3, manager=$4, contact=$5, address=$6, concept=$7 WHERE id=$8 RETURNING *",
       [name, brand_id, region, manager, contact, address, concept || null, req.params.id]
     );
-    res.json({ success: true, branch: result.rows[0] });
+    const branch = result.rows[0];
+    const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [brand_id]);
+    const brandName = brandRes.rows[0]?.name || null;
+
+    await logActivity(
+      "update", branch.name, performed_by || "System",
+      { from: oldBranch, to: branch },
+      req, brandName, "Brand Management", latitude, longitude
+    );
+
+    res.json({ success: true, branch });
   } catch (err) {
     res.status(500).json({ error: err.message, code: err.code, detail: err.detail });
   }
 });
 
 router.delete("/branches/:id", async (req, res) => {
+  const { performed_by, latitude, longitude } = req.body || {};
   try {
+    const existing = await pool.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
+    const branch = existing.rows[0];
     await pool.query("DELETE FROM branches WHERE id=$1", [req.params.id]);
+
+    if (branch) {
+      const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [branch.brand_id]);
+      const brandName = brandRes.rows[0]?.name || null;
+      await logActivity(
+        "delete", branch.name, performed_by || "System",
+        { region: branch.region, manager: branch.manager },
+        req, brandName, "Brand Management", latitude, longitude
+      );
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete branch" });
@@ -127,6 +202,18 @@ router.delete("/brand-delete-history/:id", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete from brand delete history" });
+  }
+});
+
+router.get("/brands-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM activity_log WHERE module = $1 ORDER BY created_at DESC",
+      ["Brand Management"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch brand activity log" });
   }
 });
 
