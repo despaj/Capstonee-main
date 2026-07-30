@@ -100,44 +100,164 @@ router.post("/ocr-extract", upload.single("receipt"), async (req, res) => {
   }
 });
 
-router.post("/api/extract-id", async (req, res) => {
-  const { frontImage } = req.body;
-  const base64Data = frontImage.replace(/^data:image\/\w+;base64,/, "");
-  const tempPath = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
-  fs.writeFileSync(tempPath, Buffer.from(base64Data, "base64"));
+const axios = require("axios");
+const FormData = require("form-data");
 
-  try {
-    const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
-    const inputSource = new mindee.PathInput({ inputPath: tempPath });
-    const response = await mindeeClient.enqueueAndGetResult(mindee.v2.product.Extraction, inputSource, { modelId: process.env.MINDEE_ID_MODEL_ID });
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+const MINDEE_BASE = "https://api-v2.mindee.net/v2";
 
-    const fields = response.rawHttp.inference.result.fields;
-    const addrStreet = fields?.address?.fields?.street?.value || "";
-    const addrCity   = fields?.address?.fields?.city?.value   || "";
-    const addrState  = fields?.address?.fields?.state?.value  || "";
-    const addrPostal = fields?.address?.fields?.postal_code?.value || "";
+async function mindeeExtract(base64Image, modelId) {
+  const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ""), "base64");
 
-    res.json({
-      success: true,
-      data: {
-        firstName:  fields?.given_names?.value  || fields?.first_name?.value || "",
-        lastName:   fields?.surnames?.value     || "",
-        middleName: fields?.middle_name?.value  || "",
-        dob:        fields?.birth_date?.value   || fields?.date_of_birth?.value || "",
-        idNumber:   fields?.document_number?.value || fields?.id_number?.value || "",
-        expiryDate: fields?.date_of_expiry?.value || "",
-        address:    [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", "),
-      },
-    });
-  } catch (err) {
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    res.status(500).json({ success: false, error: "Failed to extract ID data" });
+  const form = new FormData();
+  form.append("model_id", modelId);
+  form.append("file", buffer, { filename: "document.jpg", contentType: "image/jpeg" });
+
+  const enqueueRes = await axios.post(`${MINDEE_BASE}/inferences/enqueue`, form, {
+    headers: {
+      ...form.getHeaders(),
+      Authorization: process.env.MINDEE_API_KEY,
+    },
+  });
+
+  const job = enqueueRes.data?.job;
+  if (!job?.id) throw new Error("Mindee did not return a job id");
+
+  const pollingUrl = job.polling_url || `${MINDEE_BASE}/jobs/${job.id}`;
+
+  let resultUrl = null;
+  for (let i = 0; i < 20; i++) {
+  await new Promise((r) => setTimeout(r, 1500));
+
+  const pollRes = await axios.get(pollingUrl, {
+    headers: { Authorization: process.env.MINDEE_API_KEY },
+    validateStatus: () => true,
+  });
+
+  if (pollRes.data?.inference) {
+    return pollRes.data;
   }
-});
+
+  if (pollRes.data?.job) {
+    const status = pollRes.data.job.status;
+
+    if (pollRes.data.job.error) {
+      throw new Error(pollRes.data.job.error?.message || "Mindee processing failed");
+    }
+
+    if (status && status !== "Processing") {
+      const resultRes = await axios.get(pollRes.data.job.result_url, {
+        headers: { Authorization: process.env.MINDEE_API_KEY },
+      });
+      return resultRes.data;
+    }
+  }
+}
+
+throw new Error("Mindee processing timed out");
+
+  const resultRes = await axios.get(resultUrl, {
+    headers: { Authorization: process.env.MINDEE_API_KEY },
+  });
+
+  return resultRes.data; 
+}
+
+// ── Azure Document Intelligence config ────────────────────────────
+const AZURE_DI_ENDPOINT = process.env.AZURE_DOC_INTEL_ENDPOINT;
+const AZURE_DI_KEY = process.env.AZURE_DOC_INTEL_KEY;
+
+async function analyzeIdDocument(base64Image) {
+  const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+
+  const submitRes = await fetch(
+    `${AZURE_DI_ENDPOINT}/documentintelligence/documentModels/prebuilt-idDocument:analyze?api-version=2024-11-30`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": AZURE_DI_KEY,
+      },
+      body: JSON.stringify({ base64Source: base64Data }),
+    }
+  );
+
+  if (submitRes.status !== 202) {
+    const err = await submitRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || "Failed to submit document for analysis");
+  }
+
+  const operationLocation = submitRes.headers.get("operation-location");
+  if (!operationLocation) throw new Error("No operation-location returned by Azure");
+
+  let result;
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const pollRes = await fetch(operationLocation, {
+      headers: { "Ocp-Apim-Subscription-Key": AZURE_DI_KEY },
+    });
+    result = await pollRes.json();
+    console.log("Azure DI status:", result.status);
+    if (result.status === "succeeded" || result.status === "failed") break;
+  }
+
+  if (!result || result.status !== "succeeded") {
+    throw new Error(result?.error?.message || "Document analysis timed out or failed");
+  }
+
+  return result.analyzeResult;
+}
+
+function splitFirstAndMiddle(rawFirstName) {
+  if (!rawFirstName) return { firstName: "", middleName: "" };
+  const parts = rawFirstName.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], middleName: "" };
+  const middleName = parts.pop();
+  const firstName = parts.join(" ");
+  return { firstName, middleName };
+}
+
+function extractMiddleNameFromContent(content) {
+  if (!content) return "";
+  const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
+  const idx = lines.findIndex((l) => /MIDDLE NAME/i.test(l));
+  if (idx !== -1 && lines[idx + 1]) {
+    return lines[idx + 1];
+  }
+  return "";
+}
+
+function extractIdFields(analyzeResult) {
+  const doc = analyzeResult?.documents?.[0];
+  const fields = doc?.fields || {};
+  const get = (name) => fields[name]?.valueString ?? fields[name]?.content ?? "";
+  const getDate = (name) => fields[name]?.valueDate ?? fields[name]?.content ?? "";
+
+  const addressField = fields.Address;
+  const address = addressField?.valueAddress
+    ? [
+        addressField.valueAddress.streetAddress,
+        addressField.valueAddress.city,
+        addressField.valueAddress.state,
+        addressField.valueAddress.postalCode,
+      ].filter(Boolean).join(", ")
+    : addressField?.content || "";
+
+  const { firstName, middleName: middleFromFirstName } = splitFirstAndMiddle(get("FirstName"));
+  const middleName = middleFromFirstName || extractMiddleNameFromContent(analyzeResult?.content);
+
+  return {
+    firstName,
+    lastName: get("LastName"),
+    middleName,
+    dob: getDate("DateOfBirth"),
+    idNumber: get("DocumentNumber"),
+    expiryDate: getDate("DateOfExpiration"),
+    address,
+  };
+}
 
 router.post("/api/verify-id", async (req, res) => {
-  const { frontImage, backImage, idType } = req.body;
+  const { frontImage, idType } = req.body;
   const ID_TYPE_MAP = {
     "Philippine Passport":   ["PASSPORT", "REPUBLIKA NG PILIPINAS", "REPUBLIC OF THE PHILIPPINES"],
     "Driver's License":      ["DRIVER'S LICENSE", "LAND TRANSPORTATION OFFICE", "LTO"],
@@ -154,62 +274,77 @@ router.post("/api/verify-id", async (req, res) => {
   };
 
   try {
-    const payload = { document: frontImage.replace(/^data:image\/\w+;base64,/, ""), authenticate: true };
-    if (backImage) payload.document_back = backImage.replace(/^data:image\/\w+;base64,/, "");
+    const analyzeResult = await analyzeIdDocument(frontImage);
 
-    const response = await fetch("https://api2.idanalyzer.com/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-KEY": process.env.ID_ANALYZER_API_KEY },
-      body: JSON.stringify(payload),
-    });
-    const result = await response.json();
-
-    if (!result.success)
-      return res.status(400).json({ success: false, error: result.error?.message || "ID verification failed" });
-
-    const data = result.data || {};
-    const authScore = result.authentication?.score ?? 1;
-    const ocrText = [result.data?.ocrResult, result.data?.ocrText, result.fullText, result.rawText, ...Object.values(data).map(v => Array.isArray(v) ? v.map(i => i?.value || "").join(" ") : v?.value || "")]
-      .filter(Boolean).join(" ").toUpperCase();
+    const ocrText = (analyzeResult?.content || "").toUpperCase();
 
     const expectedKeywords = ID_TYPE_MAP[idType] || [];
-    const isCorrectIdType = expectedKeywords.some(k => ocrText.includes(k.toUpperCase()));
+    const isCorrectIdType = expectedKeywords.some((k) => ocrText.includes(k.toUpperCase()));
 
-    if (!isCorrectIdType)
-      return res.json({ success: true, data: { firstName: "", lastName: "", middleName: "", dob: "", address: "", idNumber: "", expiryDate: null, isValid: false, confidence: 0, reason: `Wrong ID type. Please upload a "${idType}".` } });
+    if (!isCorrectIdType) {
+      return res.json({
+        success: true,
+        data: {
+          firstName: "", lastName: "", middleName: "", dob: "", address: "",
+          idNumber: "", expiryDate: null, isValid: false, confidence: 0,
+          reason: `Wrong ID type. Please upload a "${idType}".`,
+        },
+      });
+    }
 
-    if (authScore < 0.5)
-      return res.json({ success: true, data: { firstName: "", lastName: "", middleName: "", dob: "", address: "", idNumber: "", expiryDate: null, isValid: false, confidence: authScore, reason: "ID failed authenticity check." } });
-
-    const tempPath = path.join(os.tmpdir(), `id_${Date.now()}.jpg`);
-    fs.writeFileSync(tempPath, Buffer.from(frontImage.replace(/^data:image\/\w+;base64,/, ""), "base64"));
-
-    const mindeeClient = new mindee.v2.Client({ apiKey: process.env.MINDEE_API_KEY });
-    const mindeeRes = await mindeeClient.enqueueAndGetResult(mindee.v2.product.Extraction, new mindee.PathInput({ inputPath: tempPath }), { modelId: process.env.MINDEE_ID_MODEL_ID });
-    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-
-    const fields = mindeeRes.rawHttp.inference.result.fields;
-    const addrStreet = fields?.address?.fields?.street?.value || "";
-    const addrCity   = fields?.address?.fields?.city?.value   || "";
-    const addrState  = fields?.address?.fields?.state?.value  || "";
-    const addrPostal = fields?.address?.fields?.postal_code?.value || "";
+    const data = extractIdFields(analyzeResult);
 
     return res.json({
       success: true,
       data: {
-        firstName:  fields?.given_names?.value  || "",
-        lastName:   fields?.surnames?.value     || "",
-        middleName: fields?.middle_name?.value  || "",
-        dob:        fields?.birth_date?.value   || "",
-        idNumber:   fields?.document_number?.value || "",
-        expiryDate: fields?.date_of_expiry?.value || "",
-        address:    [addrStreet, addrCity, addrState, addrPostal].filter(Boolean).join(", "),
-        isValid: true, confidence: authScore, reason: "ID verified successfully",
+        ...data,
+        isValid: true,
+        confidence: 1,
+        reason: "ID verified successfully",
       },
     });
   } catch (err) {
+    console.error("verify-id error:", err);
     res.status(500).json({ success: false, error: "Failed to verify ID" });
   }
+});
+
+const AZURE_FACE_ENDPOINT = process.env.AZURE_FACE_API_ENDPOINT;
+const AZURE_FACE_KEY = process.env.AZURE_FACE_API_KEY;
+
+async function detectFace(base64Image) {
+  const buffer = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ""), "base64");
+
+  const response = await fetch(
+    `${AZURE_FACE_ENDPOINT}/face/v1.0/detect?returnFaceId=true&recognitionModel=recognition_04&detectionModel=detection_03`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Ocp-Apim-Subscription-Key": AZURE_FACE_KEY,
+      },
+      body: buffer,
+    }
+  );
+
+  const data = await response.json();
+  console.log("Azure Face detect status:", response.status);
+  console.log("Azure Face detect response:", JSON.stringify(data)); 
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || "Azure face detection failed");
+  }
+  return data;
+}
+
+const { RekognitionClient, CompareFacesCommand } = require("@aws-sdk/client-rekognition");
+
+const rekognitionClient = new RekognitionClient({
+  region: process.env.AWS_REGION, // e.g. "ap-southeast-1"
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
 });
 
 router.post("/api/face-match", async (req, res) => {
@@ -218,20 +353,42 @@ router.post("/api/face-match", async (req, res) => {
     return res.status(400).json({ success: false, error: "Both face and ID images are required." });
 
   try {
-    const response = await fetch("https://api2.idanalyzer.com/face", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-KEY": process.env.ID_ANALYZER_API_KEY },
-      body: JSON.stringify({ face: faceImage.replace(/^data:image\/\w+;base64,/, ""), reference: idImage.replace(/^data:image\/\w+;base64,/, "") }),
+    const sourceBuffer = Buffer.from(faceImage.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    const targetBuffer = Buffer.from(idImage.replace(/^data:image\/\w+;base64,/, ""), "base64");
+
+    const command = new CompareFacesCommand({
+      SourceImage: { Bytes: sourceBuffer },
+      TargetImage: { Bytes: targetBuffer },
+      SimilarityThreshold: 70, // Rekognition only returns matches above this threshold
     });
-    const result = await response.json();
 
-    if (!result.success)
-      return res.json({ success: true, matched: false, score: 0, reason: result.error?.message || "Face match failed." });
+    const result = await rekognitionClient.send(command);
 
-    const score = result.scores?.faceCompare ?? result.confidence ?? result.score ?? 0;
-    const matched = score >= 0.5;
-    return res.json({ success: true, matched, score, reason: matched ? "Face matched successfully." : "Face does not match. Please retake your selfie." });
+    if (!result.FaceMatches || result.FaceMatches.length === 0) {
+      return res.json({
+        success: true,
+        matched: false,
+        score: 0,
+        reason: "Face does not match the ID photo. Please retake your selfie.",
+      });
+    }
+
+    const bestMatch = result.FaceMatches[0];
+    const score = bestMatch.Similarity / 100; // Rekognition gives 0-100, normalize to 0-1
+
+    return res.json({
+      success: true,
+      matched: true,
+      score,
+      reason: "Face matched successfully.",
+    });
   } catch (err) {
+    console.error("Rekognition face match error:", err);
+
+    if (err.name === "InvalidParameterException") {
+      return res.json({ success: true, matched: false, score: 0, reason: "No face detected in one of the images. Please retake your photo." });
+    }
+
     res.status(500).json({ success: false, error: "Face match service failed." });
   }
 });

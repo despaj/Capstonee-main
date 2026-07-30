@@ -10,6 +10,28 @@ import FranchiseAdminDashboard from "./FranchiseAdminDashboard";
 import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      (err) => {
+        console.warn("Geolocation denied or failed:", err.message);
+        resolve(null);
+      },
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
   const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
     // pass these as props since they're no longer in scope:
     trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
@@ -28,9 +50,6 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
       <>
         {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
         {error && !isLocked && <p className="error general">{error}</p>}
-        {!isLocked && attempts > 0 && (
-          <p className="otp-attempts-left">{OTP_MAX_ATTEMPTS - attempts} attempt{OTP_MAX_ATTEMPTS - attempts !== 1 ? "s" : ""} remaining</p>
-        )}
         <div className="otp-box-wrap">
           {otpArr.map((digit, i) => (
             <input
@@ -41,22 +60,37 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
               inputMode="numeric"
               maxLength={1}
               value={digit}
-              onChange={(e) => handleOtpChange(i, e.target.value, otpArr, setOtpArr, refs)}
-              onKeyDown={(e) => handleOtpKeyDown(i, e, otpArr, setOtpArr, refs)}
-              onPaste={(e) => handleOtpPaste(e, setOtpArr, refs)}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!/^\d*$/.test(value)) return;
+                const digitVal = value.slice(-1);
+                const next = [...otpArr];
+                next[i] = digitVal;
+                setOtpArr(next);
+
+                if (digitVal && i < 5) {
+                  refs.current[i + 1]?.focus();
+                }
+
+                if (digitVal && i === 5 && next.every((d) => d !== "")) {
+                  setTimeout(() => onVerify(next.join("")), 100);
+                }
+              }}
+              onPaste={(e) => {
+                e.preventDefault();
+                const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                if (p.length === 6) {
+                  setOtpArr(p.split(""));
+                  refs.current[5]?.focus();
+                  setTimeout(() => onVerify(p), 100);
+                }
+              }}
               onClick={() => refs.current[i]?.focus()}
               disabled={!!isLocked}
             />
           ))}
         </div>
          {trustDeviceCheckbox}
-        <button className={`btn yellow ${isLocked ? "btn-disabled" : ""}`}
-          onClick={!isLocked ? onVerify : undefined}
-          disabled={!!isLocked || !!loading}>
-          {loading === loadingKey
-            ? <><span className="sms-spinner" /> Verifying...</>
-            : verifyLabel}
-        </button>
 
         {extraButton}
 
@@ -94,6 +128,35 @@ import { Eye, EyeOff, CheckCircle } from "lucide-react";
       </>
     );
   };
+
+  function UnknownRoleScreen({ userRole, onBackToLogin }) {
+  const [secondsLeft, setSecondsLeft] = useState(3);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      onBackToLogin();
+      return;
+    }
+    const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [secondsLeft, onBackToLogin]);
+
+  return (
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <h2>Unknown Role: {userRole}</h2>
+      <p>Your role is not recognized in the system.</p>
+      <p style={{ color: "#888", fontSize: 13 }}>
+        Redirecting to login in {secondsLeft}s...
+      </p>
+      <button
+        style={{ padding: "10px 20px", background: "#2E7D32", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginTop: "1rem" }}
+        onClick={onBackToLogin}
+      >
+        ← Back to Login Now
+      </button>
+    </div>
+  );
+}
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -150,6 +213,7 @@ export default function AdminLogin() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [rememberMe, setRememberMe] = useState(false);
+  const [coords, setCoords] = useState(null);
 
   const clearDashboardSessions = () => {
   sessionStorage.removeItem('sa_activeModule');
@@ -170,6 +234,10 @@ export default function AdminLogin() {
   const [forgotOtpLockedUntil, setForgotOtpLockedUntil] = useState(null);
   const [forgotOtpLockRemaining, setForgotOtpLockRemaining] = useState("");
 
+  const [resetToken, setResetToken] = useState("");
+
+  const [resetDoneCountdown, setResetDoneCountdown] = useState(3);
+
   // ── Block browser back button when logged in ──
 useEffect(() => {
   if (!loggedIn) return;
@@ -187,6 +255,22 @@ useEffect(() => {
   window.addEventListener("popstate", handlePopState);
   return () => window.removeEventListener("popstate", handlePopState);
 }, [loggedIn]);
+
+useEffect(() => {
+  if (step !== "resetDone") {
+    setResetDoneCountdown(3); // reset for next time
+    return;
+  }
+
+  if (resetDoneCountdown <= 0) {
+    setForgotEmail(""); setForgotOtp(["","","","","",""]); setNewPassword(""); setConfirmPassword("");
+    setResetError(""); setChoiceError(""); setForgotOtpError(""); setStep("login");
+    return;
+  }
+
+  const timer = setTimeout(() => setResetDoneCountdown((s) => s - 1), 1000);
+  return () => clearTimeout(timer);
+}, [step, resetDoneCountdown]);
 
   useEffect(() => {
   const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -327,21 +411,30 @@ useEffect(() => {
     return { isValid: errs.length === 0, errors: errs };
   };
 
-  // ── Login ──
   const login = async () => {
-    if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
-    setAuthError(""); setOtpError("");
-    const newErrors = {};
-    if (!email) newErrors.email = "Email is required";
-    if (!password) newErrors.password = "Password is required";
-    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
-     
-    setLoading("login");
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Client": "web",  "X-Device-ID": getOrCreateLocalDeviceId(), },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }), credentials: "include",
-      });
+  if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
+  setAuthError(""); setOtpError("");
+  const newErrors = {};
+  if (!email) newErrors.email = "Email is required";
+  if (!password) newErrors.password = "Password is required";
+  if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+
+  setLoading("login");
+  try {
+    const locationCoords = await getBrowserLocation();
+    setCoords(locationCoords);
+
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Client": "web", "X-Device-ID": getOrCreateLocalDeviceId() },
+      body: JSON.stringify({
+        email: email.trim(),
+        password: password.trim(),
+        latitude: locationCoords?.latitude || null,
+        longitude: locationCoords?.longitude || null,
+      }),
+      credentials: "include",
+    });
       const data = await res.json();
       if (!res.ok) { incrementAttempts(); setAuthError(data.message || "Invalid credentials"); return; }
       if (data.success) {
@@ -423,20 +516,21 @@ useEffect(() => {
   }
 };
 
-const verifyOtp = async () => {
+const verifyOtp = async (overrideVal) => {
   setOtpError("");
   if (otpLockedUntil && Date.now() < otpLockedUntil) {
     setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`);
     return;
   }
-  const val = otp.join("");
+  const val = overrideVal || otp.join(""); 
   if (val.length !== 6) { setOtpError("Please enter a valid 6-digit OTP"); return; }
 
   setLoading("otp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
-      method: "POST", headers: { "Content-Type": "application/json",  "X-Device-ID": getOrCreateLocalDeviceId(), },
-      body: JSON.stringify({ email: otpEmail.trim(), otp: val, trustDevice: !!trustDevice }), credentials: "include",
+      method: "POST", headers: { "Content-Type": "application/json", "X-Device-ID": getOrCreateLocalDeviceId() },
+      body: JSON.stringify({ email: otpEmail.trim(), otp: val, trustDevice: !!trustDevice, latitude: coords?.latitude || null, longitude: coords?.longitude || null }),
+      credentials: "include",
     });
     const data = await res.json();
 
@@ -546,19 +640,20 @@ const verifyOtp = async () => {
     finally { setLoading(""); }
   };
   
-const verifyForgotEmailOtp = async () => {
+const verifyForgotEmailOtp = async (overrideVal) => {
   setForgotOtpError("");
   if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
     setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
   }
-  const val = forgotOtp.join("");
+  const val = overrideVal || forgotOtp.join("");   // ← use passed value if provided
   if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
 
   setLoading("forgotOtp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
+      credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
@@ -571,6 +666,7 @@ const verifyForgotEmailOtp = async () => {
       }
       return;
     }
+    setResetToken(data.resetToken || "");
     setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
     setResetError(""); setNewPassword(""); setConfirmPassword("");
     setShowPasswordValidation(false); setPasswordErrors([]);
@@ -615,19 +711,20 @@ const handleSwitchToSmsOtp = async () => {
   }
 };
 
-const verifyForgotSmsOtp = async () => {
+const verifyForgotSmsOtp = async (overrideVal) => {
   setForgotOtpError("");
   if (forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil) {
     setForgotOtpError(`Too many attempts. Try again in ${forgotOtpLockRemaining}.`); return;
   }
-  const val = forgotOtp.join("");
+  const val = overrideVal || forgotOtp.join("");   // ← use passed value if provided
   if (val.length !== 6) { setForgotOtpError("Please enter a valid 6-digit OTP"); return; }
 
   setLoading("forgotOtp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-sms-otp`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail.trim(), otp: val }), credentials: "include",
+      body: JSON.stringify({ email: forgotEmail.trim(), otp: val, purpose: "reset" }),
+      credentials: "include",
     });
     const data = await res.json();
     if (!res.ok) {
@@ -640,6 +737,7 @@ const verifyForgotSmsOtp = async () => {
       }
       return;
     }
+    setResetToken(data.resetToken || "");   // ← store the token
     setForgotOtpAttempts(0); setForgotOtpLockedUntil(null);
     setResetError(""); setNewPassword(""); setConfirmPassword("");
     setShowPasswordValidation(false); setPasswordErrors([]);
@@ -648,33 +746,48 @@ const verifyForgotSmsOtp = async () => {
   finally { setLoading(""); }
 };
 
-  // ── Reset Password ──
-  const resetPassword = async () => {
-    setResetError("");
-    if (!newPassword) { setResetError("Please enter a new password"); return; }
+const resetPassword = async () => {
+  setResetError("");
+  if (!newPassword) { setResetError("Please enter a new password"); return; }
 
-    setLoading("reset"); 
-    const check = validatePasswordStrength(newPassword);
-    if (!check.isValid) {
-      const msgs = { minLength: " at least 8 characters", uppercase: " at least 1 uppercase letter", lowercase: " at least 1 lowercase letter", number: " at least 1 number", specialChar: " at least 1 special character" };
-      setResetError("Password must contain" + check.errors.map((e) => msgs[e]).join("\n")); return;
-    }
-    if (newPassword === password) { setResetError("New password must be different from your current password"); return; }
-    if (newPassword !== confirmPassword) { setResetError("Passwords do not match"); return; }
-    setLoading("reset");
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim(), newPassword, method: forgotOtpMethod }),
-        credentials: "include",
-      });
-      const data = await res.json();
-      console.log("API response:", data);
-      if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
-      setStep("resetDone");
-    } catch { setResetError("Failed to reset password. Please try again."); }
-    finally { setLoading(""); }
-  };
+  const check = validatePasswordStrength(newPassword);
+  if (!check.isValid) {
+    const msgs = {
+      minLength: " at least 8 characters",
+      uppercase: " at least 1 uppercase letter",
+      lowercase: " at least 1 lowercase letter",
+      number: " at least 1 number",
+      specialChar: " at least 1 special character",
+    };
+    setResetError("Password must contain" + check.errors.map((e) => msgs[e]).join("\n"));
+    return;
+  }
+  if (newPassword === password) {
+    setResetError("New password must be different from your current password");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setResetError("Passwords do not match");
+    return;
+  }
+
+  setLoading("reset");
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reset-password`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim(), newPassword, resetToken }),
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) { setResetError(data.message || "Failed to reset password"); return; }
+    setResetToken("");
+    setStep("resetDone");
+  } catch {
+    setResetError("Failed to reset password. Please try again.");
+  } finally {
+    setLoading("");
+  }
+};
 
   const getOrCreateLocalDeviceId = () => {
   let deviceId = localStorage.getItem("device_id");
@@ -685,8 +798,6 @@ const verifyForgotSmsOtp = async () => {
   return deviceId;
 };
 
-
-  // ── Logout ──
   const handleLogout = async () => {
     if (!window.confirm("Are you sure you want to logout?")) return;
 
@@ -725,27 +836,28 @@ const verifyForgotSmsOtp = async () => {
     <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
 
   if (loggedIn && userRole) {
-    switch (userRole) {
-      case "Super Admin": return <AdminDashboard onLogout={handleLogout} />;
-      case "Franchisee Operations Admin": return <FranchiseAdminDashboard onLogout={handleLogout} />;
-      case "Sales Admin":     return <SalesAdmin onLogout={handleLogout} />;
-      case "Franchisee":    return <FranchiseeDashboard onLogout={handleLogout} />;
-      case "Manager":       return <ManagerDashboard onLogout={handleLogout} />;
-      case "Staff":         return <StaffDashboard onLogout={handleLogout} />;
-      default:
-        return (
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <h2>Unknown Role: {userRole}</h2>
-            <p>Your role is not recognized in the system.</p>
-            <button style={{ padding: "10px 20px", background: "#2E7D32", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginTop: "1rem" }}
-              onClick={() => { localStorage.removeItem("rememberedUser"); localStorage.removeItem("user"); sessionStorage.removeItem("user"); setLoggedIn(false); setUserRole(null); }}>
-              ← Back to Login
-            </button>
-          </div>
-        );
-    }
+  switch (userRole) {
+    case "Super Admin": return <AdminDashboard onLogout={handleLogout} />;
+    case "Franchisee Operations Admin": return <FranchiseAdminDashboard onLogout={handleLogout} />;
+    case "Sales Admin":     return <SalesAdmin onLogout={handleLogout} />;
+    case "Franchisee":    return <FranchiseeDashboard onLogout={handleLogout} />;
+    case "Manager":       return <ManagerDashboard onLogout={handleLogout} />;
+    case "Staff":         return <StaffDashboard onLogout={handleLogout} />;
+    default:
+      return (
+        <UnknownRoleScreen
+          userRole={userRole}
+          onBackToLogin={() => {
+            localStorage.removeItem("rememberedUser");
+            localStorage.removeItem("user");
+            sessionStorage.removeItem("user");
+            setLoggedIn(false);
+            setUserRole(null);
+          }}
+        />
+      );
   }
-
+}
   if (showSplash) return <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
 
   const otpIsLocked = otpLockedUntil && Date.now() < otpLockedUntil;
@@ -1101,18 +1213,14 @@ const verifyForgotSmsOtp = async () => {
           </>
         )}
 
-        {/* ── RESET DONE ── */}
         {step === "resetDone" && (
           <div className="done-wrap">
             <div className="done-icon"><CheckCircle size={60} color="#2E7D32" /></div>
             <h2>Password Reset!</h2>
             <p className="step-subtitle">Your password has been updated. You can now log in with your new password.</p>
-            <button className="btn" onClick={() => {
-              setForgotEmail(""); setForgotOtp(["","","","","",""]); setNewPassword(""); setConfirmPassword("");
-              setResetError(""); setChoiceError(""); setForgotOtpError(""); setStep("login");
-            }}>
-              ← BACK TO LOGIN
-            </button>
+            <p style={{ color: "#888", fontSize: 15, marginTop: -8 }}>
+              Redirecting to login in {resetDoneCountdown}s...
+            </p>
           </div>
         )}
 

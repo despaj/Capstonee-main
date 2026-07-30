@@ -6,8 +6,89 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const otpStore = require("../utils/otpStore");
 const { getOrCreateDeviceId } = require("../utils/deviceId");
 
+const geoip = require("geoip-lite");
+const UAParser = require("ua-parser-js");
+
+const crypto = require("crypto");
+const resetTokenStore = require("../utils/resetTokenStore");
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.socket.remoteAddress;
+}
+
+function getDeviceLabel(req) {
+  const ua = req.headers["user-agent"] || "";
+  const parser = new UAParser(ua);
+  const browser = parser.getBrowser();
+  const os = parser.getOS();
+  return `${browser.name || "Unknown browser"} on ${os.name || "Unknown OS"}`;
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+      { headers: { "User-Agent": "iFranchise/1.0 (contact@franchisync.business)" } }
+    );
+    const data = await res.json();
+    if (data?.address) {
+      const a = data.address;
+      const city = a.city || a.town || a.municipality || a.village || "Unknown city";
+      const province = a.state || a.region || "";
+      return province ? `${city}, ${province}` : city;
+    }
+  } catch (err) {
+    console.error("Reverse geocode failed:", err);
+  }
+  return null;
+}
+
+async function getLocation(ip, latitude, longitude) {
+  if (latitude && longitude) {
+    const preciseLocation = await reverseGeocode(latitude, longitude);
+    if (preciseLocation) return preciseLocation;
+  }
+
+  const cleanIp = ip?.replace("::ffff:", "");
+  if (!cleanIp) return "Unknown";
+
+  const geo = geoip.lookup(cleanIp);
+  if (geo) return `${geo.city || "Unknown city"}, ${geo.country}`;
+
+  try {
+    const res = await fetch(`https://ipwho.is/${cleanIp}`);
+    const text = await res.text();
+    if (!text) return "Unknown";
+    const data = JSON.parse(text);
+    if (data.success) return `${data.city || "Unknown city"}, ${data.country}`;
+  } catch (err) {
+    console.error("Fallback geolocation failed:", err);
+  }
+
+  return "Unknown";
+}
+
+async function logLogin(user, req, latitude, longitude) {
+  const ip = getClientIp(req);
+  const location = await getLocation(ip, latitude, longitude);
+  const device = getDeviceLabel(req);
+  console.log("[DEBUG] device label:", device); // TEMP
+  try {
+    await pool.query(
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      ["Login", user.name, user.branch || null, user.name, null, location, ip, device]
+    );
+    console.log("[DEBUG] login activity insert succeeded"); // TEMP
+  } catch (err) {
+    console.error("Failed to log login activity:", err); // ← this is the one to check
+  }
+}
+
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, latitude, longitude } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
   try {
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
@@ -38,7 +119,8 @@ router.post("/login", async (req, res) => {
     );
 
     if (device.rows.length > 0) {
-      console.log(`✅ Trusted device for ${email} — skipping OTP`);
+      console.log(`Trusted device for ${email} — skipping OTP`);
+      await logLogin(safeUser, req, latitude, longitude); 
       return res.json({ success: true, skipOtp: true, user: safeUser });
     }
 
@@ -53,6 +135,7 @@ router.post("/send-otp-after-login", async (req, res) => {
   const { email } = req.body;
   try {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[DEBUG] OTP for ${email} (login):`, otp);
     otpStore[email] = { code: otp, expires: Date.now() + 3 * 60 * 1000 };
 
     await resend.emails.send({
@@ -76,7 +159,7 @@ router.post("/send-otp-after-login", async (req, res) => {
 });
 
 router.post("/verify-otp-login", async (req, res) => {
-  const { email, otp, trustDevice } = req.body;
+  const { email, otp, trustDevice, latitude, longitude, purpose } = req.body;
   try {
     if (!otpStore[email])
       return res.status(401).json({ message: "No OTP found for this email" });
@@ -104,6 +187,14 @@ router.post("/verify-otp-login", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
+    // ── Password reset flow: issue a short-lived reset token instead of logging in ──
+    if (purpose === "reset") {
+      const token = crypto.randomBytes(32).toString("hex");
+      resetTokenStore[email] = { token, expires: Date.now() + 10 * 60 * 1000 }; // 10 min
+      return res.json({ success: true, resetToken: token });
+    }
+
+    // ── Normal login flow (unchanged) ──
     const deviceId = getOrCreateDeviceId(req, res);
 
     if (trustDevice) {
@@ -116,10 +207,11 @@ router.post("/verify-otp-login", async (req, res) => {
           [deviceId, user.rows[0].id, expiresAt]
         );
       } catch (dbErr) {
-        console.error("❌ INSERT failed:", dbErr.code, dbErr.message);
+        console.error("INSERT failed:", dbErr.code, dbErr.message);
       }
     }
 
+    await logLogin(safeUser, req, latitude, longitude);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("OTP verification error:", err);
@@ -192,7 +284,7 @@ router.post("/api/send-otp", async (req, res) => {
 });
 
 router.post("/verify-sms-otp", async (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp, latitude, longitude, purpose } = req.body;
   try {
     if (!otpStore[email])
       return res.status(401).json({ message: "No OTP found for this email" });
@@ -220,6 +312,13 @@ router.post("/verify-sms-otp", async (req, res) => {
       brand:  user.rows[0].brand,
     };
 
+    if (purpose === "reset") {
+      const token = crypto.randomBytes(32).toString("hex");
+      resetTokenStore[email] = { token, expires: Date.now() + 10 * 60 * 1000 };
+      return res.json({ success: true, resetToken: token });
+    }
+
+    await logLogin(safeUser, req, latitude, longitude);
     return res.json({ success: true, user: safeUser });
   } catch (err) {
     console.error("SMS OTP verification error:", err);
@@ -388,29 +487,35 @@ router.post("/send-forgot-password-otp", async (req, res) => {
 });
 
 router.post("/reset-password", async (req, res) => {
-  const { email, otp, newPassword } = req.body;
+  const { email, newPassword, resetToken } = req.body;
   const deviceId = getOrCreateDeviceId(req, res);
   try {
-    if (!otpStore[email])
-      return res.status(401).json({ message: "No OTP found. Please request a new one." });
+    const stored = resetTokenStore[email];
+    if (!stored)
+      return res.status(401).json({ message: "No reset request found. Please verify OTP again." });
 
-    const storedOtp = otpStore[email];
-    if (Date.now() > storedOtp.expires) {
-      delete otpStore[email];
-      return res.status(401).json({ message: "OTP has expired." });
+    if (Date.now() > stored.expires) {
+      delete resetTokenStore[email];
+      return res.status(401).json({ message: "Reset session expired. Please verify OTP again." });
     }
-    if (storedOtp.code !== otp)
-      return res.status(401).json({ message: "Invalid OTP" });
+
+    if (stored.token !== resetToken)
+      return res.status(401).json({ message: "Invalid reset session. Please verify OTP again." });
 
     const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
     if (user.rows.length === 0) {
-      delete otpStore[email];
+      delete resetTokenStore[email];
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (newPassword === user.rows[0].password) {
+      return res.status(400).json({ message: "New password must be different from your current password" });
+    }
+
+    delete resetTokenStore[email];
+
     const userId = user.rows[0].id;
     await pool.query("UPDATE users SET password=$1 WHERE email=$2", [newPassword, email]);
-    delete otpStore[email];
 
     const expires = new Date();
     expires.setDate(expires.getDate() + 30);

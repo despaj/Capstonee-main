@@ -172,7 +172,8 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
       <div style={{ position:"relative" }}>
         <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
         <input type="text" value={query} placeholder="Search branch…"
-          onChange={e=>{setQuery(e.target.value);setOpen(true);onChange("");}} onFocus={()=>setOpen(true)}
+          onChange={e=>{setQuery(e.target.value);setOpen(true);}} 
+          onFocus={()=>setOpen(true)}
           style={{ ...invInputSt, paddingLeft:30 }}/>
       </div>
       {open && filtered.length>0 && (
