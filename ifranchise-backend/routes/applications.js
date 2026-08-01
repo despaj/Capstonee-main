@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { rowToApplication } = require("../utils/formatters");
+const { logActivity } = require("../utils/activityLogger");
 
 router.post("/check-duplicate", async (req, res) => {
   const { email, mobile } = req.body;
@@ -106,6 +107,16 @@ router.post("/applications", async (req, res) => {
       ]
     );
     const app = rowToApplication(result.rows[0]);
+
+   await logActivity(
+  b.restored ? "restore" : "create",
+  app.name,
+  b.performed_by || "System",
+  { franchise: app.franchise, status: app.status, email: app.email, phone: app.phone,
+    ...(b.restored ? { note: "Restored from delete history" } : {}) },
+  req, app.franchise, "Applications", b.latitude, b.longitude
+);
+
     res.json({ success: true, id: app.id, message: "Application submitted successfully", application: app });
   } catch (err) {
     console.error("Error submitting application:", err);
@@ -149,6 +160,15 @@ router.post("/ipharma-applications", async (req, res) => {
         b.idType || null, b.idImage || null, b.letterOfIntent || null,
       ]
     );
+
+    await logActivity(
+      "create",
+      b.name,
+      b.performed_by || "System",
+      { franchise: "iPharma Mart", status: "pending", email: b.email, phone: b.phone },
+      req, b.location || "iPharma Mart", "Applications", b.latitude, b.longitude
+    );
+
     res.json({ success: true, id: result.rows[0].id, message: "iPharma application submitted successfully" });
   } catch (err) {
     console.error("Error submitting iPharma application:", err);
@@ -162,7 +182,12 @@ router.put("/applications/:id/status", async (req, res) => {
     const isIpharma = rawId.startsWith("ip-");
     const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
     const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { status } = req.body;
+    const { status, performed_by, latitude, longitude } = req.body;
+
+    const before = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+    const oldApp = before.rows[0];
 
     const result = await pool.query(
       `UPDATE ${sourceTable} SET status=$1 WHERE id=$2 RETURNING *`,
@@ -171,7 +196,22 @@ router.put("/applications/:id/status", async (req, res) => {
     if (result.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
 
-    res.json({ success: true, message: "Status updated", application: rowToApplication(result.rows[0]) });
+    const updatedApp = rowToApplication(result.rows[0]);
+
+    const action =
+      status === "approved" ? "approve" :
+      status === "rejected" ? "reject"  :
+      "update";
+
+    await logActivity(
+      action,
+      updatedApp.name,
+      performed_by || "System",
+      { status: { from: oldApp.status, to: status } },
+      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications", latitude, longitude
+    );
+
+    res.json({ success: true, message: "Status updated", application: updatedApp });
   } catch (err) {
     console.error("Error updating status:", err);
     res.status(500).json({ success: false, error: "Failed to update status" });
@@ -184,16 +224,27 @@ router.delete("/applications/:id", async (req, res) => {
     const isIpharma = rawId.startsWith("ip-");
     const id = isIpharma ? rawId.replace("ip-", "") : rawId;
     const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+    const { deleted_by, latitude, longitude } = req.body || {}; 
 
     const existing = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
     if (existing.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
+    const app = existing.rows[0];
 
     await pool.query(
       "INSERT INTO application_delete_history (application_data) VALUES ($1)",
-      [JSON.stringify(existing.rows[0])]
+      [JSON.stringify(app)]
     );
     await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
+
+    await logActivity(
+      "delete",
+      app.name,
+      deleted_by || "System",
+      { franchise: app.franchise || (isIpharma ? "iPharma Mart" : null), status: app.status },
+      req, app.franchise || (isIpharma ? "iPharma Mart" : null), "Applications", latitude, longitude
+    );
+
     res.json({ success: true, message: "Application deleted successfully" });
   } catch (err) {
     console.error("Error deleting application:", err);
@@ -228,6 +279,18 @@ router.delete("/application-delete-history/:id", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete application history entry." });
+  }
+});
+
+router.get("/applications-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM activity_log WHERE module = $1 ORDER BY created_at DESC",
+      ["Applications"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch applications activity log" });
   }
 });
 

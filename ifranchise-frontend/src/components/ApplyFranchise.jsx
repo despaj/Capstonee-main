@@ -1767,7 +1767,11 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
       {/* ── Nav ── */}
       <div className="af-nav">
         <div className="af-nav-inner">
-          <Link to="/" className="af-back-link">
+          <Link 
+            to="/" 
+            className="af-back-link"
+            onClick={() => window.scrollTo(0, 0)}
+          >
             <ChevronLeft size={20} strokeWidth={2.5} /><span>Back to Home</span>
           </Link>
           <div className="af-progress">
@@ -1883,7 +1887,9 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
                 </Field>
               )}
               <div className="af-row">
-                <Field label="Number of Dependents" required error={errors.dependents} half>{inp("dependents", "0", "number")}</Field>
+                <Field label="Number of Dependents" required error={errors.dependents} half>
+                  {inp("dependents", "0", "number", { min: 0 })}
+                </Field>
                 <Field label="Mobile Number" required error={errors.mobile} half>{inp("mobile", "09123456789")}</Field>
               </div>
               <Field label="Alternate Mobile Number" error={errors.altMobile} half>

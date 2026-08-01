@@ -32,102 +32,109 @@ const getBrowserLocation = () => {
   });
 };
 
-  const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
-    // pass these as props since they're no longer in scope:
-    trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
-  }) => {
+const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error, attempts, onVerify, resendEndpoint, resendBody, verifyLabel = "CONTINUE", loading, loadingKey, resendKey, showSmsSwitch, onSwitchMethod, extraButton,
+  trustDeviceCheckbox, handleOtpChange, handleOtpKeyDown, handleOtpPaste, setResendDisabled, setResendTimer, setLoading, resendDisabled, resendTimer, OTP_MAX_ATTEMPTS
+}) => {
 
-    const hasFocused = useRef(false);
+  const hasFocused = useRef(false);
+  const isVerifying = loading === loadingKey;
 
-    useEffect(() => {
-  if (!hasFocused.current) {
-    hasFocused.current = true;
-    setTimeout(() => refs.current[0]?.focus(), 300);
-  }
-}, []);
+  useEffect(() => {
+    if (!hasFocused.current) {
+      hasFocused.current = true;
+      setTimeout(() => refs.current[0]?.focus(), 300);
+    }
+  }, []);
 
-    return (
-      <>
-        {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
-        {error && !isLocked && <p className="error general">{error}</p>}
-        <div className="otp-box-wrap">
-          {otpArr.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => (refs.current[i] = el)}
-              className={`otp-box ${isLocked ? "otp-box-locked" : ""}`}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!/^\d*$/.test(value)) return;
-                const digitVal = value.slice(-1);
-                const next = [...otpArr];
-                next[i] = digitVal;
-                setOtpArr(next);
+  return (
+    <>
+      {isLocked && <div className="error general locked-banner">Too many attempts. Locked for <strong>{lockRemaining}</strong>.</div>}
+      {error && !isLocked && <p className="error general">{error}</p>}
+      <div className="otp-box-wrap">
+        {otpArr.map((digit, i) => (
+          <input
+            key={i}
+            ref={(el) => (refs.current[i] = el)}
+            className={`otp-box ${isLocked ? "otp-box-locked" : ""} ${isVerifying ? "otp-box-verifying" : ""}`}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={digit}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!/^\d*$/.test(value)) return;
+              const digitVal = value.slice(-1);
+              const next = [...otpArr];
+              next[i] = digitVal;
+              setOtpArr(next);
 
-                if (digitVal && i < 5) {
-                  refs.current[i + 1]?.focus();
-                }
+              if (digitVal && i < 5) {
+                refs.current[i + 1]?.focus();
+              }
 
-                if (digitVal && i === 5 && next.every((d) => d !== "")) {
-                  setTimeout(() => onVerify(next.join("")), 100);
-                }
-              }}
-              onPaste={(e) => {
-                e.preventDefault();
-                const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-                if (p.length === 6) {
-                  setOtpArr(p.split(""));
-                  refs.current[5]?.focus();
-                  setTimeout(() => onVerify(p), 100);
-                }
-              }}
-              onClick={() => refs.current[i]?.focus()}
-              disabled={!!isLocked}
-            />
-          ))}
+              if (digitVal && i === 5 && next.every((d) => d !== "")) {
+                setTimeout(() => onVerify(next.join("")), 100);
+              }
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+              if (p.length === 6) {
+                setOtpArr(p.split(""));
+                refs.current[5]?.focus();
+                setTimeout(() => onVerify(p), 100);
+              }
+            }}
+            onClick={() => refs.current[i]?.focus()}
+            disabled={!!isLocked || isVerifying}
+          />
+        ))}
+      </div>
+
+      {isVerifying && (
+        <div className="otp-verifying-row">
+          <span className="sms-spinner" /> Verifying code...
         </div>
-         {trustDeviceCheckbox}
+      )}
 
-        {extraButton}
+      {trustDeviceCheckbox}
 
-        <button
-          className="link-resend"
-          disabled={resendDisabled || !!isLocked || loading === resendKey}
-          onClick={async () => {
-            if (resendDisabled || isLocked) return;
-            setResendDisabled(true);
-            setResendTimer(30);
-            setLoading(resendKey);
-            try {
-              const res = await fetch(`${process.env.REACT_APP_API_URL}${resendEndpoint}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(resendBody),
-                credentials: "include",
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.message);
-              setTimeout(() => refs.current[0]?.focus(), 150);
-            } catch {
-              setResendDisabled(false);
-            } finally {
-              setLoading("");
-            }
-          }}
-        >
-          {loading === resendKey
-            ? <><span className="sms-spinner" /> Sending...</>
-            : resendDisabled
-            ? `Resend OTP in ${resendTimer}s`
-            : "Resend OTP"}
-        </button>
-      </>
-    );
-  };
+      {extraButton}
+
+      <button
+        className="link-resend"
+        disabled={resendDisabled || !!isLocked || loading === resendKey || isVerifying}
+        onClick={async () => {
+          if (resendDisabled || isLocked) return;
+          setResendDisabled(true);
+          setResendTimer(30);
+          setLoading(resendKey);
+          try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}${resendEndpoint}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(resendBody),
+              credentials: "include",
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+            setTimeout(() => refs.current[0]?.focus(), 150);
+          } catch {
+            setResendDisabled(false);
+          } finally {
+            setLoading("");
+          }
+        }}
+      >
+        {loading === resendKey
+          ? <><span className="sms-spinner" /> Sending...</>
+          : resendDisabled
+          ? `Resend OTP in ${resendTimer}s`
+          : "Resend OTP"}
+      </button>
+    </>
+  );
+};
 
   function UnknownRoleScreen({ userRole, onBackToLogin }) {
   const [secondsLeft, setSecondsLeft] = useState(3);
@@ -568,31 +575,33 @@ const verifyOtp = async (overrideVal) => {
     };
 
 
-  const handleForgotPasswordOpen = async () => {
-    setChoiceError("");
-    setForgotEmail(email.trim());
-     setMaskedPhone("your registered number"); 
-       setStep("forgotPassword");
-    if (email.trim()) {
-      setIsFetchingPhone(true);
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/get-contact-number`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim() }), credentials: "include",
-        });
-        const data = await res.json();
-        if (res.ok && data.contact_number) {
-          const raw = data.contact_number.toString().replace(/\D/g, "");
-          setMaskedPhone("*".repeat(raw.length - 2) + raw.slice(-2));
-        }
-      } catch { /* no phone found — SMS option will be disabled */ }
-      finally { setIsFetchingPhone(false); }
+ const handleForgotPasswordOpen = async () => {
+  setChoiceError("");
+  setForgotEmail(email.trim());
+  setMaskedPhone("your registered number");
+  setStep("forgotPassword");
+
+  if (email.trim()) {
+    setIsFetchingPhone(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/get-contact-number`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && data.contact_number) {
+        const raw = data.contact_number.toString().replace(/\D/g, "");
+        setMaskedPhone("*".repeat(raw.length - 2) + raw.slice(-2));
+      }
+    } catch {
+      /* no phone found — SMS option will be disabled */
+    } finally {
+      setIsFetchingPhone(false);
     }
-    setChoiceError("");
-    setForgotEmail(email.trim());
-    setMaskedPhone("your registered number");  
-    setStep("forgotPassword");
-  };
+  }
+};
 
   const handleChooseEmail = async () => {
     setChoiceError("");
@@ -1259,6 +1268,14 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 
 .password-wrap { position:relative; display:flex; align-items:center; }
 .password-wrap input.password-input { width:100%; padding-right:42px; }
+.password-input::-ms-reveal,
+.password-input::-ms-clear {
+  display: none;
+}
+
+.password-input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+}
 .eye-btn { position:absolute; right:12px; background:none; border:none; cursor:pointer; font-size:16px; padding:0; line-height:1; color:#777; display:flex; align-items:center; }
 .field-error { color:#d32f2f; font-size:11px; margin-top:4px; display:block; }
 
@@ -1427,9 +1444,27 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   vertical-align: middle;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 .use-sms-btn:hover{
   background:#dcfce7;
   transform:translateY(-1px);
+}
+
+.otp-box-verifying {
+  opacity: 0.6;
+}
+
+.otp-verifying-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2E7D32;
+  margin: -8px 0 16px;
 }
 
 /* ── Done state ── */

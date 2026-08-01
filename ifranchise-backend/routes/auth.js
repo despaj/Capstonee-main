@@ -74,16 +74,16 @@ async function logLogin(user, req, latitude, longitude) {
   const ip = getClientIp(req);
   const location = await getLocation(ip, latitude, longitude);
   const device = getDeviceLabel(req);
-  console.log("[DEBUG] device label:", device); // TEMP
+  console.log("[DEBUG] device label:", device); 
   try {
-    await pool.query(
-      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      ["Login", user.name, user.branch || null, user.name, null, location, ip, device]
+      await pool.query(
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device, module)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      ["Login", user.name, user.branch || null, user.name, null, location, ip, device, "User Management"]
     );
-    console.log("[DEBUG] login activity insert succeeded"); // TEMP
+    console.log("[DEBUG] login activity insert succeeded"); 
   } catch (err) {
-    console.error("Failed to log login activity:", err); // ← this is the one to check
+    console.error("Failed to log login activity:", err);
   }
 }
 

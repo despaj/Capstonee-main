@@ -9,6 +9,17 @@ const C = {
   amber:"#f59e0b", amberBg:"#fffbeb", amberBorder:"#fde68a",
 };
 
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
 /* ── shared style atoms ── */
 const invInputSt = {
   height:36, padding:"0 11px", borderRadius:8,
@@ -1869,15 +1880,6 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       .then(d => { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); });
   }, [activeBatchIngredient]);
 
-  const logActivity = useCallback(async (action, ingredientName, branchName, changes = null) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/ingredient-activity-log`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ action, ingredient_name:ingredientName, branch:branchName, performed_by:userName, changes }),
-      });
-    } catch (err) { console.warn(err); }
-  }, [userName]);
-
   /* ── import excel ── */
   const importExcel = e => {
     const file = e.target.files[0];
@@ -1887,6 +1889,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
+        const coords = await getBrowserLocation();
         setImportProgress({ percent:15, label:"Parsing spreadsheet…", current:0, total:0 });
         const wb = XLSX.read(ev.target.result, { type:"array" });
         const rows_to_save = [];
@@ -1925,20 +1928,31 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
         const skippedNames=[];
 
         for (let idx=0; idx<rows_to_save.length; idx++) {
-          const item = rows_to_save[idx];
-          setImportProgress({ percent: 25+Math.round(((idx+1)/rows_to_save.length)*65), label:`Saving "${item.name}"…`, current:idx+1, total:rows_to_save.length });
-          try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(item) });
-            const d   = await res.json();
-            if (d.success) {
-              saved++;
-              await logActivity("import", item.name, item.branch, `stock=${item.stock} ${item.unit}, cost=₱${item.cost_per_unit}`);
+                const item = rows_to_save[idx];
+                setImportProgress({ percent: 25+Math.round(((idx+1)/rows_to_save.length)*65), label:`Saving "${item.name}"…`, current:idx+1, total:rows_to_save.length });
+                try {
+                  const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+                    method:"POST", headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({ ...item, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude, imported: true }),
+                  });
+                  const d = await res.json();
+                  if (d.success) {
+                    saved++;
               if (item.listInShop && item.shopPrice>0) {
                 try {
                   const checkRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
                   const checkData = await checkRes.json();
                   if (!checkData.some(s=>s.name.trim().toLowerCase()===item.name.toLowerCase()&&s.shop.trim().toLowerCase()===item.shopCategory.toLowerCase())) {
-                    const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock, shop:item.shopCategory, brand:item.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(item.name.slice(0,8)), is_visible:true }) });
+                      const shopRes = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+                      method:"POST", headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({
+                        name:item.name, price:item.shopPrice, unit:item.shopUnit, stock:item.stock,
+                        shop:item.shopCategory, brand:item.brand||"",
+                        image_url:"...",
+                        is_visible:true,
+                        latitude: coords?.latitude,
+longitude: coords?.longitude,
+                      }) });
                     if ((await shopRes.json()).success) shopSaved++;
                   }
                 } catch {}
@@ -2000,8 +2014,6 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const totalValue = items.reduce((s, i) => s+(i.cost_per_unit||0)*(i.stock||0), 0);
   const pageItems  = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
 
-
-/* ── save (add / edit) ── */
   const saveItem = async e => {
     e.preventDefault();
 
@@ -2012,9 +2024,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     if (!form.unit) errors.push("Unit is required.");
     if (isAdmin && !isPositiveOrZeroNumber(form.cost_per_unit)) errors.push("Cost per unit must be a valid number of 0 or more.");
     if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
-    if (!editing && form.listInShop) {
-      if (!isPositiveOrZeroNumber(form.shopPrice) || parseFloat(form.shopPrice) <= 0) errors.push("Shop price must be greater than 0 when listing in Mobile Shop.");
-    }
+  
     if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
       errors.push("Stock must be a valid number of 0 or more.");
     }
@@ -2022,14 +2032,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
       return;
     }
-
+    const coords = await getBrowserLocation();
     const payload = {
-      ...form,
-      stock: editing ? (form.stock ?? 0) : 0,
-      branch: isAdmin ? form.branch : userBranch,
-      name: capitalizeName(form.name.trim()),
-      ...((!isAdmin && editing) ? { cost_per_unit: editing.cost_per_unit } : {}),
-    };
+        ...form,
+        stock: editing ? (form.stock ?? 0) : 0,
+        branch: isAdmin ? form.branch : userBranch,
+        name: capitalizeName(form.name.trim()),
+        performed_by: userName,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        ...((!isAdmin && editing) ? { cost_per_unit: editing.cost_per_unit } : {}),
+      };
     if (!editing) {
       const duplicate = items.find(
         i => normalizeName(i.name) === normalizeName(payload.name) && i.branch.trim().toLowerCase() === payload.branch.trim().toLowerCase()
@@ -2055,15 +2068,27 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
           if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
           changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
         }
-        await logActivity(editing?"edit":"add", payload.name, payload.branch, changesStr);
         if (!editing && form.listInShop && form.shopPrice) {
-          try {
-            await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-              method:"POST", headers:{"Content-Type":"application/json"},
-              body:JSON.stringify({ name:payload.name, price:parseFloat(form.shopPrice)||0, unit:form.shopUnit||"", stock:0, shop:form.shopCategory, brand:payload.brand||"", image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)), is_visible:true, branches:[] }),
-            });
-          } catch {}
-        }
+        try {
+          await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({
+              name:payload.name,
+              price:parseFloat(form.shopPrice)||0,
+              unit:form.shopUnit||"",
+              stock:0,
+              shop:form.shopCategory,
+              brand:payload.brand||"",
+              image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
+              is_visible:true,
+              branches:[],
+              performed_by: userName,        // ✅ add here instead
+              latitude: payload.latitude,    // ✅ add here instead
+              longitude: payload.longitude,  // ✅ add here instead
+            }),
+          });
+        } catch {}
+      }
         await fetchItems(); await fetchActivityLog();
         closeModal();
         showUiModal({
@@ -2087,31 +2112,39 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
     if (!deleteTarget) return;
     const item = deleteTarget; setDeleteTarget(null);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, { method:"DELETE" });
-      const d   = await res.json();
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, {
+        method:"DELETE",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      const d = await res.json();
       if (d.success) {
         await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ingredient_data:item, deleted_by:userName }) });
-        await fetchItems(); await fetchDeleteHistory();
+        await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
       } else { showUiModal({ type:"error", title:"Failed to Delete", message:d.error||"An unexpected error occurred." }); }
     } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete." }); }
   };
 
-  const handleRestore = async (entry) => {
-    try {
-      const d = entry.data;
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
-        await logActivity("add", d.name, d.branch, "Restored from delete history");
-        await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
-        showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored.` });
-      } else { showUiModal({ type:"error", title:"Restore Failed", message:result.error||"Failed to restore." }); }
-    } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore." }); }
-  };
+const handleRestore = async (entry) => {
+  try {
+    const d = entry.data;
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit,
+        performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude, restored: true,
+      }),
+    });
+    const result = await res.json();
+    if (result.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
+      await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
+      showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored.` });
+    } else { showUiModal({ type:"error", title:"Restore Failed", message:result.error||"Failed to restore." }); }
+  } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore." }); }
+};
 
   const openEdit = item => {
     setEditing(item);
@@ -2293,10 +2326,10 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
 
               {/* FIX: Only show stock field when editing (batches drive stock on new ingredients) */}
               <div>
-  <label style={invLabelSt}>Minimum Stock *</label>
-  <input type="number" style={invInputSt} value={form.min_stock} min="0"
-    onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required/>
-</div>
+                <label style={invLabelSt}>Minimum Stock *</label>
+                <input type="number" style={invInputSt} value={form.min_stock} min="0"
+                  onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required/>
+              </div>
 
               {/* Info hint shown when adding a new ingredient */}
               {!editing && (
@@ -2393,7 +2426,13 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
       <ImportLoadingModal visible={importLoading} progress={importProgress}/>
       <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={()=>{ if(uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
       {showDeleteHistory && <DeleteHistoryPanel history={deleteHistory} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}
-      {showActivityLog   && <ActivityLogPanel   log={activityLog}       onClose={()=>setShowActivityLog(false)}/>}
+      {showActivityLog && (
+  <ActivityLogPanel
+    log={activityLog}
+    onClose={() => setShowActivityLog(false)}
+    title="Stock Activity Log"
+  />
+)}
     </div>
   );
 }
