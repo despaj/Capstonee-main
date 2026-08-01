@@ -8,7 +8,7 @@ router.get("/orders", async (req, res) => {
     const result = await pool.query(`
       SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
         u.name AS user_name,
-        COALESCE(json_agg(json_build_object('name',si.name,'qty',oi.quantity,'price',oi.price)) FILTER (WHERE oi.id IS NOT NULL),'[]') AS items
+        COALESCE(json_agg(json_build_object('shop_item_id', oi.shop_item_id, 'name',si.name,'qty',oi.quantity,'price',oi.price,'stock',si.stock)) FILTER (WHERE oi.id IS NOT NULL),'[]') AS items
       FROM orders o
       LEFT JOIN users u ON u.id=o.user_id
       LEFT JOIN order_items oi ON oi.order_id=o.id
@@ -72,29 +72,48 @@ router.post("/orders", async (req, res) => {
 router.put("/orders/:id", async (req, res) => {
   try {
     const { status } = req.body;
-    const validStatuses = ["pending", "shipping", "received", "cancelled"];
+    const validStatuses = ["pending", "accepted", "rejected", "disposed"];
     if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status value" });
+
+    if (status === "accepted") {
+      const itemsRes = await pool.query(
+        `SELECT si.id, si.name, si.stock, oi.quantity
+         FROM order_items oi
+         JOIN shop_items si ON si.id = oi.shop_item_id
+         WHERE oi.order_id = $1`,
+        [req.params.id]
+      );
+      const insufficient = itemsRes.rows.filter(r => Number(r.stock) < Number(r.quantity));
+      if (insufficient.length > 0) {
+        return res.status(409).json({
+          error: "Insufficient stock to accept this order",
+          insufficientItems: insufficient.map(r => ({
+            name: r.name,
+            needed: Number(r.quantity),
+            available: Number(r.stock),
+          })),
+        });
+      }
+    }
 
     const result = await pool.query("UPDATE orders SET status=$1 WHERE id=$2 RETURNING *", [status, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Order not found" });
 
-    if (status === "shipping") {
-      const orderItems = await pool.query("SELECT shop_item_id, quantity FROM order_items WHERE order_id=$1", [req.params.id]);
-      for (const item of orderItems.rows) {
-        await pool.query("UPDATE shop_items SET stock=stock-$1 WHERE id=$2", [item.quantity, item.shop_item_id]);
-      }
-    }
-
     const order = result.rows[0];
     if (order?.user_id) {
-      const statusLabels = { pending: "Order Placed", shipping: "Order Shipped", received: "Order Delivered", cancelled: "Order Cancelled" };
+      const statusLabels = {
+        pending:  "Order Placed",
+        accepted: "Order Accepted",
+        disposed: "Order Fulfilled",
+        rejected: "Order Rejected",
+      };
       await pool.query(
         `INSERT INTO notifications (user_id, type, title, body) VALUES ($1,$2,$3,$4)`,
         [order.user_id, `order_${status}`, statusLabels[status] || "Order Update", `Your order #${order.id} is now ${status}.`]
       );
       const userRow = await pool.query("SELECT push_token FROM users WHERE id=$1", [order.user_id]);
       const token = userRow.rows[0]?.push_token;
-      if (token) await sendPushNotification(token, "Order Update", `Your order #${req.params.id} is now ${status}.`);
+      if (token) await sendPushNotification(token, statusLabels[status] || "Order Update", `Your order #${req.params.id} is now ${status}.`);
     }
 
     res.json({ success: true, order: result.rows[0] });

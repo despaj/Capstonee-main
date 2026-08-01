@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const { logActivity } = require("../utils/activityLogger");
-const { logToTable } = require("../utils/activityLogger");
 const pool = require("../db");
 const UAParser = require("ua-parser-js");
 
@@ -48,7 +47,6 @@ for (const { route, table } of LOG_TABLES) {
 router.post(`/${route}`, async (req, res) => {
   try {
     const { action, item_name, branch, performed_by, changes } = req.body;
-    await logToTable(table, { action, item_name, branch, performed_by, changes }, req);
     res.json({ success: true });
   } catch (err) {
     console.error(`POST /${route} error:`, err);

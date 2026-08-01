@@ -75,8 +75,9 @@ const MIN_SHELF_LIFE_DAYS = 30; // Receive Stock: expiry must be at least 1 mont
 const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
   month:"short", day:"numeric", year:"numeric",
   hour:"2-digit", minute:"2-digit",
+  timeZone: "Asia/Manila",
 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) : "—";
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric", timeZone:"Asia/Manila" }) : "—";
 
 /* ── validation helpers ── */
 function isValidDateStr(s) {
@@ -147,14 +148,15 @@ function computeExpiryStatus(exp_date, brand) {
   return "ok";
 }
 
-// Which depletion rule applies to a brand, and how batches should be ordered.
-function getFifoMethod(brand) {
+function getFifoMethod(brand, isPerishable) {
   const isPharma = (brand || "").toLowerCase().includes("ipharma");
-  if (isPharma) {
+  if (isPharma || isPerishable) {
     return {
       method: "FEFO",
       topLabel: "▲ EXPIRY DATE (FEFO KEY)",
-      queueLabel: "nearest expiry dispensed first — FDA compliance & patient safety",
+      queueLabel: isPharma
+        ? "nearest expiry dispensed first — FDA compliance & patient safety"
+        : "nearest expiry dispensed first — reduce spoilage waste",
     };
   }
   return {
@@ -164,8 +166,8 @@ function getFifoMethod(brand) {
   };
 }
 
-function sortBatchesByMethod(batches, brand) {
-  const { method } = getFifoMethod(brand);
+function sortBatchesByMethod(batches, brand, isPerishable) {
+  const { method } = getFifoMethod(brand, isPerishable);
   return [...batches].sort((a, b) => {
     if (method === "FEFO") {
       const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
@@ -645,8 +647,8 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
     );
   }
 
-  const fifo = getFifoMethod(product.brand);
-  const sorted = sortBatchesByMethod(batches, product.brand);
+  const fifo = getFifoMethod(product.brand, product.perishable);
+  const sorted = sortBatchesByMethod(batches, product.brand, product.perishable);
   const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
 
   return (
@@ -697,7 +699,11 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
                 <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
                   <span style={{ width:19, height:19, borderRadius:"50%", background:isFirst?C.green:"#b9c9bf", color:"#fff", fontSize:10, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{idx+1}</span>
                   <span style={{ fontSize:12, fontWeight:800, color:C.ink }}>Batch {b.batch_number || "—"}</span>
-                  {isFirst && <span style={{ fontSize:9, fontWeight:800, letterSpacing:"0.04em", color:C.greenDk, background:C.greenLt, border:`1px solid ${C.greenMid}`, padding:"2px 7px", borderRadius:20, whiteSpace:"nowrap" }}>{fifo.topLabel}</span>}
+                  {isFirst && (
+                    <span style={{ fontSize:9, fontWeight:800, color:C.greenDk, border:`1px solid ${C.greenMid}`, padding:"2px 8px", borderRadius:20 }}>
+                      {fifo.topLabel}
+                    </span>
+                  )}
                 </span>
                 {ss.label && (
                   <span style={{ fontSize:9, fontWeight:800, color:ss.badgeText, border:`1px solid ${ss.border}`, padding:"2px 7px", borderRadius:20 }}>{ss.label}</span>
@@ -1300,11 +1306,18 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
   const pharma = isPharmaBrand(ingredient.brand);
   const fuel   = isFuelBrand(ingredient.brand);
 
+  const toDatetimeLocal = (isoStr) => {
+  if (!isoStr) return "";
+  const d = new Date(isoStr);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
+};
+
   const [form, setForm] = useState({
     stock:        batch.stock        || 0,
     mfg_date:     batch.mfg_date     ? batch.mfg_date.split("T")[0]    : "",
     exp_date:     batch.exp_date     ? batch.exp_date.split("T")[0]    : "",
-    supply_date:  batch.supply_date  ? batch.supply_date.split("T")[0] : "",
+    supply_date:  toDatetimeLocal(batch.supply_date), 
     notes:        batch.notes        || "",
     supplier:     batch.supplier     || "",
     cost_per_unit:batch.cost_per_unit|| "",
@@ -1327,7 +1340,10 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
 
   const submit = (e) => {
     e.preventDefault();
-    onSave(form);
+    onSave({
+      ...form,
+      supply_date: form.supply_date ? new Date(form.supply_date).toISOString() : null,
+    });
   };
 
   return (
@@ -1373,8 +1389,8 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
               )}
             </div>
             <div>
-              <label style={invLabelSt}>Supply Date</label>
-              <input type="date" style={invInputSt} value={form.supply_date} onChange={e=>setF("supply_date", e.target.value)}/>
+              <label style={invLabelSt}>Supply Date &amp; Time</label>
+              <input type="datetime-local" style={invInputSt} value={form.supply_date} onChange={e=>setF("supply_date", e.target.value)}/>
             </div>
             <div style={{ gridColumn:"1 / -1" }}>
               <label style={invLabelSt}>Notes</label>
@@ -1631,7 +1647,8 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
     }
   };
 
-  const sortedBatches = sortBatchesByMethod(batches, ingredient.brand);
+  const fifo = getFifoMethod(ingredient.brand, ingredient.perishable);
+  const sortedBatches = sortBatchesByMethod(batches, ingredient.brand, ingredient.perishable);
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
@@ -1812,18 +1829,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [] })
   const [batchLoading,          setBatchLoading]          = useState(false);
   const [showValue, setShowValue] = useState(true);
 
-  // Receive Stock modal state: { brandDef, product } or null
   const [receiveTarget, setReceiveTarget] = useState(null);
 
   const excelRef = useRef(null);
 
-  // FIX: stock removed from emptyForm — stock is now managed by batches only
-  const emptyForm = useCallback(() => ({
-    name:"", branch: isAdmin ? "" : userBranch, brand:"",
-    unit:"pcs", min_stock:0, cost_per_unit:"",
-    listInShop: false,
-    shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
-  }), [isAdmin, userBranch]);
+const emptyForm = useCallback(() => ({
+  name:"", branch: isAdmin ? "" : userBranch, brand:"",
+  unit:"pcs", min_stock:0, cost_per_unit:"", perishable:false,
+  listInShop: false,
+  shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+}), [isAdmin, userBranch]);
+
   const [form, setForm] = useState(emptyForm);
 
   /* ── fetch ingredients ── */
@@ -2142,23 +2158,17 @@ const handleRestore = async (entry) => {
   } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore." }); }
 };
 
-  const openEdit = item => {
-    setEditing(item);
-    setForm({
-      name:          item.name,
-      brand:         item.brand  || "",
-      branch:        item.branch || "",
-      unit:          item.unit   || "pcs",
-      stock:         item.stock,          // keep stock field on edit for manual override
-      min_stock:     item.min_stock,
-      cost_per_unit: item.cost_per_unit || "",
-      listInShop:    false,
-      shopPrice:     "",
-      shopUnit:      "",
-      shopCategory:  "Coffee Spot",
-    });
-    setShowModal(true);
-  };
+const openEdit = item => {
+  setEditing(item);
+  setForm({
+    name: item.name, brand: item.brand || "", branch: item.branch || "",
+    unit: item.unit || "pcs", stock: item.stock, min_stock: item.min_stock,
+    cost_per_unit: item.cost_per_unit || "",
+    perishable: !!item.perishable,
+    listInShop: false, shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+  });
+  setShowModal(true);
+};
 
   const closeModal = () => { setShowModal(false); setEditing(null); setForm(emptyForm()); };
 
@@ -2298,36 +2308,54 @@ const handleRestore = async (entry) => {
                   <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
                 </div>
               )}
-
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div>
-                  <label style={invLabelSt}>Unit *</label>
-                  <select style={invInputSt} value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} required>
-                    {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-               <div>
-  <label style={invLabelSt}>Cost per Unit (₱){isAdmin ? " *" : ""}</label>
-  {isAdmin ? (
-    <input type="number" style={invInputSt} value={form.cost_per_unit} min="0" step="0.01"
-      onChange={e=>setForm(f=>({...f,cost_per_unit:e.target.value}))} required placeholder="0.00"/>
-  ) : (
-    <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
-      ₱{Number(form.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
-      <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:4 }}>(set by admin)</span>
-    </div>
-  )}
-</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div>
+                <label style={invLabelSt}>Unit *</label>
+                <select style={invInputSt} value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} required>
+                  {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
+                </select>
               </div>
+              <div>
+                <label style={invLabelSt}>Cost per Unit (₱){isAdmin ? " *" : ""}</label>
+                {isAdmin ? (
+                  <input type="number" style={invInputSt} value={form.cost_per_unit} min="0" step="0.01"
+                    onChange={e=>setForm(f=>({...f,cost_per_unit:e.target.value}))} required placeholder="0.00"/>
+                ) : (
+                  <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+                    ₱{Number(form.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                    <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:4 }}>(set by admin)</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-              {/* FIX: Only show stock field when editing (batches drive stock on new ingredients) */}
+            <div style={{
+              display:"flex", alignItems:"center", gap:10,
+              padding:"10px 12px", borderRadius:9,
+              background: form.perishable ? C.greenLt : "#f7f7f7",
+              border:`1px solid ${form.perishable ? C.greenMid : C.border}`,
+            }}>
+              <div onClick={()=>setForm(f=>({...f, perishable: !f.perishable}))}
+                style={{ width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative",
+                  background: form.perishable ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0",
+                  transition:"background .2s", flexShrink:0 }}>
+                <div style={{ position:"absolute", top:3, left: form.perishable ? 21 : 3, width:16, height:16,
+                  borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
+              </div>
+              <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer", flex:1 }} onClick={()=>setForm(f=>({...f, perishable: !f.perishable}))}>
+                Perishable (e.g. dairy, fresh items)
+                <span style={{ fontWeight:400, color:C.muted, display:"block", fontSize:10.5, marginTop:2 }}>
+                  Uses FEFO (earliest expiry first) instead of FIFO for its batch queue.
+                </span>
+              </label>
+            </div>
+
               <div>
                 <label style={invLabelSt}>Minimum Stock *</label>
                 <input type="number" style={invInputSt} value={form.min_stock} min="0"
                   onChange={e=>setForm(f=>({...f,min_stock:e.target.value}))} required/>
               </div>
 
-              {/* Info hint shown when adding a new ingredient */}
               {!editing && (
                 <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:9, padding:"10px 14px", fontSize:12, color:"#1e40af", display:"flex", alignItems:"flex-start", gap:8 }}>
                   <span>Stock starts at <strong>0</strong> and is automatically calculated from batches. Use <strong>Receive Stock</strong> on the ingredient row to add stock.</span>

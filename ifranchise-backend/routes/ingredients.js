@@ -17,15 +17,15 @@ router.get("/ingredients", async (req, res) => {
 
 router.post("/ingredients", async (req, res) => {
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported } = req.body;
     if (!name || !unit) return res.status(400).json({ error: "Name and unit are required" });
 
     const result = await pool.query(
-      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [name, branch || null, brand || null, unit,
        parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {})]
+       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable]
     );
     const ingredient = result.rows[0];
 
@@ -58,7 +58,7 @@ router.post("/ingredients", async (req, res) => {
 router.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, performed_by, latitude, longitude } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, performed_by, latitude, longitude } = req.body;
     await client.query("BEGIN");
 
     const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
@@ -67,10 +67,10 @@ router.put("/ingredients/:id", async (req, res) => {
 
     const result = await client.query(
       `UPDATE ingredients SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6,
-       cost_per_unit=$7, extra_fields=$8, updated_at=NOW() WHERE id=$9 RETURNING *`,
+       cost_per_unit=$7, extra_fields=$8, perishable=$9, updated_at=NOW() WHERE id=$10 RETURNING *`,
       [name, branch || null, brand || null, unit,
        parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), req.params.id]
+       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable, req.params.id]
     );
 
     const updatedItem = result.rows[0];
@@ -94,7 +94,7 @@ router.put("/ingredients/:id", async (req, res) => {
     await client.query("COMMIT");
 
     const changes = {};
-    for (const field of ["name", "branch", "brand", "unit", "stock", "min_stock", "cost_per_unit"]) {
+    for (const field of ["name", "branch", "brand", "unit", "stock", "min_stock", "cost_per_unit", "perishable"]) {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }

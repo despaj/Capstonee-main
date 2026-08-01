@@ -56,26 +56,6 @@ async function getLocation(ip, latitude, longitude) {
   return "Unknown";
 }
 
-// Generic logger — works for ANY module table (inventory_activity_log, users_activity_log, etc.)
-// as long as the table has: action, item_name, branch, performed_by, changes, location, ip_address, device, created_at
-async function logToTable(table, { action, item_name, branch = null, performed_by = "System", changes = null }, req = null, latitude = null, longitude = null) {
-  try {
-    let ip = null, device = null, location = null;
-    if (req) {
-      ip = getClientIp(req);
-      device = getDeviceLabel(req);
-      location = await getLocation(ip, latitude, longitude);
-    }
-    await pool.query(
-      `INSERT INTO ${table} (action, item_name, branch, performed_by, changes, location, ip_address, device, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
-      [action, item_name, branch, performed_by, changes ? JSON.stringify(changes) : null, location, ip, device]
-    );
-  } catch (err) {
-    console.error(`Failed to write to ${table}:`, err);
-  }
-}
-
 async function logActivity(action, itemName, performedBy = "system", details = {}, req = null, branch = null, module = "General", latitude = null, longitude = null) {
   try {
     let ip = null, device = null, location = null;
@@ -95,4 +75,4 @@ async function logActivity(action, itemName, performedBy = "system", details = {
   }
 }
 
-module.exports = { logActivity, logToTable };
+module.exports = { logActivity };

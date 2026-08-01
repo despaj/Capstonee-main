@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import logo from '../assets/logo.png';
+import iFranchise_logo from '../assets/iFranchise_logo.png';
+import ifranchisejpg from '../assets/ifranchisejpg.jpg';
+import franchisync from '../assets/franchisyncjpg.jpg';
 import Receipts from './Receipts';
 import StockInventoryContent from './StockInventoryContent';
 import MenuInventoryContent from './MenuInventoryContent';
@@ -3129,18 +3132,21 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
 
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
   const allRegions    = [...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean))];
-  const filteredBrands = brands.map((brand) => ({
+  const filteredBrands = brands.map((brand) => {
+  const brandNameMatches = searchQuery && brand.name.toLowerCase().includes(searchQuery.toLowerCase());
+  return {
     ...brand,
     branches: (brand.branches || []).filter((br) =>
-      (!searchQuery || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
+      (!searchQuery || brandNameMatches || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
       (filterRegion === "all" || br.region === filterRegion)
     ),
-  })).filter((brand) => {
-    if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
-    if (filterRegion !== "all" && brand.branches.length === 0) return false;
-    if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
-    return true;
-  });
+  };
+}).filter((brand) => {
+  if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
+  if (filterRegion === "all" && searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+  if (filterRegion !== "all" && brand.branches.length === 0) return false;
+  return true;
+});
 
   const ConceptBadge = ({ concept }) => {
     const styles = { "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" }, "Kiosk": { bg: "rgba(59,130,246,0.1)", color: "#2563eb" } };
@@ -3391,7 +3397,12 @@ const getBrowserLocation = () => {
 
   const filteredItems = items.filter(item => {
     const q = searchQuery.toLowerCase();
-    if (q && !item.name?.toLowerCase().includes(q) && !item.shop?.toLowerCase().includes(q)) return false;
+    const matchesQuery =
+      !q ||
+      item.name?.toLowerCase().includes(q) ||
+      item.shop?.toLowerCase().includes(q) ||
+      String(item.stock ?? "").includes(q);
+    if (!matchesQuery) return false;
     if (filterShop !== "all" && item.shop !== filterShop) return false;
     return true;
   });
@@ -3437,15 +3448,19 @@ const getBrowserLocation = () => {
     e.target.value = ""; // allow re-selecting the same file later
   };
 
-  const validateEdit = () => {
-    const errs = {};
-    if (!editingItem.name.trim()) errs.name = "Item name is required";
-    if (!editingItem.price) errs.price = "Price is required";
-    else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
-    setEditErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+const validateEdit = () => {
+  const errs = {};
+  if (!editingItem.name.trim()) errs.name = "Item name is required";
+  if (!editingItem.price) errs.price = "Price is required";
+  else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
+  if (editingItem.stock === "" || editingItem.stock === null || editingItem.stock === undefined)
+    errs.stock = "Stock is required";
+  else if (isNaN(editingItem.stock) || Number(editingItem.stock) < 0)
+    errs.stock = "Stock must be 0 or more";
+  if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
+  setEditErrors(errs);
+  return Object.keys(errs).length === 0;
+};
 
   const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -3705,6 +3720,16 @@ const toggleVisibility = async (id) => {
                   <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
                     style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
                 </Field>
+                <Field label="Stock *" error={editErrors.stock}>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingItem.stock ?? ""}
+                    onChange={e => setEditingItem({...editingItem, stock: e.target.value})}
+                    style={{ ...msInputStyle, border:`1px solid ${editErrors.stock ? "#e53935" : C.border}` }}
+                    placeholder="0"
+                  />
+                </Field>
                 <PhotoPicker
                   value={editingItem.image_url}
                   onPick={e => handleImageSelect(e, "edit")}
@@ -3881,7 +3906,7 @@ const toggleVisibility = async (id) => {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Price","Unit","Status",""].map((label, i) => (
+                  {["Image","Shop","Item Name","Price","Stock","Unit","Status",""].map((label, i) => (
                     <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
                       {label}
                     </th>
@@ -3903,6 +3928,15 @@ const toggleVisibility = async (id) => {
                       </td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                       <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+                      <td style={{ padding:"10px 12px" }}>
+                        <span style={{
+                          padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700,
+                          background: item.stock === 0 ? "#fde8e8" : item.stock <= 5 ? "#fff3e0" : "#e0f2f1",
+                          color: item.stock === 0 ? "#c62828" : item.stock <= 5 ? "#e65100" : "#00695c",
+                        }}>
+                          {item.stock ?? 0}
+                        </span>
+                      </td>
                       <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
                       <td style={{ padding:"10px 12px" }}>
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
@@ -5386,8 +5420,10 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
 // REPORTS
 
 const REPORT_STATUS = {
-  pending:  { label:"Pending",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  approved: { label:"Approved", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  pending:   { label:"Pending",      bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  submitted: { label:"Under Review", bg:"#e3edfb", color:"#1e40af", dot:"#3b6dde" },
+  approved:  { label:"Acknowledged",     bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  returned:  { label:"Returned",     bg:"#fde8e8", color:"#7f1d1d", dot:"#dc2626" },
 };
 
 const API = process.env.REACT_APP_API_URL || "";
@@ -5402,26 +5438,42 @@ function Chip({ label, color, bg, onRemove }) {
 
 function ReportsContent({ user, brands: propBrands = [] }) {
   const [reports,      setReports]      = useState([]);
-  const [loading,      setLoading]      = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);  
   const [error,        setError]        = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [search,       setSearch]       = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [brandBranchFilter, setBrandBranchFilter] = useState({});
 
   const [activityLog,     setActivityLog]     = useState([]);
-const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
 
-  // modal states
   const [viewReport,    setViewReport]    = useState(null);
   const [approveReport, setApproveReport] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const [openDropdown, setOpenDropdown] = useState(null);
-  const dropdownRef = useRef(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [logoB64, setlogoB64] = useState(null);
+  const [iFranchise_logoB64, setiFranchise_logoB64] = useState(null);
 
-  const [filterBrand,  setFilterBrand]  = useState(null); // brand id (object ref)
+  const [filterBrand,  setFilterBrand]  = useState(null); 
   const [filterBranch, setFilterBranch] = useState(null);
+
+  const [alertModal, setAlertModal] = useState(null);
+
+  const showAlert = (title, message, type = "info") => setAlertModal({ title, message, type });
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
 
   const fetchActivityLog = useCallback(async () => {
   try {
@@ -5449,12 +5501,16 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
 }, [user]);
 
   const fetchReports = useCallback(async () => {
-    setLoading(true);
+    if (reports.length === 0) {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
       if (filterStatus !== "all") params.set("status", filterStatus);
-      if (search.trim())          params.set("search", search.trim());
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
 
       const res  = await fetch(`${API}/reports?${params}`);
       if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -5464,20 +5520,22 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
       console.error("fetchReports:", err);
       setError("Failed to load reports. Please try again.");
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
-  }, [filterStatus, search]);
+  }, [filterStatus, debouncedSearch]);
 
   useEffect(() => { fetchReports(); fetchActivityLog(); }, [fetchReports, fetchActivityLog]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setOpenDropdown(null);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    loadImageAsBase64(franchisync).then(setlogoB64).catch(err => console.warn("Failed to load left logo:", err));
+    loadImageAsBase64Circular(ifranchisejpg).then(setiFranchise_logoB64).catch(err => console.warn("Failed to load right logo:", err));
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", {
     month:"short", day:"numeric", year:"numeric",
@@ -5510,16 +5568,29 @@ const logActivity = useCallback(async (action, itemName, branchName, changes = n
 }, [reports]);
 
 const handleApprove = async (report) => {
+  setActionLoading(true);
   try {
-    await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/status`, {
-      method:  "PUT",
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`, {
+      method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ status: "approved" }),
+      body: JSON.stringify({
+        performedBy: user?.name || "System",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
-    await logActivity("Approved", `Report #${report.id}`, report.branch, `brand: ${report.brand}`);
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
     await fetchReports();
+    await fetchActivityLog();
+    setViewReport(null);
+    setApproveReport(null);
+    setPdfPreviewUrl(null);
+    showAlert("Report Acknowledged", `Report #${report.id} has been acknowledged.`, "success");
   } catch {
-    alert("Failed to approve report.");
+    showAlert("Acknowledgment Failed", "Something went wrong while approving this report.", "error");
+  } finally {
+    setActionLoading(false);
   }
 };
 
@@ -5560,16 +5631,60 @@ const handleApprove = async (report) => {
     };
 
   const counts = {
-    total:    reports.length,
-    pending:  reports.filter(r => r.status === "pending").length,
-    reviewed: reports.filter(r => r.status === "reviewed").length,
-    approved: reports.filter(r => r.status === "approved").length,
+    total:     reports.length,
+    pending:   reports.filter(r => r.status === "pending").length,
+    reviewed:  reports.filter(r => r.status === "submitted").length, 
+    approved:  reports.filter(r => r.status === "approved").length,
   };
 
 const downloadReport = (report) => {
   const doc = generatePdfDoc(report);
   const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
   doc.save(`report_${(report.branch||'').replace(/\s+/g,'_')}_${safePeriod.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+};
+
+const loadImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0); 
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
+const loadImageAsBase64Circular = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      const offsetX = (img.width - size) / 2;
+      const offsetY = (img.height - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      ctx.restore();
+
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 };
 
 const generatePdfDoc = (report) => {
@@ -5596,14 +5711,34 @@ const generatePdfDoc = (report) => {
   y = margin;
   doc.setFillColor(13, 43, 30);
   doc.rect(0, 0, pageW, 38, 'F');
+
+  const circleLogoSize = 12;   // small circular iFranchise logo
+  const wideLogoW = 34;        // wider main logo
+  const wideLogoH = 12;
+  const gap = 6;
+  const logoY = 4;
+
+  const totalWidth = circleLogoSize + gap + wideLogoW;
+  const startX = (pageW - totalWidth) / 2;
+  try {
+  if (iFranchise_logoB64) {
+    doc.addImage(iFranchise_logoB64, 'JPEG', startX, logoY, circleLogoSize, circleLogoSize);
+  }
+  if (logoB64) {
+    doc.addImage(logoB64, 'JPEG', startX + circleLogoSize + gap, logoY, wideLogoW, wideLogoH);
+  }
+} catch (err) {
+  console.warn('Failed to add logos to PDF:', err);
+}
+
   doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(255,255,255);
-  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 28, { align: 'center' });
 
   doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(160,220,190);
   const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
   
   doc.setFontSize(8); doc.setTextColor(120,180,150);
-  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 30, { align: 'center' });
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 34, { align: 'center' });
   y = 46;
 
   const cleanContent = (report.content || '').replace(/₱/g,'PHP ').replace(/→/g,'to')
@@ -5660,50 +5795,11 @@ const generatePdfDoc = (report) => {
     );
   };
 
-  const ActionDropdown = ({ report }) => {
-    const isOpen = openDropdown === report.id;
-    const items = [
-      {
-        label:"View", icon:<Search size={13}/>, color:"#00695c", bg:"#e0f2f1", border:"#b2dfdb",
-        onClick:() => { setViewReport(report); setPdfPreviewUrl(null); setOpenDropdown(null); },
-      },
-      {
-        label:"Approve", icon:<Check size={13}/>, bg:"linear-gradient(135deg,#2E7D32,#00897b)", border:"none", textColor: "#00695c",
-        disabled: report.status === "approved",
-        onClick:() => { setApproveReport(report); setOpenDropdown(null); },
-      },
-    ];
-    return (
-      <div style={{ position:"relative" }} ref={isOpen ? dropdownRef : null}>
-        <button
-          onClick={(e) => { e.stopPropagation(); setOpenDropdown(isOpen ? null : report.id); }}
-          style={{ width:32, height:32, borderRadius:9, border:"1.5px solid #b2dfdb", background:isOpen?"linear-gradient(135deg,#2E7D32,#00897b)":"#e0f2f1", color:isOpen?"#fff":"#00695c", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all .15s" }}>
-          <Pencil size={14}/>
-        </button>
-        {isOpen && (
-          <div onClick={e => e.stopPropagation()}
-            style={{ position:"absolute", right:0, top:38, zIndex:999, background:"#fff", borderRadius:14, border:"1px solid rgba(0,168,76,0.18)", boxShadow:"0 8px 32px rgba(0,0,0,0.14)", minWidth:160, overflow:"hidden" }}>
-            <div style={{ position:"absolute", top:-6, right:10, width:12, height:12, background:"#fff", border:"1px solid rgba(0,168,76,0.18)", transform:"rotate(45deg)", borderBottom:"none", borderRight:"none" }}/>
-            <div style={{ padding:"6px" }}>
-              {items.map((item) => (
-                <button key={item.label} disabled={item.disabled} onClick={item.onClick}
-                  style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 12px", borderRadius:9, border:"none", background:"transparent", cursor:item.disabled?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700, color:item.disabled?"#b0b0b0":(item.textColor||item.color), opacity:item.disabled?0.45:1, transition:"background .12s" }}
-                  onMouseEnter={e => { if(!item.disabled) e.currentTarget.style.background="#f0fdf5"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background="transparent"; }}>
-                  <span style={{ width:26, height:26, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:item.disabled?"#f0f0f0":item.bg, border:item.border!=="none"?`1px solid ${item.border}`:"none", color:item.disabled?"#b0b0b0":(item.textColor||item.color) }}>
-                    {item.icon}
-                  </span>
-                  <span style={{ flex:1, textAlign:"left" }}>{item.label}</span>
-                  {item.badge > 0 && (
-                    <span style={{ background:"#00897b", color:"#fff", borderRadius:10, padding:"1px 7px", fontSize:10, fontWeight:800 }}>{item.badge}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+  const handleViewReport = (report) => {
+    const doc = generatePdfDoc(report);
+    const url = doc.output('bloburl');
+    setViewReport(report);
+    setPdfPreviewUrl(url);
   };
 
   const ModalShell = ({ title, subtitle, icon, onClose, children, maxWidth=500 }) => (
@@ -5735,7 +5831,7 @@ const generatePdfDoc = (report) => {
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
         {[{ label:"Brand", value:report.brand },{ label:"Branch", value:report.branch },
-          { label:"Period", value:report.period },{ label:"Submitted", value:fmtDate(report.submittedAt) }
+          { label:"Period", value:fmtPeriod(report.period) },{ label:"Submitted", value:fmtDate(report.submittedAt) }
         ].map(({ label, value }) => (
           <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
             <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
@@ -5746,29 +5842,27 @@ const generatePdfDoc = (report) => {
     </>
   );
 
-  // ── Loading / error states ──────────────────────────────────────
-  if (loading) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
-      <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
-      <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
+  if (initialLoading) return (
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
+    <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+    <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>
+);
 
   if (error) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
-      <div style={{ fontSize:13, fontWeight:700, color:"#dc2626" }}>{error}</div>
-      <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-        Retry
-      </button>
-    </div>
-  );
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
+    <div style={{ fontSize:13, fontWeight:700, color:"#dc2626" }}>{error}</div>
+    <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      Retry
+    </button>
+  </div>
+);
 
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
 
-      {/* VIEW modal */}
       {viewReport && (
         <ModalShell
           title={`Report #${viewReport.id}`}
@@ -5779,89 +5873,26 @@ const generatePdfDoc = (report) => {
         >
           <ReportMetaGrid report={viewReport}/>
 
-          {/* Clickable PDF card */}
-          <div
-            onClick={() => {
-              const doc = generatePdfDoc(viewReport);
-              const url = doc.output('bloburl');
-              setPdfPreviewUrl(url);
-            }}
-            style={{
-              marginBottom: 16,
-              padding: "14px",
-              background: "#f8fffe",
-              borderRadius: 12,
-              border: "1.5px dashed #b2dfdb",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-              transition: "background 0.15s, border-color 0.15s",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "#e0f7f4";
-              e.currentTarget.style.borderColor = "#00897b";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = "#f8fffe";
-              e.currentTarget.style.borderColor = "#b2dfdb";
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10,
-                background: "linear-gradient(135deg,#d1fae5,#6ee7b7)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <FileText size={17} color="#00897b"/>
-              </div>
-              <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>
-                REP-{String(viewReport.id).padStart(5, '0')} 
-              </div>
-                <div style={{ fontSize: 11, color: "#5a7a65" }}>
-                  {viewReport.period} · Click to preview PDF
-                </div>
-              </div>
+          {/* PDF shows immediately — no click needed */}
+          <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>
+                REP-{String(viewReport.id).padStart(5, '0')} · {fmtPeriod(viewReport.period)}
+              </span>
+              <button
+                onClick={() => downloadReport(viewReport)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Download size={11}/> Download
+              </button>
             </div>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 14px", borderRadius: 10,
-              background: "linear-gradient(135deg,#2E7D32,#00897b)",
-              color: "#fff", fontSize: 12, fontWeight: 700,
-              pointerEvents: "none",
-            }}>
-              <Eye size={11}/> Preview
-            </div>
-          </div>
-
-          {pdfPreviewUrl && (
-            <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd",
-              }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>PDF Preview</span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => downloadReport(viewReport)}
-                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Download size={11}/> Download
-                  </button>
-                  <button
-                    onClick={() => setPdfPreviewUrl(null)}
-                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#fff", color: "#5a7a65", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <X size={11}/> Close
-                  </button>
-                </div>
-              </div>
+            {pdfPreviewUrl && (
               <iframe
                 src={pdfPreviewUrl}
                 style={{ width: "100%", height: 500, border: "none", display: "block" }}
                 title="Report PDF Preview"
               />
-            </div>
-          )}
+            )}
+          </div>
 
           {viewReport.remark && (
             <div style={{ marginBottom: 16, padding: "12px 14px", background: "#fff3e0", borderRadius: 12, border: "1px solid #ffcc80" }}>
@@ -5873,70 +5904,39 @@ const generatePdfDoc = (report) => {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <StatusBadge status={viewReport.status}/>
             <div style={{ display: "flex", gap: 8 }}>
-              {/* ← ADD Approve here, only show if not already approved */}
               {viewReport.status !== "approved" && (
                 <button
-                  onClick={() => handleApprove(viewReport)}
-                  disabled={actionLoading}
+                  onClick={() => setApproveReport(viewReport)}
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
-                  {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve
+                  {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge
                 </button>
               )}
-            <button
-              onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
-              style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              Close
-            </button>
+              <button
+                onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
+                style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                Close
+              </button>
             </div>
           </div>
         </ModalShell>
       )}
 
-      {/* Inline PDF iframe preview */}
-      {pdfPreviewUrl && (
-        <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd",
-          }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>PDF Preview</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => downloadReport(viewReport)}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <Download size={11}/> Download
-              </button>
-              <button
-                onClick={() => setPdfPreviewUrl(null)}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#fff", color: "#5a7a65", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <X size={11}/> Close
-              </button>
-            </div>
-          </div>
-          <iframe
-            src={pdfPreviewUrl}
-            style={{ width: "100%", height: 500, border: "none", display: "block" }}
-            title="Report PDF Preview"
-          />
-        </div>
-      )}
-
       {/* APPROVE modal */}
       {approveReport && (
-        <ModalShell title={`Approve Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
+        <ModalShell title={`Acknowledge Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
           <ReportMetaGrid report={approveReport}/>
           <div style={{ padding:"14px 16px", borderRadius:12, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", border:"1px solid #a7f3d0", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
             <Check size={18} color="#00897b"/>
             <div>
-              <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Confirm Approval</div>
-              <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>This will mark the report as approved. This action cannot be undone.</div>
+              <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Confirm Acknowledgment</div>
+              <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>This will mark the report as acknowledged. This action cannot be undone.</div>
             </div>
           </div>
           <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
             <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
             <button onClick={() => handleApprove(approveReport)} disabled={actionLoading}
               style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"inherit", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
-              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Approve Report
+              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge Report
             </button>
           </div>
         </ModalShell>
@@ -5944,9 +5944,9 @@ const generatePdfDoc = (report) => {
       
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
         <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
-        <BmStatCard label="Pending"       value={counts.pending}  icon={<AlertTriangle size={20} color="#92400e"/>} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting review"  />
+        <BmStatCard label="Under Review" value={counts.reviewed} icon={<Search size={20} color="#1e40af"/>} bg="linear-gradient(135deg,#dbeafe,#93c5fd)" sub="Awaiting admin approval" />
         <BmStatCard label="Reviewed"      value={counts.reviewed} icon={<Search size={20} color="#1e40af"/>}        bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="Under evaluation" />
-        <BmStatCard label="Approved"      value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
+        <BmStatCard label="Acknowledged"  value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
       </div>
 
 <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
@@ -6078,10 +6078,16 @@ const generatePdfDoc = (report) => {
                         <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#00695c" }}>{report.role}</span>
                       </td>
                       <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{report.branch}</td>
-                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65", whiteSpace:"nowrap" }}>{report.period}</td>
+                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtPeriod(report.period)}</td>
                       <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(report.submittedAt)}</td>
                       <td style={{ padding:"11px 14px" }}><StatusBadge status={report.status}/></td>
-                      <td style={{ padding:"11px 14px" }}><ActionDropdown report={report}/></td>
+                      <td style={{ padding:"11px 14px" }}>
+                        <button
+                          onClick={() => handleViewReport(report)}
+                          style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:9, border:"1.5px solid #b2dfdb", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          <Eye size={13}/> View Report
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -6090,6 +6096,8 @@ const generatePdfDoc = (report) => {
           </BmSection>
         );
       })}
+
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
 
       {showActivityLog && (
   <InventoryActivityLogPanel
@@ -6100,11 +6108,9 @@ const generatePdfDoc = (report) => {
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // USERS 
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-// ALERT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function AlertModal({ message, onClose, type = "info" }) {
   const isError = type === "error";
@@ -6587,8 +6593,6 @@ function UserConfirmModal({ user, onConfirm, onClose, deleting }) {
     );
   });
 };
-
-// DELETE the old logActivity function entirely
 
     const fetchActivityLog = useCallback(async () => {
   try {
@@ -7914,10 +7918,22 @@ function timeAgo(iso) {
 
 const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
 
-/* ── item image helper — tolerate whatever field name the backend sends ── */
+const fmtPeriod = (period) => {
+  if (!period) return "—";
+
+  const parts = period.split("→").map(p => p.trim());
+
+  const formatPart = (p) => {
+    const d = new Date(p);
+    if (isNaN(d.getTime())) return p; 
+    return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  return parts.map(formatPart).join(" → ");
+};
+
 const itemImage = (item) => item.image || item.image_url || item.photo || item.photo_url || null;
 
-/* ── tiny building blocks ── */
 const primaryBtn = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.25)" };
 const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
 const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#ef4444,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
@@ -7938,11 +7954,13 @@ function StatusBadge({ status, size="md" }) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
+    if (toast.type === "loading") return; 
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
   if (!toast) return null;
   const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
   return (
     <div style={{
       position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
@@ -7961,7 +7979,16 @@ function Toast({ toast, onClose }) {
         background: isErr ? "#dc2626" : "#00897b", color:"#fff",
         boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
       }}>
-        {isErr ? <AlertTriangle size={16}/> : <Check size={16}/>}
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+          {!isLoading && (
+            <button onClick={onClose} style={{ background:"none", border:"none", color: isErr ? "#991b1b" : "#3f5f4f", cursor:"pointer", padding:2, flexShrink:0 }}>
+              <X size={14}/>
+            </button>
+          )}
       </div>
       <div style={{ flex:1 }}>
         <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
@@ -8053,25 +8080,29 @@ function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }
         style={{ width:"100%", height:56, borderRadius:8, border:"1px solid #fecaca", padding:"8px 10px", fontSize:12.5, fontFamily:"inherit", resize:"vertical", marginBottom:12, background:"#fff", boxSizing:"border-box" }}/>
       <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
         <button onClick={onCancel} disabled={saving} style={ghostBtn}>Back</button>
-        <button
-          onClick={() => { if (!valid) { setTouched(true); return; } onConfirm(reason, note); }}
-          disabled={saving}
-          style={{ ...dangerBtn, opacity: saving ? 0.6 : 1 }}>
-          {saving ? "Saving…" : confirmLabel}
-        </button>
+      <button
+        onClick={() => { if (!valid) { setTouched(true); return; } onConfirm(reason, note); }}
+        disabled={saving}
+        style={{ ...dangerBtn, opacity: saving ? 0.6 : 1, display:"inline-flex", alignItems:"center", gap:6 }}>
+        {saving && <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>}
+        {saving ? "Saving…" : confirmLabel}
+      </button>
       </div>
     </div>
   );
 }
 
 /* ── Order card — decluttered: one status line, one image+preview row, no extra pill row ── */
-function OrderCard({ order, onOpen }) {
+function OrderCard({ order, onOpen, stockStatus }) {
   const completed = order.status === "disposed" || order.status === "rejected";
   const preview = order.items.slice(0, 2).map(i => `${i.qty}× ${i.name}`).join(", ");
   const more = order.items.length > 2 ? ` +${order.items.length - 2} more` : "";
   const thumbs = order.items.slice(0, 3);
+  const outOfStock = order.status === "pending" && stockStatus && !stockStatus.ok;
 
-  const ctaLabel = order.status === "pending" ? "Review" : order.status === "accepted" ? "Manage" : "View";
+   const ctaLabel = order.status === "pending"
+    ? (outOfStock ? "Insufficient Stock" : "Review")
+    : order.status === "accepted" ? "Manage" : "View";
 
   return (
     <div onClick={() => onOpen(order)}
@@ -8084,7 +8115,14 @@ function OrderCard({ order, onOpen }) {
 
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ fontWeight:800, fontSize:13.5, color:C.ink }}>#{order.id}</div>
-        <StatusBadge status={order.status} size="sm"/>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          {outOfStock && (
+            <span style={{ display:"flex", alignItems:"center", gap:3, fontSize:9.5, fontWeight:800, color:"#9a3412", background:"#fef3c7", padding:"2px 7px", borderRadius:20 }}>
+              <AlertTriangle size={10}/> LOW STOCK
+            </span>
+          )}
+          <StatusBadge status={order.status} size="sm"/>
+        </div>
       </div>
 
       <div>
@@ -8172,18 +8210,29 @@ function ReceiptSlip({ order }) {
 }
 
 /* ── Order Detail Drawer — the single place actions happen ── */
-function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState, onPrint }) {
-  const [mode, setMode] = useState(null); // null | "reject" | "dispose"
+function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState, onPrint, stockStatus }) {
+  const [mode, setMode] = useState(null);
   const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [checkingStock, setCheckingStock] = useState(false);
+  const outOfStock = order.status === "pending" && stockStatus && !stockStatus.ok;
+
 
   useEffect(() => { setMode(null); }, [order?.id]);
 
   if (!order) return null;
 
   const doAccept = async () => {
+    if (outOfStock) return;
     setAccepting(true);
     try { await onAccept(order); } finally { setAccepting(false); }
+  };
+
+  const doPrint = async () => {
+    setPrinting(true);
+    onPrint([order]);
+    setTimeout(() => setPrinting(false), 400);
   };
 
   const doReject = async (reason, note) => {
@@ -8191,7 +8240,12 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
     try { await onReject(order, reason, note); setMode(null); } finally { setRejecting(false); }
   };
 
-  const startDispose = () => { setMode("dispose"); onDisposeCheck(order); };
+  const startDispose = async () => {
+    setMode("dispose");
+    setCheckingStock(true);
+    await onDisposeCheck(order);
+    setCheckingStock(false);
+  };
 
   const dState = disposeState && disposeState.orderId === order.id ? disposeState : null;
   const allOk = dState && dState.results.length > 0 && dState.results.every(r => r.sufficient);
@@ -8210,9 +8264,8 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             </div>
             <div style={{ display:"flex", gap:8 }}>
               {order.status === "accepted" && (
-                <button onClick={() => onPrint([order])} title="Print receipt"
-                  style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Printer size={14}/>
+                <button onClick={doPrint} disabled={printing} style={{ ...printBtn, opacity: printing ? 0.6 : 1 }}>
+                  {printing ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={14}/>} Print Receipt
                 </button>
               )}
               <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -8271,11 +8324,31 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
           {/* ── Actions ── */}
           <div style={{ marginTop:6 }}>
             {order.status === "pending" && mode !== "reject" && (
-              <div style={{ display:"flex", gap:10 }}>
-                <button onClick={doAccept} disabled={accepting} style={{ ...primaryBtn, flex:1, opacity:accepting?0.6:1 }}>
-                  {accepting ? "Accepting…" : "Accept Order"}
-                </button>
-                <button onClick={() => setMode("reject")} style={dangerTextBtn}>Reject</button>
+              <div>
+                {outOfStock && (
+                  <div style={{ display:"flex", gap:7, alignItems:"flex-start", background:C.warnBg, border:`1px solid ${C.warnBorder}`, borderRadius:9, padding:"9px 11px", marginBottom:10, fontSize:11.5, color:"#9a3412" }}>
+                    <AlertTriangle size={13} style={{ flexShrink:0, marginTop:1 }}/>
+                    <div>
+                      <div style={{ fontWeight:700, marginBottom:2 }}>Can't accept — insufficient stock</div>
+                      {stockStatus.shortItems.map((s, i) => (
+                        <div key={i}>
+                          {s.name}: {s.matched ? `need ${s.needed}, have ${s.available}` : "not linked to a stock item"}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={doAccept} disabled={accepting || outOfStock}
+                    style={{ ...primaryBtn, flex:1,
+                      opacity: (accepting || outOfStock) ? 0.5 : 1,
+                      cursor: (accepting || outOfStock) ? "not-allowed" : "pointer",
+                      display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                    {accepting && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                    {accepting ? "Accepting…" : outOfStock ? "Insufficient Stock" : "Accept Order"}
+                  </button>
+                  <button onClick={() => setMode("reject")} style={dangerTextBtn}>Reject</button>
+                </div>
               </div>
             )}
             {order.status === "pending" && mode === "reject" && (
@@ -8286,7 +8359,10 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             {order.status === "accepted" && mode !== "dispose" && mode !== "reject" && (
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 <div style={{ display:"flex", gap:10 }}>
-                  <button onClick={startDispose} style={{ ...primaryBtn, flex:1 }}>Check Stock &amp; Dispose</button>
+                  <button onClick={startDispose} disabled={checkingStock} style={{ ...primaryBtn, flex:1, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, opacity: checkingStock ? 0.6 : 1 }}>
+                    {checkingStock && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                    Check Stock &amp; Dispose
+                  </button>
                   <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
                 </div>
                 <button onClick={() => onPrint([order])} style={printBtn}>
@@ -8342,10 +8418,11 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
                     <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
                       <button onClick={() => setMode(null)} disabled={dState.saving} style={ghostBtn}>Back</button>
                       <button onClick={() => startDispose()} disabled={dState.saving} style={{ ...ghostBtn, borderColor:C.greenMid, color:C.greenDk }}>Re-check</button>
-                      <button onClick={() => onDisposeConfirm(order, dState.results)} disabled={!allOk || dState.saving}
-                        style={{ ...primaryBtn, cursor:(!allOk||dState.saving)?"not-allowed":"pointer", opacity:(!allOk||dState.saving)?0.55:1 }}>
-                        {dState.saving ? "Disposing…" : "Confirm Dispose"}
-                      </button>
+                    <button onClick={() => onDisposeConfirm(order, dState.results)} disabled={!allOk || dState.saving}
+                      style={{ ...primaryBtn, cursor:(!allOk||dState.saving)?"not-allowed":"pointer", opacity:(!allOk||dState.saving)?0.55:1, display:"inline-flex", alignItems:"center", gap:6 }}>
+                      {dState.saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                      {dState.saving ? "Disposing…" : "Confirm Dispose"}
+                    </button>
                     </div>
                   </>
                 )}
@@ -8382,9 +8459,6 @@ function SectionCard({ title, children, tint }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MAIN COMPONENT
-───────────────────────────────────────────────────────────────────────── */
 function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const apiUrl   = process.env.REACT_APP_API_URL;
   const userName = user?.name || "Admin";
@@ -8396,6 +8470,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const [ingredients, setIngredients] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [error,       setError]       = useState(null);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
 
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("pending"); // default view: Incoming Orders, not All
@@ -8440,6 +8515,33 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
   }, [user]);
 
+  const handleRefreshClick = async () => {
+    setRefreshingOrders(true);
+    showToast("loading", "Refreshing orders…");
+    await fetchOrders();
+    setToast(null);
+  };
+
+  const orderStockStatus = useMemo(() => {
+  const map = {};
+  orders.forEach(order => {
+    if (order.status !== "pending") return;
+    let ok = true;
+    const shortItems = [];
+    order.items.forEach(item => {
+      const available = Number(item.stock ?? 0);
+      const needed = Number(item.qty || 0);
+      const sufficient = item.shop_item_id != null && available >= needed;
+      if (!sufficient) {
+        ok = false;
+        shortItems.push({ name: item.name, needed, available, matched: item.shop_item_id != null });
+      }
+    });
+    map[order.id] = { ok, shortItems };
+  });
+  return map;
+}, [orders]);
+
   const logIngredientActivity = useCallback(async (ingredientName, branchName, changes) => {
     try {
       await fetch(`${apiUrl}/ingredient-activity-log`, {
@@ -8472,12 +8574,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
   useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
 
-  /* ── plain status change (accept / reject / cancel) ──
-     Surfaces the real backend error instead of a generic "Update failed". */
   const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
-    setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
     try {
       const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
         method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
@@ -8485,29 +8583,41 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       });
       if (!res.ok) {
         let detail = "";
+        let insufficientItems = null;
         try {
           const body = await res.json();
           detail = body.error || body.message || JSON.stringify(body);
+          insufficientItems = body.insufficientItems || null;
         } catch {
           detail = await res.text().catch(() => "");
         }
-        throw new Error(detail || `Update failed (${res.status})`);
+        const err = new Error(detail || `Update failed (${res.status})`);
+        err.insufficientItems = insufficientItems;
+        throw err;
       }
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
+      setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
       await logActivity("edit", `Order #${order.id}`, order.branch, changeNote || `status → ${nextUiStatus}`);
       await fetchActivityLog();
     } catch (err) {
-      fetchOrders();
-      showToast("error", "Couldn't update order", err.message);
+      if (!err.insufficientItems) {
+        showToast("error", "Couldn't update order", err.message);
+      }
       throw err;
     }
   };
 
-  const handleAccept = async (order) => {
-    try {
-      await advanceStatus(order, "accepted", "Order accepted");
-      showToast("success", "Order accepted", `#${order.id} is ready to be fulfilled.`);
-    } catch {}
-  };
+const handleAccept = async (order) => {
+  try {
+    await advanceStatus(order, "accepted", "Order accepted");
+    showToast("success", "Order accepted", `#${order.id} is ready to be fulfilled.`);
+  } catch (err) {
+    if (err.insufficientItems?.length) {
+      const list = err.insufficientItems.map(i => `${i.name} (need ${i.needed}, have ${i.available})`).join(", ");
+      showToast("error", "Not enough stock", list);
+    }
+  }
+};
 
   const handleReject = async (order, reason, note) => {
     try {
@@ -8517,31 +8627,40 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     } catch {}
   };
 
-  /* ── mass accept + print: accepts every Incoming order, prints one receipt
-     per order sized for the half-page pad, then re-syncs so every view
-     (including whatever the customer mobile app polls) picks up the update. ── */
   const handleMassAcceptAndPrint = async () => {
-    const pendingOrders = orders.filter(o => o.status === "pending");
-    if (pendingOrders.length === 0) return;
+    const pendingOrders = orders.filter(o => o.status === "pending" && orderStockStatus[o.id]?.ok);
+    const skipped = orders.filter(o => o.status === "pending" && !orderStockStatus[o.id]?.ok).length;
+    if (pendingOrders.length === 0) {
+      showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
+      return;
+    }
     setMassAccepting(true);
+    showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
     const accepted = [];
     for (const o of pendingOrders) {
       try {
         await advanceStatus(o, "accepted", "Order accepted (mass accept)");
         accepted.push({ ...o, status:"accepted" });
-      } catch {
-        // individual failure already toasted by advanceStatus; continue with the rest
-      }
+      } catch {}
     }
     setMassAccepting(false);
     if (accepted.length > 0) {
-      showToast("success", "Orders accepted", `${accepted.length} order(s) accepted — sending to print.`);
+      showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
       triggerPrint(accepted);
+    } else {
+      setToast(null);
     }
     await fetchOrders();
   };
 
-  /* ── FIFO/FEFO matching + deduction ── */
+  const fetchShopItemsMap = async () => {
+    const res = await fetch(`${apiUrl}/shop-items`);
+    const data = await res.json();
+    const map = {};
+    (Array.isArray(data) ? data : []).forEach(i => { map[i.id] = i; });
+    return map;
+  };
+
   const matchIngredient = useCallback((itemName, branch) => {
     const target = normalizeName(itemName);
     return (
@@ -8557,17 +8676,30 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     return Array.isArray(d) ? d : [];
   };
 
-  const checkOrderStock = useCallback(async (order) => {
-    const results = [];
-    for (const item of order.items) {
-      const ing = matchIngredient(item.name, order.branch);
-      if (!ing) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
-      const batches = await fetchBatchesFor(ing.id);
-      const available = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
-      results.push({ ...item, matched:true, ingredientId:ing.id, brand:ing.brand, unit:ing.unit, available, sufficient: available >= Number(item.qty || 0) });
+const checkOrderStock = useCallback(async (order) => {
+  const shopItemsMap = await fetchShopItemsMap(); // as before, keyed by id
+
+  const results = [];
+  for (const item of order.items) {
+    const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
+    if (!si) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
+
+    let available = Number(si.stock || 0);
+    if (si.ingredient_id) {
+      const batches = await fetchBatchesFor(si.ingredient_id);
+      const ingredientStock = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      available = Math.min(available, ingredientStock); // bottlenecked by whichever is lower
     }
-    return results;
-  }, [matchIngredient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    results.push({
+      ...item,
+      matched: true,
+      available,
+      sufficient: available >= Number(item.qty || 0),
+    });
+  }
+  return results;
+}, []);
 
   const runDisposeCheck = async (order) => {
     setDisposeState({ orderId:order.id, checking:true, results:[], saving:false });
@@ -8575,45 +8707,32 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     setDisposeState({ orderId:order.id, checking:false, results, saving:false });
   };
 
-  const deductFromFifo = async (result, order) => {
-    let remaining = Number(result.qty || 0);
-    const batches = sortBatchesByMethod(await fetchBatchesFor(result.ingredientId), result.brand);
-    for (const b of batches) {
-      if (remaining <= 0) break;
-      const take = Math.min(remaining, Number(b.stock || 0));
-      if (take <= 0) continue;
-      await fetch(`${apiUrl}/ingredient-batches/${b.id}`, {
-        method:"PUT", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ ...b, stock: Number(b.stock) - take }),
-      });
-      remaining -= take;
-    }
-    const freshBatches = await fetchBatchesFor(result.ingredientId);
-    const totalStock = freshBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
-    const ingredient = ingredients.find(i => i.id === result.ingredientId);
-    if (ingredient) {
-      await fetch(`${apiUrl}/ingredients/${result.ingredientId}`, {
-        method:"PUT", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ ...ingredient, stock: totalStock }),
-      });
-      await logIngredientActivity(ingredient.name, ingredient.branch, `-${result.qty} ${ingredient.unit} dispensed for Order #${order.id}`);
-    }
-  };
+const deductStock = async (item, order) => {
+  const res = await fetch(`${apiUrl}/shop-items/${item.shop_item_id}/deduct-stock`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity: item.qty, performed_by: userName, order_id: order.id }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to deduct stock for ${item.name}`);
+  }
+  return res.json(); // { item, ingredient }
+};
 
-  const handleDisposeConfirm = async (order, results) => {
-    setDisposeState(prev => ({ ...prev, saving:true }));
-    try {
-      for (const r of results) if (r.matched) await deductFromFifo(r, order);
-      await advanceStatus(order, "disposed", `Fulfilled — ${order.items.length} item(s) deducted from FIFO/FEFO stock`);
-      await fetchIngredients();
-      setDisposeState(null);
-      setViewOrder(null);
-      showToast("success", "Order fulfilled", `#${order.id} stock was deducted and the order is complete.`);
-    } catch (err) {
-      setDisposeState(prev => ({ ...prev, saving:false }));
-      showToast("error", "Dispose failed", err.message);
-    }
-  };
+const handleDisposeConfirm = async (order, results) => {
+  setDisposeState(prev => ({ ...prev, saving:true }));
+  try {
+    for (const r of results) if (r.matched) await deductStock(r, order);
+    await advanceStatus(order, "disposed", `Fulfilled — ${order.items.length} item(s) deducted from stock`);
+    setDisposeState(null);
+    setViewOrder(null);
+    showToast("success", "Order fulfilled", `#${order.id} stock was deducted and the order is complete.`);
+  } catch (err) {
+    setDisposeState(prev => ({ ...prev, saving:false }));
+    showToast("error", "Dispose failed", err.message);
+  }
+};
 
   /* ── derived data ── */
   const filtered = orders.filter(o => {
@@ -8690,11 +8809,11 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
             ))}
           </select>
 
-          <button onClick={fetchOrders}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
-              background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-            ⟳ Refresh
-          </button>
+        <button onClick={handleRefreshClick} disabled={refreshingOrders}
+          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
+            background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: refreshingOrders ? 0.6 : 1 }}>
+          <RefreshCw size={13} style={ refreshingOrders ? { animation:"spin 0.8s linear infinite" } : undefined }/> Refresh
+        </button>
         </div>
 
         <div style={{ display:"flex", justifyContent:"flex-end", gap:8, flexWrap:"wrap" }}>
@@ -8703,7 +8822,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
               background: (massAccepting || counts.pending === 0) ? "#e5e7eb" : `linear-gradient(135deg,${C.teal},${C.green})`,
               color: (massAccepting || counts.pending === 0) ? "#9ca3af" : "#fff",
               fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
-            <Printer size={13}/> {massAccepting ? "Accepting…" : `Accept & Print All (${counts.pending})`}
+            {massAccepting ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={13}/>}
+            {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && orderStockStatus[o.id]?.ok).length})`}
           </button>
           <button onClick={() => setShowActivityLog(true)}
             style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`,
@@ -8727,7 +8847,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:14 }}>
           {filtered.map((order, i) => (
             <div key={order.id} style={{ animation:"cardIn .28s ease both", animationDelay:`${Math.min(i,10)*30}ms` }}>
-              <OrderCard order={order} onOpen={setViewOrder}/>
+              <OrderCard order={order} onOpen={setViewOrder} stockStatus={orderStockStatus[order.id]}/>
             </div>
           ))}
         </div>
@@ -8744,6 +8864,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
           onDisposeConfirm={handleDisposeConfirm}
           disposeState={disposeState}
           onPrint={triggerPrint}
+          stockStatus={orderStockStatus[viewOrder.id]}
         />
       )}
 

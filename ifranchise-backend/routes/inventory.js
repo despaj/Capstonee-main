@@ -27,7 +27,6 @@ router.get("/inventory", async (req, res) => {
   }
 });
 
-
 router.put("/inventory/:id", async (req, res) => {
   try {
     const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude } = req.body;
@@ -56,7 +55,7 @@ router.put("/inventory/:id", async (req, res) => {
     }
     
     await logActivity("update", updatedItem.name, req.body?.performed_by || "System",
-  changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude);
+    changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude);
 
     res.json({ success: true, item: updatedItem });
 

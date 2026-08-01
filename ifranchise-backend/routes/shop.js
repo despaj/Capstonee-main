@@ -91,6 +91,101 @@ router.put("/shop-items/:id/toggle", async (req, res) => {
   }
 });
 
+router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { quantity, performed_by, order_id } = req.body;
+    const qty = Number(quantity);
+    if (!qty || qty <= 0) { client.release(); return res.status(400).json({ error: "Invalid quantity" }); }
+
+    await client.query("BEGIN");
+
+    const itemRes = await client.query(
+      `UPDATE shop_items SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING *`,
+      [qty, req.params.id]
+    );
+    if (itemRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(409).json({ error: "Insufficient stock to deduct" });
+    }
+    const item = itemRes.rows[0];
+
+    let ingredientResult = null;
+
+    if (item.ingredient_id) {
+      const ingRow = await client.query(`SELECT brand, perishable FROM ingredients WHERE id=$1`, [item.ingredient_id]);
+      const brand = ingRow.rows[0]?.brand || "";
+      const isFefo = brand.toLowerCase().includes("ipharma") || !!ingRow.rows[0]?.perishable;
+
+      const batchesRes = await client.query(
+        `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
+        [item.ingredient_id]
+      );
+
+      const sortedBatches = [...batchesRes.rows].sort((a, b) => {
+        if (isFefo) {
+          const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+          const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+          return da - db;
+        }
+        const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+        const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+        return da - db;
+      });
+
+      const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      if (totalAvailable < qty) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
+      }
+
+      let remaining = qty;
+      for (const b of sortedBatches) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, Number(b.stock));
+        await client.query(`UPDATE ingredient_batches SET stock = stock - $1, updated_at=NOW() WHERE id=$2`, [take, b.id]);
+        remaining -= take;
+      }
+
+      const totals = await client.query(
+        `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+         FROM ingredient_batches WHERE ingredient_id=$1`,
+        [item.ingredient_id]
+      );
+      const { total_stock, earliest_exp } = totals.rows[0];
+      const ingRes = await client.query(
+        `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3 RETURNING *`,
+        [total_stock, earliest_exp || null, item.ingredient_id]
+      );
+      ingredientResult = ingRes.rows[0];
+    }
+
+    await client.query("COMMIT");
+
+    await logActivity(
+      "deduct",
+      item.name,
+      performed_by || "System",
+      {
+        note: `-${qty} deducted for Order #${order_id ?? "?"}`,
+        remaining_shop_stock: item.stock,
+        ...(ingredientResult ? { linked_ingredient: ingredientResult.name, remaining_ingredient_stock: ingredientResult.stock } : {}),
+      },
+      req, item.shop, "Mobile Shop"
+    );
+
+    res.json({ success: true, item, ingredient: ingredientResult });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("PATCH /shop-items/:id/deduct-stock error:", err);
+    res.status(500).json({ error: "Failed to deduct stock" });
+  } finally {
+    client.release();
+  }
+});
+
 router.delete("/shop-items/:id", async (req, res) => {
   try {
     const { deleted_by, latitude, longitude } = req.body || {};
