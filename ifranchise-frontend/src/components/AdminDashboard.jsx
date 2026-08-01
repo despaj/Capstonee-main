@@ -9,6 +9,10 @@ import Receipts from './Receipts';
 import StockInventoryContent from './StockInventoryContent';
 import MenuInventoryContent from './MenuInventoryContent';
 import jsPDF from 'jspdf';
+import html2canvas from "html2canvas";
+import logoIfranchise from "../assets/report/ifranchise-logo.png";
+import logoSync from "../assets/report/franchsync-logo.png";
+
 import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
@@ -696,7 +700,7 @@ export default function AdminDashboard() {
       <main className="ad-main">
         <div className="ad-topbar">
           <div>
-            <div className="ad-topbar-breadcrumb">iFranchise Super Admin → {moduleLabel}</div>
+           
             <h1 className="ad-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1736,11 +1740,16 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
 }
 
 // ─── PrescriptiveSection ──────────────────────────────────────────────────────
+
+
 function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
   const [lastRun,  setLastRun]  = useState(null);
+  const [pdfBusy,  setPdfBusy]  = useState(false);
+
+  const exportRef = useRef(null); // offscreen report layout used for Print + PDF
 
   const runAnalysis = async () => {
     if (!transactions?.length) { setError("No transaction data available."); return; }
@@ -1783,6 +1792,75 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     ].filter(Boolean);
   }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
 
+  // ── Print (opens the offscreen report layout in a new tab) ─────────────
+  const handlePrint = () => {
+    if (!exportRef.current) return;
+    const printContents = exportRef.current.innerHTML;
+    const win = window.open("", "_blank");
+    if (!win) { alert("Please allow pop-ups to print this report."); return; }
+    win.document.write(`
+      <html>
+        <head>
+          <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
+            body { margin: 0; background: #fff; }
+            @media print { @page { margin: 14mm; } button { display: none !important; } }
+          </style>
+        </head>
+        <body>${printContents}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  // ── Download as an actual PDF file (same layout as Print) ──────────────
+  const handleDownloadPDF = async () => {
+    if (!exportRef.current) return;
+    setPdfBusy(true);
+    try {
+      const margin = 30; // pt
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth    = pdf.internal.pageSize.getWidth();
+      const pageHeight   = pdf.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - margin * 2;
+
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        windowWidth: exportRef.current.scrollWidth,
+      });
+      const imgData    = canvas.toDataURL("image/png");
+      const imgHeight   = (canvas.height * contentWidth) / canvas.width;
+      const pageContentH = pageHeight - margin * 2 - 20; // reserve a little for page number
+      const totalPages   = Math.max(1, Math.ceil(imgHeight / pageContentH));
+
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const yOffset = margin - page * pageContentH;
+        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+
+        pdf.setDrawColor(224, 242, 241);
+        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
+      }
+
+      pdf.save(`Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("Could not generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <PanelCard style={{ marginBottom: 22 }}>
       <CardHeader
@@ -1791,13 +1869,28 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
         sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
         gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
         action={
-          <button onClick={runAnalysis} disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
-            <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
-            {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={handlePrint}
+              title="Print"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+              <Printer size={13} /> Print
+            </button>
+            <button onClick={handleDownloadPDF} disabled={pdfBusy}
+              title="Download as PDF"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+              {pdfBusy ? "Preparing…" : "Download PDF"}
+            </button>
+            <button onClick={runAnalysis} disabled={loading}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+              <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+              {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+            </button>
+          </div>
         }
       />
+
+      {/* ── Live dashboard view (unchanged, compact) ── */}
       <div style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           {[
@@ -1924,10 +2017,155 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
           </div>
         </div>
       </div>
+
+      {/* ── OFFSCREEN report layout — used only by Print & Download PDF ── */}
+      <div style={{ position: "absolute", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
+        <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#0d2b1e" }}>
+
+          {/* Letterhead */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #00c853" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <img src={logoIfranchise} alt="iFranchise Business Services Corp." style={{ height: 58, width: "auto" }} />
+              <div style={{ width: 1, height: 44, background: "#d1eedd" }} />
+              <img src={logoSync} alt="FranchiSync" style={{ height: 46, width: "auto" }} />
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                iFranchise Business Services Corp.
+              </div>
+              <div style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 2 }}>
+                {new Date().toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {/* Title block */}
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#0d2b1e", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+              AI Prescriptive Analysis Report
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#00897b", background: "#e0f2f1", padding: "4px 12px", borderRadius: 20 }}>
+                {filterLabel}
+              </span>
+              {lastRun && (
+                <span style={{ fontSize: 13, color: "#5a7a65", fontWeight: 600 }}>
+                  AI run at {lastRun}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* KPI summary grid — larger, readable */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 30 }}>
+            {[
+              { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior period` : "Not yet calculated", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+              { label: "Peak Day Forecast",        value: peakDay || "—", sub: "Highest revenue day", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              { label: "Slowest Day Forecast",     value: slowDay || "—", sub: "Lowest revenue day", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+              { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — needs more data") : "Not yet calculated", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+            ].map((card, i) => (
+              <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 14, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+                  {card.label}
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
+                <div style={{ fontSize: 12.5, color: "#5a7a65", marginTop: 6 }}>{card.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Executive summary */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+              <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                {analysis ? "Executive Summary" : "Data Overview"}
+              </span>
+            </div>
+            {analysis ? (
+              <p style={{ fontSize: 14.5, lineHeight: 1.85, margin: 0, color: "#1a1a1a" }}>{analysis.summary}</p>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 2, color: "#1a1a1a" }}>
+                {preRunBullets.map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+            )}
+          </div>
+
+          {/* Anomalies */}
+          {analysis?.stockAnomalies?.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Stock vs Sales Anomalies</span>
+                <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#991b1b" }}>
+                  {analysis.stockAnomalies.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {analysis.stockAnomalies.map((a, i) => {
+                  const cfg = {
+                    ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales" },
+                    low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
+                    dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
+                  }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
+                  return (
+                    <div key={i} style={{ background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: 12, padding: "16px 18px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20, background: "#fff", textTransform: "uppercase" }}>{cfg.label}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{a.branch}</span>
+                        {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#991b1b" }}>CRITICAL</span>}
+                      </div>
+                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>{a.finding}</p>
+                      <div style={{ fontSize: 13, fontWeight: 600, background: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "9px 12px" }}>
+                        → {a.action}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recommendations */}
+          {analysis?.recommendations?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Actionable Recommendations</span>
+                <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#e0f2f1", color: "#00695c" }}>
+                  {analysis.recommendations.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {analysis.recommendations.map((rec, i) => {
+                  const s = typeStyle(rec.type);
+                  return (
+                    <div key={i} style={{ background: s.bg, border: `1.5px solid ${s.borderColor}40`, borderLeft: `5px solid ${s.borderColor}`, borderRadius: 10, padding: "14px 18px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: s.color, background: s.badgeBg, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>
+                        {rec.branch || rec.type}
+                      </span>
+                      <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: "8px 0 0" }}>{rec.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #e0f2f1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+              Generated by FranchiSync · Franchise Business Services Corp.
+            </span>
+            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+              AI analysis powered by Groq
+            </span>
+          </div>
+        </div>
+      </div>
     </PanelCard>
   );
 }
-
 // ─── SalesVsStockSection ──────────────────────────────────────────────────────
 function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
   const [data,    setData]    = useState(null);
@@ -2158,7 +2396,9 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const branchRef = useRef(null);
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
-  const [showKpiValue, setShowKpiValue] = useState(true);
+
+  // NEW: per-card visibility instead of one shared boolean
+  const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
 
   useEffect(() => {
     const fn = (e) => {
@@ -2304,45 +2544,48 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
           { label: "Sales Profit",  value: kpiData?.salesProfit,   icon: BarChart2    },
           { label: "Cost of Sales", value: kpiData?.cogs,          icon: Package      },
           { label: "Total Sales",   value: kpiData?.totalSales,    icon: ShoppingCart },
-        ].map((k, i) => (
-          <div key={i}
-            style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
-              <button
-      onClick={() => setShowKpiValue(v => !v)}
-      style={{
-        position:"absolute", top:14, right:14,
-        background:"none", border:"none", cursor:"pointer",
-        color:"#1565c0", opacity:0.6, padding:2,
-        display:"flex", alignItems:"center",
-      }}
-      title={showKpiValue ? "Hide values" : "Show values"}
-    >
-      {showKpiValue
-        ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-      }
-    </button>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
-                  <k.icon size={12} color="#00897b" /> {k.label}
+        ].map((k, i) => {
+          const isHidden = !!hiddenKpis[i];
+          return (
+            <div key={i}
+              style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+                <button
+                  onClick={() => setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }))}
+                  style={{
+                    position: "absolute", top: 14, right: 14,
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#1565c0", opacity: 0.6, padding: 2,
+                    display: "flex", alignItems: "center",
+                  }}
+                  title={isHidden ? "Show value" : "Hide value"}
+                >
+                  {!isHidden
+                    ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  }
+                </button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                    <k.icon size={12} color="#00897b" /> {k.label}
+                  </div>
+                  {kpiLoading && k.value == null
+                    ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                    : k.value != null
+                      ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                          {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
+                        </div>
+                      : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                  }
                 </div>
-                {kpiLoading && k.value == null
-                  ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
-                  : k.value != null
-  ? <div style={{ fontSize:22, fontWeight:800, color:"#0d2b1e", letterSpacing:"-0.5px", fontFamily:FONT }}>
-      {showKpiValue ? fmtAmt(k.value) : "₱••••••••"}
-    </div>
-                    : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
-                }
+                <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
               </div>
-              <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
             </div>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Filter + Date toolbar ── */}
@@ -2513,6 +2756,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
     </div>
   );
 }
+
 
 // ── DeleteConfirmModal ────────────────────────────────────────────────────────
 function DeleteConfirmModal({ target, onConfirm, onClose }) {

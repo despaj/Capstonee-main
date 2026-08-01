@@ -714,6 +714,8 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
                 <span>Arrived: <strong style={{ color:C.ink }}>{supplyStr}</strong></span>
                 <span>Expires: <strong style={{ color:ss.dot }}>{expStr}{dRem!=null ? ` (${dRem<0?"expired":dRem+"d left"})` : ""}</strong></span>
                 {b.cost_per_unit ? <span>Cost/Unit: <strong style={{ color:C.ink }}>₱{Number(b.cost_per_unit).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></span> : null}
+                {b.storage_location && <span>Location: <strong style={{ color:C.ink }}>{b.storage_location}</strong></span>}
+                {b.received_by && <span>Received by: <strong style={{ color:C.ink }}>{b.received_by}</strong></span>}
               </div>
 
               <div>
@@ -1719,6 +1721,8 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
                     )}
                     {batch.mfg_date && <span>Mfg: {fmtDate(batch.mfg_date)}</span>}
                     {batch.supply_date && <span>Supplied: {fmtDate(batch.supply_date)}</span>}
+                    {batch.storage_location && <span>Location: <strong style={{ color:"#0d2b1e" }}>{batch.storage_location}</strong></span>}
+                    {batch.received_by && <span>By: <strong style={{ color:"#0d2b1e" }}>{batch.received_by}</strong></span>}
                   </div>
                   {status === "expired" && (
                     <div style={{ marginTop:6, fontSize:11, fontWeight:700, color:"#dc2626", display:"flex", alignItems:"center", gap:5 }}>

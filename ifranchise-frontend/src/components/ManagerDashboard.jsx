@@ -426,7 +426,7 @@ export default function FranchiseeDashboard() {
       <main className="fr-main">
         <div className="fr-topbar">
           <div>
-            <div className="fr-topbar-breadcrumb">iFranchise → {moduleLabel}</div>
+           
             <h1 className="fr-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

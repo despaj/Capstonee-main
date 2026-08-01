@@ -618,7 +618,7 @@ export default function LandingPage() {
             Discover the perfect blend of opportunity and taste!
           </h3>
           <p className="hero-subtitle">
-            Innovating centralized business operations with OCR receipt scanning, branch monitoring, and sales trend analysis.
+            Innovating centralized business-to-business operations with prescriptive and sales trend analysis.
           </p>
           <div className="hero-cta">
             <button
