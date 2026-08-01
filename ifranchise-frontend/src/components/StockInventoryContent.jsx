@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 
+import {
+  AlertTriangle, RefreshCw, Check, X
+} from 'lucide-react'
+
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#6b8c77", border:"#daeee5",
@@ -89,6 +93,66 @@ function isPositiveOrZeroNumber(v) {
   if (v === "" || v === null || v === undefined) return false;
   const n = parseFloat(v);
   return !isNaN(n) && n >= 0;
+}
+
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return; 
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+          {!isLoading && (
+            <button onClick={onClose} style={{ background:"none", border:"none", color: isErr ? "#991b1b" : "#3f5f4f", cursor:"pointer", padding:2, flexShrink:0 }}>
+              <X size={14}/>
+            </button>
+          )}
+      </div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+      <button onClick={onClose} style={{
+        background:"none", border:"none",
+        color: isErr ? "#991b1b" : "#3f5f4f",
+        cursor:"pointer", padding:2, flexShrink:0,
+      }}>
+        <X size={14}/>
+      </button>
+    </div>
+  );
 }
 
 /* ── tiny inline SVG icons ── */
@@ -272,7 +336,7 @@ function UIModal({ modal, onClose, onConfirm }) {
 }
 
 /* ── DELETE CONFIRM MODAL ── */
-function DeleteConfirmModal({ item, onConfirm, onCancel }) {
+function DeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
   if (!item) return null;
   return (
     <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
@@ -306,10 +370,13 @@ function DeleteConfirmModal({ item, onConfirm, onCancel }) {
           ))}
         </div>
         <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onCancel} style={{ ...btnSt }}>Cancel</button>
-          <button onClick={onConfirm} style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.25)" }}>
-            <TrashIcon size={13}/> Delete
-          </button>
+          <button onClick={onCancel} disabled={deleting} style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+      <button onClick={onConfirm} disabled={deleting}
+        style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.25)", opacity: deleting ? 0.7 : 1, cursor: deleting ? "not-allowed" : "pointer" }}>
+        {deleting
+          ? <><RefreshCw size={13} style={{ animation:"spin .8s linear infinite" }}/> Deleting…</>
+          : <><TrashIcon size={13}/> Delete</>}
+      </button>
         </div>
       </div>
     </div>
@@ -317,7 +384,7 @@ function DeleteConfirmModal({ item, onConfirm, onCancel }) {
 }
 
 /* ── BATCH DELETE CONFIRM MODAL ── */
-function BatchDeleteConfirmModal({ batch, ingredient, onConfirm, onCancel }) {
+function BatchDeleteConfirmModal({ batch, ingredient, deleting, onConfirm, onCancel }) {
   if (!batch) return null;
   const expStr = fmtDate(batch.exp_date);
   return (
@@ -351,9 +418,12 @@ function BatchDeleteConfirmModal({ batch, ingredient, onConfirm, onCancel }) {
           ))}
         </div>
         <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onCancel} style={{ ...btnSt }}>Cancel</button>
-          <button onClick={onConfirm} style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.25)" }}>
-            <TrashIcon size={13}/> Delete Batch
+          <button onClick={onCancel} disabled={deleting} style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+            <button onClick={onConfirm} disabled={deleting}
+              style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.25)", opacity: deleting ? 0.7 : 1, cursor: deleting ? "not-allowed" : "pointer" }}>
+              {deleting
+                ? <><RefreshCw size={13} style={{ animation:"spin .8s linear infinite" }}/> Deleting…</>
+                : <><TrashIcon size={13}/> Delete Batch</>}
           </button>
         </div>
       </div>
@@ -506,7 +576,7 @@ function Pagination({ page, setPage, total, pageSize }) {
 }
 
 /* ── DELETE HISTORY PANEL ── */
-function DeleteHistoryPanel({ history, onRestore, onClose }) {
+function DeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
@@ -540,9 +610,15 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
                 <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
                 <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock} {d.unit}</div>
                 <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}</div>
-                <button onClick={()=>onRestore(entry)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  <RestoreIcon/> Restore
-                </button>
+                <button onClick={()=>onRestore(entry)} disabled={restoringId !== null}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8,
+                      border:`1.5px solid ${C.green}`, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700,
+                      cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap",
+                      opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
+                    {restoringId === entry.id
+                      ? <><RefreshCw size={12} style={{ animation:"spin 1s linear infinite" }}/> Restoring…</>
+                      : <><RestoreIcon/> Restore</>}
+                  </button>
               </div>
             );
           })}
@@ -809,11 +885,11 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onManageBatches, onQuickAdd, onReceiveStock, expanded=false }) {
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onManageBatches, onQuickAdd, onReceiveStock, expanded=false, initialBranchFilter="", initialStatusFilter="" }) {
   const [search, setSearch]     = useState("");
-  const [branchF, setBranchF]   = useState("");
+  const [branchF, setBranchF]   = useState(initialBranchFilter);
   const [unitF, setUnitF]       = useState("");
-  const [statusF, setStatusF]   = useState("");
+  const [statusF, setStatusF]   = useState(initialStatusFilter);
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches]       = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -843,6 +919,11 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onMana
       })
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [brandItems, search, branchF, unitF, statusF]);
+
+    useEffect(() => {
+    setBranchF(initialBranchFilter);
+    setStatusF(initialStatusFilter);
+  }, [initialBranchFilter, initialStatusFilter]);
 
   useEffect(() => {
     if (selectedId && !brandItems.find(i => i.id === selectedId)) setSelectedId(null);
@@ -961,7 +1042,7 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onMana
    Expiry date must be at least MIN_SHELF_LIFE_DAYS (1 month) after the
    date received — anything shorter is rejected.
 ───────────────────────────────────────────────────────────────────────── */
-function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, onClose, onDone, showUiModal }) {
+function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, onClose, onDone, showUiModal,setToast }) {
   const nowLocal = () => {
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -1090,11 +1171,11 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
       } catch {}
       setSaving(false);
       onDone();
-      showUiModal({ type:"success", title:"Stock Received", message:`${body.stock} ${product.unit} of "${product.name}" logged and added to the ${pharma?"FEFO":"FIFO"} queue${d?.batch_number?` as batch ${d.batch_number}`:""}.` });
-    } catch {
+      setToast({ type: "success", title: "Stock Received", message: `${body.stock} ${product.unit} of "${product.name}" logged.` });
+   } catch {
       setSaving(false);
-      showUiModal({ type:"error", title:"Connection Error", message:"Failed to log the received stock. Please check your connection." });
-    }
+      setToast({ type: "error", title: "Connection Error", message: "Failed to log the received stock." });
+     }
   };
 
   return (
@@ -1248,7 +1329,7 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 /* ─────────────────────────────────────────────────────────────────────────
    BATCH DELETE HISTORY PANEL
 ───────────────────────────────────────────────────────────────────────── */
-function BatchDeleteHistoryPanel({ history, onRestore, onClose }) {
+function BatchDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(5px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"26px 30px", width:"100%", maxWidth:660, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.20)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif" }}>
@@ -1287,9 +1368,11 @@ function BatchDeleteHistoryPanel({ history, onRestore, onClose }) {
                 <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{d.stock ?? "—"}</div>
                 <div style={{ fontSize:12, color:"#6b7280" }}>{expStr}</div>
                 <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? fmtTs(entry.deletedAt) : "—"}</div>
-                <button onClick={() => onRestore(entry)}
-                  style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                  <RestoreIcon/> Restore
+                <button onClick={() => onRestore(entry)} disabled={restoringId !== null}
+                  style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
+                  {restoringId === entry.id
+                    ? <><RefreshCw size={12} style={{ animation:"spin 1s linear infinite" }}/> Restoring…</>
+                    : <><RestoreIcon/> Restore</>}
                 </button>
               </div>
             );
@@ -1485,7 +1568,7 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
    Rows are plain white, separated by a thin line (green for the next-out
    batch, gray otherwise) instead of colored backgrounds.
 ───────────────────────────────────────────────────────────────────────── */
-function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, showUiModal }) {
+function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, showUiModal, setToast }) {
   const pharma = isPharmaBrand(ingredient.brand);
   const [editingBatch, setEditingBatch] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1493,6 +1576,7 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
   const [showBatchHistory, setShowBatchHistory] = useState(false);
   const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null);
   const [deletingBatch, setDeletingBatch] = useState(false);
+  const [restoringBatchId, setRestoringBatchId] = useState(null);
 
   const fetchBatchHistory = useCallback(async () => {
     try {
@@ -1577,9 +1661,9 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
       await syncIngredientStock();
       setEditingBatch(null);
       onRefresh();
-      showUiModal({ type:"success", title:"Batch Updated", message:"The batch has been updated successfully." });
+      setToast({ type: "success", title: "Batch Updated", message: "The batch has been updated successfully." });
     } catch {
-      showUiModal({ type:"error", title:"Connection Error", message:"Failed to save the batch. Please check your connection." });
+      setToast({ type: "error", title: "Connection Error", message: "Failed to save the batch." });
     } finally {
       setSavingEdit(false);
     }
@@ -1614,40 +1698,38 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
     setDeletingBatch(true);
     try {
       await deleteBatch(deleteConfirmBatch.id);
-      showUiModal({ type:"success", title:"Batch Deleted", message:`Batch ${deleteConfirmBatch.batch_number || ""} has been moved to Batch Delete History.` });
+        setToast({ type: "success", title: "Batch Deleted", message: `Batch ${deleteConfirmBatch.batch_number || ""} moved to history.` });
     } catch {
-      showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete the batch. Please check your connection." });
+        setToast({ type: "error", title: "Connection Error", message: "Failed to delete the batch." });
     } finally {
       setDeletingBatch(false);
       setDeleteConfirmBatch(null);
     }
   };
 
-  const restoreBatch = async (entry) => {
+const restoreBatch = async (entry) => {
+  setRestoringBatchId(entry.id);
+  try {
     const d = entry.data || {};
     const res = await fetch(`${apiUrl}/ingredient-batches`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ingredient_id: ingredient.id,
-        batch_number:  d.batch_number  || null,
-        stock:         d.stock         || 0,
-        mfg_date:      d.mfg_date      || null,
-        exp_date:      d.exp_date      || null,
-        supply_date:   d.supply_date   || null,
-        cost_per_unit: d.cost_per_unit || 0,
-        supplier:      d.supplier      || null,
-        perishable:    d.perishable    || false,
-        notes:         d.notes         || null,
-      }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredient_id: ingredient.id, batch_number: d.batch_number || null, stock: d.stock || 0, mfg_date: d.mfg_date || null, exp_date: d.exp_date || null, supply_date: d.supply_date || null, cost_per_unit: d.cost_per_unit || 0, supplier: d.supplier || null, perishable: d.perishable || false, notes: d.notes || null }),
     });
     const result = await res.json();
     if (result && (result.id || result.success)) {
       await fetch(`${apiUrl}/ingredient-batch-delete-history/${entry.id}`, { method: "DELETE" });
       await fetchBatchHistory();
       onRefresh();
+      setToast({ type: "success", title: "Batch Restored", message: `Batch ${d.batch_number || ""} has been restored.` });
+    } else {
+      setToast({ type: "error", title: "Restore Failed", message: "Failed to restore the batch." });
     }
-  };
+  } catch {
+    setToast({ type: "error", title: "Connection Error", message: "Failed to restore the batch." });
+  } finally {
+    setRestoringBatchId(null);
+  }
+};
 
   const fifo = getFifoMethod(ingredient.brand, ingredient.perishable);
   const sortedBatches = sortBatchesByMethod(batches, ingredient.brand, ingredient.perishable);
@@ -1759,23 +1841,19 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
         />
       )}
 
-      {/* Confirmation modal shown before a batch is actually deleted */}
       {deleteConfirmBatch && (
         <BatchDeleteConfirmModal
           batch={deleteConfirmBatch}
           ingredient={ingredient}
+          deleting={deletingBatch}
           onConfirm={confirmDeleteBatch}
           onCancel={() => { if (!deletingBatch) setDeleteConfirmBatch(null); }}
         />
       )}
 
-      {showBatchHistory && (
-        <BatchDeleteHistoryPanel
-          history={batchDeleteHistory}
-          onRestore={restoreBatch}
-          onClose={() => setShowBatchHistory(false)}
-        />
-      )}
+{showBatchHistory && (
+  <BatchDeleteHistoryPanel history={batchDeleteHistory} restoringId={restoringBatchId} onRestore={restoreBatch} onClose={() => setShowBatchHistory(false)} />
+)}
     </div>
   );
 }
@@ -1783,10 +1861,15 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
 /* ─────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
-export default function StockInventoryContent({ user, brands: propBrands = [] }) {
+export default function StockInventoryContent({ user, brands: propBrands = [], initialFocus = null }) {
   const isAdmin    = user?.role === "Super Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
+
+  const [savingItem,   setSavingItem]   = useState(false);
+  const [deletingItem, setDeletingItem] = useState(false);
+  const [restoringId,  setRestoringId]  = useState(null);
+  const [toast, setToast] = useState(null);
 
   const brandList = propBrands.length > 0 ? propBrands : [];
 
@@ -1884,6 +1967,12 @@ const emptyForm = useCallback(() => ({
       })) : []);
     } catch (err) { console.error(err); }
   }, []);
+
+    useEffect(() => {
+    if (!initialFocus?.brand) return;
+    const matchedDef = BRAND_DEFS.find(bd => bd.match(initialFocus.brand.toLowerCase()));
+    if (matchedDef) setActiveBrandKey(matchedDef.key);
+  }, [initialFocus]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
@@ -2032,7 +2121,6 @@ longitude: coords?.longitude,
 
   const saveItem = async e => {
     e.preventDefault();
-
     const errors = [];
     if (!form.name || !form.name.trim()) errors.push("Ingredient name is required.");
     if (!form.brand) errors.push("Brand is required.");
@@ -2048,6 +2136,9 @@ longitude: coords?.longitude,
       showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
       return;
     }
+
+    setSavingItem(true);
+
     const coords = await getBrowserLocation();
     const payload = {
         ...form,
@@ -2071,6 +2162,7 @@ longitude: coords?.longitude,
 
     const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
     const method = editing ? "PUT" : "POST";
+
     try {
       const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const d   = await res.json();
@@ -2098,68 +2190,76 @@ longitude: coords?.longitude,
               image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
               is_visible:true,
               branches:[],
-              performed_by: userName,        // ✅ add here instead
-              latitude: payload.latitude,    // ✅ add here instead
-              longitude: payload.longitude,  // ✅ add here instead
+              performed_by: userName,     
+              latitude: payload.latitude, 
+              longitude: payload.longitude,
             }),
           });
         } catch {}
       }
         await fetchItems(); await fetchActivityLog();
         closeModal();
-        showUiModal({
-          type:"success",
-          title: editing ? "Ingredient Updated" : "Ingredient Added",
-          message: editing
-            ? `"${payload.name}" has been updated successfully.`
-            : `"${payload.name}" has been added. Use Receive Stock to build up its batches.`,
-        });
+        setToast({ type: "success", title: editing ? "Ingredient Updated" : "Ingredient Added", message: editing ? `"${payload.name}" has been updated.` : `"${payload.name}" has been added.` });
       } else {
-        showUiModal({ type:"error", title:"Failed to Save", message: d.error||"An unexpected error occurred." });
+        setToast({ type: "error", title: "Failed to Save", message: d.error || "An unexpected error occurred." });
       }
     } catch {
-      showUiModal({ type:"error", title:"Connection Error", message:"Failed to save. Please check your connection." });
-    }
+      setToast({ type: "error", title: "Connection Error", message: "Failed to save. Please check your connection." });
+    } finally {
+    setSavingItem(false);
+  }
   };
 
   const handleDeleteItem = (item) => setDeleteTarget(item);
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    const item = deleteTarget; setDeleteTarget(null);
-    try {
-      const coords = await getBrowserLocation();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, {
-        method:"DELETE",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
-      });
-      const d = await res.json();
-      if (d.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ingredient_data:item, deleted_by:userName }) });
-        await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
-      } else { showUiModal({ type:"error", title:"Failed to Delete", message:d.error||"An unexpected error occurred." }); }
-    } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to delete." }); }
-  };
+const confirmDelete = async () => {
+  if (!deleteTarget) return;
+  const item = deleteTarget;
+  setDeletingItem(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, {
+      method:"DELETE", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
+    });
+    const d = await res.json();
+    if (d.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ingredient_data:item, deleted_by:userName }) });
+      await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
+      setToast({ type: "success", title: "Ingredient Deleted", message: `"${item.name}" moved to Delete History.` });
+    } else {
+      setToast({ type: "error", title: "Failed to Delete", message: d.error || "An unexpected error occurred." });
+    }
+  } catch {
+    setToast({ type: "error", title: "Connection Error", message: "Failed to delete." });
+  } finally {
+    setDeletingItem(false);
+    setDeleteTarget(null);
+  }
+};
 
 const handleRestore = async (entry) => {
+  setRestoringId(entry.id); // ← was: setToast({ type: "loading", ... })
   try {
     const d = entry.data;
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit,
-        performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude, restored: true,
-      }),
+      body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude, restored: true }),
     });
     const result = await res.json();
     if (result.success) {
       await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
       await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
-      showUiModal({ type:"success", title:"Ingredient Restored", message:`"${d.name}" has been restored.` });
-    } else { showUiModal({ type:"error", title:"Restore Failed", message:result.error||"Failed to restore." }); }
-  } catch { showUiModal({ type:"error", title:"Connection Error", message:"Failed to restore." }); }
+      setToast({ type: "success", title: "Ingredient Restored", message: `"${d.name}" has been restored.` });
+    } else {
+      setToast({ type: "error", title: "Restore Failed", message: result.error || "Failed to restore." });
+    }
+  } catch {
+    setToast({ type: "error", title: "Connection Error", message: "Failed to restore." });
+  } finally {
+    setRestoringId(null);
+  }
 };
 
 const openEdit = item => {
@@ -2258,6 +2358,8 @@ const openEdit = item => {
               setShowModal(true);
             }}
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
+            initialBranchFilter={initialFocus?.branch || ""}   // ← new
+            initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
             expanded
           />
         </>
@@ -2406,7 +2508,10 @@ const openEdit = item => {
               )}
               <div style={{ display:"flex", justifyContent:"flex-end", gap:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
                 <button type="button" onClick={closeModal} style={btnSt}>Cancel</button>
-                <button type="submit" style={btnPrimarySt}>Save Ingredient</button>
+                <button type="submit" disabled={savingItem}
+                  style={{ ...btnPrimarySt, opacity: savingItem ? 0.6 : 1, cursor: savingItem ? "not-allowed" : "pointer" }}>
+                  {savingItem ? "Saving…" : "Save Ingredient"}
+                </button>
               </div>
             </form>
           </div>
@@ -2424,6 +2529,7 @@ const openEdit = item => {
           onClose={() => setReceiveTarget(null)}
           onDone={() => { setReceiveTarget(null); fetchItems(); fetchActivityLog(); }}
           showUiModal={showUiModal}
+          setToast={setToast}
         />
       )}
 
@@ -2436,6 +2542,7 @@ const openEdit = item => {
           apiUrl={process.env.REACT_APP_API_URL}
           userName={userName}
           showUiModal={showUiModal}
+          setToast={setToast}
           onRefresh={() => {
             setBatchLoading(true);
             fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)
@@ -2447,13 +2554,16 @@ const openEdit = item => {
         />
       )}
 
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* ── DELETE CONFIRM MODAL ── */}
-      <DeleteConfirmModal item={deleteTarget} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)}/>
+      <DeleteConfirmModal item={deleteTarget} deleting={deletingItem} onConfirm={confirmDelete}
+        onCancel={() => { if (!deletingItem) setDeleteTarget(null); }}/>
 
       {/* ── IMPORT LOADING MODAL ── */}
       <ImportLoadingModal visible={importLoading} progress={importProgress}/>
       <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={()=>{ if(uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
-      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistory} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}
+      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistory} restoringId={restoringId} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}
       {showActivityLog && (
   <ActivityLogPanel
     log={activityLog}

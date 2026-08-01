@@ -156,6 +156,7 @@ const bmActionBtn = (variant = "default") => ({
     ? { background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }
     : { background: "#f0fdf5", color: "#00695c", border: "1.5px solid #b2dfdb" }),
 });
+
 function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -241,7 +242,7 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
             ) : notifications.map((n) => (
               <div
                 key={n.id}
-                onClick={() => { onNavigate(n.module); setOpen(false); }}
+                onClick={() => { onNavigate(n); setOpen(false); }}
                 style={{
                   display: "flex", gap: 12, padding: "13px 18px", cursor: "pointer",
                   borderBottom: "1px solid #f0f8f0", alignItems: "flex-start",
@@ -275,9 +276,8 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN DASHBOARD SHELL 
-// ─────────────────────────────────────────────────────────────────────────────
+
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
@@ -297,6 +297,7 @@ export default function AdminDashboard() {
   const handleLogout = () => setShowLogoutModal(true);
   const [transactions, setTransactions] = useState([]);
   const [searchQuery, setSearchQuery]     = useState("");
+  const [inventoryFocus, setInventoryFocus] = useState(null);
 
   const getUserFromStorage = () => {
     const userString =
@@ -386,61 +387,112 @@ export default function AdminDashboard() {
       .catch(err => console.error("Failed to fetch brands:", err));
   }, []);
 // ── Notifications: aggregates things that need admin attention ──
-  const [notifications, setNotifications] = useState([]);
-  const [notifLoading,  setNotifLoading]  = useState(false);
+// ── Notifications: aggregates things that need admin attention ──
+    const [notifications, setNotifications] = useState([]);
+    const [notifLoading,  setNotifLoading]  = useState(false);
 
-  const fetchNotifications = useCallback(async () => {
-    setNotifLoading(true);
-    try {
-      const [appsRes, ordersRes, reportsRes, ingRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/applications`).then(r => r.json()).catch(() => []),
-        fetch(`${process.env.REACT_APP_API_URL}/orders`).then(r => r.json()).catch(() => []),
-        fetch(`${process.env.REACT_APP_API_URL}/reports`).then(r => r.json()).catch(() => []),
-        fetch(`${process.env.REACT_APP_API_URL}/ingredients`).then(r => r.json()).catch(() => []),
-      ]);
+const fetchNotifications = useCallback(async () => {
+  setNotifLoading(true);
+  try {
+    const [appsRes, reportsRes, lowStockRes] = await Promise.all([
+      fetch(`${process.env.REACT_APP_API_URL}/applications`),
+      fetch(`${process.env.REACT_APP_API_URL}/reports?status=submitted`),
+      fetch(`${process.env.REACT_APP_API_URL}/notifications/low-stock-items`), 
+    ]);
 
-      const items = [];
+    const apps      = appsRes.ok      ? await appsRes.json()      : [];
+    const reports    = reportsRes.ok   ? await reportsRes.json()   : [];
+    const lowStock   = lowStockRes.ok  ? await lowStockRes.json()  : [];
 
-      const pendingApps = (Array.isArray(appsRes) ? appsRes : []).filter(a => a.status === "pending");
-      if (pendingApps.length) items.push({
-        id: "apps", icon: FileCheck, module: "applications",
+    const pendingApps    = Array.isArray(apps) ? apps.filter(a => a.status === "pending") : [];
+    const pendingReports = Array.isArray(reports) ? reports : [];
+    const lowStockItems  = Array.isArray(lowStock) ? lowStock : [];
+
+    const items = [];
+
+    if (pendingApps.length > 0) {
+      items.push({
+        id: "applications",
+        module: "Applications",
         title: "Pending Applications",
         message: `${pendingApps.length} application${pendingApps.length !== 1 ? "s" : ""} awaiting review`,
-        count: pendingApps.length, color: "#d97706", bg: "#fef9c3", border: "#fde68a",
+        count: pendingApps.length,
+        icon: FileCheck,
+        bg: "#fef9c3",
+        color: "#92400e",
+        border: "#fde68a",
       });
-
-      const pendingOrders = (Array.isArray(ordersRes) ? ordersRes : []).filter(o => o.status === "pending");
-      if (pendingOrders.length) items.push({
-        id: "orders", icon: Package, module: "mobileOrders",
-        title: "Orders Need Review",
-        message: `${pendingOrders.length} order${pendingOrders.length !== 1 ? "s" : ""} waiting to be accepted`,
-        count: pendingOrders.length, color: "#0c447c", bg: "#e6f1fb", border: "#bfdbfe",
-      });
-
-      const pendingReports = (Array.isArray(reportsRes) ? reportsRes : []).filter(r => r.status === "pending");
-      if (pendingReports.length) items.push({
-        id: "reports", icon: BarChart2, module: "reports",
-        title: "Reports Awaiting Approval",
-        message: `${pendingReports.length} report${pendingReports.length !== 1 ? "s" : ""} submitted for review`,
-        count: pendingReports.length, color: "#6a1b9a", bg: "#f3e5f5", border: "#e9d5ff",
-      });
-
-      const lowStock = (Array.isArray(ingRes) ? ingRes : []).filter(i => Number(i.stock) < Number(i.min_stock));
-      if (lowStock.length) items.push({
-        id: "stock", icon: AlertTriangle, module: "stockInventory",
-        title: "Low Stock Alert",
-        message: `${lowStock.length} item${lowStock.length !== 1 ? "s" : ""} below minimum stock level`,
-        count: lowStock.length, color: "#c62828", bg: "#ffebee", border: "#fecaca",
-      });
-
-      setNotifications(items);
-    } catch (err) {
-      console.error("Failed to load notifications:", err);
-    } finally {
-      setNotifLoading(false);
     }
-  }, []);
 
+    if (pendingReports.length > 0) {
+      items.push({
+        id: "reports",
+        module: "reports",
+        title: "Reports Under Review",
+        message: `${pendingReports.length} report${pendingReports.length !== 1 ? "s" : ""} waiting for approval`,
+        count: pendingReports.length,
+        icon: FileText,
+        bg: "#dbeafe",
+        color: "#1e40af",
+        border: "#93c5fd",
+      });
+    }
+
+if (lowStockItems.length > 0) {
+  // Group items by brand + branch
+  const grouped = {};
+  lowStockItems.forEach(item => {
+    const key = `${item.brand || "Unknown Brand"}|${item.branch || "Unknown Branch"}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(item);
+  });
+
+  Object.entries(grouped).forEach(([key, groupItems]) => {
+    const [brand, branch] = key.split("|");
+    const names = groupItems.slice(0, 3).map(i => i.name).join(", ");
+
+    items.push({
+      id: `low-stock-${key}`,
+      module: "stockInventory", 
+      title: `${brand} ${branch} — Low Stock`,
+      message: groupItems.length <= 3
+        ? `${names} running low`
+        : `${names} and ${groupItems.length - 3} more running low`,
+      count: groupItems.length,
+      icon: AlertTriangle,
+      bg: "#fee2e2", color: "#dc2626", border: "#fecaca",
+      navParams: { brand, branch, filterLowStock: true },
+    });
+  });
+}
+
+    setNotifications(items);
+  } catch (err) {
+    console.error("Failed to fetch notifications:", err);
+    setNotifications([]);
+  } finally {
+    setNotifLoading(false);
+  }
+}, [user?.id]);
+
+useEffect(() => {
+  if (!user?.id) return;
+  fetchNotifications();
+  const interval = setInterval(fetchNotifications, 60000);
+  return () => clearInterval(interval);
+}, [fetchNotifications, user?.id]);
+useEffect(() => {
+  if (!user?.id) return;
+  fetchNotifications();
+  const interval = setInterval(fetchNotifications, 60000);
+  return () => clearInterval(interval);
+}, [fetchNotifications, user?.id]);
+
+useEffect(() => {
+  fetchNotifications();
+  const interval = setInterval(fetchNotifications, 60000); // refresh every 60s
+  return () => clearInterval(interval);
+}, [fetchNotifications]);
   useEffect(() => {
     fetchNotifications();
     const t = setInterval(fetchNotifications, 60000); // refresh every minute
@@ -704,12 +756,21 @@ export default function AdminDashboard() {
             <h1 className="ad-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <NotificationBell
-              notifications={notifications}
-              loading={notifLoading}
-              onRefresh={fetchNotifications}
-              onNavigate={(mod) => setActiveModule(mod)}
-            />
+<NotificationBell
+  notifications={notifications}
+  loading={notifLoading}
+  onRefresh={fetchNotifications}
+  onNavigate={(notification) => {
+  setActiveModule(notification.module);
+  if (notification.navParams) {
+    setInventoryFocus({
+      brand: notification.navParams.brand,
+      branch: notification.navParams.branch,
+      lowStockOnly: notification.navParams.filterLowStock,
+    });
+  }
+  }}
+/>
             <div style={{ textAlign: 'right' }}>
               <div className="ad-user-name">{user?.name}</div>
               <div className="ad-user-role">Super Admin — {user?.branch}</div>
@@ -724,7 +785,7 @@ export default function AdminDashboard() {
           {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
            {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
-          {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+          {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands}  initialFocus={inventoryFocus}/>}
           {activeModule === 'mobileShop'     && <MobileShopContent user={user} brands={brands}/>}
           {activeModule === 'mobileOrders'   && <MobileOrdersContent user={user} brands={brands}/>}
           {activeModule === 'receipts'       && <Receipts />}
@@ -8717,11 +8778,11 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const [refreshingOrders, setRefreshingOrders] = useState(false);
 
   const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("pending"); // default view: Incoming Orders, not All
+  const [statusFilter, setStatusFilter] = useState("pending"); 
   const [viewOrder,    setViewOrder]    = useState(null);
-  const [disposeState, setDisposeState] = useState(null);  // { orderId, checking, results, saving }
+  const [disposeState, setDisposeState] = useState(null);  
   const [toast,        setToast]        = useState(null);
-  const [printQueue,   setPrintQueue]   = useState([]);      // orders currently queued for printing
+  const [printQueue,   setPrintQueue]   = useState([]); 
   const [massAccepting, setMassAccepting] = useState(false);
 
   const showToast = (type, title, message) => setToast({ type, title, message });

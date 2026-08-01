@@ -1893,7 +1893,7 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
                 <Field label="Mobile Number" required error={errors.mobile} half>{inp("mobile", "09123456789")}</Field>
               </div>
               <Field label="Alternate Mobile Number" error={errors.altMobile} half>
-                {inp("altMobile", "09123456789 (optional)")}
+                {inp("altMobile", "0912 3456789 (optional)")}
               </Field>
               <Field label="Email Address" required error={errors.email}>{inp("email", "juandelacruz@email.com", "email")}</Field>
             </div>
