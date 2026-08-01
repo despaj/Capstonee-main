@@ -472,7 +472,7 @@ export default function FranchiseeDashboard({ onLogout }) {
       <main className="fr-main">
         <div className="fr-topbar">
           <div>
-            <div className="fr-topbar-breadcrumb">iFranchise → {moduleLabel}</div>
+            
             <h1 className="fr-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -2023,12 +2023,7 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
         .fr-db-view-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
       `}</style>
  
-      {/* ── Welcome header ── */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00897b', marginBottom: 4, fontFamily: 'Montserrat,sans-serif' }}>Welcome back</div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0d2b1e', margin: 0, fontFamily: 'Montserrat,sans-serif' }}>{user?.name}</h1>
-        <div style={{ fontSize: 13, color: '#5a7a65', marginTop: 4 }}>Branch: <strong style={{ color: '#0d2b1e' }}>{userBranch || '—'}</strong></div>
-      </div>
+      
  
       {/* ── Archive viewing banner ── */}
       {viewingArchive && (
@@ -2162,176 +2157,313 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
   );
 }
 
+
+// ─── Design tokens (matched from MenuInventoryContent.jsx) ───────────────────
+const C = {
+  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
+  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
+  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
+  ok:"#2e7d32", okBg:"#e8f5e9",
+};
+
+const invInputSt = {
+  height:36, padding:"0 11px", borderRadius:9,
+  border:`1px solid ${C.border}`, background:C.bg,
+  fontSize:13, color:C.ink, outline:"none",
+  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+};
+const btnSt = {
+  display:"inline-flex", alignItems:"center", gap:6,
+  height:36, padding:"0 16px", borderRadius:9,
+  border:`1px solid ${C.border}`, background:C.white,
+  fontSize:13, fontWeight:700, cursor:"pointer",
+  fontFamily:"inherit", whiteSpace:"nowrap",
+};
+const smallBtnSt = {
+  display:"inline-flex", alignItems:"center", gap:4,
+  height:28, padding:"0 10px", borderRadius:7,
+  fontSize:12, fontWeight:600, cursor:"pointer",
+  fontFamily:"inherit", background:C.white,
+};
+
+const PAGE_SIZE = 15;
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
+const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
+const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
+const RefreshIcon  = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+const LockIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+
+// ─── Chip ─────────────────────────────────────────────────────────────────────
+function Chip({ label, color, bg, onRemove }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
+      {label} <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
+    </span>
+  );
+}
+
+
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+function Pagination({ page, setPage, total, pageSize }) {
+  const totalPgs = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPgs <= 1) return null;
+  return (
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+      <span style={{ fontSize:12, color:C.muted }}>
+        Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
+      </span>
+      <div style={{ display:"flex", gap:4 }}>
+        {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+        ))}
+        {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+        ))}
+        {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Read-only Inventory Table ─────────────────────────────────────────────────
+function ReadOnlyInventoryTable({ items, page, setPage }) {
+  const [sort, setSort]             = useState({ col:"name", asc:true });
+  const [expandedRows, setExpanded] = useState({});
+
+  const sorted = useMemo(() => {
+    return [...items].sort((a,b) => {
+      let va=a[sort.col]??"", vb=b[sort.col]??"";
+      if(typeof va==="string") va=va.toLowerCase();
+      if(typeof vb==="string") vb=vb.toLowerCase();
+      return sort.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+    });
+  }, [items, sort]);
+
+  const pageItems = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
+
+  const Th = ({ col, label, style:s }) => {
+    const active = sort.col === col;
+    return (
+      <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+          {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
+        </span>
+      </th>
+    );
+  };
+  const ThStatic = ({ label, style:s }) => (
+    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
+  );
+
+  if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
+
+  return (
+    <div>
+      <div style={{ overflowX:"auto" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <thead>
+            <tr>
+              <Th col="name"      label="Item Name" style={{ minWidth:160 }}/>
+              <Th col="category"  label="Category"  style={{ minWidth:110 }}/>
+              <Th col="stock"     label="Stock"      style={{ minWidth:72  }}/>
+              <Th col="min_stock" label="Min Stock"  style={{ minWidth:80  }}/>
+              <Th col="cost"      label="Cost"       style={{ minWidth:90  }}/>
+              <Th col="price"     label="Price"      style={{ minWidth:90  }}/>
+              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
+              <ThStatic           label="Status"      style={{ minWidth:100 }}/>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map(item => {
+              const low         = Number(item.stock) <= Number(item.min_stock);
+              const ingredients = item.ingredients || [];
+              const isExpanded  = expandedRows[item.id];
+              return (
+                <React.Fragment key={item.id}>
+                  <tr style={{ borderBottom: isExpanded?"none":`1px solid #f2faf5` }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
+                    </td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
+                        {item.stock}
+                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+                      </span>
+                    </td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      {ingredients.length === 0 ? (
+                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
+                      ) : (
+                        <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
+                          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
+                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
+                          <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding:"10px 12px" }}>
+                      {low
+                        ? <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:C.warnBg, color:C.warn }}>Low Stock</span>
+                        : <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:C.okBg, color:C.ok }}>In Stock</span>}
+                    </td>
+                  </tr>
+                  {isExpanded && ingredients.length > 0 && (
+                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
+                      <td colSpan={8} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
+                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
+                            Ingredients required per unit:
+                          </span>
+                          {ingredients.map((ing, idx) => (
+                            <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
+                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
+                              <span style={{ color:C.muted }}>×</span>
+                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
+                              {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>
+    </div>
+  );
+}
+
 function FrMenuInventoryContent({ user, brands }) {
-  const userBranch = (user?.branch || '').trim();
-  const [inventory, setInventory] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [expandedRows, setExpandedRows] = useState({});
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 15;
+  const userBranch = (user?.branch || "").trim();
+
+  const [inventory,      setInventory]      = useState([]);
+  const [loading,        setLoading]        = useState(false);
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterStatus,   setFilterStatus]   = useState("");
+  const [page,           setPage]           = useState(0);
 
   const fetchInventory = useCallback(async () => {
     if (!userBranch) return;
     setLoading(true);
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`);
-      const d = await res.json();
+      const d   = await res.json();
       setInventory(Array.isArray(d) ? d : []);
     } catch { setInventory([]); }
     finally { setLoading(false); }
   }, [userBranch]);
 
   useEffect(() => { if (userBranch) fetchInventory(); }, [fetchInventory, userBranch]);
-  useEffect(() => { setPage(0); }, [search, filterCategory, filterStatus]);
+  useEffect(() => { setPage(0); }, [searchQuery, filterCategory, filterStatus]);
 
-  const categories = useMemo(() => [...new Set(inventory.map(i => i.category).filter(Boolean))], [inventory]);
+  const categories = useMemo(() => [...new Set(inventory.map(i => i.category).filter(Boolean))].sort(), [inventory]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     return inventory.filter(i => {
-      if (q && !i.name.toLowerCase().includes(q) && !(i.category || '').toLowerCase().includes(q)) return false;
+      if (q && !i.name.toLowerCase().includes(q) && !(i.category || "").toLowerCase().includes(q)) return false;
       if (filterCategory && i.category !== filterCategory) return false;
-      if (filterStatus === 'low' && i.stock >= i.min_stock) return false;
-      if (filterStatus === 'ok'  && i.stock <  i.min_stock) return false;
+      if (filterStatus === "low" && Number(i.stock) >  Number(i.min_stock)) return false;
+      if (filterStatus === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
       return true;
     });
-  }, [inventory, search, filterCategory, filterStatus]);
+  }, [inventory, searchQuery, filterCategory, filterStatus]);
 
-  const lowCount   = inventory.filter(i => i.stock < i.min_stock).length;
-  const totalValue = inventory.reduce((s, i) => s + (i.price || 0) * (i.stock || 0), 0);
-  const pageItems  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
+  const totalValue = filteredItems.reduce((s, i) => s + (i.price || 0) * (i.stock || 0), 0);
+
+  const anyFilter = filterCategory || filterStatus || searchQuery;
+  const clearAll  = () => { setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
 
   return (
-    <div>
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+
       <ReadOnlyBanner message="Menu inventory is read-only. Contact your admin to add, edit, or delete items." />
 
-      <div className="v-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-        <VKpi label="Total Items"  value={inventory.length}       icon={<Box size={20} />}           color="green"  sub="Menu items" />
-        <VKpi label="Low Stock"    value={lowCount}               icon={<AlertTriangle size={20} />} color="red"    sub="Needs attention" />
-        <VKpi label="Est. Value"   value={fmtPeso(totalValue)}    icon={<DollarSign size={20} />}    color="blue"   sub="Inventory value" />
-        <VKpi label="Categories"   value={categories.length}      icon={<Package size={20} />}       color="orange" sub="Product types" />
+      {/* Stat cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
+        {[
+          { label:"Total Items", value:filteredItems.length.toLocaleString(), sub:`of ${inventory.length.toLocaleString()} total`, accent:C.green },
+          { label:"Low Stock",   value:lowCount,                              sub:"Needs attention",    accent:C.warn },
+          { label:"Est. Value",  value:fmtPeso(totalValue),                  sub:"Inventory value",    accent:C.green },
+          { label:"Categories",  value:categories.length,                    sub:"Product types",      accent:"#1565c0" },
+        ].map((s,i)=>(
+          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="v-card" style={{ padding: '14px 18px', marginBottom: 18 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="v-search-wrap" style={{ flex: '1 1 220px' }}>
-            <Search size={13} />
-            <input type="text" className="v-search" placeholder="Search items…" value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Filter bar */}
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
+            <input type="text" placeholder="Search items…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
+            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
           </div>
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="v-form-select" style={{ width: 150 }}>
+          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
             <option value="">All Categories</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="v-form-select" style={{ width: 130 }}>
+          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
           </select>
-          <button onClick={fetchInventory} className="v-btn v-btn-ghost v-btn-sm">
-            <RefreshCw size={13} /> Refresh
+          <div style={{ flex:1 }}/>
+          <button onClick={fetchInventory} style={{ ...btnSt, gap:6 }}>
+            <RefreshIcon size={13}/> Refresh
           </button>
         </div>
-      </div>
 
-      <div className="v-card">
-        <div style={{ padding: '11px 18px', background: 'var(--grad-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
-          <span style={{ fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Montserrat,sans-serif' }}>
-            <Store size={14} color="#fff" /> Menu Inventory — {userBranch}
-          </span>
-          <span style={{ fontSize: 12, opacity: 0.9 }}>{filtered.length} items · {lowCount} low stock</span>
-        </div>
-
-        {loading ? (
-          <div style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 14, fontWeight: 700 }}>Loading inventory…</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="v-table">
-              <thead>
-                <tr>
-                  {['Item Name', 'Category', 'Stock', 'Min Stock', 'Cost', 'Price', 'Ingredients', 'Status'].map(h => (
-                    <th key={h}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map(item => {
-                  const low         = item.stock < item.min_stock;
-                  const ingredients = item.ingredients || [];
-                  const isExpanded  = expandedRows[item.id];
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr>
-                        <td style={{ fontWeight: 700, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{item.name}</td>
-                        <td><span className="v-badge v-badge-green">{item.category}</span></td>
-                        <td>
-                          <span style={{ color: low ? '#ef4444' : '#0d2b1e', fontWeight: low ? 700 : 500, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                            {item.stock}
-                            {low && <span className="v-badge v-badge-red" style={{ fontSize: 10 }}>LOW</span>}
-                          </span>
-                        </td>
-                        <td style={{ color: '#5a7a65' }}>{item.min_stock}</td>
-                        <td style={{ color: '#5a7a65' }}>{fmtPeso(item.cost || 0)}</td>
-                        <td style={{ fontWeight: 700, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(item.price)}</td>
-                        <td>
-                          {ingredients.length === 0 ? (
-                            <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>—</span>
-                          ) : (
-                            <button
-                              onClick={() => setExpandedRows(p => ({ ...p, [item.id]: !p[item.id] }))}
-                              className="v-btn v-btn-ghost v-btn-sm"
-                              style={{ fontSize: 11 }}
-                            >
-                              🧪 {ingredients.length}
-                              <ChevronDown size={10} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
-                            </button>
-                          )}
-                        </td>
-                        <td>
-                          {low
-                            ? <span className="v-badge v-badge-red">Low Stock</span>
-                            : <span className="v-badge v-badge-green">In Stock</span>}
-                        </td>
-                      </tr>
-                      {isExpanded && ingredients.length > 0 && (
-                        <tr>
-                          <td colSpan={8} style={{ padding: '0 16px 12px', background: 'rgba(0,168,76,0.03)' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 14px', background: 'rgba(0,168,76,0.06)', borderRadius: 10, border: '1px solid rgba(0,168,76,0.15)' }}>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', width: '100%', marginBottom: 4, fontFamily: 'Montserrat,sans-serif' }}>Ingredients per unit:</span>
-                              {ingredients.map((ing, idx) => (
-                                <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: '#fff', color: '#0d2b1e', border: '1px solid rgba(0,168,76,0.2)' }}>
-                                  <span style={{ color: '#00897b', fontWeight: 700 }}>{ing.name}</span>
-                                  <span style={{ color: '#94a3b8' }}>×</span>
-                                  <span style={{ fontWeight: 800, color: '#00695c' }}>{ing.qty_required}</span>
-                                  {ing.unit && <span style={{ fontSize: 11, color: '#94a3b8' }}>{ing.unit}</span>}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                {filtered.length === 0 && !loading && (
-                  <tr><td colSpan={8} style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13, fontStyle: 'italic' }}>No items found.</td></tr>
-                )}
-              </tbody>
-            </table>
+        {/* Active filter chips */}
+        {anyFilter && (
+          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
+            {searchQuery    && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
+            {filterCategory && <Chip label={filterCategory}     color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
+            {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
+            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
           </div>
         )}
-        {filtered.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
-            <span style={{ fontSize: 12, color: '#5a7a65' }}>
-              Showing <strong>{(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}</strong> of <strong>{filtered.length.toLocaleString()}</strong>
-            </span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>‹</button>
-              <button onClick={() => setPage(p => Math.min(Math.ceil(filtered.length / PAGE_SIZE) - 1, p + 1))} disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= Math.ceil(filtered.length / PAGE_SIZE) - 1 ? 0.35 : 1 }}>›</button>
-            </div>
-          </div>
+      </div>
+
+      {/* Table card */}
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
+          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}>
+            <StoreIcon size={14} color="#fff"/> Menu Inventory — {userBranch}
+          </span>
+          <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
+        </div>
+        {loading ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
+        ) : (
+          <ReadOnlyInventoryTable items={filteredItems} page={page} setPage={setPage}/>
         )}
       </div>
     </div>

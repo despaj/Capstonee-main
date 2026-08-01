@@ -620,7 +620,7 @@ export default function FranchiseAdminDashboard() {
       <main className="fa-main">
         <div className="fa-topbar">
           <div>
-            <div className="fa-topbar-breadcrumb">iFranchise → {ROLE_LABEL} → {moduleLabel}</div>
+           
             <h1 className="fa-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
