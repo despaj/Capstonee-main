@@ -2823,10 +2823,10 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
 }
 
 // ── DeleteConfirmModal ────────────────────────────────────────────────────────
-function DeleteConfirmModal({ target, onConfirm, onClose }) {
+function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
   const isBrand = target.type === "brand";
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+    <div onClick={deleting ? undefined : onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <Trash2 size={22} color="#dc2626" />
@@ -2842,9 +2842,10 @@ function DeleteConfirmModal({ target, onConfirm, onClose }) {
         )}
         <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>You can recover this from Delete History.</p>
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button type="button" onClick={onConfirm} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)" }}>
-            <Trash2 size={14} /> Delete {isBrand ? "brand" : "branch"}
+          <button type="button" onClick={onClose} disabled={deleting} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={deleting} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(220,38,38,0.35)", opacity: deleting ? 0.7 : 1 }}>
+            {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={14} />}
+            {deleting ? "Deleting…" : `Delete ${isBrand ? "brand" : "branch"}`}
           </button>
         </div>
       </div>
@@ -3068,19 +3069,22 @@ function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
   );
 }
 
-function BmModal({ title, onClose, onSubmit, children }) {
+function BmModal({ title, onClose, onSubmit, saving = false, children }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+    <div onClick={saving ? undefined : onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+          <button onClick={onClose} disabled={saving} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: saving ? "not-allowed" : "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center", opacity: saving ? 0.5 : 1 }}><X size={15} /></button>
         </div>
         <form onSubmit={onSubmit}>
           {children}
           <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-            <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-            <button type="submit" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}><Check size={14} /> Save</button>
+            <button type="button" onClick={onClose} disabled={saving} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: saving ? 0.5 : 1 }}>Cancel</button>
+            <button type="submit" disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)", opacity: saving ? 0.7 : 1 }}>
+              {saving ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Check size={14} />}
+              {saving ? "Saving…" : "Save"}
+            </button>
           </div>
         </form>
       </div>
@@ -3115,12 +3119,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
 
   const showAlert = (message, type = "info") => setAlertModal({ message, type });
-
-  useEffect(() => {
-    if (!alertModal) return;
-    const timer = setTimeout(() => setAlertModal(null), 3000);
-    return () => clearTimeout(timer);
-  }, [alertModal]);
 
   const getBrowserLocation = () => {
     return new Promise((resolve) => {
@@ -3518,15 +3516,6 @@ const fetchActivityLog = useCallback(async () => {
               <option value="all">All Regions</option>
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <button onClick={() => setShowActivityLog(true)}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              <ActivityIcon size={13}/> Activity Log
-              {activityLog.length > 0 && (
-                <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-                  {activityLog.length}
-                </span>
-              )}
-            </button>
             <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
               <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
@@ -3609,13 +3598,6 @@ const fetchActivityLog = useCallback(async () => {
           onRestore={handleRestore}
           restoringId={restoringId}
           onClose={() => setShowHistory(false)}
-        />
-      )}
-
-      {showActivityLog && (
-        <InventoryActivityLogPanel
-          log={activityLog}
-          onClose={() => setShowActivityLog(false)}
         />
       )}
 
@@ -4209,16 +4191,6 @@ const toggleVisibility = async (id) => {
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
           </label>
 
-          <button onClick={() => setShowActivityLog(true)}
-            style={{ ...toolbarBtnSt, border:`1.5px solid ${C.green}`, background:C.white, color:C.greenDk }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-                {activityLog.length}
-              </span>
-            )}
-          </button>
-
           <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
             {filteredItems.length} of {items.length} items
           </span>
@@ -4294,98 +4266,7 @@ const toggleVisibility = async (id) => {
           </div>
         )}
       </div>
-      {showActivityLog && (
-        <InventoryActivityLogPanel
-          log={activityLog}
-          onClose={() => setShowActivityLog(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function InventoryActivityLogPanel({ log, onClose }) {
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-
-  const filtered = log.filter(entry => {
-    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!entry.item_name?.toLowerCase().includes(q) &&
-          !(entry.performed_by || "").toLowerCase().includes(q) &&
-          !(entry.branch || "").toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
-
-const actionBadge = (action) => {
-  const map = {
-    add:      { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Added"     },
-    edit:     { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8",  label:"Edited"    },
-    update:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8",  label:"Updated"   },
-    import:   { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed",  label:"Imported"  },
-    receive:  { bg:"rgba(245,158,11,0.14)",  color:"#b45309",  label:"Received"  },
-    approve:  { bg:"rgba(16,185,129,0.14)",  color:"#059669",  label:"Approved"  },
-    reject:   { bg:"rgba(239,68,68,0.14)",   color:"#dc2626",  label:"Rejected"  },
-    delete:   { bg:"rgba(239,68,68,0.14)",   color:"#dc2626",  label:"Deleted"   }, 
-    restore:  { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Restored"  }, 
-    create:   { bg:"rgba(16,185,129,0.12)",  color:"#059669",  label:"Submitted" }, 
-  };
-  const s = map[action] || map.edit;
-  return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
-};
-
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
-          </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
-          </button>
-        </div>
-
-        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 200px" }}>
-            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
-          </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:130, height:32, fontSize:12 }}>
-            <option value="all">All Actions</option>
-            <option value="create">Submitted</option>
-            <option value="approve">Approved</option>
-            <option value="reject">Rejected</option>
-            <option value="delete">Deleted</option>
-            <option value="restore">Restored</option>
-          </select>
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
-          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
-        </div>
-
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
-          ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
-              <div>{actionBadge(entry.action)}</div>
-              <div>
-                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
-                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
-              </div>
-              <div style={{ fontSize:11, color:C.muted }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink }}>{entry.performed_by || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+  
     </div>
   );
 }
@@ -4403,102 +4284,6 @@ function generateTempPassword(length = 10) {
     ...Array.from({ length: Math.max(length - groups.length, 0) }, () => chars[Math.floor(Math.random() * chars.length)]),
   ];
   return password.sort(() => Math.random() - 0.5).join("");
-}
-
-function ActivityLogPanel({ log, onClose, title = "Activity Log" }) {
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-
-  const filtered = log.filter(entry => {
-    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!entry.item_name?.toLowerCase().includes(q) &&
-          !(entry.performed_by || "").toLowerCase().includes(q) &&
-          !(entry.branch || "").toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
-
-  const ACTION_STYLES = {
-    add:      { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Added"     },
-    create:   { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Created"   },
-    edit:     { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Edited"    },
-    update:   { bg:"rgba(59,130,246,0.12)", color:"#1d4ed8", label:"Updated"   },
-    import:   { bg:"rgba(139,92,246,0.12)", color:"#7c3aed", label:"Imported"  },
-    receive:  { bg:"rgba(245,158,11,0.14)", color:"#b45309", label:"Received"  },
-    approve:  { bg:"rgba(16,185,129,0.14)", color:"#059669", label:"Approved"  },
-    reject:   { bg:"rgba(239,68,68,0.14)",  color:"#dc2626", label:"Rejected"  },
-    delete:   { bg:"rgba(239,68,68,0.14)",  color:"#dc2626", label:"Deleted"   },
-    restore:  { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Restored"  },
-    show:     { bg:"rgba(16,185,129,0.12)", color:"#059669", label:"Shown"     },
-    hide:     { bg:"rgba(107,114,128,0.14)",color:"#4b5563", label:"Hidden"    },
-  };
-  const FALLBACK_STYLE = { bg:"rgba(107,114,128,0.12)", color:"#4b5563" };
-
-  const actionBadge = (action) => {
-    const s = ACTION_STYLES[action] || { ...FALLBACK_STYLE, label: action ? action[0].toUpperCase()+action.slice(1) : "—" };
-    return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
-  };
-
-  const availableActions = Array.from(new Set(log.map(e => e.action).filter(Boolean))).sort();
-
-  const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
-    month:"short", day:"numeric", year:"numeric",
-    hour:"2-digit", minute:"2-digit",
-  });
-
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:"#0d2b1e", margin:0 }}>{title}</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:"#00695c" }}>{filtered.length} entries</span>
-          </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:"1px solid #b2dfdb", background:"#e0f2f1", cursor:"pointer", color:"#00897b", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <X size={15}/>
-          </button>
-        </div>
-
-        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 200px" }}>
-            <Search size={12} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
-            <input type="text" placeholder="Search name, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px 9px 28px", height:32, fontSize:12, borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontFamily:"inherit", outline:"none" }}/>
-          </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}
-            style={{ width:150, height:32, fontSize:12, borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-            <option value="all">All Actions</option>
-            {availableActions.map(a => (
-              <option key={a} value={a}>{ACTION_STYLES[a]?.label || (a[0].toUpperCase()+a.slice(1))}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"90px 1fr 120px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:"#00897b", textTransform:"uppercase", letterSpacing:"0.07em" }}>
-          <span>Action</span><span>Name</span><span>Branch</span><span>By</span><span>Timestamp</span>
-        </div>
-
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
-          ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"90px 1fr 120px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
-              <div>{actionBadge(entry.action)}</div>
-              <div>
-                <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
-                {entry.changes && <div style={{ fontSize:10, color:"#9ca3af", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
-              </div>
-              <div style={{ fontSize:11, color:"#5a7a65", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:"#0d2b1e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performed_by || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function ApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
@@ -4569,6 +4354,74 @@ function ApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
   );
 }
 
+function ApplicationsDeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
+  return (
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete application?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete <strong>"{target.name}"</strong>
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={14} />}
+            {deleting ? "Deleting…" : "Delete Application"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4579,8 +4432,8 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [alertModal, setAlertModal] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
   
-  const showAlert = (message, type = "info") =>
-  setAlertModal({ message, type });
+  const showAlert = (title, message, type = "info") =>
+  setAlertModal({ title, message, type });
 
   const [menuApp, setMenuApp] = useState(null);
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
@@ -4594,6 +4447,11 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);    
   const [processingId, setProcessingId] = useState(null);
+
+  const handleDelete = (id) => {
+  const app = applications.find(a => a.id === id);
+  if (app) setDeleteTarget(app);
+};
 
   const fetchActivityLog = useCallback(async () => {
   try {
@@ -4677,6 +4535,7 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
 const handleApprove = async (id) => {
   if (processingId) return;
   setProcessingId(id);
+  setAlertModal({ title: "Approving application…", type: "loading" });
   try {
     const coords = await getBrowserLocation();
     await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
@@ -4693,16 +4552,18 @@ const handleApprove = async (id) => {
     setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
     await fetchActivityLog();
+    setAlertModal({ title: "Application approved", type: "success" });
   } catch {
-    showAlert("Failed to approve application.", "error");
+    setAlertModal({ title: "Failed to approve", message: "Please try again.", type: "error" });
   } finally {
-    setProcessingId(null);   // ← was missing
+    setProcessingId(null);
   }
 };
 
 const handleReject = async (id) => {
   if (processingId) return;
   setProcessingId(id);
+  setAlertModal({ title: "Rejecting application…", type: "loading" });
   try {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
@@ -4717,7 +4578,7 @@ const handleReject = async (id) => {
       }),
     });
     const data = await res.json();
-    if (!res.ok) { showAlert(data.error || "Failed to reject application.", "error"); return; }
+    if (!res.ok) { setAlertModal({ title: "Failed to reject", message: data.error || "Please try again.", type: "error" }); return; }
 
     const app = applications.find(a => a.id === id);
     if (app?.email) {
@@ -4731,21 +4592,18 @@ const handleReject = async (id) => {
     setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
     await fetchActivityLog();
+    setAlertModal({ title: "Application rejected", type: "success" });
   } catch {
-    showAlert("Failed to reject application.", "error");
+    setAlertModal({ title: "Failed to reject", message: "Please try again.", type: "error" });
   } finally {
-    setProcessingId(null);   // ← was missing
+    setProcessingId(null);
   }
-};
-
-const handleDelete = (id) => {
-  const app = applications.find(a => a.id === id);
-  if (app) setDeleteTarget(app);
 };
 
 const confirmDeleteApplication = async () => {
   if (!deleteTarget) return;
   setDeleting(true);
+  setAlertModal({ title: "Deleting application…", type: "loading" });
   try {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
@@ -4753,7 +4611,7 @@ const confirmDeleteApplication = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         deleted_by: user?.name || "System",
-        role: user?.role || "Unknown", 
+        role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       }),
@@ -4763,12 +4621,12 @@ const confirmDeleteApplication = async () => {
       setApplications(prev => prev.filter(a => a.id !== deleteTarget.id));
       await fetchAppDeleteHistory();
       await fetchActivityLog();
-      showAlert(`"${deleteTarget.name}" has been deleted.`, "success");
+      setAlertModal({ title: `"${deleteTarget.name}" deleted`, type: "success" });
     } else {
-      showAlert(data.error || "Failed to delete application.", "error");
+      setAlertModal({ title: "Failed to delete", message: data.error || "Please try again.", type: "error" });
     }
   } catch {
-    showAlert("Failed to delete application.", "error");
+    setAlertModal({ title: "Failed to delete", message: "Please try again.", type: "error" });
   } finally {
     setDeleting(false);
     setDeleteTarget(null);
@@ -4777,12 +4635,12 @@ const confirmDeleteApplication = async () => {
 
 const handleRestoreApplication = async (entry) => {
   setRestoringId(entry.id);
+  setAlertModal({ title: "Restoring application…", type: "loading" });
   try {
     const d = entry.data;
     const coords = await getBrowserLocation();
-
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: d.name, email: d.email, phone: d.phone, franchise: d.franchise,
@@ -4795,30 +4653,28 @@ const handleRestoreApplication = async (entry) => {
         signature: d.signature, dateSigned: d.date_signed,
         performed_by: user?.name || "System",
         role: user?.role || "Unknown",
-        latitude: coords?.latitude, 
-        longitude: coords?.longitude,  
-        restored: true,  
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        restored: true,
       }),
     });
     const result = await res.json();
-
     if (result.success) {
       await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
       await fetchAppDeleteHistory();
       await fetchApplications();
       await fetchActivityLog();
-      showAlert(`"${d.name}" has been restored.`, "success");
+      setAlertModal({ title: `"${d.name}" restored`, type: "success" });
     } else {
-      showAlert(result.error || "Failed to restore.", "error");
+      setAlertModal({ title: "Failed to restore", message: result.error || "Please try again.", type: "error" });
     }
   } catch (err) {
     console.error("Restore error:", err);
-    showAlert("Failed to restore application.", "error");
+    setAlertModal({ title: "Failed to restore", message: "Please try again.", type: "error" });
   } finally {
     setRestoringId(null);
   }
 };
-
   // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
     const map = {
@@ -4986,6 +4842,15 @@ const handleRestoreApplication = async (entry) => {
         onConfirm={confirmDeleteApplication}
         onClose={() => { if (!deleting) setDeleteTarget(null); }}
       />
+
+    {deleteTarget && (
+      <ApplicationsDeleteConfirmModal
+        target={deleteTarget}
+        deleting={deleting}
+        onConfirm={confirmDeleteApplication}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+    )}
 
       {/* ── View Application Modal ── */}
       {viewApp && ( 
@@ -5212,7 +5077,6 @@ const handleRestoreApplication = async (entry) => {
                 )}
               </div>
 
-              {/* ID Attachment */}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
                 {viewApp.idImage ? (
@@ -5309,7 +5173,7 @@ const handleRestoreApplication = async (entry) => {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setViewApp(menuApp); setMenuApp(null); showAlert("Viewing application", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11,
@@ -5321,7 +5185,7 @@ const handleRestoreApplication = async (entry) => {
                 <Eye size={15} /> View Application Details
               </button>
               <button
-                onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setAccountApp(menuApp); setMenuApp(null); showAlert("Opening account creation", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -5451,17 +5315,6 @@ const handleRestoreApplication = async (entry) => {
               <option value="iPharma Mart">iPharma Mart</option>
               <option value="iFuel">iFuel</option>
             </select>
-
-            {/* Activity Log button */}
-              <button onClick={() => setShowActivityLog(true)}
-                style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                <ActivityIcon size={13}/> Activity Log
-                {activityLog.length > 0 && (
-                  <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-                    {activityLog.length}
-                  </span>
-                )}
-              </button>
 
               <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
                 {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
@@ -5631,13 +5484,7 @@ const handleRestoreApplication = async (entry) => {
             </table>
           </div>
         </div>
-       {showActivityLog && (
-  <ActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-    title="Application Activity Log"
-  />
-)}
+      
       </div>
     </>
   );
@@ -6330,15 +6177,6 @@ const generatePdfDoc = (report) => {
       style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
       <RefreshCw size={13}/> Refresh
     </button>
-    <button onClick={() => setShowActivityLog(true)}
-  style={{ display:"inline-flex", alignItems:"center", gap:6, height:36, padding:"0 16px", borderRadius:9, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-  <ActivityIcon size={13}/> Activity Log
-  {activityLog.length > 0 && (
-    <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-      {activityLog.length}
-    </span>
-  )}
-</button>
   </div>
 
   {/* Active filter chips — mirrors inventory pattern */}
@@ -6440,12 +6278,6 @@ const generatePdfDoc = (report) => {
 
       <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
 
-      {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
     </div>
   );
 }
@@ -7310,16 +7142,6 @@ const handleRestore = async (entry) => {
             </button>
           )}
 
-          <button onClick={() => setShowActivityLog(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid #00897b`, background:"#fff", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:"#00897b", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-                {activityLog.length}
-              </span>
-            )}
-          </button>
-
         </div>
       </div>
 
@@ -7447,12 +7269,7 @@ const handleRestore = async (entry) => {
         />
 
         <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
-        {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
+          
       </div>
     );
   }
@@ -7795,15 +7612,6 @@ const emptyIcon =
             <div style={commStyles.headerTitle}>Announcements</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={() => setShowActivityLog(true)}
-  style={{ ...commStyles.liveChip, height:36, padding:"0 16px", cursor:"pointer", fontFamily:"inherit", border:"1px solid rgba(255,255,255,0.3)", fontSize:13, fontWeight:700, color:"#d4df33" }}>
-  <ActivityIcon size={13}/> Activity Log
-  {activityLog.length > 0 && (
-    <span style={{ background:"rgba(255,255,255,0.18)", color:"#d4df33", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>
-      {activityLog.length}
-    </span>
-  )}
-</button>
             <div style={commStyles.liveChip}>
               <div style={commStyles.liveDot} />
               <span style={commStyles.liveTxt}>LIVE</span>
@@ -8167,13 +7975,6 @@ const emptyIcon =
           </div>
         </div>
       )}
-
-      {showActivityLog && (
-  <InventoryActivityLogPanel
-    log={activityLog}
-    onClose={() => setShowActivityLog(false)}
-  />
-)}
     </div>
   );
 }
@@ -9193,12 +8994,7 @@ const handleDisposeConfirm = async (order, results) => {
             {massAccepting ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={13}/>}
             {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && orderStockStatus[o.id]?.ok).length})`}
           </button>
-          <button onClick={() => setShowActivityLog(true)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1.5px solid ${C.green}`,
-              background:"#fff", color:C.greenDk, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>
-            <Layers size={13}/> Activity Log
-            {activityLog.length > 0 && <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>}
-          </button>
+
         </div>
       </div>
 
@@ -9237,10 +9033,6 @@ const handleDisposeConfirm = async (order, results) => {
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)}/>
-
-      {showActivityLog && (
-        <InventoryActivityLogPanel log={activityLog} onClose={() => setShowActivityLog(false)} />
-      )}
 
       {/* Hidden print target — only visible to the print engine (see @media print above) */}
       <div id="print-area">

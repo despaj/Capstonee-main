@@ -2314,54 +2314,33 @@ function FAMenuInventoryContent({ user, brands: propBrands = [] }) {
   );
 }
 
-
-function DeleteConfirmModal({ item, onConfirm, onCancel }) {
-  if (!item) return null;
+function DeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
+  const isBrand = target.type === "brand";
   return (
-    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
-        {/* Header */}
-        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
-          <div style={{ flexShrink:0, marginTop:1 }}>
-            <AlertCircleIcon size={26} color="#dc2626"/>
-          </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:16, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Ingredient</div>
-            <div style={{ fontSize:13, color:C.ink, lineHeight:1.55 }}>
-              Are you sure you want to delete <strong style={{ color:C.ink }}>"{item.name}"</strong>?
-            </div>
-            <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:9, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
-              This will move the ingredient to Delete History where it can be restored.
-            </div>
-          </div>
-          <button onClick={onCancel} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center", marginTop:-2 }}>
-            <XIcon size={13}/>
-          </button>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <Trash2 size={22} color="#dc2626" />
         </div>
-        {/* Item summary */}
-        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:16 }}>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Branch</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.branch || "—"}</div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>Delete {isBrand ? "brand" : "branch"}?</h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete <strong>"{target.name}"</strong>{isBrand ? " and all its associated data." : "."}
+        </p>
+        {isBrand && target.branchCount > 0 && (
+          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#c2410c", textAlign: "center", marginBottom: 16 }}>
+            ⚠ This brand has {target.branchCount} {target.branchCount === 1 ? "branch" : "branches"}. All branches will also be deleted.
           </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Unit</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.unit}</div>
-          </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Stock</div>
-            <div style={{ fontWeight:600, color:C.ink }}>{item.stock}</div>
-          </div>
-          <div style={{ fontSize:12 }}>
-            <div style={{ color:C.muted, fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:3 }}>Cost/Unit</div>
-            <div style={{ fontWeight:700, color:C.green }}>₱{Number(item.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-          </div>
-        </div>
-        {/* Footer */}
-        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
-          <button onClick={onCancel} style={{ ...btnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
-          <button onClick={onConfirm} style={{ ...btnSt, background:"#dc2626", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(220,38,38,0.3)", display:"inline-flex", alignItems:"center", gap:6 }}>
-            <TrashIcon size={13}/> Delete Ingredient
+        )}
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>You can recover this from Delete History.</p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button type="button" onClick={onClose} disabled={deleting} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: deleting ? 0.6 : 1 }}>Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={deleting}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)", opacity: deleting ? 0.7 : 1 }}>
+            {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }}/> : <Trash2 size={14} />}
+            {deleting ? `Deleting ${isBrand ? "brand" : "branch"}…` : `Delete ${isBrand ? "brand" : "branch"}`}
           </button>
         </div>
       </div>
@@ -4604,14 +4583,59 @@ function FACommunicationContent({ user }) {
   const [imageError, setImageError] = useState(false);
   const [viewingItem, setViewingItem] = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
-  const [alertModal, setAlertModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+
+  // ── Activity log state (ported from ApplicationsContent) ────────────────
+  const [activityLog, setActivityLog] = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+
+  // ── Toast + loading states ──────────────────────────────────────────────
+  const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
+
+  const showLoading = (title) => setToast({ type: 'loading', title });
+  const showSuccess  = (title, message) => setToast({ type: 'success', title, message });
+  const showError    = (title, message) => setToast({ type: 'error', title, message });
+  const closeToast   = () => setToast(null);
 
   const PIN_KEY = 'fa_announcement_pins';
 
+  // ── Activity log fetch (mirrors ApplicationsContent's fetchActivityLog) ─
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id,
+        action: row.action,
+        itemName: row.item_name ?? row.itemName,
+        performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
+        changes: row.changes,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch announcements activity log:", err); }
+  }, []);
+
+  // ── Geolocation helper (mirrors ApplicationsContent's getBrowserLocation)
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
+
   useEffect(() => {
     try { const raw = localStorage.getItem(PIN_KEY); if (raw) setPinnedIds(new Set(JSON.parse(raw))); } catch {}
-    fetchAnnouncements(); fetchDeleteHistory();
+    fetchAnnouncements();
+    fetchDeleteHistory();
+    fetchActivityLog();
   }, []);
 
   const fetchAnnouncements = async () => {
@@ -4641,38 +4665,109 @@ function FACommunicationContent({ user }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) { setAlertModal({ message: 'Please fill in title and content.', type: 'error' }); return; }
+    if (!title.trim() || !content.trim()) { showError('Missing fields', 'Please fill in title and content.'); return; }
+    const wasEditing = editing;
+    const savedTitle = title;
+    setSaving(true);
     try {
-      const url = editing ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
-      const method = editing ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, content, image_url: imageUrl.trim() || null, userId: user?.id, role: user?.role }) });
+      const coords = await getBrowserLocation();
+      const url = wasEditing ? `${process.env.REACT_APP_API_URL}/announcements/${wasEditing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
+      const method = wasEditing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, content, image_url: imageUrl.trim() || null,
+          userId: user?.id,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
       const data = await res.json();
-      if (!res.ok) { setAlertModal({ message: data.error || 'Failed to save.', type: 'error' }); return; }
+      if (!res.ok) { showError('Failed to save', data.error || 'Something went wrong.'); return; }
       setModalVisible(false); setEditing(null); setTitle(''); setContent(''); setImageUrl(''); setImageError(false);
-      fetchAnnouncements();
-      setAlertModal({ message: editing ? 'Announcement updated!' : 'Announcement posted!', type: 'success' });
-    } catch { setAlertModal({ message: 'Failed to save announcement.', type: 'error' }); }
+      await fetchAnnouncements();
+      await fetchActivityLog();
+      showSuccess(wasEditing ? 'Announcement updated' : 'Announcement posted', `"${savedTitle}" ${wasEditing ? 'was saved' : 'is now live'}.`);
+    } catch {
+      showError('Failed to save', 'Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = (item) => {
-    setConfirmModal({ message: `Delete "${item.title}"?`, onConfirm: async () => {
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?.id, role: user?.role }) });
-        if (res.ok) { if (viewingItem?.id === item.id) setViewingItem(null); fetchAnnouncements(); fetchDeleteHistory(); setAlertModal({ message: 'Announcement deleted.', type: 'success' }); }
-      } catch {}
-    }, itemName: item.title });
+    setConfirmModal({
+      itemName: item.title,
+      itemId: item.id,
+      onConfirm: async () => {
+        setDeletingId(item.id);
+        try {
+          const coords = await getBrowserLocation();
+          const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${item.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user?.id,
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+            }),
+          });
+          if (res.ok) {
+            if (viewingItem?.id === item.id) setViewingItem(null);
+            await fetchAnnouncements();
+            await fetchDeleteHistory();
+            await fetchActivityLog();
+            setConfirmModal(null);
+            showSuccess('Announcement deleted', `"${item.title}" was removed.`);
+          } else {
+            showError('Failed to delete', 'Something went wrong.');
+          }
+        } catch {
+          showError('Failed to delete', 'Something went wrong. Please try again.');
+        } finally {
+          setDeletingId(null);
+        }
+      },
+    });
   };
 
   const handleRestore = async (entry) => {
+    setRestoringId(entry.id);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: entry.data.title, content: entry.data.content, image_url: entry.data.image_url || null, userId: user?.id, role: user?.role }) });
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: entry.data.title, content: entry.data.content, image_url: entry.data.image_url || null,
+          userId: user?.id,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
+        }),
+      });
       const data = await res.json();
       if (res.ok) {
         await fetch(`${process.env.REACT_APP_API_URL}/announcements/delete-history/${entry.id}`, { method: 'DELETE' });
-        fetchAnnouncements(); fetchDeleteHistory();
-        setAlertModal({ message: `"${entry.data.title}" restored!`, type: 'success' });
+        await fetchAnnouncements();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showSuccess('Announcement restored', `"${entry.data.title}" is back.`);
+      } else {
+        showError('Failed to restore', data.error || 'Something went wrong.');
       }
-    } catch {}
+    } catch {
+      showError('Failed to restore', 'Something went wrong. Please try again.');
+    } finally {
+      setRestoringId(null);
+    }
   };
 
   const merged = announcements.map(a => ({ ...a, pinned: pinnedIds.has(String(a.id)) }));
@@ -4691,19 +4786,102 @@ function FACommunicationContent({ user }) {
     { key: 'deleteHistory', label: '🗑 Delete History', count: deleteHistory.length },
   ];
 
+  const isDeletingConfirmTarget = confirmModal && deletingId === confirmModal.itemId;
+
+  // ── Activity Log Modal (mirrors the delete-history modal pattern) ───────
+  const ActivityLogModal = () => {
+    if (!showActivityLog) return null;
+    return (
+      <div
+        onClick={() => setShowActivityLog(false)}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000, padding: 20, backdropFilter: 'blur(4px)',
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: '#fff', borderRadius: 20, padding: '28px 32px',
+            width: '100%', maxWidth: 680, maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
+            border: '1px solid rgba(0,168,76,0.15)',
+            fontFamily: 'Montserrat, sans-serif',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Activity Log</h2>
+              {activityLog.length > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#e0f2f1', color: '#00695c' }}>
+                  {activityLog.length} entries
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setShowActivityLog(false)}
+              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {activityLog.length === 0 ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13, fontStyle: 'italic' }}>
+                No activity recorded yet.
+              </div>
+            ) : activityLog.map((entry, i) => (
+              <div
+                key={entry.id ?? i}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i < activityLog.length - 1 ? '1px solid #f0f8f0' : 'none' }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e' }}>
+                    {entry.action?.toUpperCase()} · {entry.itemName || '—'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>
+                    {entry.performedBy || 'Unknown'} ({entry.role || 'Unknown'})
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                    {entry.timestamp ? fmt(entry.timestamp) : '—'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      {/* Modals */}
-      {alertModal && <AlertModal message={alertModal.message} type={alertModal.type} onClose={() => setAlertModal(null)} />}
+      {/* Toast */}
+      <Toast toast={toast} onClose={closeToast} />
+
+      {/* Activity Log Modal */}
+      <ActivityLogModal />
+
+      {/* Confirm modal */}
       {confirmModal && (
-        <div onClick={() => setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
+        <div onClick={() => !isDeletingConfirmTarget && setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><Trash2 size={22} color="#dc2626" /></div>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Delete Announcement?</h2>
             {confirmModal.itemName && <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.6, marginBottom: 24 }}>You are about to delete <strong>"{confirmModal.itemName}"</strong>.</p>}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setConfirmModal(null)} style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(220,38,38,0.35)' }}><Trash2 size={14} /> Delete</button>
+              <button onClick={() => setConfirmModal(null)} disabled={isDeletingConfirmTarget}
+                style={{ padding: '9px 22px', borderRadius: 10, border: '1px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: isDeletingConfirmTarget ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: isDeletingConfirmTarget ? 0.6 : 1 }}>
+                Cancel
+              </button>
+              <button onClick={() => confirmModal.onConfirm()} disabled={isDeletingConfirmTarget}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#dc2626,#ef4444)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: isDeletingConfirmTarget ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(220,38,38,0.35)', opacity: isDeletingConfirmTarget ? 0.7 : 1 }}>
+                {isDeletingConfirmTarget ? <RefreshCw size={14} style={{ animation: 'spin 0.8s linear infinite' }}/> : <Trash2 size={14} />}
+                {isDeletingConfirmTarget ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
@@ -4720,6 +4898,17 @@ function FACommunicationContent({ user }) {
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#d4df33', boxShadow: '0 0 0 3px rgba(212,223,51,0.3)' }} />
             <span style={{ fontSize: 9, fontWeight: 800, color: '#d4df33', letterSpacing: '0.15em' }}>LIVE</span>
           </div>
+          <button
+            onClick={() => setShowActivityLog(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.10)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <History size={14} /> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background: 'rgba(255,255,255,0.28)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 20 }}>
+                {activityLog.length}
+              </span>
+            )}
+          </button>
           <button onClick={() => { setEditing(null); setTitle(''); setContent(''); setImageUrl(''); setImageError(false); setModalVisible(true); }}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Plus size={14} /> New
@@ -4756,8 +4945,11 @@ function FACommunicationContent({ user }) {
                   <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.data.title}</div>
                   <div style={{ fontSize: 11, color: '#5a7a65', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.data.content}</div>
                   <div style={{ fontSize: 10, color: '#9ca3af' }}>{fmt(entry.deletedAt)}</div>
-                  <button onClick={() => handleRestore(entry)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 9, border: '1.5px solid #00897b', background: '#e0f2f1', color: '#00695c', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                    <RotateCcw size={11} /> Restore
+                  <button onClick={() => handleRestore(entry)} disabled={restoringId !== null}
+                    style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 9, border: '1.5px solid #00897b', background: restoringId === entry.id ? '#f0fdf5' : '#e0f2f1', color: '#00695c', fontSize: 11, fontWeight: 700, cursor: restoringId !== null ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1 }}>
+                    {restoringId === entry.id
+                      ? <><RefreshCw size={11} style={{ animation: 'spin 0.8s linear infinite' }} /> Restoring…</>
+                      : <><RotateCcw size={11} /> Restore</>}
                   </button>
                 </div>
               ))}
@@ -4786,7 +4978,10 @@ function FACommunicationContent({ user }) {
                       <button onClick={() => handlePin(item)} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F9A825' }}>{item.pinned ? '🔖' : '📌'}</button>
                       <button onClick={() => { setEditing(item); setTitle(item.title); setContent(item.content); setImageUrl(item.image_url || ''); setImageError(false); setModalVisible(true); }}
                         style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00695c' }}><Pencil size={12} /></button>
-                      <button onClick={() => handleDelete(item)} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e53935' }}><Trash2 size={12} /></button>
+                      <button onClick={() => handleDelete(item)} disabled={deletingId === item.id}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: deletingId === item.id ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e53935', opacity: deletingId === item.id ? 0.6 : 1 }}>
+                        {deletingId === item.id ? <RefreshCw size={12} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Trash2 size={12} />}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -4810,7 +5005,10 @@ function FACommunicationContent({ user }) {
               <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap' }}>
                 <button onClick={() => handlePin(viewingItem)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: viewingItem.pinned ? 'none' : '1.5px solid #FFE082', background: viewingItem.pinned ? '#F9A825' : '#FFF8E1', color: viewingItem.pinned ? '#fff' : '#F9A825' }}>{viewingItem.pinned ? '🔖 Unpin' : '📌 Pin'}</button>
                 <button onClick={() => { setEditing(viewingItem); setTitle(viewingItem.title); setContent(viewingItem.content); setImageUrl(viewingItem.image_url || ''); setModalVisible(true); setViewingItem(null); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff' }}><Pencil size={13} /> Edit</button>
-                <button onClick={() => { handleDelete(viewingItem); setViewingItem(null); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: '1.5px solid #fecaca', background: '#fee2e2', color: '#dc2626' }}><Trash2 size={13} /> Delete</button>
+                <button onClick={() => { handleDelete(viewingItem); setViewingItem(null); }} disabled={deletingId === viewingItem.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: deletingId === viewingItem.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', border: '1.5px solid #fecaca', background: '#fee2e2', color: '#dc2626', opacity: deletingId === viewingItem.id ? 0.6 : 1 }}>
+                  {deletingId === viewingItem.id ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Trash2 size={13} />} Delete
+                </button>
               </div>
             </div>
           </div>
@@ -4819,30 +5017,34 @@ function FACommunicationContent({ user }) {
 
       {/* Create / Edit modal */}
       {modalVisible && (
-        <div onClick={() => setModalVisible(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2500, padding: 20 }}>
+        <div onClick={() => !saving && setModalVisible(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2500, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', overflow: 'hidden', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 900, fontSize: 15, color: '#fff' }}>{editing ? 'Edit Announcement' : 'New Announcement'}</span>
-              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.18)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+              <button onClick={() => setModalVisible(false)} disabled={saving} style={{ width: 30, height: 30, borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.18)', cursor: saving ? 'not-allowed' : 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: saving ? 0.6 : 1 }}><X size={14} /></button>
             </div>
             <form onSubmit={handleSave} style={{ padding: '22px 24px' }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Title</label>
-                <input type="text" placeholder="Announcement title…" value={title} onChange={e => setTitle(e.target.value)} required style={{ ...bmInput, marginTop: 4 }} />
+                <input type="text" placeholder="Announcement title…" value={title} onChange={e => setTitle(e.target.value)} required disabled={saving} style={{ ...bmInput, marginTop: 4 }} />
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={bmLabel}>Content</label>
-                <textarea placeholder="Write your announcement…" value={content} onChange={e => setContent(e.target.value)} required rows={4} style={{ ...bmInput, marginTop: 4, resize: 'vertical', lineHeight: 1.65 }} />
+                <textarea placeholder="Write your announcement…" value={content} onChange={e => setContent(e.target.value)} required rows={4} disabled={saving} style={{ ...bmInput, marginTop: 4, resize: 'vertical', lineHeight: 1.65 }} />
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={bmLabel}>Image URL (optional)</label>
-                <input type="url" placeholder="https://example.com/image.jpg" value={imageUrl} onChange={e => { setImageUrl(e.target.value); setImageError(false); }} style={{ ...bmInput, marginTop: 4 }} />
+                <input type="url" placeholder="https://example.com/image.jpg" value={imageUrl} onChange={e => { setImageUrl(e.target.value); setImageError(false); }} disabled={saving} style={{ ...bmInput, marginTop: 4 }} />
                 {imageUrl && !imageError && <div style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}` }}><img src={imageUrl} alt="Preview" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }} onError={() => setImageError(true)} /></div>}
                 {imageUrl && imageError && <div style={{ marginTop: 8, padding: '9px 12px', background: '#fee2e2', borderRadius: 10, border: '1px solid #fecaca', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>⚠ Could not load image.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-                <button type="submit" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)' }}><Check size={14} /> Save</button>
+                <button type="button" onClick={() => setModalVisible(false)} disabled={saving} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? <RefreshCw size={14} style={{ animation: 'spin 0.8s linear infinite' }}/> : <Check size={14} />}
+                  {saving ? (editing ? 'Saving…' : 'Posting…') : 'Save'}
+                </button>
               </div>
             </form>
           </div>
@@ -4851,7 +5053,6 @@ function FACommunicationContent({ user }) {
     </div>
   );
 }
-
 
 
 // ══════════════ BRAND BRANCH ═════════════════════════════════
@@ -5051,68 +5252,25 @@ function BranchFormFields({ form, setForm, brands }) {
   );
 }
 
-function BmModal({ title, onClose, onSubmit, children }) {
+function BmModal({ title, onClose, onSubmit, submitting, children }) {
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 20, padding: "28px 32px",
-          width: "100%", maxWidth: 520,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-          border: "1px solid rgba(0,168,76,0.15)",
-          maxHeight: "92vh", overflowY: "auto",
-        }}
-      >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32, borderRadius: "50%",
-              border: "1px solid #b2dfdb", background: "#e0f2f1",
-              cursor: "pointer", color: "#00695c",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <X size={15} />
-          </button>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
         </div>
         <form onSubmit={onSubmit}>
           {children}
           <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-                background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 24px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#2E7D32,#00897b)",
-                color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 2px 10px rgba(0,180,90,0.35)",
-              }}
-            >
-              <Check size={14} /> Save
+            <button type="button" onClick={onClose} disabled={submitting} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.6 : 1 }}>Cancel</button>
+            <button type="submit" disabled={submitting}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700,
+                cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                boxShadow: "0 2px 10px rgba(0,180,90,0.35)", opacity: submitting ? 0.7 : 1 }}>
+              {submitting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14} />}
+              {submitting ? "Saving…" : "Save"}
             </button>
           </div>
         </form>
@@ -5877,8 +6035,9 @@ const handleRestore = async (entry) => {
           target={deleteTarget}
           onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
           onClose={() => setDeleteTarget(null)}
+          deleting={deleteTarget.type === "brand" ? deletingBrand : deletingBranch}
         />
-      )}
+      )}  
 
       {showHistory && (
         <DeleteHistoryPanel

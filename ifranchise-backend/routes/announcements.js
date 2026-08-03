@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
+const { logActivity } = require("../utils/activityLogger");
 
 router.get("/announcements/delete-history", async (req, res) => {
   try {
@@ -35,7 +36,7 @@ router.get("/announcements", async (req, res) => {
 
 router.post("/announcements", async (req, res) => {
   try {
-    const { title, content, userId } = req.body;
+    const { title, content, userId, performed_by, role, latitude, longitude, restored } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
@@ -44,6 +45,14 @@ router.post("/announcements", async (req, res) => {
     const result = await pool.query(
       `INSERT INTO announcements (title, content, created_by) VALUES ($1,$2,$3) RETURNING *`,
       [title, content, userId]
+    );
+
+    await logActivity(
+      restored ? "restore" : "create",
+      title,
+      performed_by || "System",
+      { note: restored ? "Restored from delete history" : undefined },
+      req, null, "Announcements", latitude, longitude, role || "Unknown"
     );
 
     try {
@@ -69,7 +78,7 @@ router.post("/announcements", async (req, res) => {
 
 router.put("/announcements/:id", async (req, res) => {
   try {
-    const { title, content, userId } = req.body;
+    const { title, content, userId, performed_by, role, latitude, longitude } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
@@ -79,6 +88,15 @@ router.put("/announcements/:id", async (req, res) => {
       "UPDATE announcements SET title=$1, content=$2 WHERE id=$3 RETURNING *",
       [title, content, req.params.id]
     );
+
+    await logActivity(
+      "update",
+      title,
+      performed_by || "System",
+      {},
+      req, null, "Announcements", latitude, longitude, role || "Unknown"
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: "Failed to update announcement" });
@@ -87,7 +105,7 @@ router.put("/announcements/:id", async (req, res) => {
 
 router.delete("/announcements/:id", async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, performed_by, role, latitude, longitude } = req.body;
     const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
@@ -104,9 +122,31 @@ router.delete("/announcements/:id", async (req, res) => {
     }
 
     await pool.query("DELETE FROM announcements WHERE id=$1", [req.params.id]);
+
+    await logActivity(
+      "delete",
+      ann.rows[0]?.title,
+      performed_by || "System",
+      {},
+      req, null, "Announcements", latitude, longitude, role || "Unknown"
+    );
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete announcement" });
+  }
+});
+
+router.get("/announcements-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
+      ["Announcements"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Failed to fetch announcements activity log:", err);
+    res.status(500).json({ error: "Failed to fetch announcements activity log" });
   }
 });
 
