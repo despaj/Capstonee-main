@@ -109,13 +109,13 @@ router.post("/applications", async (req, res) => {
     const app = rowToApplication(result.rows[0]);
 
    await logActivity(
-  b.restored ? "restore" : "create",
-  app.name,
-  b.performed_by || "System",
-  { franchise: app.franchise, status: app.status, email: app.email, phone: app.phone,
-    ...(b.restored ? { note: "Restored from delete history" } : {}) },
-  req, app.franchise, "Applications", b.latitude, b.longitude
-);
+      b.restored ? "restore" : "create",
+      app.name,
+      b.performed_by || "System",
+      { franchise: app.franchise, status: app.status, email: app.email, phone: app.phone,
+        ...(b.restored ? { note: "Restored from delete history" } : {}) },
+      req, app.franchise, "Applications", b.latitude, b.longitude, b.role || "Unknown" 
+    );
 
     res.json({ success: true, id: app.id, message: "Application submitted successfully", application: app });
   } catch (err) {
@@ -182,7 +182,7 @@ router.put("/applications/:id/status", async (req, res) => {
     const isIpharma = rawId.startsWith("ip-");
     const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
     const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { status, performed_by, latitude, longitude } = req.body;
+    const { status, performed_by, role, latitude, longitude } = req.body;
 
     const before = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
     if (before.rows.length === 0)
@@ -208,7 +208,7 @@ router.put("/applications/:id/status", async (req, res) => {
       updatedApp.name,
       performed_by || "System",
       { status: { from: oldApp.status, to: status } },
-      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications", latitude, longitude
+      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications", latitude, longitude, role || "Unknown"
     );
 
     res.json({ success: true, message: "Status updated", application: updatedApp });
@@ -224,17 +224,14 @@ router.delete("/applications/:id", async (req, res) => {
     const isIpharma = rawId.startsWith("ip-");
     const id = isIpharma ? rawId.replace("ip-", "") : rawId;
     const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { deleted_by, latitude, longitude } = req.body || {}; 
+    const { deleted_by, role, latitude, longitude } = req.body || {}; // ← add role here
 
     const existing = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
     if (existing.rows.length === 0)
       return res.status(404).json({ success: false, error: "Application not found" });
     const app = existing.rows[0];
 
-    await pool.query(
-      "INSERT INTO application_delete_history (application_data) VALUES ($1)",
-      [JSON.stringify(app)]
-    );
+    await pool.query("INSERT INTO application_delete_history (application_data) VALUES ($1)", [JSON.stringify(app)]);
     await pool.query(`DELETE FROM ${sourceTable} WHERE id=$1`, [id]);
 
     await logActivity(
@@ -242,7 +239,9 @@ router.delete("/applications/:id", async (req, res) => {
       app.name,
       deleted_by || "System",
       { franchise: app.franchise || (isIpharma ? "iPharma Mart" : null), status: app.status },
-      req, app.franchise || (isIpharma ? "iPharma Mart" : null), "Applications", latitude, longitude
+      req, app.franchise || (isIpharma ? "iPharma Mart" : null), "Applications",
+      latitude, longitude,
+      role || "Unknown"          // ← add as final arg
     );
 
     res.json({ success: true, message: "Application deleted successfully" });
@@ -285,11 +284,12 @@ router.delete("/application-delete-history/:id", async (req, res) => {
 router.get("/applications-activity-log", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM activity_log WHERE module = $1 ORDER BY created_at DESC",
+      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
       ["Applications"]
     );
     res.json(result.rows);
   } catch (err) {
+    console.error("Failed to fetch applications activity log:", err);
     res.status(500).json({ error: "Failed to fetch applications activity log" });
   }
 });

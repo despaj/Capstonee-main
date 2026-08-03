@@ -3,21 +3,22 @@ const router = express.Router();
 const { logActivity } = require("../utils/activityLogger");
 const pool = require("../db");
 const UAParser = require("ua-parser-js");
-
-const LOG_TABLES = [
-  { route: "inventory-activity-log",     table: "inventory_activity_log" },
-  { route: "shop-activity-log",          table: "shop_activity_log" },
-  { route: "orders-activity-log",        table: "orders_activity_log" },
-  { route: "users-activity-log",         table: "users_activity_log" },
-  { route: "applications-activity-log",  table: "applications_activity_log" },
-  { route: "reports-activity-log",       table: "reports_activity_log" },
-  { route: "announcements-activity-log", table: "announcements_activity_log" },
-  { route: "brands-activity-log",        table: "brands_activity_log" },
-  { route: "ingredient-activity-log",    table: "ingredient_activity_log" },
-];
-
-
 const geoip = require("geoip-lite");
+
+const ACTIVITY_TABLE = "users_activity_log";
+
+// route -> module label stored in the `module` column
+const LOG_MODULES = [
+  { route: "inventory-activity-log",     module: "Inventory" },
+  { route: "shop-activity-log",          module: "Mobile Shop" },
+  { route: "orders-activity-log",        module: "Orders" },
+  { route: "users-activity-log",         module: "Users" },
+  { route: "applications-activity-log",  module: "Applications" },
+  { route: "reports-activity-log",       module: "Reports" },
+  { route: "announcements-activity-log", module: "Announcements" },
+  { route: "brands-activity-log",        module: "Brands" },
+  { route: "ingredient-activity-log",    module: "Ingredients" },
+];
 
 function getClientIp(req) {
   const fwd = req.headers["x-forwarded-for"];
@@ -33,10 +34,14 @@ function getDeviceLabel(req) {
   return `${browser.name || "Unknown browser"} on ${os.name || "Unknown OS"}`;
 }
 
-for (const { route, table } of LOG_TABLES) {
+for (const { route, module } of LOG_MODULES) {
+  // GET /<route> -> rows from the shared table filtered by module
   router.get(`/${route}`, async (req, res) => {
     try {
-      const result = await pool.query(`SELECT * FROM ${table} ORDER BY created_at DESC`);
+      const result = await pool.query(
+        `SELECT * FROM ${ACTIVITY_TABLE} WHERE module = $1 ORDER BY created_at DESC`,
+        [module]
+      );
       res.json(result.rows);
     } catch (err) {
       console.error(`GET /${route} error:`, err);
@@ -44,32 +49,51 @@ for (const { route, table } of LOG_TABLES) {
     }
   });
 
-router.post(`/${route}`, async (req, res) => {
-  try {
-    const { action, item_name, branch, performed_by, changes } = req.body;
-    res.json({ success: true });
-  } catch (err) {
-    console.error(`POST /${route} error:`, err);
-    res.status(500).json({ error: `Failed to save ${route} entry` });
-  }
-});
+  // POST /<route> -> insert into the shared table, tagged with this module
+  router.post(`/${route}`, async (req, res) => {
+    try {
+      const { action, item_name, branch, performed_by, role, changes } = req.body;
+      const ip = getClientIp(req);
+      const device = getDeviceLabel(req);
+      const geo = geoip.lookup(ip);
+
+      const result = await pool.query(
+        `INSERT INTO ${ACTIVITY_TABLE}
+          (module, action, item_name, branch, performed_by, role, changes, ip_address, device, location, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+         RETURNING *`,
+        [
+          module,
+          action,
+          item_name,
+          branch,
+          performed_by,
+          role,
+          changes,
+          ip,
+          device,
+          geo ? `${geo.city || ""}, ${geo.country || ""}` : null,
+        ]
+      );
+
+      res.json({ success: true, entry: result.rows[0] });
+    } catch (err) {
+      console.error(`POST /${route} error:`, err);
+      res.status(500).json({ error: `Failed to save ${route} entry` });
+    }
+  });
 }
 
+// Combined feed across all modules — no UNION ALL needed anymore,
+// since everything already lives in one table.
 router.get("/activity-logs", async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT *, 'Inventory'     AS module FROM inventory_activity_log     UNION ALL
-      SELECT *, 'Mobile Shop'   AS module FROM shop_activity_log          UNION ALL
-      SELECT *, 'Orders'        AS module FROM orders_activity_log        UNION ALL
-      SELECT *, 'Users'         AS module FROM users_activity_log         UNION ALL
-      SELECT *, 'Applications'  AS module FROM applications_activity_log  UNION ALL
-      SELECT *, 'Reports'       AS module FROM reports_activity_log       UNION ALL
-      SELECT *, 'Announcements' AS module FROM announcements_activity_log UNION ALL
-      SELECT *, 'Brands'        AS module FROM brands_activity_log
-      ORDER BY created_at DESC LIMIT 500
-    `);
+    const result = await pool.query(
+      `SELECT * FROM ${ACTIVITY_TABLE} ORDER BY created_at DESC LIMIT 500`
+    );
     res.json({ logs: result.rows });
   } catch (err) {
+    console.error("GET /activity-logs error:", err);
     res.status(500).json({ error: "Failed to fetch activity logs" });
   }
 });

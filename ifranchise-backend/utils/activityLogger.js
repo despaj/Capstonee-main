@@ -38,11 +38,14 @@ async function reverseGeocode(lat, lon) {
 async function getLocation(ip, latitude, longitude) {
   if (latitude && longitude) {
     const precise = await reverseGeocode(latitude, longitude);
+    console.log("reverseGeocode result:", precise);
     if (precise) return precise;
   }
   const cleanIp = ip?.replace("::ffff:", "");
+  console.log("cleanIp:", cleanIp);
   if (!cleanIp) return "Unknown";
   const geo = geoip.lookup(cleanIp);
+  console.log("geoip.lookup result:", geo);
   if (geo) return `${geo.city || "Unknown city"}, ${geo.country}`;
   try {
     const res = await fetch(`https://ipwho.is/${cleanIp}`);
@@ -56,7 +59,7 @@ async function getLocation(ip, latitude, longitude) {
   return "Unknown";
 }
 
-async function logActivity(action, itemName, performedBy = "system", details = {}, req = null, branch = null, module = "General", latitude = null, longitude = null) {
+async function logActivity(action, itemName, performedBy = "system", details = {}, req = null, branch = null, module = "General", latitude = null, longitude = null, role = null) {
   try {
     let ip = null, device = null, location = null;
     if (req) {
@@ -66,9 +69,9 @@ async function logActivity(action, itemName, performedBy = "system", details = {
     }
 
     await pool.query(
-      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device, module, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
-      [action, itemName, branch, performedBy, JSON.stringify(details), location, ip, device, module]
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, role, changes, location, ip_address, device, module, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+      [action, itemName, branch, performedBy, role, JSON.stringify(details), location, ip, device, module]
     );
   } catch (err) {
     console.error("Failed to write activity log:", err);

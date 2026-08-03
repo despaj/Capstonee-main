@@ -637,9 +637,9 @@ export default function FranchiseAdminDashboard() {
             {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
             {activeModule === 'stockInventory' && <FAStockInventoryContent user={user} brands={brands} />}
             {activeModule === 'mobileOrders'   && <FAMobileOrdersContent />}
-            {activeModule === 'applications'  && <FAApplicationsContent alertModal={alertModal} setAlertModal={setAlertModal} />}
+            {activeModule === 'applications'  && <FAApplicationsContent user={user} alertModal={alertModal} setAlertModal={setAlertModal} />}
             {activeModule === 'communication' && <FACommunicationContent user={user} />}
-            {activeModule === 'brandBranch'   && <FABrandBranchContent brands={brands} onBrandsChange={setBrands} />}
+            {activeModule === 'brandBranch'   && <FABrandBranchContent user={user} brands={brands} onBrandsChange={setBrands} />}
             {activeModule === 'profile'       && <FAProfileContent user={user} />}
         </div>
       </main>
@@ -1903,91 +1903,6 @@ function DeleteHistoryPanel({ history, onRestore, onClose }) {
               </div>
             );
           })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Activity Log Panel ───────────────────────────────────────────────────────
-function ActivityLogPanel({ log, onClose }) {
-  const [search, setSearch]         = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-
-  const filtered = log.filter(entry => {
-    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!entry.item_name?.toLowerCase().includes(q) &&
-          !(entry.performed_by||"").toLowerCase().includes(q) &&
-          !(entry.branch||"").toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
-
-  const actionBadge = action => {
-    const map = {
-      add:    { bg:"rgba(16,185,129,0.12)",  color:"#059669", label:"Added"   },
-      edit:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8", label:"Edited"  },
-      import: { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed", label:"Imported"},
-      delete: { bg:"rgba(239,68,68,0.12)",   color:"#dc2626", label:"Deleted" },
-    };
-    const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
-  };
-
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
-          </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 200px" }}>
-            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
-          </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
-            <option value="all">All Actions</option>
-            <option value="add">Added</option>
-            <option value="edit">Edited</option>
-            <option value="import">Imported</option>
-            <option value="delete">Deleted</option>
-          </select>
-        </div>
-
-        {/* Column headers */}
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
-          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
-        </div>
-
-        {/* Rows */}
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
-          ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
-              <div>{actionBadge(entry.action)}</div>
-              <div>
-                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
-                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
-              </div>
-              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performed_by || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -3574,7 +3489,7 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
-function FAApplicationsContent({ applications: initialApps }) {
+function FAApplicationsContent({ user, applications: initialApps }) {
   const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
@@ -3592,6 +3507,8 @@ function FAApplicationsContent({ applications: initialApps }) {
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
 
+  const [processingId, setProcessingId] = useState(null);
+
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
@@ -3601,6 +3518,17 @@ function FAApplicationsContent({ applications: initialApps }) {
       console.error("Failed to fetch applications:", err);
     }
   };
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
 
   const filteredApps = applications.filter(app => {
   const q = searchQuery.toLowerCase();
@@ -3634,30 +3562,44 @@ function FAApplicationsContent({ applications: initialApps }) {
     fetchAppDeleteHistory();
   }, []);
 
-  // ── Approve ─────────────────────────────────────────────────────────────
 const handleApprove = async (id) => {
+  if (processingId) return;
+  setProcessingId(id);
   try {
+    const coords = await getBrowserLocation();
     await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
       method:  "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ status: "approved" }),
+      body:    JSON.stringify({
+        status: "approved",
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
-    setApplications(prev =>
-      prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
-    );
-    // Keep menuApp in sync so buttons disable immediately
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
-  } catch {
-    alert("Failed to approve application.");
+  } finally {
+    setProcessingId(null);
   }
 };
 
 const handleReject = async (id) => {
+  if (processingId) return;
+  setProcessingId(id);
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
       method:  "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ status: "rejected" }),
+      body:    JSON.stringify({
+        status: "rejected",
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
     const data = await res.json();
     if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
@@ -3671,34 +3613,38 @@ const handleReject = async (id) => {
       });
     }
 
-    setApplications(prev =>
-      prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
-    );
-    // Keep menuApp in sync so buttons disable immediately
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
-  } catch {
-    alert("Failed to reject application.");
+  } finally {
+    setProcessingId(null);
   }
 };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this application?")) return;
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-      if (data.success) {
-        setApplications(prev => prev.filter(a => a.id !== id));
-        // Re-fetch history — the backend saved it automatically on DELETE
-        await fetchAppDeleteHistory();
-      } else {
-        alert(data.error || "Failed to delete application.");
-      }
-    } catch {
-      alert("Failed to delete application.");
+const handleDelete = async (id) => {
+  if (!window.confirm("Delete this application?")) return;
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deleted_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setApplications(prev => prev.filter(a => a.id !== id));
+      await fetchAppDeleteHistory();
+    } else {
+      alert(data.error || "Failed to delete application.");
     }
-  };
+  } catch {
+    alert("Failed to delete application.");
+  }
+};
 
   const handleRestoreApplication = async (entry) => {
     try {
@@ -5175,7 +5121,69 @@ function BmModal({ title, onClose, onSubmit, children }) {
   );
 }
 
-function FABrandBranchContent({ brands: propBrands, onBrandsChange }) {
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+      </div>
+
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
   const [searchQuery,         setSearchQuery]         = useState("");
@@ -5191,6 +5199,21 @@ function FABrandBranchContent({ brands: propBrands, onBrandsChange }) {
   // ── Delete modal & history ──────────────────────────────────────────────
   const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
   const [deletedHistory, setDeletedHistory] = useState([]);
+
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [toast, setToast] = useState(null);
+
+const [savingBrand, setSavingBrand]       = useState(false);
+const [deletingBrand, setDeletingBrand]   = useState(false);
+const [savingBranch, setSavingBranch]     = useState(false);
+const [deletingBranch, setDeletingBranch] = useState(false);
+const [restoringId, setRestoringId]       = useState(null);
+
+const showLoading = (title) => setToast({ type: "loading", title });
+const showSuccess  = (title, message) => setToast({ type: "success", title, message });
+const showError    = (title, message) => setToast({ type: "error", title, message });
+const closeToast   = () => setToast(null);
 
 const fetchDeleteHistory = async () => {
   try {
@@ -5217,8 +5240,6 @@ const fetchDeleteHistory = async () => {
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
-  useEffect(() => { fetchBrands(); fetchDeleteHistory(); }, []);
-
   const fetchBrands = async () => {
     setLoading(true);
     try {
@@ -5241,42 +5262,103 @@ const fetchDeleteHistory = async () => {
     }
   };
 
-  // ── Add / Edit Brand ───────────────────────────────────────────────────
-  const handleAddBrand = async (e) => {
-    e.preventDefault();
-    const duplicate = brands.some(
-      (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
     );
-    if (duplicate) { alert(`A brand named "${brandForm.name}" already exists.`); return; }
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandForm),
-      });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowAddBrandModal(false); setBrandForm(emptyBrand); }
-      else alert(data.error || "Failed to add brand");
-    } catch { alert("Failed to add brand"); }
-  };
+  });
+};
 
-  const handleEditBrand = async (e) => {
-    e.preventDefault();
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandForm),
-      });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowEditBrandModal(false); setSelectedBrand(null); }
-      else alert(data.error || "Failed to update brand");
-    } catch { alert("Failed to update brand"); }
-  };
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data.map(row => ({
+      id:          row.id,
+      action:      row.action,
+      itemName:    row.item_name ?? row.itemName,
+      branch:      row.branch,
+      performedBy: row.performed_by ?? row.performedBy,
+      role:        row.role,
+      changes:     row.changes,
+      timestamp:   row.created_at ?? row.timestamp,
+    })) : []);
+  } catch (err) { console.error("Failed to fetch brands activity log:", err); }
+}, []);
 
-  // ── Delete Brand (modal-driven) ────────────────────────────────────────
+
+  useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
+
+const handleAddBrand = async (e) => {
+  e.preventDefault();
+  const duplicate = brands.some(
+    (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
+  );
+  if (duplicate) { showError("Duplicate brand", `"${brandForm.name}" already exists.`); return; }
+  setSavingBrand(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...brandForm,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchBrands(); await fetchActivityLog();
+      setShowAddBrandModal(false); setBrandForm(emptyBrand);
+      showSuccess("Brand added", `"${brandForm.name}" was created.`);
+    } else {
+      showError("Failed to add brand", data.error);
+    }
+  } catch {
+    showError("Failed to add brand", "Something went wrong. Please try again.");
+  } finally {
+    setSavingBrand(false);
+  }
+};
+
+const handleEditBrand = async (e) => {
+  e.preventDefault();
+  setSavingBrand(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...brandForm,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchBrands(); await fetchActivityLog();
+      setShowAddBrandModal(false); setBrandForm(emptyBrand);
+      showSuccess("Brand updated", `"${brandForm.name}" was saved.`);
+    } else {
+      showError("Failed to update brand", data.error);
+    }
+  } catch {
+    showError("Failed to update brand", "Something went wrong. Please try again.");
+  } finally {
+    setSavingBrand(false);
+  }
+};
+
 const handleDeleteBrand = async () => {
   const { id, name } = deleteTarget;
-  
-  // Get full brand with branches from local state
   const brand = brands.find((b) => b.id === id);
   const brandToSave = {
     name: brand.name,
@@ -5294,117 +5376,165 @@ const handleDeleteBrand = async () => {
     })),
   };
 
+  setDeletingBrand(true);
   try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { 
-      method: "DELETE" 
-    });
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (data.success) {
       await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: 'brand', 
-          name, 
-          brand_name: null,
-          data: brandToSave,  // ← clean object, no old IDs
+        body: JSON.stringify({
+          type: 'brand', name, brand_name: null, data: brandToSave,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
         }),
       });
-      await fetchBrands();
-      await fetchDeleteHistory();
+      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
       setDeleteTarget(null);
-    } else alert(data.error || "Failed to delete brand");
-  } catch { alert("Failed to delete brand"); }
+      showSuccess("Brand deleted", `"${name}" was removed.`);
+    } else {
+      showError("Failed to delete brand", data.error);
+    }
+  } catch {
+    showError("Failed to delete brand", "Something went wrong. Please try again.");
+  } finally {
+    setDeletingBrand(false);
+  }
 };
 
-  // ── Add / Edit Branch ──────────────────────────────────────────────────
-  const handleAddBranch = async (e) => {
-    e.preventDefault();
-    const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
-    const duplicate   = parentBrand?.branches?.some(
-      (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
-    );
-    if (duplicate) { alert(`A branch named "${branchForm.name}" already exists under this brand.`); return; }
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchForm),
-      });
-      const data = await res.json();
-      if (data.success) { await fetchBrands(); setShowAddBranchModal(false); setBranchForm(emptyBranch); }
-      else alert(data.error || "Failed to add branch");
-    } catch { alert("Failed to add branch"); }
-  };
+const handleAddBranch = async (e) => {
+  e.preventDefault();
+  const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
+  const duplicate   = parentBrand?.branches?.some(
+    (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
+  );
+  if (duplicate) { showError("Duplicate branch", `"${branchForm.name}" already exists under this brand.`); return; }
+  setSavingBranch(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...branchForm,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      await fetchBrands(); await fetchActivityLog();
+      setShowAddBranchModal(false); setBranchForm(emptyBranch);
+      showSuccess("Branch added", `"${branchForm.name}" was created.`);
+    } else {
+      showError("Failed to add branch", data.error);
+    }
+  } catch {
+    showError("Failed to add branch", "Something went wrong. Please try again.");
+  } finally {
+    setSavingBranch(false);
+  }
+};
 
-  const handleEditBranch = async (e) => {
-    e.preventDefault();
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchForm),
-      });
-      const text = await res.text();
-      const data = JSON.parse(text);
-      if (data.success) { await fetchBrands(); setShowEditBranchModal(false); setSelectedBranch(null); }
-      else alert(data.error || "Failed to update branch");
-    } catch { alert("Failed to update branch"); }
-  };
+const handleEditBranch = async (e) => {
+  e.preventDefault();
+  setSavingBranch(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...branchForm,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const text = await res.text();
+    const data = JSON.parse(text);
+    if (data.success) {
+      await fetchBrands(); await fetchActivityLog();
+      setShowEditBranchModal(false); setSelectedBranch(null);
+      showSuccess("Branch updated", `"${branchForm.name}" was saved.`);
+    } else {
+      showError("Failed to update branch", data.error);
+    }
+  } catch {
+    showError("Failed to update branch", "Something went wrong. Please try again.");
+  } finally {
+    setSavingBranch(false);
+  }
+};
 
-  // ── Delete Branch (modal-driven) ───────────────────────────────────────
-  const handleDeleteBranch = async () => {
+const handleDeleteBranch = async () => {
   const { id, name, brandName } = deleteTarget;
   const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+  setDeletingBranch(true);
   try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (data.success) {
       await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    type: 'branch', 
-    name, 
-    brand_name: brandName,  // ← was: brandName as key name (JS shorthand sent it fine but backend destructures brand_name)
-    data: branch 
-  }),
-});
-      await fetchBrands();          // ← was missing
-      await fetchDeleteHistory();
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'branch', name, brand_name: brandName, data: branch,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
       setDeleteTarget(null);
-    } else alert(data.error || "Failed to delete branch");
-  } catch { alert("Failed to delete branch"); }
+      showSuccess("Branch deleted", `"${name}" was removed.`);
+    } else {
+      showError("Failed to delete branch", data.error);
+    }
+  } catch {
+    showError("Failed to delete branch", "Something went wrong. Please try again.");
+  } finally {
+    setRestoringId(null);
+  }
 };
-  // ── Restore ────────────────────────────────────────────────────────────
+
 const handleRestore = async (entry) => {
+  showLoading(entry.type === "brand" ? "Restoring brand…" : "Restoring branch…");
   try {
+    const coords = await getBrowserLocation();
+
     if (entry.type === "brand") {
       const { branches, ...brandFields } = entry.data;
       const branchList = Array.isArray(branches) ? branches : [];
 
-      console.log("Restoring brand:", brandFields);
-      console.log("With branches:", branchList);
-
-      // Step 1: re-create the brand
       const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(brandFields),
+        body: JSON.stringify({
+          ...brandFields,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        alert(data.error || "Failed to restore brand");
+        showError("Failed to restore brand", data.error);
         return;
       }
 
       const newBrandId = data.id;
-      console.log("New brand ID:", newBrandId);
-
-      // Step 2: re-create each branch under the new brand
       for (const br of branchList) {
         const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-        console.log("Restoring branch:", branchFields, "under brand_id:", newBrandId);
-
         const brRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5416,37 +5546,33 @@ const handleRestore = async (entry) => {
             address: branchFields.address || null,
             concept: branchFields.concept || null,
             brand_id: newBrandId,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
           }),
         });
         const brData = await brRes.json();
-        console.log("Branch restore result:", brData);
         if (!brData.success) {
           console.error("Failed to restore branch:", branchFields.name, brData.error);
         }
       }
 
-      // Step 3: remove from delete history
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
-        method: 'DELETE',
-      });
-
-      await fetchBrands();
-      await fetchDeleteHistory();
+      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
+      showSuccess("Brand restored", `"${brandFields.name}" and its branches are back.`);
 
     } else {
-      // Branch restore
       const parentBrand = brands.find((b) => b.name === entry.brandName);
-
       if (!parentBrand) {
-        alert(
-          `Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.\n` +
-          `Restore the brand first if it was also deleted.`
+        showError(
+          "Cannot restore branch",
+          `Parent brand "${entry.brandName || 'unknown'}" not found. Restore the brand first if it was also deleted.`
         );
         return;
       }
 
       const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-
       const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -5458,25 +5584,27 @@ const handleRestore = async (entry) => {
           address: branchFields.address || null,
           concept: branchFields.concept || null,
           brand_id: parentBrand.id,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, {
-          method: 'DELETE',
-        });
-        await fetchBrands();
-        await fetchDeleteHistory();
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+        await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
+        showSuccess("Branch restored", `"${branchFields.name}" is back.`);
       } else {
-        alert(data.error || "Failed to restore branch");
+        showError("Failed to restore branch", data.error);
       }
     }
   } catch (err) {
     console.error("Restore error:", err);
-    alert("Failed to restore: " + err.message);
+    showError("Restore failed", err.message);
   }
 };
-  // ── Derived data ───────────────────────────────────────────────────────
+
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
   const allRegions    = [
     ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
@@ -5733,15 +5861,16 @@ const handleRestore = async (entry) => {
                 </tbody>
               </table>
             </div>
+            <Toast toast={toast} onClose={closeToast} />
           </div>
         ))}
       </div>
 
       {/* ── Modals ── */}
-      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}  submitting={savingBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand} submitting={savingBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch} submitting={savingBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch} submitting={savingBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
 
       {deleteTarget && (
         <DeleteConfirmModal

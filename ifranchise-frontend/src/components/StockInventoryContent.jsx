@@ -98,13 +98,15 @@ function isPositiveOrZeroNumber(v) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    if (toast.type === "loading") return; 
+    if (toast.type === "loading") return;
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
+
   if (!toast) return null;
   const isErr = toast.type === "error";
   const isLoading = toast.type === "loading";
+
   return (
     <div style={{
       position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
@@ -128,13 +130,9 @@ function Toast({ toast, onClose }) {
           : isLoading
             ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
             : <Check size={16}/>}
-          {!isLoading && (
-            <button onClick={onClose} style={{ background:"none", border:"none", color: isErr ? "#991b1b" : "#3f5f4f", cursor:"pointer", padding:2, flexShrink:0 }}>
-              <X size={14}/>
-            </button>
-          )}
       </div>
-      <div style={{ flex:1 }}>
+
+      <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
           {toast.title}
         </div>
@@ -144,17 +142,20 @@ function Toast({ toast, onClose }) {
           </div>
         )}
       </div>
-      <button onClick={onClose} style={{
-        background:"none", border:"none",
-        color: isErr ? "#991b1b" : "#3f5f4f",
-        cursor:"pointer", padding:2, flexShrink:0,
-      }}>
-        <X size={14}/>
-      </button>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
     </div>
   );
 }
-
 /* ── tiny inline SVG icons ── */
 const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
 const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;

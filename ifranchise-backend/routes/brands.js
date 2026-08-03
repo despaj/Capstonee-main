@@ -19,7 +19,7 @@ router.get("/brands", async (req, res) => {
 
 router.post("/brands", async (req, res) => {
   try {
-    const { name, region, contact_email, contact_phone, description, categories, performed_by, latitude, longitude, restored } = req.body;
+    const { name, region, contact_email, contact_phone, description, categories, performed_by, role, latitude, longitude, restored } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Brand name is required" });
     const result = await pool.query(
       "INSERT INTO brands (name, region, contact_email, contact_phone, description, categories) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
@@ -33,7 +33,7 @@ router.post("/brands", async (req, res) => {
         contact_email: brand.contact_email, contact_phone: brand.contact_phone, categories: brand.categories,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
-      req, brand.name, "Brand Management", latitude, longitude
+      req, brand.name, "Brand Management", latitude, longitude, role || "Unknown"
     );
 
     res.json({ success: true, brand });
@@ -44,7 +44,7 @@ router.post("/brands", async (req, res) => {
 });
 
 router.put("/brands/:id", async (req, res) => {
-  const { name, region, contact_email, contact_phone, description, categories, performed_by, latitude, longitude } = req.body;
+  const { name, region, contact_email, contact_phone, description, categories, performed_by, role, latitude, longitude } = req.body;
   try {
     const before = await pool.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
     const oldBrand = before.rows[0];
@@ -58,7 +58,7 @@ router.put("/brands/:id", async (req, res) => {
     await logActivity(
       "update", brand.name, performed_by || "System",
       { from: oldBrand, to: brand },
-      req, brand.name, "Brand Management", latitude, longitude
+      req, brand.name, "Brand Management", latitude, longitude,  role || "Unknown"
     );
 
     res.json({ success: true, brand });
@@ -68,7 +68,7 @@ router.put("/brands/:id", async (req, res) => {
 });
 
 router.delete("/brands/:id", async (req, res) => {
-  const { performed_by, latitude, longitude } = req.body || {};
+  const { performed_by, role, latitude, longitude } = req.body || {};
   try {
     const existing = await pool.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
     const brand = existing.rows[0];
@@ -78,7 +78,7 @@ router.delete("/brands/:id", async (req, res) => {
       await logActivity(
         "delete", brand.name, performed_by || "System",
         { contact_email: brand.contact_email, contact_phone: brand.contact_phone },
-        req, brand.name, "Brand Management", latitude, longitude
+        req, brand.name, "Brand Management", latitude, longitude,  role || "Unknown"
       );
     }
 
@@ -99,7 +99,7 @@ router.get("/branches", async (req, res) => {
 
 router.post("/branches", async (req, res) => {
   try {
-    const { name, brand_id, region, manager, contact, address, concept, performed_by, latitude, longitude, restored } = req.body;
+    const { name, brand_id, region, manager, contact, address, concept, performed_by, role, latitude, longitude, restored } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: "Branch name is required" });
     const result = await pool.query(
       "INSERT INTO branches (name, brand_id, region, manager, contact, address, concept) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
@@ -115,7 +115,7 @@ router.post("/branches", async (req, res) => {
         region: branch.region, manager: branch.manager, brand: brandName,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
-      req, brandName, "Brand Management", latitude, longitude
+      req, brandName, "Brand Management", latitude, longitude,  role || "Unknown"
     );
 
     res.json({ success: true, branch });
@@ -126,7 +126,7 @@ router.post("/branches", async (req, res) => {
 });
 
 router.put("/branches/:id", async (req, res) => {
-  const { name, brand_id, region, manager, contact, address, concept, performed_by, latitude, longitude } = req.body;
+  const { name, brand_id, region, manager, contact, address, role, concept, performed_by, latitude, longitude } = req.body;
   try {
     const before = await pool.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
     const oldBranch = before.rows[0];
@@ -142,7 +142,7 @@ router.put("/branches/:id", async (req, res) => {
     await logActivity(
       "update", branch.name, performed_by || "System",
       { from: oldBranch, to: branch },
-      req, brandName, "Brand Management", latitude, longitude
+      req, brandName, "Brand Management", latitude, longitude, role || "Unknown"
     );
 
     res.json({ success: true, branch });
@@ -152,7 +152,7 @@ router.put("/branches/:id", async (req, res) => {
 });
 
 router.delete("/branches/:id", async (req, res) => {
-  const { performed_by, latitude, longitude } = req.body || {};
+  const { performed_by, role, latitude, longitude } = req.body || {};
   try {
     const existing = await pool.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
     const branch = existing.rows[0];
@@ -164,7 +164,7 @@ router.delete("/branches/:id", async (req, res) => {
       await logActivity(
         "delete", branch.name, performed_by || "System",
         { region: branch.region, manager: branch.manager },
-        req, brandName, "Brand Management", latitude, longitude
+        req, brandName, "Brand Management", latitude, longitude,  role || "Unknown"
       );
     }
 
@@ -208,7 +208,7 @@ router.delete("/brand-delete-history/:id", async (req, res) => {
 router.get("/brands-activity-log", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM activity_log WHERE module = $1 ORDER BY created_at DESC",
+      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
       ["Brand Management"]
     );
     res.json(result.rows);

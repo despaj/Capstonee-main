@@ -96,9 +96,20 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
   try {
     const { quantity, performed_by, order_id } = req.body;
     const qty = Number(quantity);
-    if (!qty || qty <= 0) { client.release(); return res.status(400).json({ error: "Invalid quantity" }); }
+    if (!qty || qty <= 0) {
+        return res.status(400).json({ error: "Invalid quantity" });
+      }
 
     await client.query("BEGIN");
+
+    const dupe = await client.query(
+      `SELECT 1 FROM stock_deduction_log WHERE order_id = $1 AND shop_item_id = $2`,
+      [order_id, req.params.id]
+    );
+    if (dupe.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.json({ success: true, alreadyDeducted: true });
+    }
 
     const itemRes = await client.query(
       `UPDATE shop_items SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING *`,
@@ -106,7 +117,6 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
     );
     if (itemRes.rows.length === 0) {
       await client.query("ROLLBACK");
-      client.release();
       return res.status(409).json({ error: "Insufficient stock to deduct" });
     }
     const item = itemRes.rows[0];
@@ -137,7 +147,6 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
       const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
       if (totalAvailable < qty) {
         await client.query("ROLLBACK");
-        client.release();
         return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
       }
 

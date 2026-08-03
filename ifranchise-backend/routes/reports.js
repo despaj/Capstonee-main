@@ -331,7 +331,7 @@ router.delete("/reports/:id", async (req, res) => {
 router.get("/reports-activity-log", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM activity_log WHERE module = $1 ORDER BY created_at DESC",
+      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
       ["Reports"]
     );
     res.json(result.rows);

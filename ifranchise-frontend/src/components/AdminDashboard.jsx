@@ -259,12 +259,25 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                     <span style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{n.title}</span>
-                    <span style={{
-                      flexShrink: 0, fontSize: 10.5, fontWeight: 800, padding: "1px 8px", borderRadius: 20,
-                      background: n.bg, color: n.color, border: `1px solid ${n.border}`,
-                    }}>
-                      {n.count}
-                    </span>
+                      <span style={{
+                        flexShrink: 0,
+                        minWidth: 20,
+                        height: 20,
+                        padding: "0 6px",
+                        borderRadius: 20,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        lineHeight: 1,
+                        background: n.bg,
+                        color: n.color,
+                        border: `1px solid ${n.border}`,
+                        boxSizing: "border-box",
+                      }}>
+                        {n.count > 99 ? "99+" : n.count}
+                      </span>
                   </div>
                   <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2, lineHeight: 1.45 }}>{n.message}</div>
                 </div>
@@ -386,8 +399,6 @@ export default function AdminDashboard() {
       .then(data => setBrands(Array.isArray(data) ? data : []))
       .catch(err => console.error("Failed to fetch brands:", err));
   }, []);
-// ── Notifications: aggregates things that need admin attention ──
-// ── Notifications: aggregates things that need admin attention ──
     const [notifications, setNotifications] = useState([]);
     const [notifLoading,  setNotifLoading]  = useState(false);
 
@@ -574,7 +585,6 @@ useEffect(() => {
 
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
 
-
   return (
     <div className="admin-dashboard-root">
       <style>{ADMIN_CSS}{`
@@ -756,21 +766,21 @@ useEffect(() => {
             <h1 className="ad-topbar-title">{moduleLabel}</h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-<NotificationBell
-  notifications={notifications}
-  loading={notifLoading}
-  onRefresh={fetchNotifications}
-  onNavigate={(notification) => {
-  setActiveModule(notification.module);
-  if (notification.navParams) {
-    setInventoryFocus({
-      brand: notification.navParams.brand,
-      branch: notification.navParams.branch,
-      lowStockOnly: notification.navParams.filterLowStock,
-    });
-  }
-  }}
-/>
+          <NotificationBell
+            notifications={notifications}
+            loading={notifLoading}
+            onRefresh={fetchNotifications}
+            onNavigate={(notification) => {
+            setActiveModule(notification.module);
+            if (notification.navParams) {
+              setInventoryFocus({
+                brand: notification.navParams.brand,
+                branch: notification.navParams.branch,
+                lowStockOnly: notification.navParams.filterLowStock,
+              });
+            }
+            }}
+          />
             <div style={{ textAlign: 'right' }}>
               <div className="ad-user-name">{user?.name}</div>
               <div className="ad-user-role">Super Admin — {user?.branch}</div>
@@ -783,7 +793,7 @@ useEffect(() => {
 
         <div className="ad-content">
           {activeModule === 'dashboard'      && <DashboardContent transactions={transactions} brands={brands} />}
-           {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
+          {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands}  initialFocus={inventoryFocus}/>}
           {activeModule === 'mobileShop'     && <MobileShopContent user={user} brands={brands}/>}
@@ -893,8 +903,6 @@ const MODULES = [
   'Stock Inventory', 'Mobile Shop', 'Reports', 'Announcements', 'Profile', 'Auth',
 ];
 
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtRelative = (iso) => {
   const diff = Date.now() - new Date(iso).getTime();
   if (diff < 60000)    return 'Just now';
@@ -1019,13 +1027,11 @@ function TimelineLine({ log, expanded, onToggle }) {
   );
 }
 
-// ── Main Export ───────────────────────────────────────────────────────────────
 function ActivityLogContent({ user }) {
   const [allLogs,     setAllLogs]     = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [page,        setPage]        = useState(0);
 
-  // Filters
   const [search,   setSearch]   = useState('');
   const [fModule,  setFModule]  = useState('');
   const [fAction,  setFAction]  = useState('');
@@ -1034,7 +1040,6 @@ function ActivityLogContent({ user }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
 
-  // ── Load logs ─────────────────────────────────────────────────────────────
 const loadLogs = useCallback(async () => {
   setLoading(true);
   try {
@@ -1055,10 +1060,10 @@ const loadLogs = useCallback(async () => {
           .then(r => r.json())
           .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
             id:          row.id,
-            module:      row.module || 'General',   // ← read from the row now, not the endpoint
+            module:      row.module || 'General',
             action:      (row.action || 'update').toLowerCase(),
             user_name:   row.performed_by || 'Admin',
-            role:        'Admin',
+            role:        row.role || 'Unknown',
             description: row.item_name || row.action || '—',
             branch:      row.branch || '—',
             device:      row.device || '—',
@@ -1085,7 +1090,6 @@ const loadLogs = useCallback(async () => {
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
-  // ── Derived state ─────────────────────────────────────────────────────────
   const uniqueUsers    = useMemo(() => [...new Set(allLogs.map(l => l.user_name))].sort(), [allLogs]);
   const uniqueBranches = useMemo(() => [...new Set(allLogs.map(l => l.branch).filter(Boolean))].sort(), [allLogs]);
 
@@ -2818,7 +2822,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   );
 }
 
-
 // ── DeleteConfirmModal ────────────────────────────────────────────────────────
 function DeleteConfirmModal({ target, onConfirm, onClose }) {
   const isBrand = target.type === "brand";
@@ -2900,27 +2903,6 @@ function DeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── BmModal ───────────────────────────────────────────────────────────────────
-function BmModal({ title, onClose, onSubmit, children }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
-        </div>
-        <form onSubmit={onSubmit}>
-          {children}
-          <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
-            <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-            <button type="submit" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}><Check size={14} /> Save</button>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -3086,6 +3068,26 @@ function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
   );
 }
 
+function BmModal({ title, onClose, onSubmit, children }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+        </div>
+        <form onSubmit={onSubmit}>
+          {children}
+          <div style={{ display: "flex", gap: 10, marginTop: 22, justifyContent: "flex-end" }}>
+            <button type="button" onClick={onClose} style={{ padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+            <button type="submit" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}><Check size={14} /> Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -3131,13 +3133,22 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     });
   };
 
-  const fetchActivityLog = useCallback(async () => {
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
-      const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data : []);
-    } catch (err) { console.error("Failed to fetch orders activity log:", err); }
-  }, []);
+const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data.map(row => ({
+      id:          row.id,
+      action:      row.action,
+      itemName:    row.item_name ?? row.itemName,
+      branch:      row.branch,
+      performedBy: row.performed_by ?? row.performedBy,
+      role:        row.role,
+      changes:     row.changes,
+      timestamp:   row.created_at ?? row.timestamp,
+    })) : []);
+  } catch (err) { console.error("Failed to fetch brands activity log:", err); }
+}, []);
 
   const fetchDeleteHistory = async () => {
     try {
@@ -3175,6 +3186,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         body: JSON.stringify({
           ...brandForm,
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3200,6 +3212,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         body: JSON.stringify({
           ...brandForm,
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3238,6 +3251,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3274,6 +3288,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         body: JSON.stringify({
           ...branchForm,
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3299,6 +3314,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         body: JSON.stringify({
           ...branchForm,
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3328,6 +3344,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
           latitude: coords?.latitude,
           longitude: coords?.longitude,
         }),
@@ -3364,6 +3381,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
           body: JSON.stringify({
             ...brandFields,
             performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
             latitude: coords?.latitude,
             longitude: coords?.longitude,
             restored: true,
@@ -3386,6 +3404,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
               concept: branchFields.concept || null,
               brand_id: newBrandId,
               performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
               latitude: coords?.latitude,
               longitude: coords?.longitude,
               restored: true,
@@ -3413,6 +3432,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
             concept: branchFields.concept || null,
             brand_id: parentBrand.id,
             performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
             latitude: coords?.latitude,
             longitude: coords?.longitude,
             restored: true, 
@@ -4573,12 +4593,21 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);    
+  const [processingId, setProcessingId] = useState(null);
 
   const fetchActivityLog = useCallback(async () => {
   try {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
     const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data : []);
+    setActivityLog(Array.isArray(data) ? data.map(row => ({
+      id: row.id, action: row.action,
+      ingredientName: row.ingredient_name ?? row.ingredientName,
+      branch: row.branch,
+      performedBy: row.performed_by ?? row.performedBy,
+      role: row.role,  
+      changes: row.changes,
+      timestamp: row.created_at ?? row.timestamp,
+    })) : []);
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
@@ -4645,41 +4674,46 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
 }, [alertModal]);
   
 
-  // ── Approve ─────────────────────────────────────────────────────────────
 const handleApprove = async (id) => {
+  if (processingId) return;
+  setProcessingId(id);
   try {
     const coords = await getBrowserLocation();
     await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
+      body: JSON.stringify({
         status: "approved",
-        performed_by: user?.name || "System",  
-        latitude: coords?.latitude,      
-        longitude: coords?.longitude,  
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       }),
     });
-    setApplications(prev =>
-      prev.map(a => a.id === id ? { ...a, status: "approved" } : a)
-    );
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
-    await fetchActivityLog(); 
+    await fetchActivityLog();
   } catch {
     showAlert("Failed to approve application.", "error");
+  } finally {
+    setProcessingId(null);   // ← was missing
   }
 };
 
 const handleReject = async (id) => {
+  if (processingId) return;
+  setProcessingId(id);
   try {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
+      body: JSON.stringify({
         status: "rejected",
-        performed_by: user?.name || "System", 
-        latitude: coords?.latitude,  
-        longitude: coords?.longitude,  
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       }),
     });
     const data = await res.json();
@@ -4688,19 +4722,19 @@ const handleReject = async (id) => {
     const app = applications.find(a => a.id === id);
     if (app?.email) {
       await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ to: app.email, name: app.name }),
+        body: JSON.stringify({ to: app.email, name: app.name }),
       });
     }
 
-    setApplications(prev =>
-      prev.map(a => a.id === id ? { ...a, status: "rejected" } : a)
-    );
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
     setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
     await fetchActivityLog();
   } catch {
     showAlert("Failed to reject application.", "error");
+  } finally {
+    setProcessingId(null);   // ← was missing
   }
 };
 
@@ -4719,6 +4753,7 @@ const confirmDeleteApplication = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         deleted_by: user?.name || "System",
+        role: user?.role || "Unknown", 
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       }),
@@ -4759,6 +4794,7 @@ const handleRestoreApplication = async (entry) => {
         position: d.position, businessNature: d.business_nature,
         signature: d.signature, dateSigned: d.date_signed,
         performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
         latitude: coords?.latitude, 
         longitude: coords?.longitude,  
         restored: true,  
@@ -5299,7 +5335,7 @@ const handleRestoreApplication = async (entry) => {
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "approved"}
+                disabled={menuApp.status === "approved" ||  processingId !== null}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -5318,7 +5354,7 @@ const handleRestoreApplication = async (entry) => {
               </button>
             <button
                 onClick={() => { handleReject(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "rejected"}
+                disabled={menuApp.status === "rejected" || processingId !== null}
                 style={{
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "12px 16px", borderRadius: 11, border: "none",
@@ -8259,13 +8295,15 @@ function StatusBadge({ status, size="md" }) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    if (toast.type === "loading") return; 
+    if (toast.type === "loading") return;
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
+
   if (!toast) return null;
   const isErr = toast.type === "error";
   const isLoading = toast.type === "loading";
+
   return (
     <div style={{
       position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
@@ -8289,13 +8327,9 @@ function Toast({ toast, onClose }) {
           : isLoading
             ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
             : <Check size={16}/>}
-          {!isLoading && (
-            <button onClick={onClose} style={{ background:"none", border:"none", color: isErr ? "#991b1b" : "#3f5f4f", cursor:"pointer", padding:2, flexShrink:0 }}>
-              <X size={14}/>
-            </button>
-          )}
       </div>
-      <div style={{ flex:1 }}>
+
+      <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
           {toast.title}
         </div>
@@ -8305,18 +8339,21 @@ function Toast({ toast, onClose }) {
           </div>
         )}
       </div>
-      <button onClick={onClose} style={{
-        background:"none", border:"none",
-        color: isErr ? "#991b1b" : "#3f5f4f",
-        cursor:"pointer", padding:2, flexShrink:0,
-      }}>
-        <X size={14}/>
-      </button>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
     </div>
   );
 }
 
-/* ── Order progress stepper ── */
 function OrderStepper({ status }) {
   const steps = [
     { key:"pending",  label:"Placed" },
@@ -8982,25 +9019,40 @@ const handleAccept = async (order) => {
   };
 
 const checkOrderStock = useCallback(async (order) => {
-  const shopItemsMap = await fetchShopItemsMap(); // as before, keyed by id
+  const shopItemsMap = await fetchShopItemsMap();
+
+  const neededByItem = {};
+  order.items.forEach(item => {
+    if (item.shop_item_id == null) return;
+    neededByItem[item.shop_item_id] = (neededByItem[item.shop_item_id] || 0) + Number(item.qty || 0);
+  });
+
+  const availabilityCache = {};
+  const getAvailability = async (shopItemId, si) => {
+    if (availabilityCache[shopItemId] != null) return availabilityCache[shopItemId];
+    let available = Number(si.stock || 0);
+    if (si.ingredient_id) {
+      const batches = await fetchBatchesFor(si.ingredient_id);
+      const ingredientStock = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      available = Math.min(available, ingredientStock);
+    }
+    availabilityCache[shopItemId] = available;
+    return available;
+  };
 
   const results = [];
   for (const item of order.items) {
     const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
     if (!si) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
 
-    let available = Number(si.stock || 0);
-    if (si.ingredient_id) {
-      const batches = await fetchBatchesFor(si.ingredient_id);
-      const ingredientStock = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
-      available = Math.min(available, ingredientStock); // bottlenecked by whichever is lower
-    }
+    const available = await getAvailability(item.shop_item_id, si);
+    const totalNeededForThisItem = neededByItem[item.shop_item_id];
 
     results.push({
       ...item,
       matched: true,
       available,
-      sufficient: available >= Number(item.qty || 0),
+      sufficient: available >= totalNeededForThisItem,
     });
   }
   return results;
@@ -9028,7 +9080,19 @@ const deductStock = async (item, order) => {
 const handleDisposeConfirm = async (order, results) => {
   setDisposeState(prev => ({ ...prev, saving:true }));
   try {
-    for (const r of results) if (r.matched) await deductStock(r, order);
+    const mergedDeductions = {};
+    for (const r of results) {
+      if (!r.matched) continue;
+      if (!mergedDeductions[r.shop_item_id]) {
+        mergedDeductions[r.shop_item_id] = { ...r, qty: 0 };
+      }
+      mergedDeductions[r.shop_item_id].qty += Number(r.qty || 0);
+    }
+
+    for (const merged of Object.values(mergedDeductions)) {
+      await deductStock(merged, order);
+    }
+
     await advanceStatus(order, "disposed", `Fulfilled — ${order.items.length} item(s) deducted from stock`);
     setDisposeState(null);
     setViewOrder(null);
@@ -9039,7 +9103,6 @@ const handleDisposeConfirm = async (order, results) => {
   }
 };
 
-  /* ── derived data ── */
   const filtered = orders.filter(o => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
     if (search) {
