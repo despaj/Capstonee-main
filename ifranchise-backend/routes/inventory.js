@@ -29,7 +29,7 @@ router.get("/inventory", async (req, res) => {
 
 router.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, performed_by_role } = req.body;
 
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -55,7 +55,9 @@ router.put("/inventory/:id", async (req, res) => {
     }
     
     await logActivity("update", updatedItem.name, req.body?.performed_by || "System",
-    changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude);
+      changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
+    );
 
     res.json({ success: true, item: updatedItem });
 
@@ -66,7 +68,7 @@ router.put("/inventory/:id", async (req, res) => {
 });
 
 router.delete("/inventory/:id", async (req, res) => {
-  const { latitude, longitude } = req.body;
+  const { latitude, longitude, performed_by_role } = req.body;
   try {
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -91,14 +93,32 @@ router.delete("/inventory/:id", async (req, res) => {
     );
 
     await logActivity("delete", item.name, req.body?.deleted_by || "System",
-  { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
-  req, item.branch, "Menu Inventory", latitude, longitude);
+      { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
+      req, item.branch, "Menu Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
+    );
 
     await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);  
     res.json({ success: true });                               
   } catch (err) {
     console.error("DELETE /inventory/:id error:", err);
     res.status(500).json({ error: "Failed to delete inventory item" });
+  }
+});
+
+router.get("/menu-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM users_activity_log
+       WHERE module = $1
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      ["Menu Inventory"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /menu-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch menu activity log" });
   }
 });
 
@@ -144,7 +164,7 @@ router.get("/inventory/:id/ingredients", async (req, res) => {
 
 router.post("/inventory", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, restored } = req.body;
+    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, restored, performed_by_role } = req.body;
     if (!branch) return res.status(400).json({ error: "Branch is required" });
 
     const result = await pool.query(
@@ -163,7 +183,8 @@ router.post("/inventory", async (req, res) => {
       req.body?.performed_by || "System",
       { category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock, cost: newItem.cost, price: newItem.price,
         ...(restored ? { note: "Restored from delete history" } : {}) },
-      req, branch, "Menu Inventory", latitude, longitude
+      req, branch, "Menu Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
     );
 
     res.json({ success: true, item: newItem });

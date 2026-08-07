@@ -3,12 +3,14 @@ const geoip = require("geoip-lite");
 const UAParser = require("ua-parser-js");
 
 function getClientIp(req) {
+  if (!req || !req.headers) return null;
   const fwd = req.headers["x-forwarded-for"];
   if (fwd) return fwd.split(",")[0].trim();
-  return req.socket.remoteAddress;
+  return req.socket?.remoteAddress || null;
 }
 
 function getDeviceLabel(req) {
+  if (!req || !req.headers) return "Unknown device";
   const ua = req.headers["user-agent"] || "";
   const parser = new UAParser(ua);
   const browser = parser.getBrowser();
@@ -59,7 +61,37 @@ async function getLocation(ip, latitude, longitude) {
   return "Unknown";
 }
 
-async function logActivity(action, itemName, performedBy = "system", details = {}, req = null, branch = null, module = "General", latitude = null, longitude = null, role = null) {
+/**
+ * Logs an activity entry.
+ *
+ * Called with a single options object (not positional args) so that call
+ * sites are self-labeling and immune to argument-order mistakes:
+ *
+ *   await logActivity({
+ *     action: "update",
+ *     itemName: name,
+ *     performedBy: performed_by || "System",
+ *     details: changes,
+ *     req,
+ *     branch,
+ *     module: "User Management",
+ *     latitude,
+ *     longitude,
+ *     role: performed_by_role || "Unknown",
+ *   });
+ */
+async function logActivity({
+  action,
+  itemName,
+  performedBy = "system",
+  details = {},
+  req = null,
+  branch = null,
+  module = "General",
+  latitude = null,
+  longitude = null,
+  role = null,
+} = {}) {
   try {
     let ip = null, device = null, location = null;
     if (req) {

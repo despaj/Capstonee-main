@@ -37,7 +37,7 @@ router.get("/announcements", async (req, res) => {
 router.post("/announcements", async (req, res) => {
   try {
     const { title, content, userId, performed_by, role, latitude, longitude, restored } = req.body;
-    const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
+    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Only admin can post announcements" });
@@ -52,7 +52,7 @@ router.post("/announcements", async (req, res) => {
       title,
       performed_by || "System",
       { note: restored ? "Restored from delete history" : undefined },
-      req, null, "Announcements", latitude, longitude, role || "Unknown"
+      req, userResult.rows[0].branch || null, "Announcements", latitude, longitude, role || "Unknown"
     );
 
     try {
@@ -79,7 +79,7 @@ router.post("/announcements", async (req, res) => {
 router.put("/announcements/:id", async (req, res) => {
   try {
     const { title, content, userId, performed_by, role, latitude, longitude } = req.body;
-    const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
+    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Unauthorized" });
@@ -94,7 +94,7 @@ router.put("/announcements/:id", async (req, res) => {
       title,
       performed_by || "System",
       {},
-      req, null, "Announcements", latitude, longitude, role || "Unknown"
+      req, userResult.rows[0].branch || null,  "Announcements", latitude, longitude, role || "Unknown"
     );
 
     res.json(result.rows[0]);
@@ -106,7 +106,7 @@ router.put("/announcements/:id", async (req, res) => {
 router.delete("/announcements/:id", async (req, res) => {
   try {
     const { userId, performed_by, role, latitude, longitude } = req.body;
-    const userResult = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
+    const userResult = await pool.query("SELECT role, branch FROM users WHERE id=$1", [userId]);
     if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
     if (userResult.rows[0].role !== "Super Admin" && userResult.rows[0].role !== "Franchisee Operations Admin")
       return res.status(403).json({ error: "Unauthorized" });
@@ -128,7 +128,7 @@ router.delete("/announcements/:id", async (req, res) => {
       ann.rows[0]?.title,
       performed_by || "System",
       {},
-      req, null, "Announcements", latitude, longitude, role || "Unknown"
+      req, userResult.rows[0].branch || null, "Announcements", latitude, longitude, role || "Unknown"
     );
 
     res.json({ success: true });

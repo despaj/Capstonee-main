@@ -17,7 +17,7 @@ router.get("/ingredients", async (req, res) => {
 
 router.post("/ingredients", async (req, res) => {
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported, performed_by_role } = req.body;
     if (!name || !unit) return res.status(400).json({ error: "Name and unit are required" });
 
     const result = await pool.query(
@@ -45,7 +45,8 @@ router.post("/ingredients", async (req, res) => {
       performed_by || "System",
       { branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit,
         ...(restored ? { note: "Restored from delete history" } : {}) },
-      req, branch, "Stock Inventory", latitude, longitude
+      req, branch, "Stock Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
     );
 
     res.json({ success: true, item: ingredient });
@@ -58,7 +59,7 @@ router.post("/ingredients", async (req, res) => {
 router.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, performed_by, latitude, longitude } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, performed_by, latitude, longitude, performed_by_role } = req.body;
     await client.query("BEGIN");
 
     const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
@@ -98,7 +99,10 @@ router.put("/ingredients/:id", async (req, res) => {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
-    await logActivity("update", updatedItem.name, performed_by || "System", changes, req, updatedItem.branch, "Stock Inventory", latitude, longitude);
+    await logActivity(
+      "update", updatedItem.name, performed_by || "System", changes, req, updatedItem.branch, "Stock Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
+    );
 
     res.json({ success: true, item: updatedItem, updatedProducts: affectedProducts.rows.length });
   } catch (err) {
@@ -112,7 +116,7 @@ router.put("/ingredients/:id", async (req, res) => {
 
 router.delete("/ingredients/:id", async (req, res) => {
   try {
-    const { deleted_by, latitude, longitude } = req.body || {};
+    const { deleted_by, latitude, longitude, performed_by_role } = req.body || {};
 
     const before = await pool.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
@@ -121,9 +125,12 @@ router.delete("/ingredients/:id", async (req, res) => {
     const result = await pool.query("DELETE FROM ingredients WHERE id=$1 RETURNING id", [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
 
-    await logActivity("delete", item.name, deleted_by || "System",
+    await logActivity(
+      "delete", item.name, deleted_by || "System",
       { branch: item.branch, unit: item.unit, stock: item.stock, cost_per_unit: item.cost_per_unit },
-      req, item.branch, "Stock Inventory", latitude, longitude);
+      req, item.branch, "Stock Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
+    );
 
     res.json({ success: true });
   } catch (err) {
@@ -131,10 +138,9 @@ router.delete("/ingredients/:id", async (req, res) => {
   }
 });
 
-// ── Toggle shop visibility (hide/show) ──
 router.patch("/ingredients/:id/visibility", async (req, res) => {
   try {
-    const { is_visible, performed_by, latitude, longitude } = req.body;
+    const { is_visible, performed_by, latitude, longitude, performed_by_role } = req.body;
 
     const ing = await pool.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
     if (ing.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
@@ -145,8 +151,11 @@ router.patch("/ingredients/:id/visibility", async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Shop item not found for this ingredient" });
 
-    await logActivity(is_visible ? "show" : "hide", ing.rows[0].name, performed_by || "System",
-      { ingredient_id: req.params.id }, req, ing.rows[0].branch, "Stock Inventory", latitude, longitude);
+    await logActivity(
+      is_visible ? "show" : "hide", ing.rows[0].name, performed_by || "System",
+      { ingredient_id: req.params.id }, req, ing.rows[0].branch, "Stock Inventory", latitude, longitude,
+      performed_by_role || "Unknown"   // ← add
+    );
 
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
@@ -154,7 +163,6 @@ router.patch("/ingredients/:id/visibility", async (req, res) => {
     res.status(500).json({ error: "Failed to update visibility" });
   }
 });
-
 // Ingredient delete history
 router.get("/ingredient-delete-history", async (req, res) => {
   try {

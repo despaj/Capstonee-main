@@ -77,9 +77,9 @@ async function logLogin(user, req, latitude, longitude) {
   console.log("[DEBUG] device label:", device); 
   try {
       await pool.query(
-      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, changes, location, ip_address, device, module)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      ["Login", user.name, user.branch || null, user.name, null, location, ip, device, "User Management"]
+      `INSERT INTO users_activity_log (action, item_name, branch, performed_by, role, changes, location, ip_address, device, module)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      ["Login", user.name, user.branch || null, user.name, user.role || null, null, location, ip, device, "User Management"]
     );
     console.log("[DEBUG] login activity insert succeeded"); 
   } catch (err) {

@@ -638,7 +638,7 @@ export default function FranchiseAdminDashboard() {
             {activeModule === 'stockInventory' && <FAStockInventoryContent user={user} brands={brands} />}
             {activeModule === 'mobileOrders'   && <FAMobileOrdersContent />}
             {activeModule === 'applications'  && <FAApplicationsContent user={user} alertModal={alertModal} setAlertModal={setAlertModal} />}
-            {activeModule === 'communication' && <FACommunicationContent user={user} />}
+            {activeModule === 'communication' && <FACommunicationContent user={user} brands={brands} />}
             {activeModule === 'brandBranch'   && <FABrandBranchContent user={user} brands={brands} onBrandsChange={setBrands} />}
             {activeModule === 'profile'       && <FAProfileContent user={user} />}
         </div>
@@ -4570,7 +4570,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
 // ═════════════════════════════════════════════════════════════════════════════
 // MODULE 4 — ANNOUNCEMENTS (re-exported from AdminDashboard logic)
 // ═════════════════════════════════════════════════════════════════════════════
-function FACommunicationContent({ user }) {
+function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds] = useState(new Set());
   const [fetching, setFetching] = useState(true);
@@ -4611,6 +4611,7 @@ function FACommunicationContent({ user }) {
         id: row.id,
         action: row.action,
         itemName: row.item_name ?? row.itemName,
+        branch: row.branch ?? row.franchise ?? row.branchName,
         performedBy: row.performed_by ?? row.performedBy,
         role: row.role,
         changes: row.changes,
@@ -4843,7 +4844,7 @@ function FACommunicationContent({ user }) {
                     {entry.action?.toUpperCase()} · {entry.itemName || '—'}
                   </div>
                   <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>
-                    {entry.performedBy || 'Unknown'} ({entry.role || 'Unknown'})
+                    {entry.performedBy || 'Unknown'} ({entry.role || 'Unknown'}){entry.branch ? ` · ${entry.branch}` : ''}
                   </div>
                   <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
                     {entry.timestamp ? fmt(entry.timestamp) : '—'}

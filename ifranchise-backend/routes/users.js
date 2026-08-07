@@ -18,7 +18,7 @@ router.get("/users", async (req, res) => {
 
 router.post("/users", async (req, res) => {
   try {
-    let { name, email, role, branch, password, performed_by, latitude, longitude, restored } = req.body;
+    let { name, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude, restored } = req.body;
 
     let tempPasswordGenerated = false;
     if (!password) {
@@ -31,18 +31,28 @@ router.post("/users", async (req, res) => {
     }
 
     const result = await pool.query(
-      "INSERT INTO users (name, email, password, role, branch) VALUES ($1,$2,$3,$4,$5) RETURNING *",
-      [name, email, password, role, branch]
+      "INSERT INTO users (name, email, password, role, brand, branch) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+      [name, email, password, role, brand, branch]
     );
     const newUser = result.rows[0];
 
-    await logActivity(
-      restored ? "restore" : "create",
-      name,
-      performed_by || "System",
-      { role, branch, ...(restored ? { note: "Restored from delete history" } : {}), ...(tempPasswordGenerated ? { note: "Temporary password generated on restore" } : {}) },
-      req, branch, "User Management", latitude, longitude
-    );
+    await logActivity({
+      action: restored ? "restore" : "create",
+      itemName: name,
+      performedBy: performed_by || "System",
+      details: {
+        role,
+        branch,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+        ...(tempPasswordGenerated ? { note: "Temporary password generated on restore" } : {}),
+      },
+      req,
+      branch,
+      module: "User Management",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, user: newUser, tempPasswordGenerated });
   } catch (err) {
@@ -69,7 +79,7 @@ router.patch("/users/:id/saved-address", async (req, res) => {
 
 router.put("/users/:id", async (req, res) => {
   try {
-    const { name, email, role, branch, password, performed_by, latitude, longitude } = req.body;
+    const { name, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude } = req.body;
 
     const before = await pool.query("SELECT * FROM users WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "User not found" });
@@ -79,21 +89,33 @@ router.put("/users/:id", async (req, res) => {
     if (password) {
       const bcrypt = require("bcrypt");
       const hashed = await bcrypt.hash(password, 10);
-      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4, password=$5 WHERE id=$6 RETURNING *`;
-      params = [name, email, role, branch, hashed, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, role=$3, brand=$4, branch=$5, password=$6 WHERE id=$7 RETURNING *`;
+      params = [name, email, role, brand, branch, hashed, req.params.id];
     } else {
-      query = `UPDATE users SET name=$1, email=$2, role=$3, branch=$4 WHERE id=$5 RETURNING *`;
-      params = [name, email, role, branch, req.params.id];
+      query = `UPDATE users SET name=$1, email=$2, role=$3, brand=$4, branch=$5 WHERE id=$6 RETURNING *`;
+      params = [name, email, role, brand, branch, req.params.id];
     }
     const result = await pool.query(query, params);
     const updatedUser = result.rows[0];
 
     const changes = {};
-    for (const field of ["name", "email", "role", "branch"]) {
+    for (const field of ["name", "email", "role", "brand", "branch"]) {
       if (String(oldUser[field] ?? "") !== String(updatedUser[field] ?? ""))
         changes[field] = { from: oldUser[field], to: updatedUser[field] };
     }
-    await logActivity("update", name, performed_by || "System", changes, req, branch, "User Management", latitude, longitude);
+
+    await logActivity({
+      action: "update",
+      itemName: name,
+      performedBy: performed_by || "System",
+      details: changes,
+      req,
+      branch,
+      module: "User Management",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, user: updatedUser });
   } catch (err) {
@@ -104,7 +126,7 @@ router.put("/users/:id", async (req, res) => {
 
 router.delete("/users/:id", async (req, res) => {
   try {
-    const { deleted_by, latitude, longitude } = req.body || {};
+    const { deleted_by, performed_by_role, latitude, longitude } = req.body || {};
 
     const before = await pool.query("SELECT * FROM users WHERE id=$1", [req.params.id]);
     const targetUser = before.rows[0];
@@ -119,9 +141,18 @@ router.delete("/users/:id", async (req, res) => {
       [JSON.stringify(targetUser)]
     );
 
-    await logActivity("delete", targetUser.name, deleted_by || "System",
-      { role: targetUser.role, branch: targetUser.branch },
-      req, targetUser.branch, "User Management", latitude, longitude);
+    await logActivity({
+      action: "delete",
+      itemName: targetUser.name,
+      performedBy: deleted_by || "System",
+      details: { role: targetUser.role, brand: targetUser.brand, branch: targetUser.branch },
+      req,
+      branch: targetUser.branch,
+      module: "User Management",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, message: "User deleted" });
   } catch (err) {

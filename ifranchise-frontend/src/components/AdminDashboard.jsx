@@ -289,8 +289,6 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
     </div>
   );
 }
-
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
@@ -883,7 +881,6 @@ const ACTION_META = {
   import:  { color: '#6a1b9a', bg: '#f3e5f5', label: 'Import'  },
 };
 
-const MOCK_USERS = ['Admin User', 'Maria Santos', 'Jose Reyes', 'Ana Cruz', 'Carlo Dela Cruz'];
 const MOCK_DESCS = {
   'Brand & Branch':   ['Added brand "Coffee Spot"', 'Edited branch "Makati"', 'Deleted brand "iPharma Draft"', 'Restored branch "Ortigas"'],
   'User Management':  ['Created franchisee account', 'Updated user role to Sales Admin', 'Deleted user account', 'Restored deleted user'],
@@ -896,7 +893,6 @@ const MOCK_DESCS = {
   'Profile':          ['Updated profile name', 'Changed password via OTP', 'Updated work email', 'Unlocked profile for editing'],
   'Auth':             ['Logged in successfully', 'Logged out', 'Failed login attempt (wrong password)', 'Session expired'],
 };
-const MOCK_ACTIONS = Object.keys(ACTION_META);
 
 const MODULES = [
   'Brand & Branch', 'User Management', 'Applications', 'Menu Inventory',
@@ -1044,7 +1040,8 @@ const loadLogs = useCallback(async () => {
   setLoading(true);
   try {
     const endpoints = [
-      'inventory-activity-log',
+      'menu-activity-log',
+      'stockInv-activity-log',
       'shop-activity-log',
       'orders-activity-log',
       'users-activity-log',
@@ -2851,7 +2848,7 @@ function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
       </div>
     </div>
   );
-}
+} 
 
 function DeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -4422,6 +4419,7 @@ function ApplicationsDeleteConfirmModal({ target, onConfirm, onClose, deleting =
     </div>
   );
 }
+
 function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4693,7 +4691,6 @@ const handleRestoreApplication = async (entry) => {
     );
   };
 
-  // ── Delete History Modal ─────────────────────────────────────────────────
   const DeleteHistoryModal = () => {
     if (!showAppDeleteHistory) return null;
 
@@ -4833,7 +4830,6 @@ const handleRestoreApplication = async (entry) => {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Delete History Modal (rendered at root level, NOT inside table) */}
       <DeleteHistoryModal />
 
       <ApplicationConfirmModal
@@ -5593,12 +5589,15 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
             </select>
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button type="submit" disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: sending ? 0.7 : 1 }}>
-              {sending ? 'Creating…' : '✉ Create & Send'}
-            </button>
-          </div>
+         <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button type="submit" disabled={sending}
+              style={{ display:'flex', alignItems:'center', gap:6, flex: 1, justifyContent:'center', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+               opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+              {sending ? "Creating…" : "✉ Create & Send"}
+            </button> 
+         </div>
         </form>
       </div>
     </div>
@@ -6340,72 +6339,6 @@ function AlertModal({ message, onClose, type = "info" }) {
   );
 }
 
-function UserDeleteConfirmModal({ user, onConfirm, onClose }) {
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 20, padding: "28px 32px",
-          width: "100%", maxWidth: 420,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-          border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
-        }}
-      >
-        <div style={{
-          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 16px",
-        }}>
-          <Trash2 size={22} color="#dc2626" />
-        </div>
-        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
-          Delete user?
-        </h2>
-        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
-          You are about to delete <strong>"{user.name}"</strong> ({user.email}).
-        </p>
-        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
-          You can recover this from Delete History.
-        </p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button
-            type="button" onClick={onClose}
-            style={{
-              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
-              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button" onClick={onConfirm}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#dc2626,#ef4444)",
-              color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
-            }}
-          >
-            <Trash2 size={14} /> Delete User
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
  const fmt = (d) =>
   new Date(d).toLocaleString("en-PH", {
@@ -6434,6 +6367,10 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
           fontFamily: "Montserrat, sans-serif",
         }}
       >
+       <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -6521,11 +6458,12 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
                 </div>
                 {/* Restore */}
                 <button
+                  type="button"
                   onClick={() => onRestore(entry)}
                   disabled={restoringId !== null}
                   style={{
                     display: "flex", alignItems: "center", gap: 5,
-                    padding: "7px 12px", borderRadius: 9,
+                    padding: "7px 14px", borderRadius: 9,
                     border: "1.5px solid #00897b",
                     background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
                     color: "#00695c", fontSize: 12, fontWeight: 700,
@@ -6534,7 +6472,7 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
                     opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                   }}
                 >
-                  {restoringId === entry.id ? (
+                    {restoringId === entry.id ? (
                     <>
                       <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
                     </>
@@ -6552,10 +6490,6 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 
   const PasswordValidation = ({ errors }) => (
     <div style={{ marginTop:8, fontSize:12, padding:'10px 14px', background:'#f0fdf5', borderRadius:10, border:'1.5px solid #b2dfdb' }}>
@@ -6575,7 +6509,7 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
     brands, branches, brandsLoading,
     showPassword, setShowPassword,
     showPasswordValidation, passwordErrors,
-    handleGeneratePassword, pwChange,
+    handleGeneratePassword, pwChange, saving,
   }) => (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(13,43,30,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:'28px 32px', width:'100%', maxWidth:500, boxShadow:'0 24px 64px rgba(0,0,0,0.18)', border:'1px solid rgba(0,168,76,0.15)', maxHeight:'92vh', overflowY:'auto' }}>
@@ -6647,10 +6581,13 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
           </div>
           )}
           <div style={{ display:'flex', gap:10, marginTop:22, justifyContent:'flex-end' }}>
-            <button type="button" onClick={onClose} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-            <button type="submit" style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)' }}>
-              {isEdit ? 'Save Changes' : '✉ Create & Send'}
-            </button>
+            <button type="button" onClick={onClose} disabled={saving} style={{ padding:'9px 22px', borderRadius:10, border:'1px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily:'inherit' }}>Cancel</button>
+           <button type="submit" disabled={saving}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+               opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+              {saving ? (isEdit ? "Saving…" : "Adding…") : (isEdit ? "Save Changes" : "Add User")}
+           </button>
           </div>
         </form>
       </div>
@@ -6705,20 +6642,20 @@ function UserConfirmModal({ user, onConfirm, onClose, deleting }) {
           >
             Cancel
           </button>
-          <button
-            type="button" onClick={onConfirm} disabled={deleting}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#dc2626,#ef4444)",
-              color: "#fff", fontSize: 13, fontWeight: 700,
-              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
-              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
-              opacity: deleting ? 0.7 : 1,
-            }}
-          >
-            <Trash2 size={14} /> {deleting ? "Deleting…" : "Delete User"}
-          </button>
+            <button
+              type="button" onClick={onConfirm} disabled={deleting}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 24px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#dc2626,#ef4444)",
+                color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+                boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+                opacity: deleting ? 0.6 : 1, cursor: deleting ? "not-allowed" : "pointer",
+              }}
+            >
+              {deleting && <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }} />}
+              {deleting ? "Deleting…" : "Delete User"}
+            </button>
         </div>
       </div>
     </div>
@@ -6751,29 +6688,33 @@ function UserConfirmModal({ user, onConfirm, onClose, deleting }) {
     const [deleteHistory,     setDeleteHistory]     = useState([]); 
     const [showDeleteHistory, setShowDeleteHistory] = useState(false);
     const [alertModal,        setAlertModal]        = useState(null);  
+    const [saving, setSaving] = useState(false);
 
     const showAlert = (message, type = "info") =>
-  setAlertModal({ title: message, type });
+    setAlertModal({ title: message, type });
 
+    const showLoading = (title) => setAlertModal({ type: 'loading', title });
+    const showSuccess = (title, message) => setAlertModal({ type: 'success', title, message });
+    const showError   = (title, message) => setAlertModal({ type: 'error', title, message });
 
     const getBrowserLocation = () => {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
-  });
-};
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+          () => resolve(null),
+          { timeout: 5000, maximumAge: 60000 }
+        );
+      });
+    };
 
     const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data : []);
-  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
-}, []);
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
+        const data = await res.json();
+        setActivityLog(Array.isArray(data) ? data : []);
+      } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+    }, []);
 
 const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
   try {
@@ -6872,6 +6813,8 @@ const handleAddUser = async (e) => {
     showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
     return;
   }
+  
+  setSaving(true);
 
   const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
   const coords = await getBrowserLocation();
@@ -6880,10 +6823,10 @@ const handleAddUser = async (e) => {
     password: tempPassword,
     brand: selectedBrand?.name || "",
     performed_by: user?.name || "System",
+    performed_by_role: user?.role || "Unknown", 
     latitude: coords?.latitude,
     longitude: coords?.longitude,
   };
-
   try {
     const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -6899,13 +6842,15 @@ const handleAddUser = async (e) => {
       await fetchActivityLog();
       setShowAddModal(false);
       resetForm();
-      showAlert("User added & credentials sent!", "success");
+      showSuccess("User added", `"${formData.name}" was added and credentials were sent.`);  // ← was showAlert("User added & credentials sent!", "success")
     } else {
-      showAlert(data.error || "Failed to add user.", "error");
+      showError("Failed to add user", data.error || "Something went wrong.");  // ← was showAlert(data.error || "Failed to add user.", "error")
     }
   } catch (error) {
     console.error("Error adding user:", error);
-    showAlert("Failed to add user.", "error");
+    showError("Failed to add user", "Something went wrong. Please try again.");
+  } finally {
+    setSaving(false);
   }
 };
 
@@ -6919,17 +6864,18 @@ const handleEditUser = async (e) => {
       return;
     }
   }
-
+  
+  setSaving(true); 
   const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
   const coords = await getBrowserLocation();
   const payload = {
     ...formData,
     brand: selectedBrand?.name || formData.brand || "",
     performed_by: user?.name || "System",
+    performed_by_role: user?.role || "Unknown",  
     latitude: coords?.latitude,
     longitude: coords?.longitude,
   };
-
   try {
     const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
@@ -6942,13 +6888,15 @@ const handleEditUser = async (e) => {
       setShowEditModal(false);
       setEditingUser(null);
       resetForm();
-      showAlert("User updated successfully!", "success");
+      showSuccess("User updated", `"${formData.name}" was saved.`);
     } else {
-      showAlert(data.error || "Failed to update user.", "error");
+      showError("Failed to update user", data.error || "Something went wrong.");
     }
   } catch (error) {
     console.error("Error updating user:", error);
-    showAlert("Failed to update user.", "error");
+    showError("Failed to update user", "Something went wrong. Please try again.");
+  } finally {
+    setSaving(false);
   }
 };
 
@@ -6963,7 +6911,7 @@ const confirmDelete = async () => {
     const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+      body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
     });
     const data = await response.json();
     if (data.success) {
@@ -6975,13 +6923,13 @@ const confirmDelete = async () => {
       await fetchDeleteHistory();
       await fetchUsers();
       await fetchActivityLog();
-      showAlert(`"${targetUser.name}" has been deleted.`, "success");
+      showSuccess("User deleted", `"${targetUser.name}" was removed.`);
     } else {
-      showAlert(data.error || "Failed to delete user.", "error");
+      showError("Failed to delete user", data.error || "Something went wrong.");
     }
   } catch (error) {
     console.error("Error deleting user:", error);
-    showAlert("Failed to delete user.", "error");
+    showError("Failed to delete user", "Something went wrong. Please try again.");
   } finally {
     setDeleting(false);
     setDeleteTarget(null);
@@ -7003,8 +6951,9 @@ const handleRestore = async (entry) => {
         role: d.role,
         branch: d.branch,
         brand: d.brand || "",
-        password: entry.data.password, 
+        password: d.password, 
         performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
         restored: true,
@@ -7017,13 +6966,13 @@ const handleRestore = async (entry) => {
       await fetchDeleteHistory();
       await fetchUsers();
       await fetchActivityLog();
-      showAlert(`"${d.name}" has been restored.`, "success");
+      showSuccess("User restored", `"${d.name}" is back.`);
     } else {
-      showAlert(data.error || "Failed to restore user.", "error");
+      showError("Failed to restore user", data.error || "Something went wrong.");
     }
   } catch (err) {
     console.error("Restore error:", err);
-    showAlert("Failed to restore user.", "error");
+    showError("Failed to restore user", "Something went wrong. Please try again.");
   } finally {
     setRestoringId(null);
   }
@@ -7172,7 +7121,7 @@ const handleRestore = async (entry) => {
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
                 <tr>
-                  {['Name','Email','Role','Brand', 'Branch','Status','Actions'].map(h => (
+                  {['Name','Email','Role','Brand', 'Branch','Actions'].map(h => (
                     <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
                   ))}
                 </tr>
@@ -7189,18 +7138,12 @@ const handleRestore = async (entry) => {
                     </td>
                     <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
                     <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
-                    <td style={{ padding:'12px 14px' }}>
-                      <span style={{ background:'rgba(16,185,129,0.1)', color:'#059669', padding:'3px 12px', borderRadius:20, fontSize:11, fontWeight:700 }}>
-                        {user.status ? user.status.toUpperCase() : 'ACTIVE'}
-                      </span>
-                    </td>
+                  
                     <td style={{ padding:'12px 14px' }}>
                       <div style={{ display:'flex', gap:6 }}>
                         <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
                           <Pencil size={11}/>
                         </button>
-                    
-
                         <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
                           <Trash2 size={11}/>
                         </button>
@@ -7213,42 +7156,38 @@ const handleRestore = async (entry) => {
           </div>
         </div>
 
-       {showAddModal && (
-  <CreateAccountModal
-    applicant={null}
-    roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
-    onClose={() => { setShowAddModal(false); resetForm(); }}
-   onAlert={(message, type) => setAlertModal({ title: message, type })} 
-  />
-)}
+        {showAddModal && (
+          <CreateAccountModal
+            applicant={null}
+            roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
+            saving={saving}
+            onClose={() => { setShowAddModal(false); resetForm(); }}
+            onAlert={(message, type) => setAlertModal({ title: message, type })}
+          />
+        )}
+
         {showEditModal && (
-        <UserModal
-          key="edit"
-          title="Edit User"
-          onSubmit={handleEditUser}
-          onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
-          isEdit={true}
-          formData={formData}
-          setFormData={setFormData}
-          handleInputChange={handleInputChange}
-          selectedBrandId={selectedBrandId}
-          setSelectedBrandId={setSelectedBrandId}
-          brands={brands}
-          branches={branches}
-          brandsLoading={brandsLoading}
-          showPassword={showPassword}
-          setShowPassword={setShowPassword}
-          showPasswordValidation={showPasswordValidation}
-          passwordErrors={passwordErrors}
-          handleGeneratePassword={handleGeneratePassword}
-          pwChange={pwChange}
-        />
-      )}
-        {deleteTarget && (
-          <UserDeleteConfirmModal
-            user={deleteTarget}
-            onConfirm={confirmDelete}
-            onClose={() => setDeleteTarget(null)}
+          <UserModal
+            key="edit"
+            title="Edit User"
+            onSubmit={handleEditUser}
+            saving={saving}
+            onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
+            isEdit={true}
+            formData={formData}
+            setFormData={setFormData}
+            handleInputChange={handleInputChange}
+            selectedBrandId={selectedBrandId}
+            setSelectedBrandId={setSelectedBrandId}
+            brands={brands}
+            branches={branches}
+            brandsLoading={brandsLoading}
+            showPassword={showPassword}
+            setShowPassword={setShowPassword}
+            showPasswordValidation={showPasswordValidation}
+            passwordErrors={passwordErrors}
+            handleGeneratePassword={handleGeneratePassword}
+            pwChange={pwChange}
           />
         )}
 
@@ -8361,7 +8300,6 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
   const [checkingStock, setCheckingStock] = useState(false);
   const outOfStock = order.status === "pending" && stockStatus && !stockStatus.ok;
 
-
   useEffect(() => { setMode(null); }, [order?.id]);
 
   if (!order) return null;
@@ -9042,9 +8980,6 @@ const handleDisposeConfirm = async (order, results) => {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROFILE
-// ─────────────────────────────────────────────────────────────────────────────
 function ProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({

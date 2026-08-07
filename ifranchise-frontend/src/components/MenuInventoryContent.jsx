@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
+import { RefreshCw, AlertTriangle, Check, X, Trash2 } from "lucide-react";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -259,11 +260,44 @@ function Pagination({ page, setPage, total, pageSize }) {
   );
 }
 
+function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
+  return (
+    <div onClick={deleting ? undefined : onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ width:52, height:52, borderRadius:"50%", background:"#fee2e2", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
+          <Trash2 size={22} color="#dc2626"/>
+        </div>
+        <h2 style={{ textAlign:"center", fontSize:17, fontWeight:800, color:C.ink, marginBottom:8 }}>Delete item?</h2>
+        <p style={{ textAlign:"center", fontSize:13, color:C.muted, lineHeight:1.6, marginBottom:16 }}>
+          You are about to delete <strong>"{target.name}"</strong>{target.branch ? <> from <strong>{target.branch}</strong></> : null}.
+        </p>
+        {target.ingredientCount > 0 && (
+          <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#c2410c", textAlign:"center", marginBottom:16 }}>
+            ⚠ This item has {target.ingredientCount} linked ingredient{target.ingredientCount!==1?"s":""}.
+          </div>
+        )}
+        <p style={{ textAlign:"center", fontSize:12, color:"#9ca3af", marginBottom:20 }}>You can recover this from Delete History.</p>
+        <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+          <button type="button" onClick={onClose} disabled={deleting} style={{ padding:"9px 22px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", opacity:deleting?0.5:1 }}>Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={deleting} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#dc2626,#ef4444)", color:"#fff", fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.35)", opacity:deleting?0.7:1 }}>
+            {deleting ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Trash2 size={14}/>}
+            {deleting ? "Deleting…" : "Delete item"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Delete History Panel ─────────────────────────────────────────────────────
-function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
+function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
 
         {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
@@ -305,8 +339,13 @@ function InventoryDeleteHistoryPanel({ history, onRestore, onClose }) {
                   <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock}</div>
                   <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price||0)}</div>
                   <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}</div>
-                  <button onClick={() => onRestore(entry)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-                    <RestoreIcon/> Restore
+                  <button onClick={() => onRestore(entry)} disabled={restoringId === entry.id}
+                   style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap",
+                      opacity: restoringId === entry.id ? 0.7 : 1, cursor: restoringId === entry.id ? "not-allowed" : "pointer" }}>
+                    {restoringId === entry.id
+                      ? <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>
+                      : <RestoreIcon/>}
+                    {restoringId === entry.id ? "Restoring…" : "Restore"}
                   </button>
                 </div>
                 {/* Ingredient chips */}
@@ -415,7 +454,7 @@ function InventoryActivityLogPanel({ log, onClose }) {
 }
 
 // ─── InventoryTable ───────────────────────────────────────────────────────────
-function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDeleteId, page, setPage }) {
+function InventoryTable({ items, onEdit, onRequestDelete, deletingId, page, setPage }) {
   const [sort, setSort]             = useState({ col:"name", asc:true });
   const [expandedRows, setExpanded] = useState({});
 
@@ -468,7 +507,7 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
           <tbody>
             {pageItems.map(item => {
               const low        = Number(item.stock) <= Number(item.min_stock);
-              const isConfirm  = confirmDeleteId === item.id;
+              const isDeleting = deletingId === item.id;
               const ingredients= item.ingredients || [];
               const isExpanded = expandedRows[item.id];
               return (
@@ -505,12 +544,12 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
                     </td>
                     <td style={{ padding:"10px 12px" }}>
                       <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                        <button onClick={()=>onEdit(item)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}><EditIcon/> Edit</button>
-                        <button onClick={()=>{ if(isConfirm){onDelete(item.id);setConfirmDeleteId(null);}else setConfirmDeleteId(item.id); }}
-                          style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
-                          <TrashIcon/> {isConfirm?"Confirm?":"Delete"}
-                        </button>
-                        {isConfirm && <button onClick={()=>setConfirmDeleteId(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>}
+                       <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
+                        <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
+                        style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
+                        {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                        {isDeleting ? "Deleting…" : "Delete"}
+                      </button>
                       </div>
                     </td>
                   </tr>
@@ -544,6 +583,68 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
   );
 }
 
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+      </div>
+
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Super Admin";
@@ -572,8 +673,14 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [page,            setPage]            = useState(0);
+
+  const [saving,          setSaving]          = useState(false);
+  const [deletingId,      setDeletingId]      = useState(null);
+  const [restoringId,     setRestoringId]     = useState(null);
+  const [toast,           setToast]           = useState(null);
+  const showToast = (type, title, message) => setToast({ type, title, message });
 
   // ── History / log state ─────────────────────────────────────────────────────
   const [deleteHistory,     setDeleteHistory]     = useState([]);
@@ -662,13 +769,29 @@ const emptyForm = useCallback(() => ({
     } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
   }, []);
 
-  const fetchActivityLog = useCallback(async () => {
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-activity-log`);
-      const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data : []);
-    } catch (err) { console.error("Failed to fetch inventory activity log:", err); }
-  }, []);
+const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data.map(row => ({
+      id: row.id,
+      action: row.action,
+      itemName: row.item_name ?? row.itemName,
+      branch: row.branch,
+      performedBy: row.performed_by ?? row.performedBy,
+      role: row.role,
+      changes: row.changes,
+      location: row.location,
+      timestamp: row.created_at ?? row.timestamp,
+    })) : []);
+  } catch (err) {
+    console.error("Failed to fetch menu activity log:", err);
+  }
+}, []);
+
+useEffect(() => {
+  fetchActivityLog();
+}, [fetchActivityLog]);
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -736,11 +859,20 @@ const handleAddItem = async e => {
   e.preventDefault();
   const branch    = isAdmin ? formData.branch : userBranch;
   const duplicate = findDuplicate(formData.name, branch, inventory);
-  if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
-
+  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+  
+  setSaving(true);
   const coords = await getBrowserLocation();
-  const payload = { ...formData, branch, min_stock: formData.minStock, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude };
-    try {
+  const payload = {
+    ...formData,
+    branch,
+    min_stock: formData.minStock,
+    performed_by: userName,
+    performed_by_role: user?.role || "Unknown",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+  };
+   try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
@@ -761,8 +893,10 @@ const handleAddItem = async e => {
         await refetch();
         await fetchActivityLog();
         setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
-      } else alert(d.error||"Failed to add item");
-    } catch { alert("Failed to add item"); }
+      showToast("success", "Item added", `"${formData.name}" was added.`);
+      } else showToast("error", "Failed to add item", d.error || "Something went wrong.");
+    } catch { showToast("error", "Failed to add item", "Something went wrong. Please try again."); }
+    finally { setSaving(false); }
   };
 
 const handleEditItem = async e => {
@@ -770,10 +904,18 @@ const handleEditItem = async e => {
   const branch     = isAdmin ? formData.branch : userBranch;
   const otherItems = inventory.filter(i => i.id !== editingItem.id);
   const duplicate  = findDuplicate(formData.name, branch, otherItems);
-  if (duplicate) { alert(`"${duplicate.name}" already exists in this branch.`); return; }
-
+  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+  setSaving(true);
   const coords = await getBrowserLocation();
-  const payload = { ...formData, branch, min_stock: formData.minStock, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude };
+  const payload = {
+    ...formData,
+    branch,
+    min_stock: formData.minStock,
+    performed_by: userName,
+    performed_by_role: user?.role || "Unknown", 
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+  };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -802,29 +944,39 @@ const handleEditItem = async e => {
         await refetch();
         await fetchActivityLog();
         setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
-      } else alert(d.error||"Failed to update item");
-    } catch { alert("Failed to update item"); }
+      showToast("success", "Item updated", `"${formData.name}" was saved.`);
+      } else showToast("error", "Failed to update item", d.error || "Something went wrong.");
+    } catch { showToast("error", "Failed to update item", "Something went wrong. Please try again."); }
+    finally { setSaving(false); }
   };
 
 const handleDeleteItem = async id => {
+  setDeletingId(id);
   try {
     const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
+   const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
+      body: JSON.stringify({
+        deleted_by: userName,
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
     const d = await res.json();
     if (d.success) {
       await refetch();
       await fetchDeleteHistory();
       await fetchActivityLog();
-      setConfirmDeleteId(null);
-    } else alert(d.error || "Failed to delete");
-  } catch { alert("Failed to delete"); }
+      showToast("success", "Item deleted", "The item was removed.");
+        } else showToast("error", "Failed to delete", d.error || "Something went wrong.");
+      } catch { showToast("error", "Failed to delete", "Something went wrong. Please try again."); }
+      finally { setDeletingId(null); }
 };
 
 const handleRestore = async (entry) => {
+  setRestoringId(entry.id);
   try {
     const d    = entry.inventory_data;
     const ings = entry.ingredients_data || [];
@@ -842,9 +994,10 @@ const handleRestore = async (entry) => {
         cost:      d.cost,
         price:     d.price,
         performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
         latitude:  coords?.latitude,
         longitude: coords?.longitude,
-        restored:  true,          // ← new flag
+        restored:  true,
       }),
     });
     const result = await res.json();
@@ -865,9 +1018,10 @@ const handleRestore = async (entry) => {
       await refetch();
       await fetchDeleteHistory();
       await fetchActivityLog();
-      alert(`"${d.name}" has been restored with all ${ings.length} ingredient(s).`);
-    } else alert(result.error || "Failed to restore");
-  } catch { alert("Failed to restore item"); }
+      showToast("success", "Item restored", `"${d.name}" is back with ${ings.length} ingredient(s).`);
+    } else showToast("error", "Failed to restore", result.error || "Something went wrong.");
+  } catch { showToast("error", "Failed to restore", "Something went wrong. Please try again."); }
+  finally { setRestoringId(null); }
 };
 
   const openEditModal = item => {
@@ -1176,8 +1330,11 @@ const handleRestore = async (entry) => {
   </div>
 )}
       <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-        <button type="button" onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={btnSt}>Cancel</button>
-        <button type="submit" style={btnPrimarySt}>Save Item</button>
+        <button type="button" disabled={saving} onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={{ ...btnSt, opacity: saving ? 0.5 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Cancel</button>
+        <button type="submit" disabled={saving} style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+          {saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+          {saving ? (showEditModal ? "Saving…" : "Adding…") : "Save Item"}
+        </button>
       </div>
     </>
   );
@@ -1278,17 +1435,32 @@ const handleRestore = async (entry) => {
         {loading ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
         ) : (
-          <InventoryTable
-            items={filteredItems}
-            onEdit={openEditModal}
-            onDelete={handleDeleteItem}
-            confirmDeleteId={confirmDeleteId}
-            setConfirmDeleteId={setConfirmDeleteId}
-            page={page}
-            setPage={setPage}
-          />
+        <InventoryTable
+          items={filteredItems}
+          onEdit={openEditModal}
+          onRequestDelete={setDeleteTarget}
+          deletingId={deletingId}
+          page={page}
+          setPage={setPage}
+        />
         )}
       </div>
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          target={{
+            name: deleteTarget.name,
+            branch: deleteTarget.branch,
+            ingredientCount: (deleteTarget.ingredients || []).length,
+          }}
+          deleting={deletingId === deleteTarget.id}
+          onClose={() => { if (deletingId !== deleteTarget.id) setDeleteTarget(null); }}
+          onConfirm={async () => {
+            await handleDeleteItem(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+        />
+        )}
 
       {/* Add / Edit Modal */}
       {(showAddModal || showEditModal) && (
@@ -1311,6 +1483,7 @@ const handleRestore = async (entry) => {
         <InventoryDeleteHistoryPanel
           history={deleteHistory}
           onRestore={handleRestore}
+          restoringId={restoringId}
           onClose={() => setShowDeleteHistory(false)}
         />
       )}
@@ -1322,6 +1495,8 @@ const handleRestore = async (entry) => {
           onClose={() => setShowActivityLog(false)}
         />
       )}
+
+       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

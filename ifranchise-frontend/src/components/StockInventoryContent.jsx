@@ -1963,6 +1963,7 @@ const emptyForm = useCallback(() => ({
         ingredientName: row.ingredient_name ?? row.ingredientName,
         branch: row.branch,
         performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
         changes: row.changes,
         timestamp: row.created_at ?? row.timestamp,
       })) : []);
@@ -2056,8 +2057,9 @@ const emptyForm = useCallback(() => ({
                         shop:item.shopCategory, brand:item.brand||"",
                         image_url:"...",
                         is_visible:true,
+                        performed_by_role: user?.role || "Unknown", 
                         latitude: coords?.latitude,
-longitude: coords?.longitude,
+                        longitude: coords?.longitude,
                       }) });
                     if ((await shopRes.json()).success) shopSaved++;
                   }
@@ -2147,6 +2149,7 @@ longitude: coords?.longitude,
         branch: isAdmin ? form.branch : userBranch,
         name: capitalizeName(form.name.trim()),
         performed_by: userName,
+        performed_by_role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
         ...((!isAdmin && editing) ? { cost_per_unit: editing.cost_per_unit } : {}),
@@ -2221,7 +2224,7 @@ const confirmDelete = async () => {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${item.id}`, {
       method:"DELETE", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ deleted_by: userName, latitude: coords?.latitude, longitude: coords?.longitude }),
+      body: JSON.stringify({ deleted_by: userName,  performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
     });
     const d = await res.json();
     if (d.success) {
@@ -2246,7 +2249,7 @@ const handleRestore = async (entry) => {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, performed_by: userName, latitude: coords?.latitude, longitude: coords?.longitude, restored: true }),
+      body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, performed_by: userName, performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude, restored: true }),
     });
     const result = await res.json();
     if (result.success) {

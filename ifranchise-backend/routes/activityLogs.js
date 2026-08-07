@@ -9,15 +9,15 @@ const ACTIVITY_TABLE = "users_activity_log";
 
 // route -> module label stored in the `module` column
 const LOG_MODULES = [
-  { route: "inventory-activity-log",     module: "Inventory" },
+  { route: "menu-activity-log",          module: "Menu Inventory" }, 
+  { route: "stockInv-activity-log",     module: "Stock Inventory" },
   { route: "shop-activity-log",          module: "Mobile Shop" },
   { route: "orders-activity-log",        module: "Orders" },
-  { route: "users-activity-log",         module: "Users" },
+  { route: "users-activity-log",         module: "User Management" },
   { route: "applications-activity-log",  module: "Applications" },
   { route: "reports-activity-log",       module: "Reports" },
   { route: "announcements-activity-log", module: "Announcements" },
   { route: "brands-activity-log",        module: "Brands" },
-  { route: "ingredient-activity-log",    module: "Ingredients" },
 ];
 
 function getClientIp(req) {
