@@ -54,10 +54,18 @@ router.put("/inventory/:id", async (req, res) => {
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
     
-    await logActivity("update", updatedItem.name, req.body?.performed_by || "System",
-      changes, req, updatedItem.branch, "Menu Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: "update",
+      itemName: updatedItem.name,
+      performedBy: req.body?.performed_by || "System",
+      details: changes,
+      req,
+      branch: updatedItem.branch,
+      module: "Menu Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: updatedItem });
 
@@ -92,11 +100,18 @@ router.delete("/inventory/:id", async (req, res) => {
       ]
     );
 
-    await logActivity("delete", item.name, req.body?.deleted_by || "System",
-      { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
-      req, item.branch, "Menu Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: "delete",
+      itemName: item.name,
+      performedBy: req.body?.deleted_by || "System",
+      details: { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
+      req,
+      branch: item.branch,
+      module: "Menu Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     await pool.query("DELETE FROM inventory WHERE id=$1", [item.id]);  
     res.json({ success: true });                               
@@ -177,15 +192,22 @@ router.post("/inventory", async (req, res) => {
 
     const newItem = result.rows[0];
 
-    await logActivity(
-      restored ? "restore" : "create",
-      newItem.name,
-      req.body?.performed_by || "System",
-      { category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock, cost: newItem.cost, price: newItem.price,
-        ...(restored ? { note: "Restored from delete history" } : {}) },
-      req, branch, "Menu Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: restored ? "restore" : "create",
+      itemName: newItem.name,
+      performedBy: req.body?.performed_by || "System",
+      details: {
+        category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock,
+        cost: newItem.cost, price: newItem.price,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req,
+      branch,
+      module: "Menu Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: newItem });
   } catch (err) {

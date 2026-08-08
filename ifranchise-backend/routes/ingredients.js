@@ -39,15 +39,21 @@ router.post("/ingredients", async (req, res) => {
     }
 
     const action = restored ? "restore" : imported ? "import" : "create";
-    await logActivity(
+    await logActivity({
       action,
-      ingredient.name,
-      performed_by || "System",
-      { branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit,
-        ...(restored ? { note: "Restored from delete history" } : {}) },
-      req, branch, "Stock Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+      itemName: ingredient.name,
+      performedBy: performed_by || "System",
+      details: {
+        branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req,
+      branch,
+      module: "Stock Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: ingredient });
   } catch (err) {
@@ -99,10 +105,18 @@ router.put("/ingredients/:id", async (req, res) => {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
-    await logActivity(
-      "update", updatedItem.name, performed_by || "System", changes, req, updatedItem.branch, "Stock Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: "update",
+      itemName: updatedItem.name,
+      performedBy: performed_by || "System",
+      details: changes,
+      req,
+      branch: updatedItem.branch,
+      module: "Stock Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: updatedItem, updatedProducts: affectedProducts.rows.length });
   } catch (err) {
@@ -125,12 +139,18 @@ router.delete("/ingredients/:id", async (req, res) => {
     const result = await pool.query("DELETE FROM ingredients WHERE id=$1 RETURNING id", [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
 
-    await logActivity(
-      "delete", item.name, deleted_by || "System",
-      { branch: item.branch, unit: item.unit, stock: item.stock, cost_per_unit: item.cost_per_unit },
-      req, item.branch, "Stock Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: "delete",
+      itemName: item.name,
+      performedBy: deleted_by || "System",
+      details: { branch: item.branch, unit: item.unit, stock: item.stock, cost_per_unit: item.cost_per_unit },
+      req,
+      branch: item.branch,
+      module: "Stock Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -151,11 +171,18 @@ router.patch("/ingredients/:id/visibility", async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Shop item not found for this ingredient" });
 
-    await logActivity(
-      is_visible ? "show" : "hide", ing.rows[0].name, performed_by || "System",
-      { ingredient_id: req.params.id }, req, ing.rows[0].branch, "Stock Inventory", latitude, longitude,
-      performed_by_role || "Unknown"   // ← add
-    );
+    await logActivity({
+      action: is_visible ? "show" : "hide",
+      itemName: ing.rows[0].name,
+      performedBy: performed_by || "System",
+      details: { ingredient_id: req.params.id },
+      req,
+      branch: ing.rows[0].branch,
+      module: "Stock Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: result.rows[0] });
   } catch (err) {
@@ -246,6 +273,20 @@ router.post("/ingredient-batches", async (req, res) => {
     );
 
     await client.query("COMMIT");
+    const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
+    const ing = ingRow.rows[0] || {};
+    await logActivity({
+      action: "receive",
+      itemName: ing.name,
+      performedBy: req.body.performed_by || "System",
+      details: { batch_number, stock: parseFloat(stock) || 0, supplier: req.body.supplier || null, exp_date: exp_date || null },
+      req,
+      branch: ing.branch,
+      module: "Stock Inventory",
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
+      role: req.body.performed_by_role || "Unknown",
+    });
     res.json({ success: true, batch: result.rows[0], total_stock });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -281,6 +322,22 @@ router.put("/ingredient-batches/:id", async (req, res) => {
     );
 
     await client.query("COMMIT");
+
+    const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
+    const ing = ingRow.rows[0] || {};
+    await logActivity({
+      action: "edit",
+      itemName: ing.name,
+      performedBy: req.body.performed_by || "System",
+      details: { batch_number, stock: parseFloat(stock) || 0, exp_date: exp_date || null },
+      req,
+      branch: ing.branch,
+      module: "Stock Inventory",
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
+      role: req.body.performed_by_role || "Unknown",
+    });
+
     res.json({ success: true, batch: result.rows[0], total_stock });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -298,6 +355,14 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
     if (before.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Batch not found" }); }
     const { ingredient_id } = before.rows[0];
 
+    const batchRow = await client.query(
+      `SELECT b.batch_number, i.name AS ingredient_name, i.branch
+      FROM ingredient_batches b JOIN ingredients i ON i.id = b.ingredient_id
+      WHERE b.id=$1`,
+      [req.params.id]
+    );
+    const batchInfo = batchRow.rows[0] || {};
+
     await client.query("DELETE FROM ingredient_batches WHERE id=$1", [req.params.id]);
 
     const totals = await client.query(
@@ -312,6 +377,20 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
     );
 
     await client.query("COMMIT");
+    
+    await logActivity({
+      action: "delete",
+      itemName: batchInfo.ingredient_name,
+      performedBy: req.body?.deleted_by || "System",
+      details: { batch_number: batchInfo.batch_number },
+      req,
+      branch: batchInfo.branch,
+      module: "Stock Inventory",
+      latitude: req.body?.latitude,
+      longitude: req.body?.longitude,
+      role: req.body?.performed_by_role || "Unknown",
+    });
+
     res.json({ success: true, total_stock });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -359,4 +438,21 @@ router.delete("/ingredient-batch-delete-history/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to delete batch history entry" });
   }
 });
+
+router.get("/ingredient-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM users_activity_log
+       WHERE module = $1
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      ["Stock Inventory"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredient-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch ingredient activity log" });
+  }
+});
+
 module.exports = router;

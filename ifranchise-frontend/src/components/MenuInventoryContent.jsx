@@ -377,8 +377,8 @@ function InventoryActivityLogPanel({ log, onClose }) {
     if (typeFilter !== "all" && entry.action !== typeFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!entry.item_name?.toLowerCase().includes(q) &&
-          !(entry.performed_by||"").toLowerCase().includes(q) &&
+      if (!entry.itemName?.toLowerCase().includes(q) &&
+          !(entry.performedBy||"").toLowerCase().includes(q) &&
           !(entry.branch||"").toLowerCase().includes(q)) return false;
     }
     return true;
@@ -439,12 +439,12 @@ function InventoryActivityLogPanel({ log, onClose }) {
             <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
               <div>{actionBadge(entry.action)}</div>
               <div>
-                <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.item_name}</div>
+              <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.itemName}</div>
                 {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
               </div>
               <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performed_by || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.created_at ? fmtTs(entry.created_at) : "—"}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performedBy || "System"}</div>
+              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.timestamp ? fmtTs(entry.timestamp) : "—"}</div>
             </div>
           ))}
         </div>
@@ -774,9 +774,9 @@ const fetchActivityLog = useCallback(async () => {
     const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
     const data = await res.json();
     setActivityLog(Array.isArray(data) ? data.map(row => ({
-      id: row.id,
-      action: row.action,
+      id: row.id, action: row.action,
       itemName: row.item_name ?? row.itemName,
+      performedBy: row.performed_by ?? row.performedBy,
       branch: row.branch,
       performedBy: row.performed_by ?? row.performedBy,
       role: row.role,
@@ -805,7 +805,6 @@ useEffect(() => {
 
   const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
 
-  // ── Filtered items ──────────────────────────────────────────────────────────
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventory.filter(i => {

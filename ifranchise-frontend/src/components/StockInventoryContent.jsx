@@ -1164,12 +1164,6 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
       const res = await fetch(`${apiUrl}/ingredient-batches`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
       const d = await res.json();
       await syncIngredientStock(product);
-      try {
-        await fetch(`${apiUrl}/ingredient-activity-log`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ action:"receive", ingredient_name:product.name, branch:product.branch, performed_by:userName, changes:`+${body.stock} ${product.unit} received${form.supplier?` from ${form.supplier}`:""}` }),
-        });
-      } catch {}
       setSaving(false);
       onDone();
       setToast({ type: "success", title: "Stock Received", message: `${body.stock} ${product.unit} of "${product.name}" logged.` });
