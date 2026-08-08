@@ -2434,6 +2434,107 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   );
 }
 
+function InfoModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const { type = "info", title, message, confirmLabel, cancelLabel } = modal;
+
+  const iconMap = {
+    error: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+    success: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    ),
+    info: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    ),
+    warning: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+    confirm: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+  };
+
+  const hc = {
+    error:   { bg: "#fef2f2", border: "#fecaca", titleColor: "#991b1b" },
+    success: { bg: "#e8f5e9", border: "#c8e6c9", titleColor: "#00695c" },
+    info:    { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
+    warning: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+    confirm: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+  }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 3000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: `1px solid ${hc.border}`,
+          fontFamily: FONT, overflow: "hidden",
+        }}
+      >
+        <div style={{ background: hc.bg, padding: "20px 24px 16px", borderBottom: `1px solid ${hc.border}`, display: "flex", alignItems: "flex-start", gap: 13 }}>
+          <div style={{ flexShrink: 0, marginTop: 1 }}>{iconMap[type]}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: hc.titleColor, marginBottom: 4, fontFamily: FONT }}>{title}</div>
+            {message && (
+              <div style={{ fontSize: 13, color: "#0d2b1e", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
+              border: `1px solid ${hc.border}`, background: "transparent", cursor: "pointer",
+              color: "#5a7a65", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style={{ padding: "14px 24px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {type === "confirm" && (
+            <button
+              onClick={onClose}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+            >
+              {cancelLabel || "Cancel"}
+            </button>
+          )}
+          <button
+            onClick={type === "confirm" ? onConfirm : onClose}
+            style={{
+              padding: "8px 18px", borderRadius: 8, border: "none",
+              background: type === "confirm" ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#00c853,#00897b)",
+              color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+            }}
+          >
+            {confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
 
@@ -2459,7 +2560,12 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
 
-  // NEW: per-card visibility instead of one shared boolean
+  const [infoModal, setInfoModal] = useState(null);
+  const showInfo = (opts) => setInfoModal(opts);
+  const closeInfo = () => setInfoModal(null);
+
+  const [toast, setToast] = useState(null);
+
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
 
   useEffect(() => {
@@ -2551,26 +2657,63 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
   const trending  = Number(pctChange) >= 0;
 
-  const saveArchive = () => {
-    const year = parseInt(archiveYear);
-    if (isNaN(year) || year < 2000 || year > 2100) { alert("Enter a valid year"); return; }
-    if (archives.find(a => a.year === year)) { alert(`Year ${year} already archived`); return; }
-    const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
-    const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
-    setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
-    setArchiveConf(false); alert(`Year ${year} archived!`);
-  };
-  const deleteArchive = (year) => {
-    if (!window.confirm(`Delete archive for ${year}?`)) return;
-    const upd = archives.filter(a => a.year !== year);
-    setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
-    if (viewArchive?.year === year) setViewArchive(null);
-  };
-  const applyCustomRange = () => {
-    if (!customFrom || !customTo) { alert("Select both dates"); return; }
-    if (customFrom > customTo) { alert("\"From\" cannot be after \"To\""); return; }
-    setAppliedRange({ from: customFrom, to: customTo }); setViewArchive(null);
-  };
+const saveArchive = () => {
+  const year = parseInt(archiveYear);
+  if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
+  if (archives.find(a => a.year === year)) { showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` }); return; }
+  const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
+  const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
+  setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+  setArchiveConf(false);
+  showInfo({ type: "success", title: "Archived", message: `Year ${year} has been archived.` });
+};
+const deleteArchive = (year) => {
+  showInfo({
+    type: "confirm",
+    title: "Delete Archive?",
+    message: `Are you sure you want to delete the archive for ${year}? This cannot be undone.`,
+    confirmLabel: "Delete",
+    onConfirm: () => {
+      const upd = archives.filter(a => a.year !== year);
+      setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+      if (viewArchive?.year === year) setViewArchive(null);
+      closeInfo();
+    },
+  });
+};
+const applyCustomRange = () => {
+  if (!customFrom || !customTo) { showInfo({ type: "warning", title: "Missing Dates", message: "Please select both a start and end date." }); return; }
+  if (customFrom > customTo) { showInfo({ type: "warning", title: "Invalid Range", message: "\"From\" cannot be after \"To\"." }); return; }
+
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+
+  const from = new Date(customFrom);
+  const to   = new Date(customTo);
+  to.setHours(23, 59, 59, 999);
+
+  const hasData = txList.some(tx => {
+    const d = new Date(tx.created_at);
+    return d >= from && d <= to;
+  });
+
+  if (!hasData) {
+    showInfo({
+      type: "info",
+      title: "No Data Found",
+      message: `There are no transactions between ${customFrom} and ${customTo}${filterLabel !== "All Brands & Branches" ? ` for ${filterLabel}` : ""}. Try a different date range.`,
+    });
+    return;
+  }
+
+  setAppliedRange({ from: customFrom, to: customTo });
+  setViewArchive(null);
+  setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
+};
 
   const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
   const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
@@ -2815,6 +2958,11 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
         filterBranch={filterBranch} filterBrand={filterBrand}
         selectedBrand={selectedBrand} total={total}
       />
+
+      <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
+        
     </div>
   );
 }

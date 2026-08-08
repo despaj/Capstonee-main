@@ -115,10 +115,12 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
       `UPDATE shop_items SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING *`,
       [qty, req.params.id]
     );
-    if (itemRes.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({ error: "Insufficient stock to deduct" });
-    }
+if (itemRes.rows.length === 0) {
+  const cur = await client.query(`SELECT stock FROM shop_items WHERE id=$1`, [req.params.id]);
+  console.log(`[deduct-stock] shop_items.stock insufficient — item ${req.params.id}, have ${cur.rows[0]?.stock}, need ${qty}`);
+  await client.query("ROLLBACK");
+  return res.status(409).json({ error: "Insufficient stock to deduct" });
+}
     const item = itemRes.rows[0];
 
     let ingredientResult = null;
@@ -145,10 +147,11 @@ router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
       });
 
       const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
-      if (totalAvailable < qty) {
-        await client.query("ROLLBACK");
-        return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
-      }
+if (totalAvailable < qty) {
+  console.log(`[deduct-stock] ingredient batch stock insufficient — ingredient ${item.ingredient_id}, have ${totalAvailable}, need ${qty}`);
+  await client.query("ROLLBACK");
+  return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
+}
 
       let remaining = qty;
       for (const b of sortedBatches) {

@@ -97,6 +97,10 @@ router.put("/ingredients/:id", async (req, res) => {
         [parseFloat(costResult.rows[0].total_cost) || 0, row.inventory_id]
       );
     }
+    await client.query(
+      `UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`,
+      [updatedItem.stock, req.params.id]
+    );
 
     await client.query("COMMIT");
 
@@ -138,7 +142,9 @@ router.delete("/ingredients/:id", async (req, res) => {
 
     const result = await pool.query("DELETE FROM ingredients WHERE id=$1 RETURNING id", [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
-
+    
+    await pool.query(`UPDATE shop_items SET stock=0 WHERE ingredient_id=$1`, [req.params.id]);
+    
     await logActivity({
       action: "delete",
       itemName: item.name,
@@ -267,10 +273,12 @@ router.post("/ingredient-batches", async (req, res) => {
       [ingredient_id]
     );
     const { total_stock, earliest_exp } = totals.rows[0];
+
     await client.query(
       `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3`,
       [total_stock, earliest_exp || null, ingredient_id]
     );
+    await client.query(`UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`, [total_stock, ingredient_id]);
 
     await client.query("COMMIT");
     const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
@@ -377,7 +385,7 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
     );
 
     await client.query("COMMIT");
-    
+
     await logActivity({
       action: "delete",
       itemName: batchInfo.ingredient_name,
