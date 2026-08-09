@@ -54,10 +54,21 @@ const VALID_ID_TYPES = [
   "National ID (PhilSys)","Senior Citizen ID","PWD ID","UMID",
 ];
 
+const MAX_LOI_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
+
 const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
 // ─── MODAL ────────────────────────────────────────────────────────────────────
-function AlertModal({ open, type, message, onClose, onConfirm }) {
+function AlertModal({ open, type, message, onClose, onConfirm, autoCloseMs = 2200 }) {
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      if (onConfirm) onConfirm();
+      else onClose();
+    }, autoCloseMs);
+    return () => clearTimeout(t);
+  }, [open, onConfirm, onClose, autoCloseMs]);
+
   if (!open) return null;
   const isSuccess = type === "success";
   return (
@@ -1599,7 +1610,9 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
       const data = await res.json();
       if (data.success) {
         auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
-        showAlert("success", "Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
+        showAlert("success", "Application submitted successfully! Redirecting you to the home page...");
+        // Automatically redirect — no click required.
+        setTimeout(() => { navigate("/"); }, 1800);
       } else {
         showAlert("error", data.error || "Failed to submit. Please try again.");
       }
@@ -2026,6 +2039,13 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
                   onChange={e => {
                     const f = e.target.files[0];
                     if (!f) return;
+                    if (f.size > MAX_LOI_SIZE_BYTES) {
+                      auditLog.record("LOI_REJECTED_SIZE", { fileName: f.name, size: f.size });
+                      setErrors(p => ({ ...p, letterOfIntent: `File exceeds 100MB limit (${(f.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller file.` }));
+                      setLetterOfIntent(null);
+                      e.target.value = "";
+                      return;
+                    }
                     auditLog.record("LOI_UPLOADED", { fileName: f.name, size: f.size });
                     setLetterOfIntent(f);
                     setErrors(p => ({ ...p, letterOfIntent: "" }));
@@ -2050,7 +2070,7 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
                     <>
                       <Upload size={24} color="#9CA3AF" style={{ margin: "0 auto 8px" }} />
                       <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#374151" }}>Click to upload Letter of Intent</p>
-                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>PDF only — max 10MB</p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>PDF only — max 100MB</p>
                     </>
                   )}
                 </div>
@@ -2160,20 +2180,37 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
         .af-section {
           background: #f9fdf9; border-radius: 14px; border: 1.5px solid #c8e6c9;
           padding: 1.3rem 1.3rem 1.1rem; display: flex; flex-direction: column; gap: 0.9rem;
+          transition: box-shadow 0.25s ease, border-color 0.25s ease;
         }
+        .af-section:hover { box-shadow: 0 4px 18px rgba(33,132,40,0.08); }
         .af-row { display: flex; flex-wrap: wrap; gap: 0.9rem; }
 
         .af-card input[type="text"], .af-card input[type="email"], .af-card input[type="number"],
         .af-card input[type="date"], .af-card input[type="password"], .af-card textarea, .af-card select {
           width: 100%; padding: 13px 14px; border-radius: 12px; border: 1.5px solid #c8e6c9;
           outline: none; font-size: 14px; font-family: 'Montserrat', sans-serif;
-          color: #1a1a1a; background: #fafafa; transition: border-color 0.2s, background 0.2s; box-sizing: border-box;
+          color: #1a1a1a; background: #fafafa; transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; box-sizing: border-box;
+        }
+        .af-card input:hover, .af-card select:hover {
+          border-color: #a5d6a7 !important;
         }
         .af-card input:focus, .af-card textarea:focus, .af-card select:focus {
           border-color: #2E7D32 !important; background: #fff !important;
+          box-shadow: 0 0 0 3px rgba(46,125,50,0.12);
         }
         .af-card input:disabled {
           background: #f5f5f5; color: #888; cursor: not-allowed; border-color: #e5e7eb !important;
+        }
+
+        /* Smooth, interactive feel for every clickable control */
+        button {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, background 0.2s ease, filter 0.2s ease;
+        }
+        button:not(:disabled):hover {
+          filter: brightness(1.04);
+        }
+        button:not(:disabled):active {
+          transform: scale(0.97);
         }
 
         .af-submit-btn {
@@ -2181,10 +2218,12 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
           width: 100%; padding: 14px; border-radius: 12px; border: none;
           background: linear-gradient(90deg,#49a94e,#218428); color: #fff;
           font-weight: bold; cursor: pointer; font-size: 14px; letter-spacing: 0.5px;
-          transition: background 0.2s; font-family: 'Montserrat', sans-serif;
+          transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+          font-family: 'Montserrat', sans-serif;
           box-shadow: 0 4px 14px rgba(33,132,40,0.25);
         }
-        .af-submit-btn:hover { background: linear-gradient(90deg,#246627,#2a7e30); }
+        .af-submit-btn:hover { background: linear-gradient(90deg,#246627,#2a7e30); box-shadow: 0 6px 20px rgba(33,132,40,0.35); transform: translateY(-1px); }
+        .af-submit-btn:active { transform: translateY(0) scale(0.98); }
         .af-footer-note { text-align: center; font-size: 0.82rem; color: #9CA3AF; margin-top: -0.8rem; }
       `}</style>
     </div>
@@ -2195,7 +2234,7 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
 const inpStyle = {
   width: "100%", padding: "13px 14px", borderRadius: 12, outline: "none",
   fontSize: 14, fontFamily: "'Montserrat',sans-serif", color: "#1a1a1a",
-  background: "#fafafa", transition: "border-color 0.2s", boxSizing: "border-box",
+  background: "#fafafa", transition: "border-color 0.2s ease, box-shadow 0.2s ease", boxSizing: "border-box",
 };
 
 const disabledStyle = {
@@ -2204,14 +2243,24 @@ const disabledStyle = {
 };
 
 const S = {
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
-  modalBox: { background: "#fff", borderRadius: 20, padding: "2.5rem 2rem 2rem", width: 380, maxWidth: "92vw", textAlign: "center", position: "relative", boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", animation: "af-fade-in 0.2s ease" },
+  modalBox: { background: "#fff", borderRadius: 20, padding: "2.5rem 2rem 2rem", width: 380, maxWidth: "92vw", textAlign: "center", position: "relative", boxShadow: "0 24px 80px rgba(0,0,0,0.18)", animation: "af-pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" },
   iconWrap: { width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.2rem" },
   modalMsg: { fontSize: "1rem", color: "#374151", lineHeight: 1.6, marginBottom: "1.5rem" },
   btnRow: { display: "flex", gap: 10, justifyContent: "center" },
   btn: { padding: "0.65rem 2rem", borderRadius: 10, fontSize: "0.95rem", fontWeight: 700, cursor: "pointer", border: "none", fontFamily: "'Montserrat',sans-serif" },
-  btnSolid: { background: "linear-gradient(90deg,#368f3b,#218428)", color: "#fff" },
+  btnSolid: { background: "linear-gradient(90deg,#368f3b,#218428)", color: "#fff", boxShadow: "0 3px 10px rgba(33,132,40,0.25)" },
   btnOutline: { background: "transparent", color: "#2E7D32", border: "2px solid #2E7D32" },
   closeBtn: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4 },
   zoomBtn: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
 };
+
+if (typeof document !== "undefined" && !document.getElementById("af-global-anim")) {
+  const styleTag = document.createElement("style");
+  styleTag.id = "af-global-anim";
+  styleTag.textContent = `
+    @keyframes af-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes af-pop-in { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  `;
+  document.head.appendChild(styleTag);
+}
