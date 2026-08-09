@@ -17,15 +17,16 @@ router.get("/dashboard/stats", async (req, res) => {
     }
 
     if (branch) { conditions.push(`branch=$${paramIdx}`); params.push(branch); paramIdx++; }
-    else if (branches) {
-      const list = branches.split(",").map(b => b.trim()).filter(Boolean);
-      if (list.length > 0) {
-        conditions.push(`branch IN (${list.map((_,i) => `$${paramIdx+i}`).join(",")})`);
-        params.push(...list); paramIdx += list.length;
-      }
-    }
+else if (branches) {
+  const list = branches.split(",").map(b => b.trim()).filter(Boolean);
+  if (list.length > 0) {
+    conditions.push(`branch IN (${list.map((_,i) => `$${paramIdx+i}`).join(",")})`);
+    params.push(...list); paramIdx += list.length;
+  }
+}
+conditions.push(`(is_voided=false OR is_voided IS NULL)`); // ← add this
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const result = await pool.query(
       `SELECT COALESCE(SUM(total),0) AS "salesRevenue", COALESCE(SUM(total),0) AS "totalSales",
        COALESCE(SUM(cogs),0) AS "cogs", COALESCE(SUM(total)-SUM(cogs),0) AS "salesProfit",
