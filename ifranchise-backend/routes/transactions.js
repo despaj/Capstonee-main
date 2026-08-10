@@ -90,7 +90,7 @@ router.post("/transactions", async (req, res) => {
 
 router.post("/transactions/:id/void", async (req, res) => {
   try {
-    const { voided_by, reason } = req.body;
+    const { voided_by, reason } = req.body || {};   // ← add `|| {}`
     const result = await pool.query(
       `UPDATE transactions SET is_voided=true, voided_at=NOW(), voided_by=$1, void_reason=$2
        WHERE id=$3 AND (is_voided=false OR is_voided IS NULL) RETURNING *`,
@@ -99,6 +99,7 @@ router.post("/transactions/:id/void", async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: "Transaction not found or already voided" });
     res.json({ success: true, transaction: result.rows[0] });
   } catch (err) {
+    console.error("POST /transactions/:id/void error:", err);
     res.status(500).json({ error: "Failed to void transaction" });
   }
 });
