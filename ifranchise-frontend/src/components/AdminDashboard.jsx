@@ -862,36 +862,34 @@ useEffect(() => {
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   ACTIVITY LOG — REDESIGNED SECTION
+   Replace, in your original file, EVERYTHING from:
+     const PAGE_SIZE = 20;
+   down through the end of:
+     function ActivityLogContent({ user }) { ... }
+   with the code below. It reuses C, FONT, and all the icon imports you
+   already have at the top of your file (Activity, Clock, User, Search,
+   Download, FileText, RefreshCw, X, etc.) — nothing else needs to change.
+   ────────────────────────────────────────────────────────────────────── */
+
 const PAGE_SIZE = 20;
 
 const ACTION_META = {
-  create:  { color: '#00695c', bg: '#e0f2f1', label: 'Create'  },
-  update:  { color: '#1565c0', bg: '#e3f2fd', label: 'Update'  },
-  delete:  { color: '#c62828', bg: '#ffebee', label: 'Delete'  },
-  restore: { color: '#6a1b9a', bg: '#f3e5f5', label: 'Restore' },
-  hide:    { color: '#5d4037', bg: '#efebe9', label: 'Hide'    },
-  show:    { color: '#2e7d32', bg: '#e8f5e9', label: 'Show'    },
-  approve: { color: '#2e7d32', bg: '#e8f5e9', label: 'Approve' },
-  reject:  { color: '#bf360c', bg: '#fbe9e7', label: 'Reject'  },
-  login:   { color: '#00695c', bg: '#e0f2f1', label: 'Login'   },
-  logout:  { color: '#5d4037', bg: '#efebe9', label: 'Logout'  },
-  export:  { color: '#1565c0', bg: '#e3f2fd', label: 'Export'  },
-  print:   { color: '#37474f', bg: '#eceff1', label: 'Print'   },
-  view:    { color: '#00695c', bg: '#e0f2f1', label: 'View'    },
-  import:  { color: '#6a1b9a', bg: '#f3e5f5', label: 'Import'  },
-};
-
-const MOCK_DESCS = {
-  'Brand & Branch':   ['Added brand "Coffee Spot"', 'Edited branch "Makati"', 'Deleted brand "iPharma Draft"', 'Restored branch "Ortigas"'],
-  'User Management':  ['Created franchisee account', 'Updated user role to Sales Admin', 'Deleted user account', 'Restored deleted user'],
-  'Applications':     ['Approved franchise application #0031', 'Rejected application #0042', 'Deleted application', 'Restored application'],
-  'Menu Inventory':   ['Added menu item "Matcha Latte"', 'Updated price of "Espresso"', 'Deleted item "Frappuccino"', 'Imported 12 items via Excel'],
-  'Stock Inventory':  ['Added stock batch "Arabica Beans"', 'Updated reorder level', 'Deleted expired batch', 'Restocked 50 units'],
-  'Mobile Shop':      ['Added shop item "V60 Kit"', 'Edited item price', 'Hid shop item', 'Deleted item permanently'],
-  'Reports':          ['Approved report from Makati branch', 'Viewed report #00021', 'Downloaded report PDF', 'Marked report as reviewed'],
-  'Announcements':    ['Posted new announcement', 'Edited announcement title', 'Deleted announcement', 'Restored from delete history'],
-  'Profile':          ['Updated profile name', 'Changed password via OTP', 'Updated work email', 'Unlocked profile for editing'],
-  'Auth':             ['Logged in successfully', 'Logged out', 'Failed login attempt (wrong password)', 'Session expired'],
+  create:  { color: '#00695c', bg: '#e0f2f1', label: 'Create',  dot: '#00897b' },
+  update:  { color: '#1565c0', bg: '#e3f2fd', label: 'Update',  dot: '#1e88e5' },
+  delete:  { color: '#c62828', bg: '#ffebee', label: 'Delete',  dot: '#e53935' },
+  restore: { color: '#6a1b9a', bg: '#f3e5f5', label: 'Restore', dot: '#8e24aa' },
+  hide:    { color: '#5d4037', bg: '#efebe9', label: 'Hide',    dot: '#795548' },
+  show:    { color: '#2e7d32', bg: '#e8f5e9', label: 'Show',    dot: '#43a047' },
+  approve: { color: '#2e7d32', bg: '#e8f5e9', label: 'Approve', dot: '#43a047' },
+  reject:  { color: '#bf360c', bg: '#fbe9e7', label: 'Reject',  dot: '#e64a19' },
+  login:   { color: '#00695c', bg: '#e0f2f1', label: 'Login',   dot: '#00897b' },
+  logout:  { color: '#5d4037', bg: '#efebe9', label: 'Logout',  dot: '#795548' },
+  export:  { color: '#1565c0', bg: '#e3f2fd', label: 'Export',  dot: '#1e88e5' },
+  print:   { color: '#37474f', bg: '#eceff1', label: 'Print',   dot: '#546e7a' },
+  view:    { color: '#00695c', bg: '#e0f2f1', label: 'View',    dot: '#00897b' },
+  import:  { color: '#6a1b9a', bg: '#f3e5f5', label: 'Import',  dot: '#8e24aa' },
 };
 
 const MODULES = [
@@ -913,30 +911,23 @@ const fmtFull = (iso) =>
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
 
-const th = {
-  padding: '9px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
-  color: C.green, letterSpacing: '0.07em', textTransform: 'uppercase',
-  borderBottom: `2px solid ${C.border}`, background: '#f8fffe', whiteSpace: 'nowrap',
-};
-
-const td = (i) => ({
-  padding: '10px 12px', borderBottom: `1px solid #f0f8f0`,
-  background: i % 2 === 0 ? C.white : '#fafffe',
-  fontSize: 13, verticalAlign: 'middle', color: C.ink,
-});
-
-// ── Sub-components ────────────────────────────────────────────────────────────
+/* ── Polished KPI card ── */
 function StatCard({ label, value, sub, color, icon: Icon }) {
   return (
-    <div style={{
-      background: C.white, border: `1px solid rgba(0,168,76,0.12)`,
-      borderRadius: 18, padding: '18px 20px',
-      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
-    }}>
+    <div
+      style={{
+        background: C.white, border: '1px solid rgba(0,168,76,0.12)',
+        borderRadius: 18, padding: '18px 20px',
+        boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+        transition: 'transform .18s ease, box-shadow .18s ease',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 26px rgba(0,140,60,0.14)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 14px rgba(0,140,60,0.07)'; }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
         <div>
           <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.muted, marginBottom: 5 }}>{label}</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: color || C.ink }}>{value}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: color || C.ink, letterSpacing: '-0.5px' }}>{value}</div>
         </div>
         <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenLt, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={20} color={C.greenDk} />
@@ -947,78 +938,76 @@ function StatCard({ label, value, sub, color, icon: Icon }) {
   );
 }
 
+/* ── Pill badge with a small status dot ── */
 function ActionBadge({ action }) {
-  const m = ACTION_META[action] || { color: C.muted, bg: C.bg, label: action };
+  const m = ACTION_META[action] || { color: C.muted, bg: C.bg, label: action, dot: C.muted };
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: m.bg, color: m.color }}>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '3px 10px 3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+      background: m.bg, color: m.color, whiteSpace: 'nowrap',
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.dot, flexShrink: 0 }} />
       {m.label}
     </span>
   );
 }
 
-function TimelineLine({ log, expanded, onToggle }) {
-  const am = ACTION_META[log.action] || { color: C.muted, bg: C.bg };
+/* ── Modern segmented pagination ── */
+function LogPagination({ page, totalPages, onChange }) {
+  if (totalPages <= 1) return null;
+  const pageBtn = (active, disabled) => ({
+    minWidth: 32, height: 32, padding: '0 8px', borderRadius: 9,
+    border: `1px solid ${active ? 'transparent' : C.border}`,
+    background: active ? 'linear-gradient(135deg,#00c853,#00897b)' : C.white,
+    color: active ? '#fff' : disabled ? '#cbd5c9' : C.ink,
+    fontSize: 12.5, fontWeight: active ? 800 : 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: active ? '0 3px 10px rgba(0,180,90,0.28)' : 'none',
+    transition: 'transform .12s ease, box-shadow .12s ease, background .12s ease',
+  });
+  const pages = Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - page) <= 2 || i === 0 || i === totalPages - 1);
+  const withGaps = [];
+  pages.forEach((p, idx) => {
+    if (idx > 0 && p - pages[idx - 1] > 1) withGaps.push('gap');
+    withGaps.push(p);
+  });
   return (
-    <div style={{ display: 'flex', padding: '0 20px', position: 'relative' }}>
-      {/* vertical connector */}
-      <div style={{ position: 'absolute', left: 46, top: 38, bottom: 0, width: 1.5, background: C.border }} />
-      {/* dot */}
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: am.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 10, marginRight: 14, border: `1.5px solid ${am.color}33`, zIndex: 1 }}>
-        <Activity size={13} color={am.color} />
-      </div>
-      {/* body */}
-      <div style={{ flex: 1, paddingTop: 10, paddingBottom: 12, borderBottom: `1px solid #f0f8f0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-          <span style={{ fontWeight: 700, fontSize: 13, color: C.ink }}>{log.description}</span>
-          <ActionBadge action={log.action} />
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-          <span style={{ fontSize: 11, background: '#e0f2f1', color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>{log.user_name}</span>
-          <span style={{ fontSize: 11, background: '#f0fdf5', color: C.muted, padding: '2px 8px', borderRadius: 20 }}>{log.module}</span>
-          {log.location && log.location !== '—' && (
-            <span style={{ fontSize: 11, background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: 20 }}>📍 {log.location}</span>
-          )}
-          <span style={{ fontSize: 11, color: C.muted }}>{fmtRelative(log.created_at)}</span>
-        </div>
-        <button
-          onClick={onToggle}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: C.green, fontWeight: 700, fontFamily: FONT, padding: 0, textDecoration: 'underline' }}
-        >
-          {expanded ? 'Hide details' : 'View details'}
-        </button>
-        {expanded && (
-          <div style={{ marginTop: 8, background: '#f8fffe', borderRadius: 10, border: `1px solid ${C.border}`, padding: '10px 14px', fontSize: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 24px', marginBottom: log.meta?.field ? 10 : 0 }}>
-              {[
-                ['Event ID',  `#LOG-${String(log.id).padStart(5, '0')}`],
-                ['Timestamp', fmtFull(log.created_at)],
-                ['User',      log.user_name],
-                ['Role',      log.role],
-                ['Location',  log.location], 
-                ['Device',    log.device],
-                ['Branch',    log.branch],
-                ['Module',    log.module],
-              ].map(([lbl, val]) => (
-                <div key={lbl}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{lbl}</div>
-                  <div style={{ fontWeight: 600, color: C.ink }}>{val}</div>
-                </div>
-              ))}
-            </div>
-            {log.meta?.field && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                  Field changed: <strong style={{ color: C.ink }}>{log.meta.field}</strong>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1, background: '#ffebee', color: '#b71c1c', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>− {log.meta.old}</div>
-                  <div style={{ flex: 1, background: '#e8f5e9', color: '#1b5e20', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontFamily: 'monospace' }}>+ {log.meta.new}</div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        style={pageBtn(false, page === 0)}
+        onMouseEnter={e => { if (page !== 0) e.currentTarget.style.background = C.greenLt; }}
+        onMouseLeave={e => { if (page !== 0) e.currentTarget.style.background = C.white; }}
+      >
+        ‹
+      </button>
+      {withGaps.map((p, i) =>
+        p === 'gap' ? (
+          <span key={`gap-${i}`} style={{ width: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>···</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            style={pageBtn(p === page, false)}
+            onMouseEnter={e => { if (p !== page) e.currentTarget.style.background = C.greenLt; }}
+            onMouseLeave={e => { if (p !== page) e.currentTarget.style.background = C.white; }}
+          >
+            {p + 1}
+          </button>
+        )
+      )}
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        style={pageBtn(false, page >= totalPages - 1)}
+        onMouseEnter={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.greenLt; }}
+        onMouseLeave={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.white; }}
+      >
+        ›
+      </button>
     </div>
   );
 }
@@ -1036,54 +1025,43 @@ function ActivityLogContent({ user }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
 
-const loadLogs = useCallback(async () => {
-  setLoading(true);
-  try {
-    const endpoints = [
-      'menu-activity-log',
-      'stockInv-activity-log',
-      'shop-activity-log',
-      'orders-activity-log',
-      'users-activity-log',
-      'applications-activity-log',
-      'reports-activity-log',
-      'announcements-activity-log',
-      'brands-activity-log',
-    ];
-
-    const results = await Promise.all(
-      endpoints.map(url =>
-        fetch(`${process.env.REACT_APP_API_URL}/${url}`)
-          .then(r => r.json())
-          .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
-            id:          row.id,
-            module:      row.module || 'General',
-            action:      (row.action || 'update').toLowerCase(),
-            user_name:   row.performed_by || 'Admin',
-            role:        row.role || 'Unknown',
-            description: row.item_name || row.action || '—',
-            branch:      row.branch || '—',
-            device:      row.device || '—',
-            location:    row.location || '—',
-            changes:     row.changes || null,
-            created_at:  row.created_at,
-            meta:        {},
-          })))
-          .catch(() => [])
-      )
-    );
-
-    const merged = results
-      .flat()
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-    setAllLogs(merged);
-  } catch (err) {
-    console.error('Failed to load activity logs:', err);
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const endpoints = [
+        'menu-activity-log', 'stockInv-activity-log', 'shop-activity-log',
+        'orders-activity-log', 'users-activity-log', 'applications-activity-log',
+        'reports-activity-log', 'announcements-activity-log', 'brands-activity-log',
+      ];
+      const results = await Promise.all(
+        endpoints.map(url =>
+          fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+            .then(r => r.json())
+            .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
+              id:          row.id,
+              module:      row.module || 'General',
+              action:      (row.action || 'update').toLowerCase(),
+              user_name:   row.performed_by || 'Admin',
+              role:        row.role || 'Unknown',
+              description: row.item_name || row.action || '—',
+              branch:      row.branch || '—',
+              device:      row.device || '—',
+              location:    row.location || '—',
+              changes:     row.changes || null,
+              created_at:  row.created_at,
+              meta:        {},
+            })))
+            .catch(() => [])
+        )
+      );
+      const merged = results.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setAllLogs(merged);
+    } catch (err) {
+      console.error('Failed to load activity logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => { loadLogs(); }, [loadLogs]);
 
@@ -1114,7 +1092,6 @@ const loadLogs = useCallback(async () => {
     return filtered.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
   }, [filtered, page, totalPages]);
 
-  // Stats
   const todayStr   = new Date().toISOString().slice(0, 10);
   const todayCount = allLogs.filter(l => l.created_at.startsWith(todayStr)).length;
   const userCount  = new Set(allLogs.map(l => l.user_name)).size;
@@ -1129,7 +1106,6 @@ const loadLogs = useCallback(async () => {
 
   useEffect(() => { setPage(0); }, [search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
 
-  // ── Export CSV ────────────────────────────────────────────────────────────
   const exportCSV = () => {
     const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'];
     const rows   = filtered.map(l => [
@@ -1145,12 +1121,10 @@ const loadLogs = useCallback(async () => {
     a.click();
   };
 
-  // ── Export PDF ────────────────────────────────────────────────────────────
   const exportPDF = () => {
     const doc   = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageW = doc.internal.pageSize.getWidth();
     let y       = 18;
-
     doc.setFillColor(13, 43, 30);
     doc.rect(0, 0, pageW, 28, 'F');
     doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
@@ -1158,7 +1132,6 @@ const loadLogs = useCallback(async () => {
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(160, 220, 190);
     doc.text(`Generated ${fmtFull(new Date().toISOString())} · ${filtered.length} events`, pageW / 2, 22, { align: 'center' });
     y = 36;
-
     filtered.slice(0, 200).forEach((l) => {
       if (y > 270) { doc.addPage(); y = 18; }
       doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
@@ -1173,7 +1146,6 @@ const loadLogs = useCallback(async () => {
       doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
       doc.line(14, y - 2, pageW - 14, y - 2);
     });
-
     const total = doc.internal.getNumberOfPages();
     for (let i = 1; i <= total; i++) {
       doc.setPage(i); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
@@ -1182,80 +1154,108 @@ const loadLogs = useCallback(async () => {
     doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  // ── Select style helper ───────────────────────────────────────────────────
   const selSt = {
-    height: 36, padding: '0 11px', borderRadius: 9,
+    height: 36, padding: '0 30px 0 11px', borderRadius: 9,
     border: `1px solid ${C.border}`, background: C.bg,
-    fontSize: 13, color: C.ink, fontFamily: FONT,
+    fontSize: 12.5, color: C.ink, fontFamily: FONT,
     outline: 'none', appearance: 'none', cursor: 'pointer',
+    transition: 'border-color .15s ease, box-shadow .15s ease',
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // sticky header cell style — this is what keeps the column labels pinned
+  // to the top of the scrollable card body ("Event ID / Timestamp / User..." row).
+  // Given its own tinted background + shadow so it reads as a distinct bar,
+  // not just text floating over the same white as the rows.
+  const stickyTh = {
+    position: 'sticky', top: 0, zIndex: 5,
+    padding: '13px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
+    color: '#00695c', letterSpacing: '0.08em', textTransform: 'uppercase',
+    background: 'linear-gradient(180deg,#eafaf3,#ddf5e9)',
+    borderBottom: '2px solid #a7ddc4',
+    boxShadow: '0 3px 8px rgba(0,140,60,0.08)',
+    whiteSpace: 'nowrap',
+  };
+  const stickyTheadRow = {
+    boxShadow: '0 2px 0 rgba(0,140,60,0.05)',
+  };
+
+  const td = (i) => ({
+    padding: '11px 12px', borderBottom: '1px solid #f0f8f0',
+    background: i % 2 === 0 ? C.white : '#fafffe',
+    fontSize: 12.5, verticalAlign: 'middle', color: C.ink,
+    transition: 'background .12s ease',
+  });
+
   return (
     <div style={{ fontFamily: FONT }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .al-row-hover:hover td { background: #f0fdf5 !important; }
+        .al-select:focus, .al-input:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.1); }
+        .al-toolbar-btn { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+        .al-toolbar-btn:hover { filter: brightness(0.97); transform: translateY(-1px); }
+        .al-toolbar-btn:active { transform: translateY(0); }
       `}</style>
 
       {/* ── Stats ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 22 }}>
         <StatCard label="Total Events" value={allLogs.length} sub="All time"      color={C.ink}   icon={Activity} />
         <StatCard label="Today"        value={todayCount}     sub="Last 24 hours" color={C.green} icon={Clock}    />
         <StatCard label="Active Users" value={userCount}      sub="Unique actors" color="#1565c0" icon={User}     />
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
+      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.13)', borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-
           <div style={{ position: 'relative', flex: '1 1 220px' }}>
             <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search events, users, modules…"
+              className="al-input"
               style={{ ...selSt, paddingLeft: 30, width: '100%', appearance: 'auto' }}
             />
           </div>
 
-          <select value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
+          <select className="al-select" value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
             <option value="">All modules</option>
             {MODULES.map(m => <option key={m}>{m}</option>)}
           </select>
 
-          <select value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
+          <select className="al-select" value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
             <option value="">All actions</option>
             {Object.keys(ACTION_META).map(a => <option key={a} value={a}>{ACTION_META[a].label}</option>)}
           </select>
 
-          <select value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
+          <select className="al-select" value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
             <option value="">All users</option>
             {uniqueUsers.map(u => <option key={u}>{u}</option>)}
           </select>
 
-          <select value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
+          <select className="al-select" value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
             <option value="">All branches</option>
             {uniqueBranches.map(b => <option key={b}>{b}</option>)}
           </select>
 
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
-          <input type="date" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
+          <input type="date" className="al-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
+          <input type="date" className="al-input" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
 
           {hasFilters && (
-            <button onClick={clearAll} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <button className="al-toolbar-btn" onClick={clearAll} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
               <X size={12} /> Clear
             </button>
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <button className="al-toolbar-btn" onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
               <Download size={12} /> CSV
             </button>
-            <button onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: C.grad, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <button className="al-toolbar-btn" onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(0,180,90,0.28)' }}>
               <FileText size={12} /> PDF
             </button>
-            <button onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <button className="al-toolbar-btn" onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
               <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} /> Refresh
             </button>
           </div>
@@ -1263,17 +1263,20 @@ const loadLogs = useCallback(async () => {
       </div>
 
       {/* ── Log panel ── */}
-      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.12)`, borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
+      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
 
         {/* Panel header */}
-        <div style={{ background: C.grad, padding: '13px 20px' }}>
+        <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '13px 20px' }}>
           <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
             {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
           </div>
         </div>
 
-        {/* Panel body — table only */}
+        {/* Scrollable body — the <thead> below is sticky, so the column
+            labels (Event ID / Timestamp / User / Module / Action /
+            Description / Branch / Location / Device) stay pinned at the
+            top of the card while the rows scroll underneath them. */}
         <div style={{ maxHeight: 600, overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 14 }}>
@@ -1288,15 +1291,23 @@ const loadLogs = useCallback(async () => {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
                 <thead>
-                  <tr>
-                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map(h => (
-                      <th key={h} style={th}>{h}</th>
+                  <tr style={stickyTheadRow}>
+                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map((h, i, arr) => (
+                      <th
+                        key={h}
+                        style={{
+                          ...stickyTh,
+                          borderRight: i < arr.length - 1 ? '1px solid rgba(0,140,60,0.1)' : 'none',
+                        }}
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {pageItems.map((log, i) => (
-                    <tr key={log.id} className="al-row-hover">
+                    <tr key={log.id} className="al-row-hover" style={{ animation: 'rowIn .22s ease both', animationDelay: `${Math.min(i, 12) * 15}ms` }}>
                       <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>#LOG-{String(log.id).padStart(5, '0')}</td>
                       <td style={{ ...td(i), fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFull(log.created_at)}</td>
                       <td style={{ ...td(i), fontWeight: 700 }}>
@@ -1334,40 +1345,12 @@ const loadLogs = useCallback(async () => {
             {' '}of{' '}
             <strong style={{ color: C.ink }}>{filtered.length}</strong>
           </span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[
-              { label: '«', p: 0,              disabled: page === 0              },
-              { label: '‹', p: page - 1,       disabled: page === 0              },
-              ...Array.from({ length: totalPages }, (_, i) => i)
-                .filter(i => Math.abs(i - page) <= 2)
-                .map(i => ({ label: i + 1, p: i, disabled: false, active: i === page })),
-              { label: '›', p: page + 1,       disabled: page >= totalPages - 1  },
-              { label: '»', p: totalPages - 1, disabled: page >= totalPages - 1  },
-            ].map((btn, idx) => (
-              <button
-                key={idx}
-                onClick={() => setPage(btn.p)}
-                disabled={btn.disabled}
-                style={{
-                  width: 30, height: 30, borderRadius: 8,
-                  cursor: btn.disabled ? 'not-allowed' : 'pointer',
-                  border: `1px solid ${btn.active ? C.green : C.border}`,
-                  background: btn.active ? C.grad : C.white,
-                  color: btn.active ? '#fff' : btn.disabled ? '#ccc' : C.ink,
-                  fontSize: 12, fontWeight: btn.active ? 800 : 500,
-                  fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
+          <LogPagination page={Math.min(page, totalPages - 1)} totalPages={totalPages} onChange={setPage} />
         </div>
       </div>
     </div>
   );
 }
-
 // ─── Dashboard-specific constants ────────────────────────────────────────────
 const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
@@ -1606,20 +1589,50 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
 }
 
 // ─── SalesTrendSection ────────────────────────────────────────────────────────
-function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending, getRangeLabel, filterLabel }) {
+// ─── SalesTrendSection ────────────────────────────────────────────────────────
+function SalesTrendSection({
+  values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
+  getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
+}) {
+  const panelRef = useRef(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const isFiltered = !!(filterBrand || filterBranch);
+
+ const selectedBrandObj = useMemo(
+    () => brands.find(b => String(b.id) === String(filterBrand)),
+    [brands, filterBrand]
+  );
 
   const catData = useMemo(() => {
     if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
     if (!total) return [];
-    return [
-      { label: "Medicine",    value: Math.round(total * 0.28) },
-      { label: "Supplements", value: Math.round(total * 0.22) },
-      { label: "Coffee",      value: Math.round(total * 0.18) },
-      { label: "Vitamins",    value: Math.round(total * 0.14) },
-      { label: "Equipment",   value: Math.round(total * 0.10) },
-      { label: "Other",       value: Math.round(total * 0.08) },
-    ];
-  }, [kpiData, total]);
+    // Use the selected brand's own category list (set in Brand & Branch
+    // management) so Coffee Spot never shows Medicine/Equipment, etc.
+    const cats = selectedBrandObj?.categories?.length
+      ? selectedBrandObj.categories
+      : ["General"];
+    // Weighted so the first-listed category gets the biggest share, tapering off.
+    const weights   = cats.map((_, i) => Math.pow(0.72, i));
+    const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
+    return cats.map((label, i) => ({
+      label,
+      value: Math.round(total * (weights[i] / weightSum)),
+    }));
+  }, [kpiData, total, selectedBrandObj]);
+
+  const brandBreakdownData = useMemo(() => {
+    if (kpiData?.brandBreakdown?.length) return kpiData.brandBreakdown;
+    if (!total || !brands?.length) return [];
+    const totalWeight = brands.reduce((s, b) => s + (b.branches?.length || 1), 0) || 1;
+    return brands
+      .map(b => ({ label: b.name, value: Math.round(total * ((b.branches?.length || 1) / totalWeight)) }))
+      .sort((a, b) => b.value - a.value);
+  }, [kpiData, total, brands]);
+
+  const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
+  const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
+const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
 
   const branchData = useMemo(() => {
     if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
@@ -1652,21 +1665,100 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
     bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
     bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
     if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
-    if (catData.length) {
-      const topCat = catData[0];
-      bullets.push(`${topCat.label} is the top-performing category at ${fmtShort(topCat.value)} (${Math.round((topCat.value / total) * 100)}% of revenue).`);
+    if (categoryPanelData.length) {
+      const top = categoryPanelData[0];
+      bullets.push(`${top.label} is the top-performing ${isFiltered ? "category" : "brand"} at ${fmtShort(top.value)} (${Math.round((top.value / total) * 100)}% of revenue).`);
     }
     if (branchData.length) {
       const topBranch = branchData[0];
       bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
     }
     return bullets;
-  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, catData, branchData, kpiData, getRangeLabel, filterLabel]);
+  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, categoryPanelData, branchData, kpiData, getRangeLabel, filterLabel, isFiltered]);
+
+  // ── Print ──
+  const handlePrint = () => {
+    if (!panelRef.current) return;
+    const printContents = panelRef.current.innerHTML;
+    const win = window.open("", "_blank");
+    if (!win) { alert("Please allow pop-ups to print this report."); return; }
+    win.document.write(`
+      <html>
+        <head>
+          <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; background: #ffffff !important; }
+            @media print { @page { margin: 14mm; } button { display: none !important; } }
+          </style>
+        </head>
+        <body>${printContents}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  // ── Download PDF ──
+  const handleDownloadPDF = async () => {
+    if (!panelRef.current) return;
+    setPdfBusy(true);
+    try {
+      const margin = 30;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth    = pdf.internal.pageSize.getWidth();
+      const pageHeight   = pdf.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - margin * 2;
+
+      const canvas = await html2canvas(panelRef.current, {
+        scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: panelRef.current.scrollWidth,
+      });
+      const imgData      = canvas.toDataURL("image/png");
+      const imgHeight     = (canvas.height * contentWidth) / canvas.width;
+      const pageContentH  = pageHeight - margin * 2 - 20;
+      const totalPages    = Math.max(1, Math.ceil(imgHeight / pageContentH));
+
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const yOffset = margin - page * pageContentH;
+        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+        pdf.setDrawColor(224, 242, 241);
+        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
+      }
+      pdf.save(`Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("Could not generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   return (
     <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`} />
-      <div style={{ padding: "18px 20px" }}>
+      <CardHeader
+        icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`}
+        action={
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handlePrint}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+              <Printer size={13} /> Print
+            </button>
+            <button onClick={handleDownloadPDF} disabled={pdfBusy}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+              {pdfBusy ? "Preparing…" : "Download PDF"}
+            </button>
+          </div>
+        }
+      />
+      <div ref={panelRef} style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
@@ -1709,7 +1801,9 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
             ) : (
               <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
                 <BarChart2 size={28} color="#b2dfdb" />
-                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
+                  No data found for {getRangeLabel()}
+                </div>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
               </div>
             )}
@@ -1763,44 +1857,27 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
-            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
-            {catData.length > 0
-              ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+        {/* Period Summary column removed — 2-column spaced layout */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
+           <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
+            {categoryPanelData.length > 0
+              ? <DonutChartSVG segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={150} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
             }
           </div>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
             <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
             {branchData.length > 0
               ? <HBarChart data={branchData.slice(0, 5)} />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+              : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
             }
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
-            {[
-              { label: "Peak Revenue",   value: hasData ? fmtAmt(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-              { label: "Lowest Revenue", value: hasData ? fmtAmt(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-              { label: "Period Average", value: hasData ? fmtAmt(avg)  : "—", sub: `${labels.length} data points`,               color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-              { label: "Trend",          value: hasData ? `${trending?"+":""}${pctChange}%` : "—", sub: trending?"Upward trend":"Downward trend", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
-            ].map((s, i) => (
-              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
-                </div>
-                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
     </PanelCard>
   );
 }
-
 // ─── PrescriptiveSection ──────────────────────────────────────────────────────
 
 
@@ -1860,14 +1937,14 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     const printContents = exportRef.current.innerHTML;
     const win = window.open("", "_blank");
     if (!win) { alert("Please allow pop-ups to print this report."); return; }
-    win.document.write(`
+   win.document.write(`
       <html>
         <head>
           <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
-            body { margin: 0; background: #fff; }
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; background: #ffffff !important; }
             @media print { @page { margin: 14mm; } button { display: none !important; } }
           </style>
         </head>
@@ -2358,7 +2435,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
             { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
             { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
             { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
-            { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
+           { label: "Avg Units Sold / Product", value: data?.avgQty ? `${Number(data.avgQty).toLocaleString()} units` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
           ].map((s, i) => (
             <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
@@ -2701,15 +2778,14 @@ const applyCustomRange = () => {
     return d >= from && d <= to;
   });
 
-  if (!hasData) {
+ if (!hasData) {
     showInfo({
-      type: "info",
+      type: "error",
       title: "No Data Found",
-      message: `There are no transactions between ${customFrom} and ${customTo}${filterLabel !== "All Brands & Branches" ? ` for ${filterLabel}` : ""}. Try a different date range.`,
+      message: `No data found for the selected date range (${customFrom} → ${customTo})${filterLabel !== "All Brands & Branches" ? ` — ${filterLabel}` : ""}. Please choose a different date range.`,
     });
     return;
   }
-
   setAppliedRange({ from: customFrom, to: customTo });
   setViewArchive(null);
   setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
@@ -2938,13 +3014,14 @@ const applyCustomRange = () => {
         </div>
       )}
 
-      {/* ── SECTION 1: SALES TREND ── */}
+     {/* ── SECTION 1: SALES TREND ── */}
       <SalesTrendSection
         values={values} labels={chartData.labels} kpiData={kpiData}
         total={total} avg={avg} peak={peak} low={low}
         peakLabel={peakLabel} pctChange={pctChange} trending={trending}
         getRangeLabel={getRangeLabel} filterLabel={filterLabel}
-      />
+        filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList}
+      /> 
 
       {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
       <PrescriptiveSection
@@ -3767,46 +3844,91 @@ function Field({ label, error, children }) {
   );
 }
 
-function MobileShopContent({ user, brands: propBrands = [] }) {
-  const msInputStyle = {
-    width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
-    border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
-    color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
-    fontFamily: "'Montserrat', sans-serif", // ensures typed text AND placeholder text use Montserrat
-  };
+
+const normalize = (str) => (str || "").trim().toLowerCase();
+const MARKUP = 1.10; // shop price = stock cost + 10%
+
+/* ── tiny inline icons (no external deps beyond lucide's core set) ── */
+
+const EditIcon   = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+const EyeIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
+const EyeOffIcon = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a20.3 20.3 0 0 1-3.22 4.44" /><path d="M1 1l22 22" /><path d="M9.53 9.53a3 3 0 0 0 4.24 4.24" /></svg>;
+const BoxIcon    = ({ size = 28 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>;
+const CheckCircleIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+const AlertIcon  = ({ size = 22 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
+const TagIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2.41 12.42A2 2 0 0 1 2 11V4a2 2 0 0 1 2-2h7a2 2 0 0 1 1.41.59l8.18 8.18a2 2 0 0 1 0 2.83Z" /><circle cx="7" cy="7" r="1" /></svg>;
+const ListIcon   = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+const LayersIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>;
+
+/* ── shared style atoms (mirrors Stock Inventory's system) ── */
+const msInputStyle = {
+  width: "100%", height: 38, padding: "0 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", transition: "border-color .15s, box-shadow .15s",
+};
+const readOnlyFieldStyle = {
+  width: "100%", minHeight: 38, padding: "9px 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.muted, background: "#f5f5f5", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", fontWeight: 700, display: "flex", alignItems: "center",
+};
+const toolbarBtnSt = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  height: 38, padding: "0 16px", borderRadius: 9,
+  fontSize: 13, fontWeight: 700, cursor: "pointer",
+  fontFamily: "inherit", whiteSpace: "nowrap", border: "none",
+};
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) { console.log("[DEBUG] geolocation not supported"); resolve(null); return; }
+    if (!navigator.geolocation) { resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log("[DEBUG] got coords:", position.coords.latitude, position.coords.longitude);
-        resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude });
-      },
-      (err) => { console.log("[DEBUG] geolocation error:", err.code, err.message); resolve(null); },
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
       { timeout: 5000, maximumAge: 60000 }
     );
   });
 };
 
-  const [activityLog,     setActivityLog]     = useState([]);
+const computePrice = (cost) => (cost > 0 ? Math.round(cost * MARKUP * 100) / 100 : 0);
+const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(item.brand)}-${normalize(item.name)}`);
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MAIN COMPONENT
+
+   Mobile Shop no longer maintains its own independent product list.
+   Every product shown here is derived 1:1 from Stock Inventory
+   (the `/ingredients` endpoint). If a product exists in Stock Inventory,
+   it appears here (optionally "listed" with a photo). If it's
+   removed from Stock Inventory, it disappears from Mobile Shop too.
+   There is no manual "Add Item" and no "Import Excel" — listing a
+   product simply means editing it here to set its photo, or using the
+   bulk "List Items" / "List All Items" actions to list several products
+   at once (photos can be added afterwards via Edit). Price is never
+   entered manually: it's always the product's live Stock Inventory cost
+   plus a fixed 10% markup. Live stock counts (from Stock Inventory's
+   FIFO/FEFO batches) are intentionally not shown here — that detail
+   belongs to Stock Inventory.
+───────────────────────────────────────────────────────────────────────── */
+function MobileShopContent({ user, brands: propBrands = [] }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [items,           setItems]           = useState([]);
-  const [errors,          setErrors]          = useState({});
-  const [loading,         setLoading]         = useState(false);
-  const [confirmDelete,   setConfirmDelete]   = useState(null);
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [shopItems,       setShopItems]       = useState([]); // listing overrides: photo/visibility, keyed to a stock product
+  const [itemsLoading,    setItemsLoading]    = useState(true);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // item pending unlist confirmation (modal)
+  const [deleteLoading,   setDeleteLoading]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
   const [editErrors,      setEditErrors]      = useState({});
   const [editLoading,     setEditLoading]     = useState(false);
   const [searchQuery,     setSearchQuery]     = useState("");
   const [filterShop,      setFilterShop]      = useState("all");
-  const [brands,          setBrands]          = useState([]);
   const [stockItems,      setStockItems]      = useState([]);
-  const [newItem,         setNewItem]         = useState({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-  const excelRef = useRef(null);
-  const addImageRef = useRef(null); 
-  const editImageRef = useRef(null); 
+  const [toast,           setToast]           = useState(null);
+  const [selectedKeys,    setSelectedKeys]    = useState(() => new Set()); // multi-select for bulk listing
+  const [bulkListing,     setBulkListing]     = useState(false);
+
+  const editImageRef = useRef(null);
 
   const fetchActivityLog = useCallback(async () => {
     try {
@@ -3816,391 +3938,401 @@ const getBrowserLocation = () => {
     } catch (err) { console.error("Failed to fetch shop activity log:", err); }
   }, []);
 
-  const fetchItems = async () => {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-    const data = await res.json();
-    setItems(data);
-  };
-
-  const fetchBrands = async () => {
+  // Listing overrides (photo / visibility) for products that have
+  // been set up for the Mobile Shop. This is NOT the source of the product
+  // list — Stock Inventory is — it's just extra metadata per product.
+  const fetchShopItems = useCallback(async () => {
+    setItemsLoading(true);
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
       const data = await res.json();
-      setBrands(Array.isArray(data) ? data : []);
-    } catch { setBrands([]); }
-  };
+      setShopItems(Array.isArray(data) ? data : []);
+    } catch {
+      setShopItems([]);
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
 
-  const fetchStockItems = async () => {
+  // Stock Inventory ingredients — this is the single source of truth for
+  // which products can appear in the Mobile Shop at all, and for cost.
+  const fetchStockItems = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
       const data = await res.json();
       setStockItems(Array.isArray(data) ? data : []);
     } catch { setStockItems([]); }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchItems();
-    fetchBrands();
+    fetchShopItems();
     fetchStockItems();
     fetchActivityLog();
-  }, [fetchActivityLog]);
+  }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
-  const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
+  // Pull the live unit cost from Stock Inventory. The shop price is always
+  // derived from this — never entered by hand — so it stays in sync
+  // automatically whenever cost changes upstream.
+  const getCostFor = useCallback((brandName, itemName) => {
+    const b = normalize(brandName), n = normalize(itemName);
+    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
+    return match ? Number(match.cost || 0) : 0;
+  }, [stockItems]);
 
-  const filteredItems = items.filter(item => {
+  // Every unique (brand, product name) combination that exists in Stock
+  // Inventory. This — and only this — determines what CAN show up here.
+  const uniqueStockProducts = useMemo(() => {
+    const seen = new Map();
+    stockItems.forEach((si) => {
+      if (!si.brand || !si.name) return;
+      const key = `${normalize(si.brand)}|${normalize(si.name)}`;
+      if (!seen.has(key)) seen.set(key, { brand: si.brand, name: si.name });
+    });
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [stockItems]);
+
+  // Merge each Stock Inventory product with its Mobile Shop listing
+  // override (if one has been set up). Products with no override yet
+  // are still shown, marked as "Not Listed", so staff can list them.
+  // Price is always computed live from cost — it's never stored as a
+  // free-standing editable number. Stock is intentionally not exposed
+  // here — it lives in Stock Inventory's FIFO/FEFO queues.
+  const items = useMemo(() => {
+    return uniqueStockProducts.map((sp) => {
+      const match = shopItems.find(
+        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
+      );
+      const liveCost = getCostFor(sp.brand, sp.name);
+      return {
+        id: match ? match.id : null,
+        name: sp.name,
+        brand: sp.brand,
+        shop: match ? match.shop : sp.brand,
+        cost: liveCost,
+        price: computePrice(liveCost),
+        unit: match ? match.unit : "",
+        image_url: match ? match.image_url : "",
+        is_visible: match ? !!match.is_visible : false,
+        listed: !!match,
+      };
+    });
+  }, [uniqueStockProducts, shopItems, getCostFor]);
+
+  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
+
+  const filteredItems = items.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesQuery =
       !q ||
       item.name?.toLowerCase().includes(q) ||
-      item.shop?.toLowerCase().includes(q) ||
-      String(item.stock ?? "").includes(q);
+      item.shop?.toLowerCase().includes(q);
     if (!matchesQuery) return false;
     if (filterShop !== "all" && item.shop !== filterShop) return false;
     return true;
   });
 
-  const getBranchesForBrand = (brandName) => {
-    const found = brands.find(b => b.name === brandName);
-    if (!found) return [];
-    return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
-  };
-
-  const getStockNamesForBrand = (brandName) => {
-    if (!brandName) return [];
-    const target = brandName.trim().toLowerCase();
-    const exact = stockItems.filter(i => (i.brand || "").trim().toLowerCase() === target);
-    const pool = exact.length > 0
-      ? exact
-      : stockItems.filter(i => (i.brand || "").trim().toLowerCase().includes(target) || target.includes((i.brand || "").trim().toLowerCase()));
-    return [...new Set(pool.map(i => i.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  };
-
-  const validate = () => {
-    const newErrors = {};
-    if (!newItem.brand) newErrors.brand = "Brand is required";
-    if (!newItem.name.trim()) newErrors.name = "Item name is required";
-    if (!newItem.price) newErrors.price = "Price is required";
-    else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-    if (newItem.stock !== "" && (isNaN(newItem.stock) || Number(newItem.stock) < 0)) newErrors.stock = "Stock must be 0 or more";
-    if (!newItem.image_url) newErrors.image_url = "Photo is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Reads a selected image file and stores it as a data URL in image_url
-  const handleImageSelect = (e, target /* "add" | "edit" */) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (target === "edit") setEditingItem(prev => ({ ...prev, image_url: ev.target.result }));
-      else setNewItem(prev => ({ ...prev, image_url: ev.target.result }));
-    };
-    reader.readAsDataURL(file);
-    e.target.value = ""; // allow re-selecting the same file later
-  };
-
-const validateEdit = () => {
-  const errs = {};
-  if (!editingItem.name.trim()) errs.name = "Item name is required";
-  if (!editingItem.price) errs.price = "Price is required";
-  else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-  if (editingItem.stock === "" || editingItem.stock === null || editingItem.stock === undefined)
-    errs.stock = "Stock is required";
-  else if (isNaN(editingItem.stock) || Number(editingItem.stock) < 0)
-    errs.stock = "Stock must be 0 or more";
-  if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
-  setEditErrors(errs);
-  return Object.keys(errs).length === 0;
-};
-
-  const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-
-const addItem = async () => {
-  if (loading || !validate()) return;
-
-  const duplicate = items.find(
-    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
-      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
-  );
-  if (duplicate) {
-    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
-    return;
-  }
-
-  setLoading(true);
-  const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name:      capitalize(newItem.name),
-      price:     Number(newItem.price),
-      unit:      "",
-      image_url: newItem.image_url,
-      shop:      newItem.brand,
-      brand:     newItem.brand,
-      stock:     Number(newItem.stock || 0),
-      performed_by: user?.name || "System",
-      latitude:  coords?.latitude,
-      longitude: coords?.longitude,
-    }),
-  });
-
-  setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-  setErrors({});
-  setLoading(false);
-  setShowAddModal(false);
-  fetchItems();
-  fetchActivityLog();
-};
-
-const saveEdit = async () => {
-  if (editLoading || !validateEdit()) return;
-  setEditLoading(true);
-  const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name:       capitalize(editingItem.name.trim()),
-      price:      Number(editingItem.price),
-      unit:       editingItem.unit || "",
-      image_url:  editingItem.image_url,
-      shop:       editingItem.brand,
-      brand:      editingItem.brand,
-      stock:      Number(editingItem.stock),
-      is_visible: editingItem.is_visible,
-      performed_by: user?.name || "System",
-      latitude:  coords?.latitude,
-      longitude: coords?.longitude,
-    }),
-  });
-  setEditingItem(null);
-  setEditErrors({});
-  setEditLoading(false);
-  fetchItems();
-  fetchActivityLog();
-};
-
-  const importExcel = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      const coords = await getBrowserLocation();
-      const wb = XLSX.read(ev.target.result, { type: "array" });
-      const rows_to_save = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
-        rows.forEach(row => {
-          const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-          const price = parseFloat(row.price || row.Price || 0) || 0;
-          if (!name || price <= 0) return;
-
-          const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
-
-          // Skip duplicates — same name + shop
-          const alreadyExists = items.some(
-            i => i.name.trim().toLowerCase() === name.toLowerCase()
-              && i.shop.trim().toLowerCase() === shop.toLowerCase()
-          );
-          if (alreadyExists) return;
-
-          rows_to_save.push({
-            name: capitalize(name.trim()), price,
-            unit:      String(row.unit      || row.Unit      || "").trim(),
-            stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-            shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
-            brand:     String(row.brand     || row.Brand     || "").trim(),
-            image_url: String(row.image_url || row["Image URL"] || "").trim(),
-            is_visible: true,
-          });
-        });
+  // Clear out any selected keys that no longer exist in the current item set
+  // (e.g. a product was removed from Stock Inventory).
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      const validKeys = new Set(items.map(keyFor));
+      let changed = false;
+      const next = new Set();
+      prev.forEach((k) => {
+        if (validKeys.has(k)) next.add(k);
+        else changed = true;
       });
-       let saved = 0;
-        for (const item of rows_to_save) {
-          try {
-            const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name:       capitalize(item.name.trim()),
-                price:      item.price,
-                unit:       item.unit,
-                stock:      item.stock,
-                shop:       item.shop,
-                brand:      item.brand,
-                image_url:  item.image_url,
-                is_visible: item.is_visible,
-                performed_by: user?.name || "System",
-                latitude:  coords?.latitude,
-                longitude: coords?.longitude,
-                imported:  true,
-              }),
-            });
-          const d = await res.json();
-          if (d.success) {
-            saved++;
-          }
-        } catch {}
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  const toggleSelect = (rowKey) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
+  };
+
+  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
+  const toggleSelectAllFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredItems.forEach((i) => next.delete(keyFor(i)));
+      } else {
+        filteredItems.forEach((i) => next.add(keyFor(i)));
       }
-      e.target.value = "";
-      const skipped = rows_to_save.length - saved;
-      alert(
-        `Parsed ${rows_to_save.length} row(s).\n` +
-        `Saved: ${saved} item(s)\n` +
-        `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
-      );
-      fetchItems();
+      return next;
+    });
+  };
+
+  const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
+  const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
+  const allUnlistedCount = filteredItems.filter((i) => !i.listed).length;
+
+  const validateEdit = () => {
+    const errs = {};
+    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
+    if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const openEditor = (item) => {
+    setEditingItem({ ...item });
+    setEditErrors({});
+  };
+
+  // Creates the listing (POST) the first time a product is edited, or
+  // updates it (PUT) if a listing already exists. Stock is not part of
+  // this payload's concern here — price is always synced live from
+  // Stock Inventory, never entered manually.
+  const saveEdit = async () => {
+    if (editLoading || !validateEdit()) return;
+    setEditLoading(true);
+    const coords = await getBrowserLocation();
+    const liveCost = getCostFor(editingItem.brand, editingItem.name);
+    const payload = {
+      name: editingItem.name,
+      price: computePrice(liveCost),
+      unit: editingItem.unit || "",
+      image_url: editingItem.image_url,
+      shop: editingItem.brand,
+      brand: editingItem.brand,
+      is_visible: editingItem.is_visible !== false,
+      performed_by: user?.name || "System",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
     };
-    reader.readAsArrayBuffer(file);
+    try {
+      const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
+      const method = editingItem.id ? "PUT" : "POST";
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      setToast({
+        type: "success",
+        title: editingItem.id ? "Item Updated" : "Item Listed",
+        message: editingItem.id
+          ? `"${editingItem.name}" has been updated.`
+          : `"${editingItem.name}" is now listed in the Mobile Shop.`,
+      });
+      setEditingItem(null);
+      setEditErrors({});
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to save changes." });
+    } finally {
+      setEditLoading(false);
+    }
   };
 
-const deleteItem = async (id) => {
-  const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
-  });
-  setConfirmDelete(null);
-  fetchItems();
-  fetchActivityLog();
-};
-
-const toggleVisibility = async (id) => {
-  const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
-  });
-  fetchItems();
-  fetchActivityLog();
-};
-
-  // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
-  const toolbarBtnSt = {
-    display:"inline-flex", alignItems:"center", gap:6,
-    height:36, padding:"0 16px", borderRadius:9,
-    fontSize:13, fontWeight:700, cursor:"pointer",
-    fontFamily:"inherit", whiteSpace:"nowrap", border:"none",
+  // Bulk-list one or more not-yet-listed products in a single action.
+  // Photos are optional here — staff can attach one later via Edit —
+  // so this is meant for quickly getting products visible in the shop.
+  const bulkListItems = async (candidateItems) => {
+    const toList = candidateItems.filter((i) => !i.listed);
+    if (toList.length === 0) {
+      setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
+      return;
+    }
+    setBulkListing(true);
+    const coords = await getBrowserLocation();
+    let success = 0, failed = 0;
+    for (const it of toList) {
+      const liveCost = getCostFor(it.brand, it.name);
+      const payload = {
+        name: it.name,
+        price: computePrice(liveCost),
+        unit: it.unit || "",
+        image_url: it.image_url || "",
+        shop: it.brand,
+        brand: it.brand,
+        is_visible: true,
+        performed_by: user?.name || "System",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      };
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
+    }
+    setBulkListing(false);
+    setSelectedKeys(new Set());
+    fetchShopItems();
+    fetchActivityLog();
+    setToast({
+      type: failed > 0 ? "error" : "success",
+      title: "Bulk Listing Complete",
+      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
+    });
   };
 
-  const closeAddModal = () => { setShowAddModal(false); setErrors({}); setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" }); };
+  const deleteItem = async (item) => {
+    if (!item.id) { setConfirmDeleteItem(null); return; }
+    setDeleteLoading(true);
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDeleteItem(null);
+      fetchShopItems();
+      fetchActivityLog();
+    }
+  };
 
-  // Shared "click to upload / preview / remove" photo picker used in Add and Edit modals
+  const toggleVisibility = async (item) => {
+    if (!item.id) return; // nothing to toggle until it's listed
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to update visibility." });
+    }
+  };
+
   const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
     <Field label="Photo *" error={error}>
       <div
         onClick={() => inputRef.current.click()}
         style={{
-          cursor:"pointer", borderRadius:8, background:C.bg, textAlign:"center",
-          border:`1.5px dashed ${error ? "#e53935" : C.border}`,
-          padding: value ? 8 : "20px 8px",
-        }}>
+          cursor: "pointer", borderRadius: 12, background: C.bg, textAlign: "center", marginTop: 6,
+          border: `1.5px dashed ${error ? C.red : C.border}`,
+          padding: value ? 8 : "22px 8px", transition: "border-color .15s, background .15s",
+        }}
+      >
         {value ? (
-          <div style={{ position:"relative", display:"inline-block" }}>
-            <img src={value} alt="preview"
-              style={{ width:84, height:84, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, display:"block" }}/>
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <img src={value} alt="preview" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, display: "block", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
             <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              style={{ position:"absolute", top:-8, right:-8, width:20, height:20, borderRadius:"50%",
-                border:"none", background:"#e53935", color:"#fff", fontSize:11, lineHeight:1, cursor:"pointer" }}>
+              style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
               ✕
             </button>
           </div>
         ) : (
-          <div style={{ color:C.muted, fontSize:12, fontFamily:"'Montserrat', sans-serif" }}>
-            <div style={{ fontSize:20, marginBottom:4 }}>📷</div>
+          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
             Click to upload photo
           </div>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*" onChange={onPick} style={{ display:"none" }}/>
     </Field>
   );
 
   return (
-    <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Montserrat', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .msc-row { cursor: pointer; transition: background .15s ease; }
+        .msc-row:hover td { background: #f6fef8 !important; }
+        .msc-row.selected td { background: ${C.greenLt} !important; }
+        .msc-btn:not(:disabled):hover { filter: brightness(0.96); transform: translateY(-1px); }
+        .msc-btn:not(:disabled):active { transform: translateY(0); }
+        .msc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .msc-btn { transition: filter .12s ease, transform .12s ease, box-shadow .12s ease; }
+        .msc-icon-btn:hover { filter: brightness(0.94); }
+        .msc-edit:hover { background:#dcedff !important; }
+        .msc-del:hover  { background:#fddede !important; }
+        .msc-hide:hover { background:${C.greenLt} !important; }
+        select, input { transition: border-color .15s ease, box-shadow .15s ease; }
+        select:focus, input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
+        .msc-modal-card { animation: riseIn .18s cubic-bezier(.2,.8,.3,1); }
+      `}</style>
 
-      {/* ── Edit Modal ──────────────────────────────────────────────────── */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {/* ── Edit / List Modal ── */}
       {editingItem && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Edit Item</span>
-              <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 560, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                  <TagIcon size={15} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>{editingItem.id ? "Edit Listing" : "List Item"}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{editingItem.brand} · {editingItem.name}</div>
+                </div>
+              </div>
+              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <div style={{ padding:"20px 24px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-                <Field label="Brand *" error={editErrors.brand}>
-                  <select
-                    value={editingItem.brand || ""}
-                    onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
-                    <option value="">Select brand…</option>
-                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                  </select>
+            <div style={{ padding: "22px 24px" }}>
+              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 14 }}>ℹ️</span>
+                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
+                <Field label="Brand">
+                  <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
                 </Field>
-                <Field label="Item Name *" error={editErrors.name}>
-                  {(() => {
-                    const stockNames = getStockNamesForBrand(editingItem.brand);
-                    // keep the item's current name selectable even if it's no longer in the stock list
-                    const options = editingItem.name && !stockNames.includes(editingItem.name)
-                      ? [editingItem.name, ...stockNames]
-                      : stockNames;
-                    return (
-                      <select
-                        value={editingItem.name}
-                        disabled={!editingItem.brand}
-                        onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
-                        style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}`,
-                          opacity: !editingItem.brand ? 0.6 : 1, cursor: !editingItem.brand ? "not-allowed" : "pointer" }}>
-                        {!editingItem.brand && <option value="">Select brand first…</option>}
-                        {options.map(n => <option key={n} value={n}>{n}</option>)}
-                      </select>
-                    );
-                  })()}
+                <Field label="Item Name">
+                  <div style={readOnlyFieldStyle}>{editingItem.name}</div>
                 </Field>
-                <Field label="Price" error={editErrors.price}>
-                  <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+                <Field label="Shop Price" error={editErrors.cost}>
+                  <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computePrice(editingItem.cost)) : "—"}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
+                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} + 10%` : "no cost set"}
+                    </span>
+                  </div>
                 </Field>
                 <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
-                <Field label="Stock *" error={editErrors.stock}>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editingItem.stock ?? ""}
-                    onChange={e => setEditingItem({...editingItem, stock: e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.stock ? "#e53935" : C.border}` }}
-                    placeholder="0"
-                  />
-                </Field>
-                <PhotoPicker
-                  value={editingItem.image_url}
-                  onPick={e => handleImageSelect(e, "edit")}
-                  onRemove={() => setEditingItem({ ...editingItem, image_url:"" })}
-                  inputRef={editImageRef}
-                  error={editErrors.image_url}
-                />
+                <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
               </div>
-              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
-                <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
+
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
+                <div onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}
+                  style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", position: "relative", background: editingItem.is_visible !== false ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0", transition: "background .2s", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 3, left: editingItem.is_visible !== false ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left .2s" }} />
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: "pointer" }} onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}>
+                  Visible in Mobile Shop
+                </span>
+              </div>
+
+              <div style={{ marginTop: "1.4rem", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => { setEditingItem(null); setEditErrors({}); }} className="msc-btn"
+                  style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
                   Cancel
                 </button>
-                <button onClick={saveEdit} disabled={editLoading}
-                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
-                    background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                    color:C.white, fontWeight:800, fontSize:13, cursor: editLoading ? "not-allowed" : "pointer",
-                    opacity: editLoading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-                  {editLoading ? "Saving…" : "Save Changes"}
+                <button onClick={saveEdit} disabled={editLoading} className="msc-btn"
+                  style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "inherit" }}>
+                  {editLoading ? "Saving…" : editingItem.id ? "Save Changes" : "List Item"}
                 </button>
               </div>
             </div>
@@ -4208,198 +4340,187 @@ const toggleVisibility = async (id) => {
         </div>
       )}
 
-      {/* ── Add New Item Modal (was a solo card — now a popup like Edit) ─── */}
-      {showAddModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Add New Item</span>
-              <button onClick={closeAddModal}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+      {/* ── Unlist Confirmation Modal ── */}
+      {confirmDeleteItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 400, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdeeee", color: "#e53935", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <AlertIcon />
+              </div>
+              <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Unlist this item?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+                <strong style={{ color: C.ink }}>{confirmDeleteItem.name}</strong> will be removed from the Mobile Shop. It'll stay in Stock Inventory and can be relisted anytime.
+              </div>
             </div>
-            <div style={{ padding:"20px 24px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-                <Field label="Brand *" error={errors.brand}>
-                  <select
-                    value={newItem.brand}
-                    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value, name:"" })}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
-                    <option value="">Select brand…</option>
-                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                  </select>
-                </Field>
-                <Field label="Item Name *" error={errors.name}>
-                  {(() => {
-                    const stockNames = getStockNamesForBrand(newItem.brand);
-                    return (
-                      <>
-                        <select
-                          value={newItem.name}
-                          disabled={!newItem.brand}
-                          onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-                          style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}`,
-                            opacity: !newItem.brand ? 0.6 : 1, cursor: !newItem.brand ? "not-allowed" : "pointer" }}>
-                          <option value="">
-                            {!newItem.brand ? "Select brand first…" : stockNames.length === 0 ? "No products found for this brand" : "Select item…"}
-                          </option>
-                          {stockNames.map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                        {newItem.brand && stockNames.length === 0 && (
-                          <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
-                            No matching products in Stock Inventory for this brand yet.
-                          </span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </Field>
-                <Field label="Stock" error={errors.stock}>
-                  <input value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
-                </Field>
-                <Field label="Price *" error={errors.price}>
-                  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
-                </Field>
-                <PhotoPicker
-                  value={newItem.image_url}
-                  onPick={e => handleImageSelect(e, "add")}
-                  onRemove={() => setNewItem({ ...newItem, image_url:"" })}
-                  inputRef={addImageRef}
-                  error={errors.image_url}
-                />
-              </div>
-
-              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
-                <button onClick={closeAddModal}
-                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-                  Cancel
-                </button>
-                <button onClick={addItem} disabled={loading}
-                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
-                    background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                    color:C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-                  {loading ? "Adding…" : "Add Item"}
-                </button>
-              </div>
+            <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDeleteItem(null)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button onClick={() => deleteItem(confirmDeleteItem)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
+                {deleteLoading ? "Unlisting…" : "Yes, Unlist"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Shop Items Table ---*/}
-      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
-        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
-          <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
+      {/* ── Shop Items Card ── */}
+      <div style={{ background: C.white, borderRadius: 18, border: "1px solid rgba(0,168,76,0.12)", boxShadow: "0 4px 20px rgba(0,140,60,0.08)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: "-0.01em" }}>Mobile Shop Supplies</div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set at cost + 10% · click a row to select it for listing</div>
+          </div>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", fontWeight: 700, background: "rgba(255,255,255,0.15)", padding: "5px 12px", borderRadius: 20 }}>{items.length} product{items.length !== 1 ? "s" : ""}</span>
         </div>
 
-        {/* Toolbar: search, filter, and the three aligned action buttons */}
-        <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <div style={{ position:"relative" }}>
-            <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+        {/* Toolbar */}
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fafffe" }}>
+          <div style={{ position: "relative" }}>
+            <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
             <input
-              type="text"
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding:"7px 12px 7px 28px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", width:220 }}
+              type="text" placeholder="Search items…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "inherit", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
             />
           </div>
-          <select
-            value={filterShop}
-            onChange={e => setFilterShop(e.target.value)}
-            style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 160 }}>
             <option value="all">All Shops</option>
-            {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+            {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
           </select>
           {(searchQuery || filterShop !== "all") && (
-            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
-              style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#5a7a65" }}>
+            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }} className="msc-btn"
+              style={{ height: 38, padding: "0 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
               Clear
             </button>
           )}
 
-          {/* ── Add Item / Import Excel / Activity Log — aligned together ── */}
-          <button onClick={() => setShowAddModal(true)}
-            style={{ ...toolbarBtnSt, background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white, boxShadow:"0 2px 10px rgba(0,180,90,0.28)" }}>
-            <span style={{ fontSize:15 }}>+</span> Add Item
-          </button>
+          <span style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
+            <button
+              onClick={() => bulkListItems(selectedItems)}
+              disabled={bulkListing || selectedUnlistedCount === 0}
+              className="msc-btn"
+              title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
+              style={{ ...toolbarBtnSt, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
+              <ListIcon /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
+            </button>
+            <button
+              onClick={() => bulkListItems(filteredItems)}
+              disabled={bulkListing || allUnlistedCount === 0}
+              className="msc-btn"
+              title="List every currently unlisted item shown below"
+              style={{ ...toolbarBtnSt, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
+              <LayersIcon /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
+            </button>
+            <button onClick={() => setShowActivityLog(true)} className="msc-btn"
+              style={{ ...toolbarBtnSt, border: `1px solid ${C.border}`, background: C.white, color: C.ink }}>
+              Activity Log
+            </button>
+          </span>
 
-          <label style={{ ...toolbarBtnSt, border:`1px solid ${C.border}`, background:C.white, color:C.ink }}>
-            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-
-          <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
-            {filteredItems.length} of {items.length} items
+          <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
+            {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
           </span>
         </div>
 
-        {filteredItems.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
+        {itemsLoading ? (
+          <div style={{ padding: "60px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+            <RefreshCw size={20} style={{ animation: "spin 0.9s linear infinite", marginBottom: 10 }} />
+            <div>Loading shop items…</div>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ padding: "56px 0", textAlign: "center", color: C.muted }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, opacity: 0.4 }}><BoxIcon /></div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>No products found</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Add products in Stock Inventory first — they will then appear here.</div>
+          </div>
         ) : (
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Price","Stock","Unit","Status",""].map((label, i) => (
-                    <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
+                  <th style={{ padding: "11px 0 11px 18px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: "#f8fffe", width: 34 }}>
+                    <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered}
+                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} title="Select all shown" />
+                  </th>
+                  {["", "Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
+                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 6 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
                       {label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map(item => {
-                  const isConfirm = confirmDelete === item.id;
+                {filteredItems.map((item) => {
+                  const rowKey = keyFor(item);
+                  const isSelected = selectedKeys.has(rowKey);
                   return (
-                    <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                      <td style={{ padding:"10px 12px" }}>
-                        <img src={item.image_url || null} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
+                    <tr
+                      key={rowKey}
+                      className={`msc-row${isSelected ? " selected" : ""}`}
+                      onClick={() => toggleSelect(rowKey)}
+                      style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
+                    >
+                      <td onClick={(e) => e.stopPropagation()} style={{ padding: "11px 0 11px 18px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(rowKey)}
+                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} />
                       </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.shop}</span>
+                      <td style={{ padding: "11px 14px" }}>
+                        <div style={{ position: "relative", width: 40, height: 40 }}>
+                          <img src={item.image_url || null} alt="" style={{ width: 40, height: 40, borderRadius: 9, objectFit: "cover", border: `1px solid ${C.border}`, display: "block", background: C.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }} onError={(e) => (e.target.style.visibility = "hidden")} />
+                          {isSelected && (
+                            <div style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, borderRadius: "50%", background: C.green, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
+                              <CheckCircleIcon size={10} />
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{
-                          padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700,
-                          background: item.stock === 0 ? "#fde8e8" : item.stock <= 5 ? "#fff3e0" : "#e0f2f1",
-                          color: item.stock === 0 ? "#c62828" : item.stock <= 5 ? "#e65100" : "#00695c",
-                        }}>
-                          {item.stock ?? 0}
-                        </span>
+                      <td style={{ padding: "11px 14px" }}>
+                        <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
                       </td>
-                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                          {item.is_visible ? "Visible" : "Hidden"}
-                        </span>
+                      <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.cost > 0 ? (
+                          <div>
+                            <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
+                            <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                          </div>
+                        ) : (
+                          <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
+                        )}
                       </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                          <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
-                            style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
-                            Edit
+                      <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.listed ? (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                            {item.is_visible ? "Visible" : "Hidden"}
+                          </span>
+                        ) : (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
+                            Not Listed
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                          <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
+                            style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
+                            <EditIcon /> {item.listed ? "Edit" : "List"}
                           </button>
-                          <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
-                            {item.is_visible ? "Hide" : "Show"}
-                          </button>
-                          <button onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
-                            style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
-                            <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
-                          </button>
-                          {isConfirm && (
-                            <button onClick={() => setConfirmDelete(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
+                          {item.listed && (
+                            <>
+                              <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
+                                style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
+                                {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
+                              </button>
+                              <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
+                                style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
+                                <TrashIcon />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -4411,10 +4532,31 @@ const toggleVisibility = async (id) => {
           </div>
         )}
       </div>
-  
+
+      {/* ── Activity Log Panel ── */}
+      {showActivityLog && (
+        <div onClick={() => setShowActivityLog(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)", animation: "fadeIn .15s ease" }}>
+          <div onClick={(e) => e.stopPropagation()} className="msc-modal-card" style={{ background: C.white, borderRadius: 18, padding: "26px 28px", width: "100%", maxWidth: 680, maxHeight: "78vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: C.ink, margin: 0 }}>Shop Activity Log</h2>
+              <button onClick={() => setShowActivityLog(false)} style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.greenLt, cursor: "pointer", color: C.green }}>✕</button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {activityLog.length === 0 ? (
+                <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No activity yet.</div>
+              ) : activityLog.map((entry, i) => (
+                <div key={entry.id || i} style={{ padding: "10px 0", borderBottom: `1px solid ${C.bg}`, fontSize: 12.5, color: C.ink }}>
+                  <strong>{entry.performed_by || entry.performedBy || "System"}</strong> — {entry.action || "update"} {entry.item_name ? `· ${entry.item_name}` : ""}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function generateTempPassword(length = 10) {
   const groups = [
