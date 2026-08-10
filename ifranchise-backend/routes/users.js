@@ -4,6 +4,7 @@ const pool = require("../db");
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 const { logActivity } = require("../utils/activityLogger");
+const bcrypt = require("bcrypt");
 
 router.get("/users", async (req, res) => {
   try {
@@ -311,6 +312,7 @@ router.delete("/delete-history/:id", async (req, res) => {
   }
 });
 
+<<<<<<< Updated upstream
 router.get("/users-activity-log", async (req, res) => {
   try {
     const result = await pool.query(
@@ -320,6 +322,33 @@ router.get("/users-activity-log", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch user activity log" });
+=======
+router.post("/verify-manager-password", async (req, res) => {
+  try {
+    const { branch, password } = req.body;
+    if (!branch || !password) {
+      return res.status(400).json({ valid: false, error: "Branch and password are required" });
+    }
+
+    const result = await pool.query(
+      "SELECT password FROM users WHERE branch=$1 AND role=$2",
+      [branch, "Manager"]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ valid: false, error: "No manager found for this branch" });
+    }
+
+    for (const row of result.rows) {
+      const match = await bcrypt.compare(password, row.password);
+      if (match) return res.json({ valid: true });
+    }
+
+    res.json({ valid: false, error: "Incorrect manager password" });
+  } catch (err) {
+    console.error("POST /verify-manager-password error:", err);
+    res.status(500).json({ valid: false, error: "Failed to verify password" });
+>>>>>>> Stashed changes
   }
 });
 
