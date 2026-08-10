@@ -1787,9 +1787,10 @@ const [archives, setArchives] = useState(() => {
   const [tooltip, setTooltip] = useState(null);
   const svgRef = useRef(null);
  
-  // ── KPI (server-side) ─────────────────────────────────────────────────────
+ // ── KPI (server-side) ─────────────────────────────────────────────────────
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
+  const [hiddenKpis, setHiddenKpis] = useState({});
 
   const scopedTransactions = useMemo(() => {
   const branch = userBranch.toLowerCase();
@@ -1941,6 +1942,7 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
     if (rangeMode === 'custom' && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
     return { day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' }[preset] || 'This Month';
   };
+  const filterLabel = `${userBranch} — ${getRangeLabel()}`;
  
   const saveArchive = () => {
     const year = parseInt(archiveYearInput);
@@ -2030,26 +2032,57 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
         </div>
       )}
  
-      {/* ── KPI cards (today quick stats + server KPIs) ── */}
-      <div className="fr-db-kpi-grid">
-        {[
-          { label: "Today's Revenue",  value: fmtPeso(todayRevenue),  sub: `${todaySales.length} transactions today`,      icon: <DollarSign size={18} />, color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
-          { label: 'Monthly Revenue',  value: kpiLoading ? '…' : fmtPeso(kpiData?.salesRevenue ?? 0), sub: getRangeLabel(), icon: <BarChart size={18} />,    color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
-          { label: 'Monthly Profit',   value: kpiLoading ? '…' : fmtPeso(kpiData?.salesProfit ?? 0),  sub: 'After cost of sales',                             icon: <TrendingUp size={18} />, color: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
-          { label: 'Avg Order Value',  value: fmtPeso(isNaN(avgOrder) ? 0 : avgOrder),                sub: 'Today per transaction',                           icon: <ShoppingCart size={18} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
-        ].map((k, i) => (
-          <div key={i} className="fr-db-kpi">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#5a7a65', marginBottom: 5, fontFamily: 'Montserrat,sans-serif' }}>{k.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{k.value}</div>
+     {/* ── KPI Cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+          {[
+            { label: "Sales Revenue", value: kpiData?.salesRevenue,  icon: TrendingUp   },
+            { label: "Sales Profit",  value: kpiData?.salesProfit,   icon: BarChart2    },
+            { label: "Cost of Sales", value: kpiData?.cogs,          icon: Package      },
+            { label: "Total Sales",   value: kpiData?.totalSales,    icon: ShoppingCart },
+          ].map((k, i) => {
+            const isHidden = !!hiddenKpis[i];
+            return (
+              <div key={i}
+                style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+                  <button
+                    onClick={() => setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }))}
+                    style={{
+                      position: "absolute", top: 14, right: 14,
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "#1565c0", opacity: 0.6, padding: 2,
+                      display: "flex", alignItems: "center",
+                    }}
+                    title={isHidden ? "Show value" : "Hide value"}
+                  >
+                    {!isHidden
+                      ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    }
+                  </button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                      <k.icon size={12} color="#00897b" /> {k.label}
+                    </div>
+                    {kpiLoading && k.value == null
+                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                      : k.value != null
+                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                            {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
+                          </div>
+                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                    }
+                  </div>
+                  <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
               </div>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: k.color, flexShrink: 0 }}>{k.icon}</div>
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+  
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -2148,15 +2181,13 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
   );
 }
 
-
-// ─── Design tokens (matched from MenuInventoryContent.jsx) ───────────────────
 const C = {
   green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
   teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
   bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
   ok:"#2e7d32", okBg:"#e8f5e9",
+  red:"#dc2626", redBg:"#fef2f2",   // ← add these
 };
-
 const invInputSt = {
   height:36, padding:"0 11px", borderRadius:9,
   border:`1px solid ${C.border}`, background:C.bg,
@@ -2178,6 +2209,7 @@ const smallBtnSt = {
 };
 
 const PAGE_SIZE = 15;
+const EXPIRY_WARN_DAYS = 30;   // ← add this
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
@@ -2461,20 +2493,260 @@ function FrMenuInventoryContent({ user, brands }) {
   );
 }
 
+/* ── KPI STAT CARD — matches the rounded-card / icon-chip language used
+   throughout StockInventoryContent (BrandOverviewCard, header gradients) ── */
+function KpiStatCard({ icon, label, value, sub, tone = "green" }) {
+  const tones = {
+    green:  { grad: `linear-gradient(135deg,${C.teal},${C.green})`, fg: "#fff" },
+    red:    { grad: `linear-gradient(135deg,#ef5350,${C.red})`,     fg: "#fff" },
+    blue:   { grad: "linear-gradient(135deg,#42a5f5,#1565c0)",      fg: "#fff" },
+    orange: { grad: `linear-gradient(135deg,#fbbf24,${C.warn})`,    fg: "#fff" },
+  };
+  const t = tones[tone] || tones.green;
+  return (
+    <div style={{
+      background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:16,
+      padding:"16px 18px", boxShadow:"0 2px 16px rgba(0,140,60,0.07)",
+      display:"flex", alignItems:"center", gap:14,
+    }}>
+      <div style={{
+        width:44, height:44, borderRadius:12, flexShrink:0,
+        background:t.grad, color:t.fg,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        boxShadow:"0 4px 12px rgba(0,0,0,0.12)",
+      }}>
+        {icon}
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontSize:10.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+          {label}
+        </div>
+        <div style={{ fontSize:19, fontWeight:800, color:C.ink, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {value}
+        </div>
+        {sub && <div style={{ fontSize:11, color:C.muted, marginTop:1 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── FIFO / FEFO helpers (mirrors StockInventoryContent.jsx) ── */
+const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
+
+function computeExpiryStatus(exp_date, brand) {
+  if (!exp_date) return null;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  const msLeft = exp - now;
+  const isIPharma = (brand || "").toLowerCase().includes("ipharma");
+  if (isIPharma) {
+    if (msLeft < THREE_YEARS_MS) return "expired";
+    if (msLeft < THREE_YEARS_MS + 7  * 86400000) return "critical";
+    if (msLeft < THREE_YEARS_MS + 30 * 86400000) return "warning";
+    return "ok";
+  }
+  if (msLeft < 0) return "expired";
+  if (msLeft < 7  * 86400000) return "critical";
+  if (msLeft < 30 * 86400000) return "warning";
+  return "ok";
+}
+
+function getFifoMethod(brand, isPerishable) {
+  const isPharma = (brand || "").toLowerCase().includes("ipharma");
+  if (isPharma || isPerishable) {
+    return {
+      method: "FEFO",
+      topLabel: "NEXT OUT (FEFO)",
+      queueLabel: isPharma
+        ? "nearest expiry dispensed first — FDA compliance & patient safety"
+        : "nearest expiry dispensed first — reduce spoilage waste",
+    };
+  }
+  return {
+    method: "FIFO",
+    topLabel: "NEXT OUT",
+    queueLabel: "oldest received batch used first",
+  };
+}
+
+function sortBatchesByMethod(batches, brand, isPerishable) {
+  const { method } = getFifoMethod(brand, isPerishable);
+  return [...batches].sort((a, b) => {
+    if (method === "FEFO") {
+      const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+      const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+      return da - db;
+    }
+    const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+    const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+    return da - db;
+  });
+}
+
+function daysRemaining(exp_date) {
+  if (!exp_date) return null;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const exp = new Date(exp_date);
+  return Math.round((exp - now) / 86400000);
+}
+
+function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
+function isFuelBrand(brand)   { return (brand || "").toLowerCase().includes("ifuel"); }
+
+const FR_EXPIRY_STYLE = {
+  expired:  { border: "#fecaca", badgeText: "#991b1b", label: "EXPIRED",  dot: "#dc2626" },
+  critical: { border: "#fed7aa", badgeText: "#9a3412", label: "CRITICAL", dot: "#ea580c" },
+  warning:  { border: "#fef08a", badgeText: "#854d0e", label: "EXPIRING", dot: "#ca8a04" },
+  ok:       { border: C.greenMid, badgeText: null,     label: null,      dot: C.green },
+};
+
+function fmtFrDate(d) {
+  return d ? new Date(d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila" }) : "—";
+}
+function fmtFrTs(d) {
+  return new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Manila" });
+}
+
+/* small reusable bar for stock level */
+function FrMiniBar({ pct, color, track = "#eef6f1", height = 6 }) {
+  const w = Math.max(0, Math.min(100, pct ?? 0));
+  return (
+    <div style={{ background: track, borderRadius: 20, height, overflow: "hidden", width: "100%" }}>
+      <div style={{ width: `${w}%`, height: "100%", background: color, borderRadius: 20, transition: "width .3s ease" }} />
+    </div>
+  );
+}
+
+/* ── READ-ONLY FIFO / FEFO QUEUE PANEL (right column) ── */
+function FrFifoQueue({ product, batches, loading }) {
+  if (!product) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, color: C.muted, fontSize: 12.5, textAlign: "center", padding: 20 }}>
+        <div>Select an ingredient on the left<br />to view its consumption queue.</div>
+      </div>
+    );
+  }
+
+  const fifo = getFifoMethod(product.brand, product.perishable);
+  const sorted = sortBatchesByMethod(batches, product.brand, product.perishable);
+  const totalStock = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+          {totalStock} {product.unit} · {sorted.length} active batch{sorted.length === 1 ? "" : "es"} · min {product.min_stock}
+        </div>
+      </div>
+
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8,
+        background: fifo.method === "FEFO" ? "#fffbeb" : C.greenLt,
+        border: `1px solid ${fifo.method === "FEFO" ? "#fde68a" : C.greenMid}`,
+        fontSize: 10.5, color: fifo.method === "FEFO" ? "#9a3412" : C.greenDk, fontWeight: 700, marginBottom: 10,
+      }}>
+        <span>{fifo.method} QUEUE</span>
+        <span style={{ fontWeight: 500, opacity: 0.85 }}>— {fifo.queueLabel}</span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", paddingRight: 2, minHeight: 0 }}>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "30px 0", color: C.muted, fontSize: 12 }}>Loading queue…</div>
+        ) : sorted.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "30px 0", color: C.muted, fontSize: 12, fontStyle: "italic" }}>No batches yet for this ingredient.</div>
+        ) : sorted.map((b, idx) => {
+          const status = computeExpiryStatus(b.exp_date, product.brand);
+          const ss = FR_EXPIRY_STYLE[status] || FR_EXPIRY_STYLE.ok;
+          const isFirst = idx === 0;
+          const isLast  = idx === sorted.length - 1;
+          const supplyStr = b.supply_date ? fmtFrTs(b.supply_date) : "—";
+          const expStr    = fmtFrDate(b.exp_date);
+          const dRem = daysRemaining(b.exp_date);
+          const stockPct = totalStock > 0 ? Math.round((Number(b.stock || 0) / totalStock) * 100) : 0;
+
+          return (
+            <div key={b.id} style={{
+              background: C.white,
+              borderBottom: isLast ? "none" : `1px solid ${isFirst ? C.greenMid : C.border}`,
+              padding: "12px 4px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 19, height: 19, borderRadius: "50%", background: isFirst ? C.green : "#b9c9bf", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{idx + 1}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>Batch {b.batch_number || "—"}</span>
+                  {isFirst && (
+                    <span style={{ fontSize: 9, fontWeight: 800, color: C.greenDk, border: `1px solid ${C.greenMid}`, padding: "2px 8px", borderRadius: 20 }}>
+                      {fifo.topLabel}
+                    </span>
+                  )}
+                </span>
+                {ss.label && (
+                  <span style={{ fontSize: 9, fontWeight: 800, color: ss.badgeText, border: `1px solid ${ss.border}`, padding: "2px 7px", borderRadius: 20 }}>{ss.label}</span>
+                )}
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, color: C.muted, marginBottom: 8 }}>
+                {b.supplier && <span>Supplier: <strong style={{ color: C.ink }}>{b.supplier}</strong></span>}
+                <span>Arrived: <strong style={{ color: C.ink }}>{supplyStr}</strong></span>
+                <span>Expires: <strong style={{ color: ss.dot }}>{expStr}{dRem != null ? ` (${dRem < 0 ? "expired" : dRem + "d left"})` : ""}</strong></span>
+                {b.cost_per_unit ? <span>Cost/Unit: <strong style={{ color: C.ink }}>{fmtPeso(b.cost_per_unit)}</strong></span> : null}
+                {b.storage_location && <span>Location: <strong style={{ color: C.ink }}>{b.storage_location}</strong></span>}
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: C.muted, fontWeight: 700, marginBottom: 2 }}>
+                  <span>STOCK</span><span>{b.stock}{product.unit}/{totalStock}{product.unit}</span>
+                </div>
+                <FrMiniBar pct={stockPct} color={C.green} />
+              </div>
+
+              {isPharmaBrand(product.brand) && (b.lot_number || b.ndc_code || b.dosage_form || b.storage_requirement || b.controlled_substance) && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.border}`, display: "flex", flexWrap: "wrap", gap: 10, fontSize: 10.5, color: C.muted }}>
+                  {b.lot_number && <span>LOT: <strong style={{ color: C.ink }}>{b.lot_number}</strong></span>}
+                  {b.ndc_code && <span>NDC: <strong style={{ color: C.ink }}>{b.ndc_code}</strong></span>}
+                  {b.dosage_form && <span>{b.dosage_form}{b.strength ? ` · ${b.strength}` : ""}</span>}
+                  {b.storage_requirement && <span>Storage: <strong style={{ color: C.ink }}>{b.storage_requirement}</strong></span>}
+                  {b.controlled_substance && <span style={{ color: "#991b1b", fontWeight: 800 }}>CONTROLLED SUBSTANCE</span>}
+                </div>
+              )}
+              {isFuelBrand(product.brand) && (b.tank_id || b.grade || b.octane_rating || b.truck_id) && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.border}`, display: "flex", flexWrap: "wrap", gap: 10, fontSize: 10.5, color: C.muted }}>
+                  {b.tank_id && <span>Tank: <strong style={{ color: C.ink }}>{b.tank_id}</strong></span>}
+                  {b.grade && <span>Grade: <strong style={{ color: C.ink }}>{b.grade}</strong></span>}
+                  {b.octane_rating && <span>Octane: <strong style={{ color: C.ink }}>{b.octane_rating}</strong></span>}
+                  {b.delivery_temp && <span>Delivery Temp: <strong style={{ color: C.ink }}>{b.delivery_temp}°F</strong></span>}
+                  {b.truck_id && <span>Truck: <strong style={{ color: C.ink }}>{b.truck_id}</strong></span>}
+                  {b.volume_correction && <span>Corrected Vol (60°F): <strong style={{ color: C.ink }}>{b.volume_correction}</strong></span>}
+                </div>
+              )}
+
+              {b.notes && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6, fontStyle: "italic" }}>{b.notes}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── MAIN COMPONENT — read-only two-panel stock inventory for franchisees ── */
 function FrStockInventoryContent({ user, brands }) {
   const userBranch = (user?.branch || '').trim();
   const userBrand  = (user?.brand  || '').trim();
 
-  const [items, setItems]             = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [search, setSearch]           = useState('');
-  const [unitFilter, setUnitFilter]   = useState('');
-  const [statusFilt, setStatusFilt]   = useState('');
-  const [page, setPage]               = useState(0);
-  const PAGE_SIZE = 10;
+  const [items, setItems]           = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [search, setSearch]         = useState('');
+  const [unitFilter, setUnitFilter] = useState('');
+  const [statusFilt, setStatusFilt] = useState('');
 
-  // Derive extra fields from the user's brand — no guessing needed
+  const [selectedId, setSelectedId]     = useState(null);
+  const [batches, setBatches]           = useState([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+
   const extraFields = useMemo(() => getExtraFields(userBrand), [userBrand]);
+  const hasExpiry    = extraFields.some(f => f.key === 'exp_date');
 
   const fetchItems = useCallback(async () => {
     if (!userBranch) return;
@@ -2490,228 +2762,207 @@ function FrStockInventoryContent({ user, brands }) {
   }, [userBranch]);
 
   useEffect(() => { if (userBranch) fetchItems(); }, [fetchItems, userBranch]);
-  useEffect(() => { setPage(0); }, [search, unitFilter, statusFilt]);
 
-  const EXPIRY_WARN_DAYS = 30;
-
-const filtered = useMemo(() => {
-  const q   = search.toLowerCase();
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const warnDate = new Date(now);
-  warnDate.setDate(warnDate.getDate() + EXPIRY_WARN_DAYS);
-
-  return items.filter(i => {
-    if (q && !i.name.toLowerCase().includes(q)) return false;
-    if (unitFilter && i.unit !== unitFilter) return false;
-    if (statusFilt === 'low' && i.stock >= i.min_stock) return false;
-    if (statusFilt === 'ok'  && i.stock <  i.min_stock) return false;
-
-    if (statusFilt === 'expiring' || statusFilt === 'expired') {
-      const expRaw = i.extra_fields?.exp_date;
-      if (!expRaw) return false;
-      const exp = new Date(expRaw);
-      exp.setHours(0, 0, 0, 0);
-      if (statusFilt === 'expired')  return exp < now;
-      if (statusFilt === 'expiring') return exp >= now && exp <= warnDate;
-    }
-
-    return true;
-  });
-}, [items, search, unitFilter, statusFilt]);
-
-  const lowCount   = items.filter(i => i.stock < i.min_stock).length;
-  const totalValue = items.reduce((s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0), 0);
-  const pageItems  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  return (
-    <div>
-      <ReadOnlyBanner message="Stock inventory is read-only. Contact your admin to add, edit, or delete ingredients." />
-
-     <div className="v-stat-grid" style={{ gridTemplateColumns: `repeat(${extraFields.some(f => f.key === 'exp_date') ? 4 : 3}, 1fr)` }}>
-  <VKpi label="Total Ingredients" value={items.length}        icon={<Package size={20} />}       color="green"  sub="Registered" />
-  <VKpi label="Low Stock Alerts"  value={lowCount}            icon={<AlertTriangle size={20} />} color="red"    sub="Needs reorder" />
-  <VKpi label="Total Stock Value" value={fmtPeso(totalValue)} icon={<DollarSign size={20} />}    color="blue"   sub="Cost basis" />
-  {extraFields.some(f => f.key === 'exp_date') && (() => {
-    const now = new Date(); now.setHours(0,0,0,0);
+  const filtered = useMemo(() => {
+    const q   = search.toLowerCase();
+    const now = new Date(); now.setHours(0, 0, 0, 0);
     const warnDate = new Date(now); warnDate.setDate(warnDate.getDate() + EXPIRY_WARN_DAYS);
-    const expiringCount = items.filter(i => {
+
+    return items
+      .filter(i => {
+        if (q && !i.name.toLowerCase().includes(q)) return false;
+        if (unitFilter && i.unit !== unitFilter) return false;
+        if (statusFilt === 'low' && i.stock >= i.min_stock) return false;
+        if (statusFilt === 'ok'  && i.stock <  i.min_stock) return false;
+
+        if (statusFilt === 'expiring' || statusFilt === 'expired') {
+          const expRaw = i.extra_fields?.exp_date;
+          if (!expRaw) return false;
+          const exp = new Date(expRaw);
+          exp.setHours(0, 0, 0, 0);
+          if (statusFilt === 'expired')  return exp < now;
+          if (statusFilt === 'expiring') return exp >= now && exp <= warnDate;
+        }
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [items, search, unitFilter, statusFilt]);
+
+  useEffect(() => {
+    if (selectedId && !filtered.find(i => i.id === selectedId)) setSelectedId(null);
+  }, [filtered, selectedId]);
+
+  const selected = filtered.find(i => i.id === selectedId) || null;
+
+  useEffect(() => {
+    if (!selectedId) { setBatches([]); return; }
+    let cancelled = false;
+    setBatchLoading(true);
+    fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${selectedId}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); } })
+      .catch(() => { if (!cancelled) setBatchLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
+  const lowCount   = items.filter(i => Number(i.stock) < Number(i.min_stock)).length;
+  const totalValue = items.reduce((s, i) => s + (i.cost_per_unit || 0) * (i.stock || 0), 0);
+
+  const expiringCount = useMemo(() => {
+    if (!hasExpiry) return 0;
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const warnDate = new Date(now); warnDate.setDate(now.getDate() + EXPIRY_WARN_DAYS);
+    return items.filter(i => {
       const expRaw = i.extra_fields?.exp_date;
       if (!expRaw) return false;
-      const exp = new Date(expRaw); exp.setHours(0,0,0,0);
+      const exp = new Date(expRaw); exp.setHours(0, 0, 0, 0);
       return exp >= now && exp <= warnDate;
     }).length;
-    const expiredCount = items.filter(i => {
+  }, [items, hasExpiry]);
+
+  const expiredCount = useMemo(() => {
+    if (!hasExpiry) return 0;
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    return items.filter(i => {
       const expRaw = i.extra_fields?.exp_date;
       if (!expRaw) return false;
-      const exp = new Date(expRaw); exp.setHours(0,0,0,0);
+      const exp = new Date(expRaw); exp.setHours(0, 0, 0, 0);
       return exp < now;
     }).length;
-    return (
-      <VKpi
-        label="Expiring / Expired"
-        value={`${expiringCount} / ${expiredCount}`}
-        icon={<Calendar size={20} />}
-        color="orange"
-        sub={`Within ${EXPIRY_WARN_DAYS} days / Already expired`}
-      />
-    );
-  })()}
-</div>
+  }, [items, hasExpiry]);
 
-      <div className="v-card" style={{ padding: '14px 18px', marginBottom: 18 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div className="v-search-wrap" style={{ flex: '1 1 220px' }}>
-            <Search size={13} />
-            <input
-              type="text"
-              className="v-search"
-              placeholder="Search ingredient…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <select value={unitFilter} onChange={e => setUnitFilter(e.target.value)} className="v-form-select" style={{ width: 130 }}>
-            <option value="">All Units</option>
-            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-         <select value={statusFilt} onChange={e => setStatusFilt(e.target.value)} className="v-form-select" style={{ width: 150 }}>
-  <option value="">All Status</option>
-  <option value="low">Low Stock</option>
-  <option value="ok">In Stock</option>
-  {extraFields.some(f => f.key === 'exp_date') && (
-    <option value="expiring">⚠ Expiring Soon (30d)</option>
-  )}
-  {extraFields.some(f => f.key === 'exp_date') && (
-    <option value="expired">✕ Expired</option>
-  )}
-</select>
-          <button onClick={fetchItems} className="v-btn v-btn-ghost v-btn-sm">
-            <RefreshCw size={13} /> Refresh
-          </button>
-        </div>
+  return (
+    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+      <style>{`
+        .fr-inv-row:hover { background: #f4fbf7 !important; }
+      `}</style>
+
+      <ReadOnlyBanner message="Stock inventory is read-only. Contact your admin to add, edit, or delete ingredients." />
+
+      {/* KPI cards */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${hasExpiry ? 4 : 3}, 1fr)`,
+        gap: 14, marginTop: 16, marginBottom: 18,
+      }}>
+        <KpiStatCard tone="green"  icon={<Package size={20} />}       label="Total Ingredients" value={items.length} sub="Registered" />
+        <KpiStatCard tone="red"    icon={<AlertTriangle size={20} />} label="Low Stock Alerts"  value={lowCount}     sub="Needs reorder" />
+        <KpiStatCard tone="blue"   icon={<DollarSign size={20} />}    label="Total Stock Value" value={fmtPeso(totalValue)} sub="Cost basis" />
+        {hasExpiry && (
+          <KpiStatCard tone="orange" icon={<Calendar size={20} />}
+            label="Expiring / Expired"
+            value={`${expiringCount} / ${expiredCount}`}
+            sub={`Within ${EXPIRY_WARN_DAYS} days / already expired`} />
+        )}
       </div>
 
-      <div className="v-card">
+      {/* filter row */}
+      <div style={{
+        background: C.white, border: "1px solid rgba(0,168,76,0.12)", borderRadius: 16,
+        padding: "12px 16px", marginBottom: 18, boxShadow: "0 2px 14px rgba(0,140,60,0.06)",
+        display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center",
+      }}>
+        <div style={{ position: "relative", flex: "1 1 220px", minWidth: 160 }}>
+          <div style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: C.muted }}>
+            <Search size={13} />
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search ingredient…"
+            style={{ ...invInputSt, paddingLeft: 28, height: 34 }}
+          />
+        </div>
+        <select value={unitFilter} onChange={e => setUnitFilter(e.target.value)} style={{ ...invInputSt, width: 130, height: 34 }}>
+          <option value="">All Units</option>
+          {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <select value={statusFilt} onChange={e => setStatusFilt(e.target.value)} style={{ ...invInputSt, width: 170, height: 34 }}>
+          <option value="">All Status</option>
+          <option value="low">Low Stock</option>
+          <option value="ok">In Stock</option>
+          {hasExpiry && <option value="expiring">Expiring Soon (30d)</option>}
+          {hasExpiry && <option value="expired">Expired</option>}
+        </select>
+        <button onClick={fetchItems} style={btnSt}>
+          <RefreshCw size={13} /> Refresh
+        </button>
+      </div>
+
+      {/* two-panel card — left: product list, right: FIFO/FEFO queue */}
+      <div style={{ background: C.white, border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 18px rgba(0,140,60,0.07)" }}>
         <div style={{
-          padding: '11px 18px',
-          background: 'var(--grad-main)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          color: '#fff',
+          padding: "12px 18px", background: `linear-gradient(135deg,${C.teal},${C.green})`,
+          display: "flex", justifyContent: "space-between", alignItems: "center", color: C.white, flexWrap: "wrap", gap: 8,
         }}>
-          <span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'Montserrat,sans-serif' }}>
-            🧪 Stock Ingredients — {userBranch}
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
+            <StoreIcon size={15} color="#fff" /> Stock Ingredients — {userBranch}
             {userBrand && (
-              <span style={{
-                marginLeft: 10, fontSize: 11, fontWeight: 600,
-                background: 'rgba(255,255,255,0.18)',
-                padding: '2px 10px', borderRadius: 20,
-              }}>
+              <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.18)", padding: "2px 10px", borderRadius: 20 }}>
                 {userBrand}
               </span>
             )}
           </span>
-          <span style={{ fontSize: 12, opacity: 0.9 }}>{filtered.length} items · {lowCount} low</span>
+          <span style={{ fontSize: 11, opacity: 0.92 }}>{filtered.length} items · {lowCount} low</span>
         </div>
 
         {loading ? (
-          <div style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 14, fontWeight: 700 }}>
+          <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 13, fontWeight: 700 }}>
             Loading…
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="v-table">
-              <thead>
-                <tr>
-                  <th>Ingredient</th>
-                  <th>Unit</th>
-                  <th>Stock</th>
-                  <th>Min Stock</th>
-                  <th>Cost/Unit</th>
-                  <th>Total Value</th>
-                  {/* Brand-specific extra columns */}
-                  {extraFields.map(f => (
-                    <th key={f.key} style={{ color: '#00897b' }}>{f.label}</th>
-                  ))}
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map(item => {
-                  const low        = item.stock < item.min_stock;
-                  const itemExtra  = item.extra_fields || {};
-                  return (
-                    <tr key={item.id}>
-                      <td style={{ fontWeight: 700, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
-                        🧪 {item.name}
-                      </td>
-                      <td><span className="v-badge v-badge-purple">{item.unit}</span></td>
-                      <td style={{ fontWeight: low ? 700 : 500, color: low ? '#ef4444' : '#0d2b1e' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                          {item.stock}
-                          {low && <span className="v-badge v-badge-red" style={{ fontSize: 10 }}>LOW</span>}
-                        </span>
-                      </td>
-                      <td style={{ color: '#5a7a65' }}>{item.min_stock}</td>
-                      <td style={{ fontWeight: 700, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>
-                        {fmtPeso(item.cost_per_unit || 0)}
-                      </td>
-                      <td style={{ color: '#5a7a65' }}>
-                        {fmtPeso((item.cost_per_unit || 0) * (item.stock || 0))}
-                      </td>
-                      {/* Extra brand-specific cells */}
-                      {extraFields.map(f => (
-                        <td key={f.key}>
-                          <ExtraFieldCell field={f} value={itemExtra[f.key]} />
-                        </td>
-                      ))}
-                      <td>
-                        {low
-                          ? <span className="v-badge v-badge-red">Low Stock</span>
-                          : <span className="v-badge v-badge-green">In Stock</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filtered.length === 0 && !loading && (
-                  <tr>
-                    <td
-                      colSpan={7 + extraFields.length}
-                      style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13, fontStyle: 'italic' }}
-                    >
-                      No ingredients found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", minHeight: 480, maxHeight: 620 }}>
+            {/* LEFT — clickable product list */}
+            <div style={{ borderRight: `1px solid ${C.border}`, overflowY: "auto", maxHeight: 620, minHeight: 0 }}>
+              {filtered.length === 0 ? (
+                <div style={{ padding: "30px 14px", textAlign: "center", color: C.muted, fontSize: 12 }}>No ingredients found.</div>
+              ) : filtered.map(item => {
+                const low = Number(item.stock) < Number(item.min_stock);
+                const active = item.id === selectedId;
+                const stockPct = Number(item.min_stock) > 0
+                  ? Math.min(100, Math.round((Number(item.stock || 0) / (Number(item.min_stock) * 2)) * 100))
+                  : (Number(item.stock) > 0 ? 100 : 0);
+                return (
+                  <div
+                    key={item.id}
+                    className="fr-inv-row"
+                    onClick={() => setSelectedId(item.id)}
+                    style={{
+                      padding: "10px 14px", cursor: "pointer",
+                      borderLeft: `3px solid ${active ? C.green : "transparent"}`,
+                      background: active ? C.greenLt : "transparent",
+                      borderBottom: `1px solid ${C.bg}`,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: active ? 800 : 600, color: active ? C.greenDk : C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.name}
+                      </span>
+                      {low && <span style={{ fontSize: 9, fontWeight: 800, color: C.warn, background: C.warnBg, padding: "1px 6px", borderRadius: 4, flexShrink: 0 }}>LOW</span>}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, display: "flex", justifyContent: "space-between" }}>
+                      <span>{item.unit} · min {item.min_stock}</span>
+                      <span style={{ fontWeight: 700, color: C.ink }}>{item.stock}</span>
+                    </div>
+                    <div style={{ marginTop: 5 }}>
+                      <FrMiniBar pct={stockPct} color={low ? C.warn : C.green} height={4} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* Pagination */}
-            {filtered.length > PAGE_SIZE && (
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb',
-              }}>
-                <span style={{ fontSize: 12, color: '#5a7a65' }}>
-                  Showing <strong>{(page * PAGE_SIZE + 1).toLocaleString()}–{Math.min((page + 1) * PAGE_SIZE, filtered.length).toLocaleString()}</strong> of <strong>{filtered.length.toLocaleString()}</strong>
-                </span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button onClick={() => setPage(0)} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>«</button>
-                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>‹</button>
-                  <button onClick={() => setPage(p => Math.min(Math.ceil(filtered.length / PAGE_SIZE) - 1, p + 1))} disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= Math.ceil(filtered.length / PAGE_SIZE) - 1 ? 0.35 : 1 }}>›</button>
-                  <button onClick={() => setPage(Math.ceil(filtered.length / PAGE_SIZE) - 1)} disabled={page >= Math.ceil(filtered.length / PAGE_SIZE) - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= Math.ceil(filtered.length / PAGE_SIZE) - 1 ? 0.35 : 1 }}>»</button>
-                </div>
-              </div>
-            )}
+            {/* RIGHT — FIFO / FEFO queue */}
+            <div style={{ padding: 20, overflowY: "auto", maxHeight: 620, minHeight: 0 }}>
+              <FrFifoQueue product={selected} batches={batches} loading={batchLoading} />
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-
 function FrPOSContent({ user, brands: propBrands = [] }) {
   const userBranch = (user?.branch || '').trim();
 

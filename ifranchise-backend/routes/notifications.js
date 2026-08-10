@@ -4,11 +4,17 @@ const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 
 router.get("/notifications/low-stock-items", async (req, res) => {
+  const { userId } = req.query;
   try {
+    const userResult = await pool.query("SELECT branch FROM users WHERE id=$1", [userId]);
+    if (userResult.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    const { branch } = userResult.rows[0];
+
     const result = await pool.query(
-      `SELECT name, brand, branch, unit, stock, min_stock FROM ingredients
-       WHERE min_stock>0 AND stock<min_stock
-       ORDER BY (stock::float / NULLIF(min_stock::float,0)) ASC`
+      `SELECT name, branch, unit, stock, min_stock FROM ingredients
+       WHERE branch=$1 AND min_stock>0 AND stock<min_stock
+       ORDER BY (stock::float / NULLIF(min_stock::float,0)) ASC`,
+      [branch]
     );
     res.json(result.rows);
   } catch (err) {
