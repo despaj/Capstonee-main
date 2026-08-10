@@ -3183,6 +3183,17 @@ function FrReportsContent({ user, transactions = [] }){
   const [genPage,  setGenPage]  = useState(0);
   const [subPage,  setSubPage]  = useState(0);
   const [delPage,  setDelPage]  = useState(0);
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
   
   useEffect(() => { setGenPage(0); }, [reports]);
   useEffect(() => { setSubPage(0); }, [submittedReports]);
@@ -3516,10 +3527,18 @@ const deleteReport = async report => {
     return;
   }
 
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
-      method: 'POST',
-    });
+    try {
+        const coords = await getBrowserLocation();
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            performedBy: user?.name || user?.email || 'Branch Manager',
+            role: user?.role || 'Branch Manager',
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        });
     if (!res.ok) throw new Error('Delete failed');
     const data = await res.json();
 
@@ -3546,10 +3565,18 @@ const retrieveReport = async report => {
     return;
   }
 
-  setRetrieving(report.id);
+setRetrieving(report.id);
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        performedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
     if (!res.ok) throw new Error('Retrieve failed');
     const data = await res.json();
@@ -3729,6 +3756,7 @@ const saveReport = async report => {
 const submitReport = async report => {
   setSubmitting(report.id);
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3740,7 +3768,10 @@ const submitReport = async report => {
         generatedDate: report.generatedDate,
         content: report.content,
         submittedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
         brand: user?.brand || '',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       }),
     });
 

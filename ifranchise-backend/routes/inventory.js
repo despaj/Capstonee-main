@@ -230,23 +230,56 @@ router.post("/inventory/:id/sell", async (req, res) => {
     if (productResult.rows[0].stock < 0) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Insufficient product stock" }); }
 
     const recipe = await client.query(
-      `SELECT pi.ingredient_id, pi.quantity, i.stock AS current_stock, i.name
+      `SELECT pi.ingredient_id, pi.quantity, i.name, i.brand, i.perishable
        FROM product_ingredients pi JOIN ingredients i ON i.id=pi.ingredient_id
        WHERE pi.inventory_id=$1`,
       [req.params.id]
     );
 
     for (const row of recipe.rows) {
-      if (parseFloat(row.current_stock) < parseFloat(row.quantity) * parseInt(quantity)) {
+      const needed = parseFloat(row.quantity) * parseInt(quantity);
+      const isFefo = (row.brand || "").toLowerCase().includes("ipharma") || !!row.perishable;
+
+      const batchesRes = await client.query(
+        `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
+        [row.ingredient_id]
+      );
+      const sorted = [...batchesRes.rows].sort((a, b) => {
+        if (isFefo) {
+          const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+          const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+          return da - db;
+        }
+        const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+        const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+        return da - db;
+      });
+
+      const available = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
+      if (available < needed) {
         await client.query("ROLLBACK");
         return res.status(400).json({ error: `Insufficient stock for ingredient: ${row.name}` });
       }
-    }
-    for (const row of recipe.rows) {
-      await client.query(
-        `UPDATE ingredients SET stock=stock-$1, updated_at=NOW() WHERE id=$2`,
-        [parseFloat(row.quantity) * parseInt(quantity), row.ingredient_id]
+
+      let remaining = needed;
+      for (const b of sorted) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, Number(b.stock));
+        await client.query(`UPDATE ingredient_batches SET stock = stock - $1, updated_at=NOW() WHERE id=$2`, [take, b.id]);
+        remaining -= take;
+      }
+
+      const totals = await client.query(
+        `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+         FROM ingredient_batches WHERE ingredient_id=$1`,
+        [row.ingredient_id]
       );
+      const { total_stock, earliest_exp } = totals.rows[0];
+      await client.query(
+        `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3`,
+        [total_stock, earliest_exp || null, row.ingredient_id]
+      );
+      await client.query(`UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`, [total_stock, row.ingredient_id]);
     }
 
     await client.query("COMMIT");

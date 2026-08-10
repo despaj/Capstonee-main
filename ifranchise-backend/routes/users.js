@@ -311,4 +311,16 @@ router.delete("/delete-history/:id", async (req, res) => {
   }
 });
 
+router.get("/users-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
+      ["User Management"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch user activity log" });
+  }
+});
+
 module.exports = router;

@@ -5,7 +5,7 @@ const { fetchReportWithComments } = require("../utils/queries");
 const { logActivity } = require("../utils/activityLogger");
 
 router.post("/reports/submit", async (req, res) => {
-  const { reportId, submittedBy, latitude, longitude } = req.body;
+  const { reportId, submittedBy, role, latitude, longitude } = req.body;
   if (!reportId) return res.status(400).json({ error: "reportId is required" });
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
@@ -17,13 +17,18 @@ router.post("/reports/submit", async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: "Report not found" });
 
     const r = result.rows[0];
-    await logActivity(
-      "submit",
-      `Report #${reportId}`,
-      submittedBy || "System",
-      { brand: r.brand, status: "submitted" },
-      req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "submit",
+      itemName: `Report #${reportId}`,
+      performedBy: submittedBy || "System",
+      details: { brand: r.brand, status: "submitted" },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, expiresAt });
   } catch (err) {
@@ -144,10 +149,18 @@ router.post("/reports", async (req, res) => {
       );
       const report = await fetchReportWithComments(updated.rows[0].id);
 
-      await logActivity(
-        "update", `Report #${report.id}`, submittedBy || "System",
-        { brand, period }, req, branch, "Reports", latitude, longitude
-      );
+      await logActivity({
+        action: "update",
+        itemName: `Report #${report.id}`,
+        performedBy: submittedBy || "System",
+        details: { brand, period },
+        req,
+        branch,
+        module: "Reports",
+        latitude,
+        longitude,
+        role: role || "Unknown",
+      });
 
       return res.status(200).json({ success: true, report });
     }
@@ -158,10 +171,18 @@ router.post("/reports", async (req, res) => {
     );
     const report = await fetchReportWithComments(result.rows[0].id);
 
-    await logActivity(
-      "create", `Report #${report.id}`, submittedBy || "System",
-      { brand, period, role: role || "Branch Manager" }, req, branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "create",
+      itemName: `Report #${report.id}`,
+      performedBy: submittedBy || "System",
+      details: { brand, period, role: role || "Branch Manager" },
+      req,
+      branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.status(201).json({ success: true, report });
   } catch (err) {
@@ -181,15 +202,23 @@ router.get("/reports/:id", async (req, res) => {
 
 router.patch("/reports/:id/approve", async (req, res) => {
   try {
-    const { performedBy, latitude, longitude } = req.body;
+    const { performedBy, role, latitude, longitude } = req.body;
     const result = await pool.query(`UPDATE reports SET status='approved', remark=NULL, updated_at=NOW() WHERE id=$1 RETURNING id, brand, branch`, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Report not found" });
 
     const r = result.rows[0];
-    await logActivity(
-      "approve", `Report #${req.params.id}`, performedBy || "System",
-      { brand: r.brand, status: "approved" }, req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "approve",
+      itemName: `Report #${req.params.id}`,
+      performedBy: performedBy || "System",
+      details: { brand: r.brand, status: "approved" },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json(await fetchReportWithComments(req.params.id));
   } catch (err) {
@@ -199,16 +228,24 @@ router.patch("/reports/:id/approve", async (req, res) => {
 
 router.patch("/reports/:id/return", async (req, res) => {
   try {
-    const { remark, performedBy, latitude, longitude } = req.body;
+    const { remark, performedBy, role, latitude, longitude } = req.body;
     if (!remark?.trim()) return res.status(400).json({ error: "Return remark is required" });
     const result = await pool.query(`UPDATE reports SET status='returned', remark=$1, updated_at=NOW() WHERE id=$2 RETURNING id, brand, branch`, [remark.trim(), req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Report not found" });
 
     const r = result.rows[0];
-    await logActivity(
-      "return", `Report #${req.params.id}`, performedBy || "System",
-      { brand: r.brand, remark: remark.trim() }, req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "return",
+      itemName: `Report #${req.params.id}`,
+      performedBy: performedBy || "System",
+      details: { brand: r.brand, remark: remark.trim() },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json(await fetchReportWithComments(req.params.id));
   } catch (err) {
@@ -234,7 +271,7 @@ router.post("/reports/:id/comments", async (req, res) => {
 
 router.post("/reports/:id/soft-delete", async (req, res) => {
   try {
-    const { performedBy, latitude, longitude } = req.body;
+    const { performedBy, role, latitude, longitude } = req.body;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
     const result = await pool.query(
@@ -245,10 +282,18 @@ router.post("/reports/:id/soft-delete", async (req, res) => {
     await pool.query(`DELETE FROM generated_reports WHERE report_id=$1`, [req.params.id]);
 
     const r = result.rows[0];
-    await logActivity(
-      "delete", `Report #${req.params.id}`, performedBy || "System",
-      { brand: r.brand, status: "deleted" }, req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "delete",
+      itemName: `Report #${req.params.id}`,
+      performedBy: performedBy || "System",
+      details: { brand: r.brand, status: "deleted" },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, expiresAt });
   } catch (err) {
@@ -258,7 +303,7 @@ router.post("/reports/:id/soft-delete", async (req, res) => {
 
 router.post("/reports/:id/retrieve", async (req, res) => {
   try {
-    const { performedBy, latitude, longitude } = req.body;
+    const { performedBy, role, latitude, longitude } = req.body;
     const result = await pool.query(
       `UPDATE reports SET status='pending', deleted_at=NULL, expires_at=NULL, updated_at=NOW() WHERE id=$1 AND status='deleted' RETURNING *`,
       [req.params.id]
@@ -266,10 +311,18 @@ router.post("/reports/:id/retrieve", async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: "Report not found or not deleted" });
 
     const r = result.rows[0];
-    await logActivity(
-      "restore", `Report #${req.params.id}`, performedBy || "System",
-      { brand: r.brand, note: "Restored from delete" }, req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "restore",
+      itemName: `Report #${req.params.id}`,
+      performedBy: performedBy || "System",
+      details: { brand: r.brand, note: "Restored from delete" },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, report: await fetchReportWithComments(req.params.id) });
   } catch (err) {
@@ -308,7 +361,7 @@ router.delete("/reports/:id/comments/:commentId", async (req, res) => {
 
 router.delete("/reports/:id", async (req, res) => {
   try {
-    const { performedBy, latitude, longitude } = req.body || {};
+    const { performedBy, role, latitude, longitude } = req.body || {};
     const existing = await pool.query(`SELECT brand, branch FROM reports WHERE id=$1`, [req.params.id]);
     if (existing.rows.length === 0) return res.status(404).json({ error: "Report not found" });
     const r = existing.rows[0];
@@ -317,10 +370,18 @@ router.delete("/reports/:id", async (req, res) => {
     await pool.query(`DELETE FROM generated_reports WHERE report_id=$1`, [req.params.id]);
     await pool.query(`DELETE FROM reports WHERE id=$1`, [req.params.id]);
 
-    await logActivity(
-      "delete", `Report #${req.params.id}`, performedBy || "System",
-      { brand: r.brand, note: "Permanently deleted" }, req, r.branch, "Reports", latitude, longitude
-    );
+    await logActivity({
+      action: "delete",
+      itemName: `Report #${req.params.id}`,
+      performedBy: performedBy || "System",
+      details: { brand: r.brand, note: "Permanently deleted" },
+      req,
+      branch: r.branch,
+      module: "Reports",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true });
   } catch (err) {

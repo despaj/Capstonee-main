@@ -1608,7 +1608,6 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     }
   };
 
-    // Fetch regions on mount
   useEffect(() => {
     const fetchRegions = async () => {
       setLoadingRegions(true);
@@ -1625,7 +1624,6 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     fetchRegions();
   }, []);
 
-  // Fetch provinces when region changes
   useEffect(() => {
     if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
     const fetchProvinces = async () => {
@@ -2026,6 +2024,14 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
                   onChange={e => {
                     const f = e.target.files[0];
                     if (!f) return;
+
+                    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+                    if (f.size > MAX_SIZE) {
+                      showAlert("error", `"${f.name}" is ${(f.size / (1024*1024)).toFixed(1)}MB. The Letter of Intent must be under 10MB.`);
+                      e.target.value = ""; // reset the input so the same oversized file can be reselected after fixing
+                      return;
+                    }
+
                     auditLog.record("LOI_UPLOADED", { fileName: f.name, size: f.size });
                     setLetterOfIntent(f);
                     setErrors(p => ({ ...p, letterOfIntent: "" }));

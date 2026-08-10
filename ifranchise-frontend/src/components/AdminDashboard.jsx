@@ -20,7 +20,7 @@ import {
   Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
-  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon,
+  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon, HistoryIcon,
   Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
   Brain, PieChart, LineChart, ShieldCheck, Bell, Printer
 } from 'lucide-react';
@@ -3261,9 +3261,11 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [branchForm, setBranchForm] = useState(emptyBranch);
 
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
 
-  const showAlert = (message, type = "info") => setAlertModal({ message, type });
+  const showAlert   = (message, type = "info") => setAlertModal({ title: message, type });
+  const showLoading = (title) => setAlertModal({ type: "loading", title });
+  const showSuccess = (title, message) => setAlertModal({ type: "success", title, message });
+  const showError   = (title, message) => setAlertModal({ type: "error", title, message });
 
   const getBrowserLocation = () => {
     return new Promise((resolve) => {
@@ -3317,10 +3319,11 @@ const fetchActivityLog = useCallback(async () => {
 
   useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
-  const handleAddBrand = async (e) => {
+const handleAddBrand = async (e) => {
     e.preventDefault();
     const duplicate = brands.some((b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase());
-    if (duplicate) { showAlert(`A brand named "${brandForm.name}" already exists.`, "error"); return; }
+    if (duplicate) { showError("Duplicate brand", `A brand named "${brandForm.name}" already exists.`); return; }
+    showLoading("Adding brand…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
@@ -3340,13 +3343,14 @@ const fetchActivityLog = useCallback(async () => {
         await fetchActivityLog();
         setShowAddBrandModal(false);
         setBrandForm(emptyBrand);
-        showAlert(`"${brandForm.name}" has been added.`, "success");
-      } else showAlert(data.error || "Failed to add brand", "error");
-    } catch { showAlert("Failed to add brand", "error"); }
+        showSuccess("Brand added", `"${brandForm.name}" has been added.`);
+      } else showError("Failed to add brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to add brand", "Something went wrong. Please try again."); }
   };
 
-  const handleEditBrand = async (e) => {
+const handleEditBrand = async (e) => {
     e.preventDefault();
+    showLoading("Updating brand…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
@@ -3366,12 +3370,12 @@ const fetchActivityLog = useCallback(async () => {
         await fetchActivityLog();
         setShowEditBrandModal(false);
         setSelectedBrand(null);
-        showAlert(`"${brandForm.name}" has been updated.`, "success");
-      } else showAlert(data.error || "Failed to update brand", "error");
-    } catch { showAlert("Failed to update brand", "error"); }
+        showSuccess("Brand updated", `"${brandForm.name}" has been updated.`);
+      } else showError("Failed to update brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to update brand", "Something went wrong. Please try again."); }
   };
 
-  const handleDeleteBrand = async () => {
+const handleDeleteBrand = async () => {
     if (!deleteTarget) return;
     const { id, name } = deleteTarget;
     const brand = brands.find((b) => b.id === id);
@@ -3387,6 +3391,7 @@ const fetchActivityLog = useCallback(async () => {
       })),
     };
     setDeleting(true);
+    showLoading("Deleting brand…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
@@ -3409,20 +3414,21 @@ const fetchActivityLog = useCallback(async () => {
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        showAlert(`"${name}" has been deleted.`, "success");
-      } else showAlert(data.error || "Failed to delete brand", "error");
-    } catch { showAlert("Failed to delete brand", "error"); }
+        showSuccess("Brand deleted", `"${name}" has been deleted.`);
+      } else showError("Failed to delete brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to delete brand", "Something went wrong. Please try again."); }
     finally {
       setDeleting(false);
       setDeleteTarget(null);
     }
   };
 
-  const handleAddBranch = async (e) => {
+const handleAddBranch = async (e) => {
     e.preventDefault();
     const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
     const duplicate = parentBrand?.branches?.some((br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
-    if (duplicate) { showAlert(`A branch named "${branchForm.name}" already exists under this brand.`, "error"); return; }
+    if (duplicate) { showError("Duplicate branch", `A branch named "${branchForm.name}" already exists under this brand.`); return; }
+    showLoading("Adding branch…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
@@ -3442,13 +3448,14 @@ const fetchActivityLog = useCallback(async () => {
         await fetchActivityLog();
         setShowAddBranchModal(false);
         setBranchForm(emptyBranch);
-        showAlert(`"${branchForm.name}" has been added.`, "success");
-      } else showAlert(data.error || "Failed to add branch", "error");
-    } catch { showAlert("Failed to add branch", "error"); }
+        showSuccess("Branch added", `"${branchForm.name}" has been added.`);
+      } else showError("Failed to add branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to add branch", "Something went wrong. Please try again."); }
   };
 
-  const handleEditBranch = async (e) => {
+const handleEditBranch = async (e) => {
     e.preventDefault();
+    showLoading("Updating branch…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
@@ -3469,17 +3476,17 @@ const fetchActivityLog = useCallback(async () => {
         await fetchActivityLog();
         setShowEditBranchModal(false);
         setSelectedBranch(null);
-        showAlert(`"${branchForm.name}" has been updated.`, "success");
-      } else showAlert(data.error || "Failed to update branch", "error");
-    } catch { showAlert("Failed to update branch", "error"); }
+        showSuccess("Branch updated", `"${branchForm.name}" has been updated.`);
+      } else showError("Failed to update branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to update branch", "Something went wrong. Please try again."); }
   };
 
-  // UPDATED: now tracks `deleting` and uses the toast instead of alert()
-  const handleDeleteBranch = async () => {
+const handleDeleteBranch = async () => {
     if (!deleteTarget) return;
     const { id, name, brandName } = deleteTarget;
     const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
     setDeleting(true);
+    showLoading("Deleting branch…");
     try {
       const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, {
@@ -3502,17 +3509,18 @@ const fetchActivityLog = useCallback(async () => {
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        showAlert(`"${name}" has been deleted.`, "success");
-      } else showAlert(data.error || "Failed to delete branch", "error");
-    } catch { showAlert("Failed to delete branch", "error"); }
+        showSuccess("Branch deleted", `"${name}" has been deleted.`);
+      } else showError("Failed to delete branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to delete branch", "Something went wrong. Please try again."); }
     finally {
       setDeleting(false);
       setDeleteTarget(null);
     }
   };
 
-  const handleRestore = async (entry) => {
+const handleRestore = async (entry) => {
     setRestoringId(entry.id);
+    showLoading(entry.type === "brand" ? "Restoring brand…" : "Restoring branch…");
     try {
       const coords = await getBrowserLocation();
       if (entry.type === "brand") {
@@ -3531,7 +3539,7 @@ const fetchActivityLog = useCallback(async () => {
           }),
         });
         const data = await res.json();
-        if (!data.success) { showAlert(data.error || "Failed to restore brand", "error"); return; }
+        if (!data.success) { showError("Failed to restore brand", data.error || "Something went wrong."); return; }
         const newBrandId = data.brand?.id;
         for (const br of branchList) {
           const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
@@ -3558,10 +3566,10 @@ const fetchActivityLog = useCallback(async () => {
         await fetchBrands();
         await fetchDeleteHistory();
         await fetchActivityLog();
-        showAlert(`"${brandFields.name}" has been restored.`, "success");
+        showSuccess("Brand restored", `"${brandFields.name}" has been restored.`);
       } else {
         const parentBrand = brands.find((b) => b.name === entry.brandName);
-        if (!parentBrand) { showAlert(`Cannot restore branch: parent brand "${entry.brandName || 'unknown'}" not found.`, "error"); return; }
+        if (!parentBrand) { showError("Cannot restore branch", `Parent brand "${entry.brandName || 'unknown'}" was not found.`); return; }
         const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
         const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
           method: "POST",
@@ -3578,7 +3586,7 @@ const fetchActivityLog = useCallback(async () => {
             role: user?.role || "Unknown",
             latitude: coords?.latitude,
             longitude: coords?.longitude,
-            restored: true, 
+            restored: true,
           }),
         });
         const data = await res.json();
@@ -3587,12 +3595,12 @@ const fetchActivityLog = useCallback(async () => {
           await fetchBrands();
           await fetchDeleteHistory();
           await fetchActivityLog();
-          showAlert(`"${branchFields.name}" has been restored.`, "success");
-        } else showAlert(data.error || "Failed to restore branch", "error");
+          showSuccess("Branch restored", `"${branchFields.name}" has been restored.`);
+        } else showError("Failed to restore branch", data.error || "Something went wrong.");
       }
     } catch (err) {
       console.error("Restore error:", err);
-      showAlert("Failed to restore: " + err.message, "error");
+      showError("Failed to restore", err.message || "Something went wrong. Please try again.");
     } finally {
       setRestoringId(null);
     }
@@ -3767,6 +3775,154 @@ function Field({ label, error, children }) {
   );
 }
 
+function ShopDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+            {history.length > 0 && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#e53935" }}>{history.length} deleted</span>
+            )}
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            ✕
+          </button>
+        </div>
+        {history.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:700, color:"#5a7a65", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+            <span>Item</span><span>Shop</span><span>Price</span><span>Deleted At</span><span></span>
+          </div>
+        )}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {history.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
+          ) : history.map((entry, i) => {
+            const d = entry.data || {};
+            return (
+              <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
+                  <div style={{ fontSize:11, color:"#5a7a65", marginTop:2 }}>{d.brand || "—"}</div>
+                </div>
+                <div style={{ fontSize:12, color:"#5a7a65" }}>{d.shop}</div>
+                <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price || 0)}</div>
+                <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? new Date(entry.deletedAt).toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit", timeZone:"Asia/Manila" }) : "—"}</div>
+                <button onClick={() => onRestore(entry)} disabled={restoringId !== null}
+                  style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1.5px solid #00897b", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
+                  {restoringId === entry.id ? "Restoring…" : "Restore"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShopDeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
+  if (!item) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
+          <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
+            Are you sure you want to delete <strong>"{item.name}"</strong>?
+          </div>
+          <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+            This will move the item to Delete History where it can be restored.
+          </div>
+        </div>
+        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:20 }}>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Shop</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{item.shop}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Price</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{fmtPeso(item.price)}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Stock</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{item.stock ?? 0}</div>
+          </div>
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} disabled={deleting} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.5 : 1 }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#e53935", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.7 : 1 }}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImportLoadingModal({ visible, progress }) {
+  if (!visible) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
+      <div style={{ background:C.white, borderRadius:18, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:"1px solid #c8e6c9", fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+        <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
+        <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
+        <div style={{ background:"#e8f5e9", borderRadius:999, height:6, overflow:"hidden", marginBottom:12 }}>
+          <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
+        </div>
+        <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
+        {progress.current > 0 && (
+          <div style={{ fontSize:11, color:C.muted, opacity:0.7 }}>{progress.current} / {progress.total} rows processed</div>
+        )}
+        <div style={{ marginTop:18, fontSize:12, fontWeight:700, color:C.green }}>Do not close this window</div>
+      </div>
+    </div>
+  );
+}
+
+function UIModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const { type, title, message, confirmLabel, cancelLabel } = modal;
+  const hc = {
+    error:   { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
+    success: { bg:"#e8f5e9", border:"#c8e6c9", titleColor:"#00695c" },
+    info:    { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" },
+    confirm: { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
+  }[type] || { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}` }}>
+          <div style={{ fontSize:15, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
+          {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.6, opacity:0.85 }}>{message}</div>}
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          {type === "confirm" && (
+            <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              {cancelLabel || "Cancel"}
+            </button>
+          )}
+          <button
+            onClick={type === "confirm" ? onConfirm : onClose}
+            style={{
+              padding:"8px 18px", borderRadius:8, border:"none",
+              background: type === "confirm" ? "#e53935" : `linear-gradient(135deg,${C.teal},${C.green})`,
+              color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
+            }}
+          >
+            {confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const msInputStyle = {
     width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
@@ -3790,12 +3946,11 @@ const getBrowserLocation = () => {
 };
 
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [items,           setItems]           = useState([]);
   const [errors,          setErrors]          = useState({});
   const [loading,         setLoading]         = useState(false);
-  const [confirmDelete,   setConfirmDelete]   = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [editingItem,     setEditingItem]     = useState(null);
   const [editErrors,      setEditErrors]      = useState({});
   const [editLoading,     setEditLoading]     = useState(false);
@@ -3808,11 +3963,41 @@ const getBrowserLocation = () => {
   const addImageRef = useRef(null); 
   const editImageRef = useRef(null); 
 
+  const [deleteHistory,     setDeleteHistory]     = useState([]);
+  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [restoringId,       setRestoringId]       = useState(null);
+
+  const [toast, setToast] = useState(null);
+  const [uiModal, setUiModal] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState({ percent:0, label:"Preparing…", current:0, total:0 });
+
+  const showUiModal = (opts) => setUiModal(opts);
+  const closeUiModal = () => setUiModal(null);
+
+  const fetchDeleteHistory = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-item-delete-history`);
+      const data = await res.json();
+      setDeleteHistory(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch shop item delete history:", err); }
+  }, []);
+
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
       const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data : []);
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id,
+        action: row.action,
+        itemName: row.item_name ?? row.itemName,
+        branch: row.branch,
+        performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
+        changes: row.changes,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
     } catch (err) { console.error("Failed to fetch shop activity log:", err); }
   }, []);
 
@@ -3843,7 +4028,8 @@ const getBrowserLocation = () => {
     fetchBrands();
     fetchStockItems();
     fetchActivityLog();
-  }, [fetchActivityLog]);
+    fetchDeleteHistory();
+  }, [fetchActivityLog, fetchDeleteHistory]);
 
   const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
 
@@ -3875,17 +4061,16 @@ const getBrowserLocation = () => {
     return [...new Set(pool.map(i => i.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   };
 
-  const validate = () => {
-    const newErrors = {};
-    if (!newItem.brand) newErrors.brand = "Brand is required";
-    if (!newItem.name.trim()) newErrors.name = "Item name is required";
-    if (!newItem.price) newErrors.price = "Price is required";
-    else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-    if (newItem.stock !== "" && (isNaN(newItem.stock) || Number(newItem.stock) < 0)) newErrors.stock = "Stock must be 0 or more";
-    if (!newItem.image_url) newErrors.image_url = "Photo is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+const validate = () => {
+  const newErrors = {};
+  if (!newItem.brand) newErrors.brand = "Brand is required";
+  if (!newItem.name.trim()) newErrors.name = "Item name is required";
+  if (!newItem.price) newErrors.price = "Price is required";
+  else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
+  if (!newItem.image_url) newErrors.image_url = "Photo is required";
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
   // Reads a selected image file and stores it as a data URL in image_url
   const handleImageSelect = (e, target /* "add" | "edit" */) => {
@@ -3905,10 +4090,6 @@ const validateEdit = () => {
   if (!editingItem.name.trim()) errs.name = "Item name is required";
   if (!editingItem.price) errs.price = "Price is required";
   else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-  if (editingItem.stock === "" || editingItem.stock === null || editingItem.stock === undefined)
-    errs.stock = "Stock is required";
-  else if (isNaN(editingItem.stock) || Number(editingItem.stock) < 0)
-    errs.stock = "Stock must be 0 or more";
   if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
   setEditErrors(errs);
   return Object.keys(errs).length === 0;
@@ -3924,159 +4105,253 @@ const addItem = async () => {
       && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
   );
   if (duplicate) {
-    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
+    showUiModal({ type:"error", title:"Duplicate Item", message:`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.` });
     return;
   }
 
   setLoading(true);
   const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name:      capitalize(newItem.name),
-      price:     Number(newItem.price),
-      unit:      "",
-      image_url: newItem.image_url,
-      shop:      newItem.brand,
-      brand:     newItem.brand,
-      stock:     Number(newItem.stock || 0),
-      performed_by: user?.name || "System",
-      latitude:  coords?.latitude,
-      longitude: coords?.longitude,
-    }),
-  });
-
-  setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-  setErrors({});
-  setLoading(false);
-  setShowAddModal(false);
-  fetchItems();
-  fetchActivityLog();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name:      capitalize(newItem.name),
+        price:     Number(newItem.price),
+        unit:      "",
+        image_url: newItem.image_url,
+        shop:      newItem.brand,
+        brand:     newItem.brand,
+        stock:     0,
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude:  coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      setToast({ type:"error", title:"Failed to Add", message: d.error || "An unexpected error occurred." });
+      return;
+    }
+    setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
+    setErrors({});
+    setShowAddModal(false);
+    fetchItems();
+    fetchActivityLog();
+    setToast({ type:"success", title:"Item Added", message:`"${capitalize(newItem.name)}" has been added.` });
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to add item. Please check your connection." });
+  } finally {
+    setLoading(false);
+  }
 };
 
 const saveEdit = async () => {
   if (editLoading || !validateEdit()) return;
   setEditLoading(true);
   const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name:       capitalize(editingItem.name.trim()),
-      price:      Number(editingItem.price),
-      unit:       editingItem.unit || "",
-      image_url:  editingItem.image_url,
-      shop:       editingItem.brand,
-      brand:      editingItem.brand,
-      stock:      Number(editingItem.stock),
-      is_visible: editingItem.is_visible,
-      performed_by: user?.name || "System",
-      latitude:  coords?.latitude,
-      longitude: coords?.longitude,
-    }),
-  });
-  setEditingItem(null);
-  setEditErrors({});
-  setEditLoading(false);
-  fetchItems();
-  fetchActivityLog();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name:       capitalize(editingItem.name.trim()),
+        price:      Number(editingItem.price),
+        unit:       editingItem.unit || "",
+        image_url:  editingItem.image_url,
+        shop:       editingItem.brand,
+        brand:      editingItem.brand,
+        stock:      Number(editingItem.stock ?? 0),
+        is_visible: editingItem.is_visible,
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude:  coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      setToast({ type:"error", title:"Failed to Save", message: d.error || "An unexpected error occurred." });
+      return;
+    }
+    setEditingItem(null);
+    setEditErrors({});
+    fetchItems();
+    fetchActivityLog();
+    setToast({ type:"success", title:"Item Updated", message:`"${editingItem.name}" has been updated.` });
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to save changes." });
+  } finally {
+    setEditLoading(false);
+  }
 };
-
-  const importExcel = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      const coords = await getBrowserLocation();
-      const wb = XLSX.read(ev.target.result, { type: "array" });
-      const rows_to_save = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
-        rows.forEach(row => {
-          const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-          const price = parseFloat(row.price || row.Price || 0) || 0;
-          if (!name || price <= 0) return;
-
-          const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
-
-          // Skip duplicates — same name + shop
-          const alreadyExists = items.some(
-            i => i.name.trim().toLowerCase() === name.toLowerCase()
-              && i.shop.trim().toLowerCase() === shop.toLowerCase()
-          );
-          if (alreadyExists) return;
-
-          rows_to_save.push({
-            name: capitalize(name.trim()), price,
-            unit:      String(row.unit      || row.Unit      || "").trim(),
-            stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-            shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
-            brand:     String(row.brand     || row.Brand     || "").trim(),
-            image_url: String(row.image_url || row["Image URL"] || "").trim(),
-            is_visible: true,
-          });
+  
+const importExcel = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setImportLoading(true);
+  setImportProgress({ percent:5, label:"Reading file…", current:0, total:0 });
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    const coords = await getBrowserLocation();
+    setImportProgress({ percent:15, label:"Parsing spreadsheet…", current:0, total:0 });
+    const wb = XLSX.read(ev.target.result, { type: "array" });
+    const rows_to_save = [];
+    wb.SheetNames.forEach(sheetName => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+      rows.forEach(row => {
+        const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
+        const price = parseFloat(row.price || row.Price || 0) || 0;
+        if (!name || price <= 0) return;
+        const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
+        const alreadyExists = items.some(
+          i => i.name.trim().toLowerCase() === name.toLowerCase()
+            && i.shop.trim().toLowerCase() === shop.toLowerCase()
+        );
+        if (alreadyExists) return;
+        rows_to_save.push({
+          name: capitalize(name.trim()), price,
+          unit:      String(row.unit      || row.Unit      || "").trim(),
+          stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
+          shop,
+          brand:     String(row.brand     || row.Brand     || "").trim(),
+          image_url: String(row.image_url || row["Image URL"] || "").trim(),
+          is_visible: true,
         });
       });
-       let saved = 0;
-        for (const item of rows_to_save) {
-          try {
-            const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                name:       capitalize(item.name.trim()),
-                price:      item.price,
-                unit:       item.unit,
-                stock:      item.stock,
-                shop:       item.shop,
-                brand:      item.brand,
-                image_url:  item.image_url,
-                is_visible: item.is_visible,
-                performed_by: user?.name || "System",
-                latitude:  coords?.latitude,
-                longitude: coords?.longitude,
-                imported:  true,
-              }),
-            });
-          const d = await res.json();
-          if (d.success) {
-            saved++;
-          }
-        } catch {}
-      }
-      e.target.value = "";
-      const skipped = rows_to_save.length - saved;
-      alert(
-        `Parsed ${rows_to_save.length} row(s).\n` +
-        `Saved: ${saved} item(s)\n` +
-        `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
-      );
-      fetchItems();
-    };
-    reader.readAsArrayBuffer(file);
-  };
+    });
 
-const deleteItem = async (id) => {
+    setImportProgress({ percent:25, label:`Found ${rows_to_save.length} rows. Importing…`, current:0, total:rows_to_save.length });
+    let saved = 0;
+    for (let idx=0; idx<rows_to_save.length; idx++) {
+      const item = rows_to_save[idx];
+      setImportProgress({ percent: 25+Math.round(((idx+1)/rows_to_save.length)*65), label:`Saving "${item.name}"…`, current:idx+1, total:rows_to_save.length });
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: item.name, price: item.price, unit: item.unit, stock: item.stock,
+            shop: item.shop, brand: item.brand, image_url: item.image_url, is_visible: item.is_visible,
+            performed_by: user?.name || "System",
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude, longitude: coords?.longitude,
+            imported: true,
+          }),
+        });
+        const d = await res.json();
+        if (d.success) saved++;
+      } catch {}
+    }
+
+    setImportProgress({ percent:100, label:"Complete!", current:rows_to_save.length, total:rows_to_save.length });
+    fetchItems();
+    fetchActivityLog();
+    const skipped = rows_to_save.length - saved;
+    setTimeout(() => {
+      setImportLoading(false);
+      e.target.value = "";
+      showUiModal({
+        type: skipped > 0 ? "info" : "success",
+        title: "Import Complete",
+        message: `${saved} item(s) saved successfully.${skipped > 0 ? ` ${skipped} duplicate(s) skipped.` : ""}`,
+      });
+    }, 400);
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+const handleDeleteItem = (item) => setDeleteTarget(item);
+
+const confirmDelete = async () => {
+  if (!deleteTarget) return;
+  const item = deleteTarget;
+  setDeleting(true);
   const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
-  });
-  setConfirmDelete(null);
-  fetchItems();
-  fetchActivityLog();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        deleted_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      setToast({ type:"error", title:"Failed to Delete", message: d.error || "An unexpected error occurred." });
+      return;
+    }
+    fetchItems();
+    fetchActivityLog();
+    fetchDeleteHistory();
+    setToast({ type:"success", title:"Item Deleted", message:`"${item.name}" moved to Delete History.` });
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to delete the item." });
+  } finally {
+    setDeleting(false);
+    setDeleteTarget(null);
+  }
+};
+
+const handleRestore = async (entry) => {
+  setRestoringId(entry.id);
+  const coords = await getBrowserLocation();
+  try {
+    const d = entry.data;
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: d.name, price: d.price, unit: d.unit, image_url: d.image_url,
+        shop: d.shop, brand: d.brand, stock: d.stock, is_visible: d.is_visible,
+        branches: d.branches, ingredient_id: d.ingredient_id,
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        restored: true,
+      }),
+    });
+    const result = await res.json();
+    if (result.success) {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-item-delete-history/${entry.id}`, { method: "DELETE" });
+      fetchItems();
+      fetchActivityLog();
+      fetchDeleteHistory();
+    } else {
+      alert(result.error || "Failed to restore item.");
+    }
+  } catch {
+    alert("Connection error while restoring the item.");
+  } finally {
+    setRestoringId(null);
+  }
 };
 
 const toggleVisibility = async (id) => {
   const coords = await getBrowserLocation();
-  await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
-  });
-  fetchItems();
-  fetchActivityLog();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      setToast({ type:"error", title:"Failed to Update", message: d.error || "An unexpected error occurred." });
+      return;
+    }
+    fetchItems();
+    fetchActivityLog();
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to toggle visibility." });
+  }
 };
 
   // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
@@ -4172,15 +4447,16 @@ const toggleVisibility = async (id) => {
                   <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
                     style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
                 </Field>
-                <Field label="Stock *" error={editErrors.stock}>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editingItem.stock ?? ""}
-                    onChange={e => setEditingItem({...editingItem, stock: e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.stock ? "#e53935" : C.border}` }}
-                    placeholder="0"
-                  />
+                <Field label="Stock (synced from Stock Inventory)">
+                  <div style={{
+                    ...msInputStyle, background:"#f5f5f5", color:C.muted, fontWeight:700,
+                    display:"flex", alignItems:"center", cursor:"not-allowed",
+                  }}>
+                    {editingItem.stock ?? 0}
+                  </div>
+                  <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
+                    Stock updates automatically when batches are received or adjusted in Stock Inventory.
+                  </span>
                 </Field>
                 <PhotoPicker
                   value={editingItem.image_url}
@@ -4253,10 +4529,17 @@ const toggleVisibility = async (id) => {
                     );
                   })()}
                 </Field>
-                <Field label="Stock" error={errors.stock}>
-                  <input value={newItem.stock} onChange={e => setNewItem({...newItem, stock:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.stock ? "#e53935" : C.border}` }} placeholder="0"/>
-                </Field>
+              <Field label="Stock (synced from Stock Inventory)">
+                <div style={{
+                  ...msInputStyle, background:"#f5f5f5", color:C.muted, fontWeight:700,
+                  display:"flex", alignItems:"center", cursor:"not-allowed",
+                }}>
+                  0
+                </div>
+                <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
+                  New items start at 0 stock. Use Receive Stock in Stock Inventory to add inventory.
+                </span>
+              </Field>
                 <Field label="Price *" error={errors.price}>
                   <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
                     style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
@@ -4336,6 +4619,16 @@ const toggleVisibility = async (id) => {
             <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
           </label>
 
+          <button onClick={() => setShowDeleteHistory(true)}
+            style={{ ...toolbarBtnSt, border:`1px solid #ffcdd2`, background:C.white, color:"#e53935" }}>
+            <HistoryIcon size={13}/> Delete History
+            {deleteHistory.length > 0 && (
+              <span style={{ background:"#e53935", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20, marginLeft:4 }}>
+                {deleteHistory.length}
+              </span>
+            )}  
+          </button>
+
           <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
             {filteredItems.length} of {items.length} items
           </span>
@@ -4357,7 +4650,6 @@ const toggleVisibility = async (id) => {
               </thead>
               <tbody>
                 {filteredItems.map(item => {
-                  const isConfirm = confirmDelete === item.id;
                   return (
                     <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
                       onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
@@ -4394,13 +4686,10 @@ const toggleVisibility = async (id) => {
                           <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
                             {item.is_visible ? "Hide" : "Show"}
                           </button>
-                          <button onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
-                            style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
-                            <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
+                          <button onClick={() => handleDeleteItem(item)}
+                            style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935" }}>
+                            <TrashIcon size={12}/> Delete
                           </button>
-                          {isConfirm && (
-                            <button onClick={() => setConfirmDelete(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -4411,6 +4700,14 @@ const toggleVisibility = async (id) => {
           </div>
         )}
       </div>
+
+<Toast toast={toast} onClose={() => setToast(null)} />
+<UIModal modal={uiModal} onClose={closeUiModal} onConfirm={closeUiModal} />
+<ShopDeleteConfirmModal item={deleteTarget} deleting={deleting} onConfirm={confirmDelete} onCancel={() => { if (!deleting) setDeleteTarget(null); }} />
+<ImportLoadingModal visible={importLoading} progress={importProgress} />
+{showDeleteHistory && (
+  <ShopDeleteHistoryPanel history={deleteHistory} restoringId={restoringId} onRestore={handleRestore} onClose={() => setShowDeleteHistory(false)} />
+)}
   
     </div>
   );
@@ -4571,7 +4868,6 @@ function ApplicationsDeleteConfirmModal({ target, onConfirm, onClose, deleting =
 function ApplicationsContent({user, applications: initialApps, brands: propBrands = []  }) {
 
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
   const [applications, setApplications] = useState(initialApps || []);
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
@@ -5782,7 +6078,6 @@ function ReportsContent({ user, brands: propBrands = [] }) {
   const [brandBranchFilter, setBrandBranchFilter] = useState({});
 
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
 
   const [viewReport,    setViewReport]    = useState(null);
   const [approveReport, setApproveReport] = useState(null);
@@ -5911,6 +6206,7 @@ const handleApprove = async (report) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         performedBy: user?.name || "System",
+        role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       }),
@@ -6810,556 +7106,555 @@ function UserConfirmModal({ user, onConfirm, onClose, deleting }) {
   );
 }
 
-  function UsersContent({ user, brands: propBrands = [] }) {
-    const [activityLog,     setActivityLog]     = useState([]);
-    const [showActivityLog, setShowActivityLog] = useState(false);
-    const [users,        setUsers]        = useState([]);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showEditModal,setShowEditModal]= useState(false);
-    const [editingUser,  setEditingUser]  = useState(null);
-    const [formData,     setFormData]     = useState({ name:'', email:'', role:'', branch:'', password:'' });
-    const [showPasswordValidation, setShowPasswordValidation] = useState(false);
-    const [passwordErrors,         setPasswordErrors]         = useState([]);
-    const [showPassword,           setShowPassword]           = useState(false);
-    const [brands,         setBrands]         = useState([]);
-    const [selectedBrandId,setSelectedBrandId] = useState("");
-    const [branches,       setBranches]       = useState([]);
-    const [brandsLoading,  setBrandsLoading]  = useState(true);
-    const [filterRole,   setFilterRole]   = useState('all');
-    const [filterBrandF, setFilterBrandF] = useState('all');
-    const [filterBranchF,setFilterBranchF]= useState('all');
-    const [searchQuery,  setSearchQuery]  = useState('');
+function UsersContent({ user, brands: propBrands = [] }) {
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [users,        setUsers]        = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal,setShowEditModal]= useState(false);
+  const [editingUser,  setEditingUser]  = useState(null);
+  const [formData,     setFormData]     = useState({ name:'', email:'', role:'', branch:'', password:'' });
+  const [showPasswordValidation, setShowPasswordValidation] = useState(false);
+  const [passwordErrors,         setPasswordErrors]         = useState([]);
+  const [showPassword,           setShowPassword]           = useState(false);
+  const [brands,         setBrands]         = useState([]);
+  const [selectedBrandId,setSelectedBrandId] = useState("");
+  const [branches,       setBranches]       = useState([]);
+  const [brandsLoading,  setBrandsLoading]  = useState(true);
+  const [filterRole,   setFilterRole]   = useState('all');
+  const [filterBrandF, setFilterBrandF] = useState('all');
+  const [filterBranchF,setFilterBranchF]= useState('all');
+  const [searchQuery,  setSearchQuery]  = useState('');
 
-    const [deleteTarget,      setDeleteTarget]      = useState(null); 
-    const [deleting,          setDeleting]          = useState(false);
-    const [restoringId,       setRestoringId]       = useState(null);
-    const [deleteHistory,     setDeleteHistory]     = useState([]); 
-    const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-    const [alertModal,        setAlertModal]        = useState(null);  
-    const [saving, setSaving] = useState(false);
+  const [deleteTarget,      setDeleteTarget]      = useState(null); 
+  const [deleting,          setDeleting]          = useState(false);
+  const [restoringId,       setRestoringId]       = useState(null);
+  const [deleteHistory,     setDeleteHistory]     = useState([]); 
+  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [alertModal,        setAlertModal]        = useState(null);  
+  const [saving, setSaving] = useState(false);
 
-    const showAlert = (message, type = "info") =>
-    setAlertModal({ title: message, type });
+  const showAlert = (message, type = "info") =>
+  setAlertModal({ title: message, type });
 
-    const showLoading = (title) => setAlertModal({ type: 'loading', title });
-    const showSuccess = (title, message) => setAlertModal({ type: 'success', title, message });
-    const showError   = (title, message) => setAlertModal({ type: 'error', title, message });
+  const showLoading = (title) => setAlertModal({ type: 'loading', title });
+  const showSuccess = (title, message) => setAlertModal({ type: 'success', title, message });
+  const showError   = (title, message) => setAlertModal({ type: 'error', title, message });
 
-    const getBrowserLocation = () => {
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) { resolve(null); return; }
-        navigator.geolocation.getCurrentPosition(
-          (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-          () => resolve(null),
-          { timeout: 5000, maximumAge: 60000 }
-        );
-      });
-    };
-
-    const fetchActivityLog = useCallback(async () => {
-      try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
-        const data = await res.json();
-        setActivityLog(Array.isArray(data) ? data : []);
-      } catch (err) { console.error("Failed to fetch orders activity log:", err); }
-    }, []);
-
-const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-  try {
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action,
-        item_name: itemName,
-        branch: branchName,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        changes,
-      }),
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
     });
-  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-}, [user]);
-
-    useEffect(() => { fetchUsers();  fetchActivityLog(); }, [fetchActivityLog]);
-
-    useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-        const data = await res.json();
-        setBrands(Array.isArray(data) ? data : []);
-      } catch (err) { console.error("Failed to fetch brands:", err); }
-      finally { setBrandsLoading(false); }
-    };
-    fetchBrands();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedBrandId) { setBranches([]); return; }
-    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
-    setBranches(brand?.branches || []);
-  }, [selectedBrandId, brands]);
-
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
-        const data = await response.json();
-        console.log("users from API:", data);
-        setUsers(data);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        showAlert("Failed to load users.", "error");
-      }
-    };
-    const fetchDeleteHistory = async () => {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
-    const data = await res.json();
-    setDeleteHistory(Array.isArray(data) ? data : []);
   };
 
-  useEffect(() => { fetchDeleteHistory(); }, []);
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/users-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+  }, []);
 
-    const handleSendCredentials = async (user) => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: user.email,
-            name: user.name,
-            password: "—", 
-          }),
-        });
-        const data = await response.json();
-        if (data.success) {
-          showAlert(`Credentials sent to ${user.email}!`, "success");
-        } else {
-          showAlert(data.error || "Failed to send credentials.", "error");
-        }
-      } catch (error) {
-        console.error("Error sending credentials:", error);
-        showAlert("Failed to send credentials.", "error");
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+try {
+  await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action,
+      item_name: itemName,
+      branch: branchName,
+      performed_by: user?.name || "System",
+      role: user?.role || "Unknown",
+      changes,
+    }),
+  });
+} catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, [user]);
+
+  useEffect(() => { fetchUsers();  fetchActivityLog(); }, [fetchActivityLog]);
+
+  useEffect(() => {
+  const fetchBrands = async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const data = await res.json();
+      setBrands(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch brands:", err); }
+    finally { setBrandsLoading(false); }
+  };
+  fetchBrands();
+}, []);
+
+useEffect(() => {
+  if (!selectedBrandId) { setBranches([]); return; }
+  const brand = brands.find(b => String(b.id) === String(selectedBrandId));
+  setBranches(brand?.branches || []);
+}, [selectedBrandId, brands]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users`);
+      const data = await response.json();
+      console.log("users from API:", data);
+      setUsers(data);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      showAlert("Failed to load users.", "error");
+    }
+  };
+  const fetchDeleteHistory = async () => {
+  const res = await fetch(`${process.env.REACT_APP_API_URL}/delete-history`);
+  const data = await res.json();
+  setDeleteHistory(Array.isArray(data) ? data : []);
+};
+
+useEffect(() => { fetchDeleteHistory(); }, []);
+
+  const handleSendCredentials = async (user) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: user.email,
+          name: user.name,
+          password: "—", 
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showAlert(`Credentials sent to ${user.email}!`, "success");
+      } else {
+        showAlert(data.error || "Failed to send credentials.", "error");
       }
-    };
+    } catch (error) {
+      console.error("Error sending credentials:", error);
+      showAlert("Failed to send credentials.", "error");
+    }
+  };
 
-    const validatePasswordStrength = (password) => {
-      const errors = [];
-      if (password.length < 8) errors.push("minLength");
-      if (!/[A-Z]/.test(password)) errors.push("uppercase");
-      if (!/[a-z]/.test(password)) errors.push("lowercase");
-      if (!/\d/.test(password))    errors.push("number");
-      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
-      return { isValid: errors.length === 0, errors };
-    };
+  const validatePasswordStrength = (password) => {
+    const errors = [];
+    if (password.length < 8) errors.push("minLength");
+    if (!/[A-Z]/.test(password)) errors.push("uppercase");
+    if (!/[a-z]/.test(password)) errors.push("lowercase");
+    if (!/\d/.test(password))    errors.push("number");
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("specialChar");
+    return { isValid: errors.length === 0, errors };
+  };
 
 const handleAddUser = async (e) => {
-  e.preventDefault();
-  const tempPassword = generateTempPassword();
-  const passwordCheck = validatePasswordStrength(tempPassword);
+e.preventDefault();
+const tempPassword = generateTempPassword();
+const passwordCheck = validatePasswordStrength(tempPassword);
+if (!passwordCheck.isValid) {
+  showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
+  return;
+}
+
+setSaving(true);
+
+const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+const coords = await getBrowserLocation();
+const payload = {
+  ...formData,
+  password: tempPassword,
+  brand: selectedBrand?.name || "",
+  performed_by: user?.name || "System",
+  performed_by_role: user?.role || "Unknown", 
+  latitude: coords?.latitude,
+  longitude: coords?.longitude,
+};
+try {
+  const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (data.success) {
+    await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: formData.email, name: formData.name, password: tempPassword }),
+    });
+    await fetchUsers();
+    await fetchActivityLog();
+    setShowAddModal(false);
+    resetForm();
+    showSuccess("User added", `"${formData.name}" was added and credentials were sent.`);  // ← was showAlert("User added & credentials sent!", "success")
+  } else {
+    showError("Failed to add user", data.error || "Something went wrong.");  // ← was showAlert(data.error || "Failed to add user.", "error")
+  }
+} catch (error) {
+  console.error("Error adding user:", error);
+  showError("Failed to add user", "Something went wrong. Please try again.");
+} finally {
+  setSaving(false);
+}
+};
+
+const handleEditUser = async (e) => {
+e.preventDefault();
+
+if (formData.password) {
+  const passwordCheck = validatePasswordStrength(formData.password);
   if (!passwordCheck.isValid) {
     showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
     return;
   }
-  
-  setSaving(true);
+}
 
-  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    password: tempPassword,
-    brand: selectedBrand?.name || "",
-    performed_by: user?.name || "System",
-    performed_by_role: user?.role || "Unknown", 
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
-  try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: formData.email, name: formData.name, password: tempPassword }),
-      });
-      await fetchUsers();
-      await fetchActivityLog();
-      setShowAddModal(false);
-      resetForm();
-      showSuccess("User added", `"${formData.name}" was added and credentials were sent.`);  // ← was showAlert("User added & credentials sent!", "success")
-    } else {
-      showError("Failed to add user", data.error || "Something went wrong.");  // ← was showAlert(data.error || "Failed to add user.", "error")
-    }
-  } catch (error) {
-    console.error("Error adding user:", error);
-    showError("Failed to add user", "Something went wrong. Please try again.");
-  } finally {
-    setSaving(false);
+setSaving(true); 
+const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
+const coords = await getBrowserLocation();
+const payload = {
+  ...formData,
+  brand: selectedBrand?.name || formData.brand || "",
+  performed_by: user?.name || "System",
+  performed_by_role: user?.role || "Unknown",  
+  latitude: coords?.latitude,
+  longitude: coords?.longitude,
+};
+try {
+  const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (data.success) {
+    await fetchUsers();
+    await fetchActivityLog();
+    setShowEditModal(false);
+    setEditingUser(null);
+    resetForm();
+    showSuccess("User updated", `"${formData.name}" was saved.`);
+  } else {
+    showError("Failed to update user", data.error || "Something went wrong.");
   }
+} catch (error) {
+  console.error("Error updating user:", error);
+  showError("Failed to update user", "Something went wrong. Please try again.");
+} finally {
+  setSaving(false);
+}
 };
 
-const handleEditUser = async (e) => {
-  e.preventDefault();
-
-  if (formData.password) {
-    const passwordCheck = validatePasswordStrength(formData.password);
-    if (!passwordCheck.isValid) {
-      showAlert("Password must contain:\n• At least 8 characters\n• 1 uppercase letter\n• 1 lowercase letter\n• 1 number\n• 1 special character", "error");
-      return;
-    }
-  }
-  
-  setSaving(true); 
-  const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    brand: selectedBrand?.name || formData.brand || "",
-    performed_by: user?.name || "System",
-    performed_by_role: user?.role || "Unknown",  
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
-  try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${editingUser.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (data.success) {
-      await fetchUsers();
-      await fetchActivityLog();
-      setShowEditModal(false);
-      setEditingUser(null);
-      resetForm();
-      showSuccess("User updated", `"${formData.name}" was saved.`);
-    } else {
-      showError("Failed to update user", data.error || "Something went wrong.");
-    }
-  } catch (error) {
-    console.error("Error updating user:", error);
-    showError("Failed to update user", "Something went wrong. Please try again.");
-  } finally {
-    setSaving(false);
-  }
-};
-
-    const handleDeleteUser = (user) => setDeleteTarget(user);
+  const handleDeleteUser = (user) => setDeleteTarget(user);
 
 const confirmDelete = async () => {
-  if (!deleteTarget) return;
-  setDeleting(true);
-  const targetUser = deleteTarget;
-  try {
-    const coords = await getBrowserLocation();
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-    });
-    const data = await response.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_data: targetUser }),
-      });
-      await fetchDeleteHistory();
-      await fetchUsers();
-      await fetchActivityLog();
-      showSuccess("User deleted", `"${targetUser.name}" was removed.`);
-    } else {
-      showError("Failed to delete user", data.error || "Something went wrong.");
-    }
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    showError("Failed to delete user", "Something went wrong. Please try again.");
-  } finally {
-    setDeleting(false);
-    setDeleteTarget(null);
-  }
-};
-    
-const handleRestore = async (entry) => {
-  setRestoringId(entry.id);
-  try {
-    const coords = await getBrowserLocation();
-    const d = entry.user_data || entry.data || {};
-
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+if (!deleteTarget) return;
+setDeleting(true);
+const targetUser = deleteTarget;
+try {
+  const coords = await getBrowserLocation();
+  const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${targetUser.id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+  });
+  const data = await response.json();
+  if (data.success) {
+    await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: d.name,
-        email: d.email,
-        role: d.role,
-        branch: d.branch,
-        brand: d.brand || "",
-        password: d.password, 
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        restored: true,
-      }),
+      body: JSON.stringify({ user_data: targetUser }),
     });
-    const data = await res.json();
-
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, { method: "DELETE" });
-      await fetchDeleteHistory();
-      await fetchUsers();
-      await fetchActivityLog();
-      showSuccess("User restored", `"${d.name}" is back.`);
-    } else {
-      showError("Failed to restore user", data.error || "Something went wrong.");
-    }
-  } catch (err) {
-    console.error("Restore error:", err);
-    showError("Failed to restore user", "Something went wrong. Please try again.");
-  } finally {
-    setRestoringId(null);
+    await fetchDeleteHistory();
+    await fetchUsers();
+    await fetchActivityLog();
+    showSuccess("User deleted", `"${targetUser.name}" was removed.`);
+  } else {
+    showError("Failed to delete user", data.error || "Something went wrong.");
   }
+} catch (error) {
+  console.error("Error deleting user:", error);
+  showError("Failed to delete user", "Something went wrong. Please try again.");
+} finally {
+  setDeleting(false);
+  setDeleteTarget(null);
+}
+};
+  
+const handleRestore = async (entry) => {
+setRestoringId(entry.id);
+try {
+  const coords = await getBrowserLocation();
+  const d = entry.user_data || entry.data || {};
+
+  const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: d.name,
+      email: d.email,
+      role: d.role,
+      branch: d.branch,
+      brand: d.brand || "",
+      password: d.password, 
+      performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      restored: true,
+    }),
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    await fetch(`${process.env.REACT_APP_API_URL}/delete-history/${entry.id}`, { method: "DELETE" });
+    await fetchDeleteHistory();
+    await fetchUsers();
+    await fetchActivityLog();
+    showSuccess("User restored", `"${d.name}" is back.`);
+  } else {
+    showError("Failed to restore user", data.error || "Something went wrong.");
+  }
+} catch (err) {
+  console.error("Restore error:", err);
+  showError("Failed to restore user", "Something went wrong. Please try again.");
+} finally {
+  setRestoringId(null);
+}
 };
 
-    const openEditModal = (user) => {
-      setEditingUser(user);
-      setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
-      const ownerBrand = brands.find(b =>       // ← add from here
-        (b.branches || []).some(br => (br.name ?? br) === user.branch)
-      );
-      setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : "");  // ← to here
-      setShowEditModal(true);
-      setShowPassword(false);
-    };
-    const resetForm = () => {
-      setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
-      setShowPasswordValidation(false);
-      setPasswordErrors([]);
-      setShowPassword(false);
-      setSelectedBrandId("");
-      setBranches([]);
-    };
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        const formatted = name === "name"
-          ? value.replace(/\b\w/g, c => c.toUpperCase())
-          : value;
-        setFormData(prev => ({ ...prev, [name]: formatted }));
-      };
-
-    const handleGeneratePassword = () => {
-      const generated = generateTempPassword();
-      setFormData(prev => ({ ...prev, password: generated }));
-      setShowPasswordValidation(true);
-      setPasswordErrors([]);
-    };
-
-    const filterBrandBranches = filterBrandF === 'all' ? [] :
-    (brands.find(b => String(b.id) === String(filterBrandF))?.branches || []);
-
-  const filteredUsers = users.filter(u => {
-    const q = searchQuery.toLowerCase();
-    if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
-    if (filterRole   !== 'all' && u.role   !== filterRole)   return false;
-    if (filterBrandF !== 'all' && u.brand  !== brands.find(b => String(b.id) === String(filterBrandF))?.name) return false;
-    if (filterBranchF !== 'all' && u.branch !== filterBranchF) return false;
-    return true;
-  });
-
-    const pwChange = (e) => {
-      handleInputChange(e);
-      const v = e.target.value;
-      if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
-      else   { setShowPasswordValidation(false); setPasswordErrors([]); }
-    };
-
-    return (
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-  
-
-        {/* Stat Cards */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
-          {[
-            { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
-            { label:'Super Admin', value:users.filter(u=>u.role==='Super Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
-            { label:'Franchisee Operations Admin', value:users.filter(u=>u.role==='Franchisee Operations Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
-            { label:'Sales Admin', value:users.filter(u=>u.role==='Sales Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
-            { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
-            { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
-          ].map((s, i) => <BmStatCard key={i} {...s} />)}
-        </div>
-
-       <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-
-          {/* Search */}
-          <div style={{ position:"relative" }}>
-            <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
-            <input
-              type="text"
-              placeholder="Search name or email…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding:"9px 12px 9px 32px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
-            />
-          </div>
-
-          {/* Role */}
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-            <option value="all">All Roles</option>
-            {['Super Admin','Franchisee Operations Admin', 'Sales Admin', 'Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-
-          {/* Brand */}
-          <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-            <option value="all">All Brands</option>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-
-          {/* Branch */}
-          <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
-            style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:"inherit", outline:"none", cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
-            <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
-            {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-          </select>
-
-          {/* Clear */}
-          {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
-            <button
-              onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
-              style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              Clear filters
-            </button>
-          )}
-
-        </div>
-      </div>
-
-        {/* Table card */}
-        <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
-          <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
-            <div style={{ display:'flex', gap:8 }}>
-              {/* Delete History button */}
-              <button
-                onClick={() => setShowDeleteHistory(true)}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
-              >
-                <History size={13}/> Delete History
-                {deleteHistory.length > 0 && (
-                  <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
-                    {deleteHistory.length}
-                  </span>
-                )}
-              </button>
-              <button onClick={() => setShowAddModal(true)}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                <Plus size={14}/> Add New User
-              </button>
-            </div>
-          </div>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-              <thead>
-                <tr>
-                  {['Name','Email','Role','Brand', 'Branch','Actions'].map(h => (
-                    <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map(user => (
-                  <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                    onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
-                    <td style={{ padding:'12px 14px' }}>
-                      <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
-                    </td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
-                    <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
-                  
-                    <td style={{ padding:'12px 14px' }}>
-                      <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
-                          <Pencil size={11}/>
-                        </button>
-                        <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
-                          <Trash2 size={11}/>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {showAddModal && (
-          <CreateAccountModal
-            applicant={null}
-            roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
-            saving={saving}
-            onClose={() => { setShowAddModal(false); resetForm(); }}
-            onAlert={(message, type) => setAlertModal({ title: message, type })}
-          />
-        )}
-
-        {showEditModal && (
-          <UserModal
-            key="edit"
-            title="Edit User"
-            onSubmit={handleEditUser}
-            saving={saving}
-            onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
-            isEdit={true}
-            formData={formData}
-            setFormData={setFormData}
-            handleInputChange={handleInputChange}
-            selectedBrandId={selectedBrandId}
-            setSelectedBrandId={setSelectedBrandId}
-            brands={brands}
-            branches={branches}
-            brandsLoading={brandsLoading}
-            showPassword={showPassword}
-            setShowPassword={setShowPassword}
-            showPasswordValidation={showPasswordValidation}
-            passwordErrors={passwordErrors}
-            handleGeneratePassword={handleGeneratePassword}
-            pwChange={pwChange}
-          />
-        )}
-
-        {showDeleteHistory && (
-          <UserDeleteHistoryPanel
-            history={deleteHistory}
-            restoringId={restoringId}          
-            onRestore={handleRestore}
-            onClose={() => setShowDeleteHistory(false)}
-          />
-        )}
-
-        <UserConfirmModal
-          user={deleteTarget}
-          deleting={deleting}
-          onConfirm={confirmDelete}
-          onClose={() => { if (!deleting) setDeleteTarget(null); }}
-        />
-
-        <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
-          
-      </div>
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
+    const ownerBrand = brands.find(b =>       // ← add from here
+      (b.branches || []).some(br => (br.name ?? br) === user.branch)
     );
-  }
+    setSelectedBrandId(ownerBrand ? String(ownerBrand.id) : "");  // ← to here
+    setShowEditModal(true);
+    setShowPassword(false);
+  };
+  const resetForm = () => {
+    setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
+    setShowPasswordValidation(false);
+    setPasswordErrors([]);
+    setShowPassword(false);
+    setSelectedBrandId("");
+    setBranches([]);
+  };
+  const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      const formatted = name === "name"
+        ? value.replace(/\b\w/g, c => c.toUpperCase())
+        : value;
+      setFormData(prev => ({ ...prev, [name]: formatted }));
+    };
+
+  const handleGeneratePassword = () => {
+    const generated = generateTempPassword();
+    setFormData(prev => ({ ...prev, password: generated }));
+    setShowPasswordValidation(true);
+    setPasswordErrors([]);
+  };
+
+  const filterBrandBranches = filterBrandF === 'all' ? [] :
+  (brands.find(b => String(b.id) === String(filterBrandF))?.branches || []);
+
+const filteredUsers = users.filter(u => {
+  const q = searchQuery.toLowerCase();
+  if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
+  if (filterRole   !== 'all' && u.role   !== filterRole)   return false;
+  if (filterBrandF !== 'all' && u.brand  !== brands.find(b => String(b.id) === String(filterBrandF))?.name) return false;
+  if (filterBranchF !== 'all' && u.branch !== filterBranchF) return false;
+  return true;
+});
+
+  const pwChange = (e) => {
+    handleInputChange(e);
+    const v = e.target.value;
+    if (v) { setShowPasswordValidation(true); setPasswordErrors(validatePasswordStrength(v).errors); }
+    else   { setShowPasswordValidation(false); setPasswordErrors([]); }
+  };
+
+  return (
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+
+
+      {/* Stat Cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+        {[
+          { label:'Total Users',    value:users.length,                                                    icon:<Users size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#d1fae5,#6ee7b7)', sub:'All accounts' },
+          { label:'Super Admin', value:users.filter(u=>u.role==='Super Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+          { label:'Franchisee Operations Admin', value:users.filter(u=>u.role==='Franchisee Operations Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+          { label:'Sales Admin', value:users.filter(u=>u.role==='Sales Admin').length,                icon:<User size={20} color="#065f46"/>,   bg:'linear-gradient(135deg,#d1fae5,#a7f3d0)', sub:'Admin access' },
+          { label:'Franchisees',    value:users.filter(u=>u.role==='Franchisee').length,                   icon:<Store size={20} color="#065f46"/>,  bg:'linear-gradient(135deg,#dbeafe,#93c5fd)', sub:'Branch owners' },
+          { label:'Staff',          value:users.filter(u=>u.role==='Staff'||u.role==='Manager').length,    icon:<Users size={20} color="#92400e"/>,  bg:'linear-gradient(135deg,#fef9c3,#fde68a)', sub:'Operational' },
+        ].map((s, i) => <BmStatCard key={i} {...s} />)}
+      </div>
+
+      <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+        {/* Search */}
+        <div style={{ position:"relative" }}>
+          <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
+          <input
+            type="text"
+            placeholder="Search name or email…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ padding:"9px 12px 9px 32px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, color:"#0d2b1e", background:"#f0fdf5", fontFamily:"inherit", outline:"none", width:240 }}
+          />
+        </div>
+
+        {/* Role */}
+        <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
+          style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+          <option value="all">All Roles</option>
+          {['Super Admin','Franchisee Operations Admin', 'Sales Admin', 'Franchisee','Manager','Staff'].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+
+        {/* Brand */}
+        <select value={filterBrandF} onChange={e => { setFilterBrandF(e.target.value); setFilterBranchF('all'); }}
+          style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+          <option value="all">All Brands</option>
+          {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+
+        {/* Branch */}
+        <select value={filterBranchF} onChange={e => setFilterBranchF(e.target.value)} disabled={filterBrandF === 'all'}
+          style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background: filterBrandF === 'all' ? '#f5f5f5' : '#f0fdf5', fontFamily:"inherit", outline:"none", cursor: filterBrandF === 'all' ? 'not-allowed' : 'pointer', opacity: filterBrandF === 'all' ? 0.5 : 1 }}>
+          <option value="all">{filterBrandF === 'all' ? 'Select brand first' : 'All Branches'}</option>
+          {filterBrandBranches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
+        </select>
+
+        {/* Clear */}
+        {(searchQuery || filterRole !== 'all' || filterBrandF !== 'all' || filterBranchF !== 'all') && (
+          <button
+            onClick={() => { setSearchQuery(''); setFilterRole('all'); setFilterBrandF('all'); setFilterBranchF('all'); }}
+            style={{ padding:"9px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            Clear filters
+          </button>
+        )}
+
+      </div>
+    </div>
+
+      {/* Table card */}
+      <div style={{ background:C.white, border:'1px solid rgba(0,168,76,0.12)', borderRadius:18, boxShadow:'0 2px 14px rgba(0,140,60,0.07)', overflow:'hidden' }}>
+        <div style={{ background:'linear-gradient(135deg,#2E7D32,#00897b)', padding:'16px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>User Accounts</span>
+          <div style={{ display:'flex', gap:8 }}>
+            {/* Delete History button */}
+            <button
+              onClick={() => setShowDeleteHistory(true)}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.10)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
+            >
+              <History size={13}/> Delete History
+              {deleteHistory.length > 0 && (
+                <span style={{ background:'#dc2626', color:'#fff', fontSize:10, fontWeight:800, padding:'1px 7px', borderRadius:20, marginLeft:2 }}>
+                  {deleteHistory.length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setShowAddModal(true)}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:9, border:'1.5px solid rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.12)', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <Plus size={14}/> Add New User
+            </button>
+          </div>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr>
+                {['Name','Email','Role','Brand', 'Branch','Actions'].map(h => (
+                  <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontWeight:800, fontSize:10.5, color:'#00897b', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:`1px solid ${C.border}`, background:'#f8fffe' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(user => (
+                <tr key={user.id} style={{ borderBottom:`1px solid #f0f8f0` }}
+                  onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                  onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                  <td style={{ padding:'12px 14px', fontWeight:700, color:'#0d2b1e' }}>{user.name}</td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.email}</td>
+                  <td style={{ padding:'12px 14px' }}>
+                    <span style={{ background:'#e0f2f1', color:'#00695c', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>{user.role}</span>
+                  </td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.brand || '—'}</td>
+                  <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
+                
+                  <td style={{ padding:'12px 14px' }}>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
+                        <Pencil size={11}/>
+                      </button>
+                      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+                        <Trash2 size={11}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAddModal && (
+        <CreateAccountModal
+          applicant={null}
+          roles={['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee']}
+          saving={saving}
+          onClose={() => { setShowAddModal(false); resetForm(); }}
+          onAlert={(message, type) => setAlertModal({ title: message, type })}
+        />
+      )}
+
+      {showEditModal && (
+        <UserModal
+          key="edit"
+          title="Edit User"
+          onSubmit={handleEditUser}
+          saving={saving}
+          onClose={() => { setShowEditModal(false); setEditingUser(null); resetForm(); }}
+          isEdit={true}
+          formData={formData}
+          setFormData={setFormData}
+          handleInputChange={handleInputChange}
+          selectedBrandId={selectedBrandId}
+          setSelectedBrandId={setSelectedBrandId}
+          brands={brands}
+          branches={branches}
+          brandsLoading={brandsLoading}
+          showPassword={showPassword}
+          setShowPassword={setShowPassword}
+          showPasswordValidation={showPasswordValidation}
+          passwordErrors={passwordErrors}
+          handleGeneratePassword={handleGeneratePassword}
+          pwChange={pwChange}
+        />
+      )}
+
+      {showDeleteHistory && (
+        <UserDeleteHistoryPanel
+          history={deleteHistory}
+          restoringId={restoringId}          
+          onRestore={handleRestore}
+          onClose={() => setShowDeleteHistory(false)}
+        />
+      )}
+
+      <UserConfirmModal
+        user={deleteTarget}
+        deleting={deleting}
+        onConfirm={confirmDelete}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
+        
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOUNCEMENT — 
@@ -7381,7 +7676,6 @@ function CommunicationContent({ user, brands: propBrands = [] }){
   const [deleteHistory, setDeleteHistory] = useState([]);
   
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
 
   const [alertModal,   setAlertModal]   = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
@@ -8322,68 +8616,75 @@ function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }
   );
 }
 
-/* ── Order card — decluttered: one status line, one image+preview row, no extra pill row ── */
-function OrderCard({ order, onOpen, stockStatus }) {
-  const completed = order.status === "disposed" || order.status === "rejected";
-  const preview = order.items.slice(0, 2).map(i => `${i.qty}× ${i.name}`).join(", ");
-  const more = order.items.length > 2 ? ` +${order.items.length - 2} more` : "";
-  const thumbs = order.items.slice(0, 3);
-  const outOfStock = order.status === "pending" && stockStatus && !stockStatus.ok;
+function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepting }) {
+  const isPending = order.status === "pending";
+  const shortItems = (stockInfo?.results || []).filter(r => !r.sufficient);
+  const insufficient = isPending && stockInfo && !stockInfo.checking && shortItems.length > 0;
 
-   const ctaLabel = order.status === "pending"
-    ? (outOfStock ? "Insufficient Stock" : "Review")
-    : order.status === "accepted" ? "Manage" : "View";
+  const statusStyle = {
+    pending:  { bg:"#fff7ed", border:"#fed7aa", color:"#9a3412", label:"Incoming" },
+    accepted: { bg:C.greenLt, border:C.greenMid, color:C.greenDk, label:"Shipping" },
+    rejected: { bg:C.redBg,  border:C.redBorder, color:"#7f1d1d", label:"Rejected" },
+  }[order.status] || { bg:"#f3f4f6", border:"#e5e7eb", color:"#374151", label:order.status };
 
   return (
-    <div onClick={() => onOpen(order)}
-      style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:14,
-        padding:14, cursor:"pointer", opacity: completed ? 0.85 : 1,
-        transition:"border-color .12s ease, transform .12s ease, box-shadow .12s ease",
-        display:"flex", flexDirection:"column", gap:10 }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = C.greenMid; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
-
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div style={{ fontWeight:800, fontSize:13.5, color:C.ink }}>#{order.id}</div>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          {outOfStock && (
-            <span style={{ display:"flex", alignItems:"center", gap:3, fontSize:9.5, fontWeight:800, color:"#9a3412", background:"#fef3c7", padding:"2px 7px", borderRadius:20 }}>
-              <AlertTriangle size={10}/> LOW STOCK
-            </span>
-          )}
-          <StatusBadge status={order.status} size="sm"/>
+    <div
+      onClick={() => onOpen(order)}
+      style={{
+        background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:14,
+        cursor:"pointer", display:"flex", flexDirection:"column", gap:10,
+        boxShadow:"0 1px 4px rgba(0,0,0,0.04)", transition:"box-shadow .15s, transform .15s",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.09)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>#{order.id}</div>
+          <div style={{ fontSize:11.5, color:C.muted, marginTop:2 }}>{fmtDate(order.createdAt)}</div>
         </div>
+        <span style={{ fontSize:10, fontWeight:800, padding:"3px 9px", borderRadius:20, background:statusStyle.bg, color:statusStyle.color, border:`1px solid ${statusStyle.border}`, whiteSpace:"nowrap" }}>
+          {statusStyle.label}
+        </span>
       </div>
 
-      <div>
-        <div style={{ fontWeight:700, fontSize:13, color:C.ink }}>{order.customer}</div>
-        <div style={{ fontSize:11, color:C.muted, marginTop:1 }}>{order.branch} · {timeAgo(order.createdAt)}</div>
+      <div style={{ fontSize:12.5, fontWeight:700, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+        {order.customer}
       </div>
 
-      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        {thumbs.length > 0 && (
-          <div style={{ display:"flex", flexShrink:0 }}>
-            {thumbs.map((item, i) => (
-              <div key={i} style={{ width:26, height:26, borderRadius:7, overflow:"hidden", background:"#f0f0f0", border:"2px solid #fff",
-                marginLeft: i === 0 ? 0 : -8, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={11} color={C.muted}/>}
-              </div>
-            ))}
-          </div>
-        )}
-        <div style={{ fontSize:11.5, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-          {preview || "No items"}{more}
+      <div style={{ fontSize:11.5, color:C.muted }}>
+        {order.items.length} item{order.items.length !== 1 ? "s" : ""} · <span style={{ fontWeight:700, color:C.green }}>{fmtPeso1(order.total)}</span>
+      </div>
+
+      {isPending && stockInfo?.checking && (
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.muted }}>
+          <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/> Checking stock…
         </div>
-      </div>
+      )}
 
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
-        <div style={{ fontSize:15, fontWeight:800, color:C.green }}>{fmtPeso1(order.total)}</div>
-        <button onClick={e => { e.stopPropagation(); onOpen(order); }}
-          style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-            background:"#fff", color:C.greenDk }}>
-          {ctaLabel} <ChevronRight size={12}/>
+      {insufficient && (
+        <div style={{ display:"flex", gap:6, alignItems:"flex-start", background:C.warnBg, border:`1px solid ${C.warnBorder}`, borderRadius:8, padding:"7px 9px", fontSize:10.5, color:"#9a3412" }}>
+          <AlertTriangle size={12} style={{ flexShrink:0, marginTop:1 }}/>
+          <span>Insufficient stock for {shortItems.length} item{shortItems.length !== 1 ? "s" : ""}</span>
+        </div>
+      )}
+
+      {isPending && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onAccept(order); }}
+          disabled={acceptDisabled}
+          style={{
+            ...primaryBtn,
+            opacity: acceptDisabled ? 0.5 : 1,
+            cursor: acceptDisabled ? "not-allowed" : "pointer",
+            display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6,
+            padding:"8px 0", fontSize:12,
+          }}
+        >
+          {accepting && <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>}
+          {accepting ? "Accepting…" : insufficient ? "Insufficient Stock" : "Accept"}
         </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -8439,24 +8740,14 @@ function ReceiptSlip({ order }) {
   );
 }
 
-/* ── Order Detail Drawer — the single place actions happen ── */
-function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDisposeConfirm, disposeState, onPrint, stockStatus }) {
+function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, acceptDisabled, accepting }) {
   const [mode, setMode] = useState(null);
-  const [accepting, setAccepting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [printing, setPrinting] = useState(false);
-  const [checkingStock, setCheckingStock] = useState(false);
-  const outOfStock = order.status === "pending" && stockStatus && !stockStatus.ok;
 
   useEffect(() => { setMode(null); }, [order?.id]);
 
   if (!order) return null;
-
-  const doAccept = async () => {
-    if (outOfStock) return;
-    setAccepting(true);
-    try { await onAccept(order); } finally { setAccepting(false); }
-  };
 
   const doPrint = async () => {
     setPrinting(true);
@@ -8469,15 +8760,8 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
     try { await onReject(order, reason, note); setMode(null); } finally { setRejecting(false); }
   };
 
-  const startDispose = async () => {
-    setMode("dispose");
-    setCheckingStock(true);
-    await onDisposeCheck(order);
-    setCheckingStock(false);
-  };
-
-  const dState = disposeState && disposeState.orderId === order.id ? disposeState : null;
-  const allOk = dState && dState.results.length > 0 && dState.results.every(r => r.sufficient);
+  const shortItems = (stockInfo?.results || []).filter(r => !r.sufficient);
+  const showStockWarning = order.status === "pending" && stockInfo && !stockInfo.checking && shortItems.length > 0;
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end", animation:"overlayIn .18s ease" }}>
@@ -8523,25 +8807,46 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
             </SectionCard>
           )}
 
+          {/* Items — with live per-item stock availability inline, no separate check step */}
           <SectionCard title={`Items (${order.items.length})`}>
             {order.items.length === 0 ? (
               <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No item details available.</div>
             ) : (
               <div style={{ display:"grid", gap:6 }}>
-                {order.items.map((item, i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-                      <div style={{ width:36, height:36, borderRadius:8, overflow:"hidden", flexShrink:0, background:"#f0f0f0", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                        {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={16} color={C.muted}/>}
+                {order.items.map((item, i) => {
+                  const r = stockInfo?.results?.[i];
+                  const showBadge = order.status === "pending" && r;
+                  return (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                        <div style={{ width:36, height:36, borderRadius:8, overflow:"hidden", flexShrink:0, background:"#f0f0f0", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={16} color={C.muted}/>}
+                        </div>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+                          <div style={{ fontSize:11, color:C.muted }}>
+                            Qty {item.qty}
+                            {showBadge && (
+                              <span style={{ marginLeft:6, fontWeight:700, color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412" }}>
+                                · {!r.matched ? "unmatched" : `${r.available ?? 0} available`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
-                        <div style={{ fontSize:11, color:C.muted }}>Qty {item.qty}</div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                        {showBadge && (
+                          <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
+                            color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412",
+                            background: !r.matched ? "#fee2e2" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
+                            {!r.matched ? "UNMATCHED" : r.sufficient ? "OK" : "SHORT"}
+                          </span>
+                        )}
+                        <div style={{ fontWeight:700, fontSize:12.5, color:C.green }}>{fmtPeso1(item.price * item.qty)}</div>
                       </div>
                     </div>
-                    <div style={{ fontWeight:700, fontSize:12.5, color:C.green, flexShrink:0 }}>{fmtPeso1(item.price * item.qty)}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
@@ -8554,27 +8859,33 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
           <div style={{ marginTop:6 }}>
             {order.status === "pending" && mode !== "reject" && (
               <div>
-                {outOfStock && (
+                {stockInfo?.checking && (
+                  <div style={{ display:"flex", gap:7, alignItems:"center", background:C.bg, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 11px", marginBottom:10, fontSize:11.5, color:C.muted }}>
+                    <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>
+                    Checking stock availability…
+                  </div>
+                )}
+                {showStockWarning && (
                   <div style={{ display:"flex", gap:7, alignItems:"flex-start", background:C.warnBg, border:`1px solid ${C.warnBorder}`, borderRadius:9, padding:"9px 11px", marginBottom:10, fontSize:11.5, color:"#9a3412" }}>
                     <AlertTriangle size={13} style={{ flexShrink:0, marginTop:1 }}/>
                     <div>
                       <div style={{ fontWeight:700, marginBottom:2 }}>Can't accept — insufficient stock</div>
-                      {stockStatus.shortItems.map((s, i) => (
+                      {shortItems.map((s, i) => (
                         <div key={i}>
-                          {s.name}: {s.matched ? `need ${s.needed}, have ${s.available}` : "not linked to a stock item"}
+                          {s.name}: {s.matched ? `need ${s.qty}, have ${s.available ?? 0}` : "not linked to a stock item"}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
                 <div style={{ display:"flex", gap:10 }}>
-                  <button onClick={doAccept} disabled={accepting || outOfStock}
+                  <button onClick={() => onAccept(order)} disabled={acceptDisabled}
                     style={{ ...primaryBtn, flex:1,
-                      opacity: (accepting || outOfStock) ? 0.5 : 1,
-                      cursor: (accepting || outOfStock) ? "not-allowed" : "pointer",
+                      opacity: acceptDisabled ? 0.5 : 1,
+                      cursor: acceptDisabled ? "not-allowed" : "pointer",
                       display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
                     {accepting && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                    {accepting ? "Accepting…" : outOfStock ? "Insufficient Stock" : "Accept Order"}
+                    {accepting ? "Accepting…" : showStockWarning ? "Insufficient Stock" : "Accept Order"}
                   </button>
                   <button onClick={() => setMode("reject")} style={dangerTextBtn}>Reject</button>
                 </div>
@@ -8585,18 +8896,19 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
                 onCancel={() => setMode(null)} onConfirm={doReject}/>
             )}
 
-            {order.status === "accepted" && mode !== "dispose" && mode !== "reject" && (
+            {/* Accepted = shipping. No dispose step — stock was already deducted on accept. */}
+            {order.status === "accepted" && mode !== "reject" && (
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk }}>
+                  <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                  <span>This order is accepted and shipping. Stock was already deducted.</span>
+                </div>
                 <div style={{ display:"flex", gap:10 }}>
-                  <button onClick={startDispose} disabled={checkingStock} style={{ ...primaryBtn, flex:1, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, opacity: checkingStock ? 0.6 : 1 }}>
-                    {checkingStock && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                    Check Stock &amp; Dispose
+                  <button onClick={() => onPrint([order])} style={{ ...printBtn, flex:1 }}>
+                    <Printer size={14}/> Print Receipt
                   </button>
                   <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
                 </div>
-                <button onClick={() => onPrint([order])} style={printBtn}>
-                  <Printer size={14}/> Print Receipt
-                </button>
               </div>
             )}
             {order.status === "accepted" && mode === "reject" && (
@@ -8604,66 +8916,6 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onDisposeCheck, onDis
                 onCancel={() => setMode(null)} onConfirm={doReject}/>
             )}
 
-            {order.status === "accepted" && mode === "dispose" && (
-              <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:14, animation:"cardIn .18s ease" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5, fontWeight:800, color:C.greenDk, marginBottom:10 }}>
-                  <ShieldCheck size={14}/> FIFO / FEFO stock check
-                </div>
-                {!dState || dState.checking ? (
-                  <div style={{ textAlign:"center", padding:"20px 0", color:C.muted, fontSize:12.5 }}>Checking available stock…</div>
-                ) : (
-                  <>
-                    <div style={{ display:"grid", gap:8, marginBottom:12 }}>
-                      {dState.results.map((r, i) => (
-                        <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, padding:"9px 11px", borderRadius:9,
-                          background: !r.matched ? C.redBg : r.sufficient ? C.greenLt : C.warnBg,
-                          border:`1px solid ${!r.matched ? C.redBorder : r.sufficient ? C.greenMid : C.warnBorder}`,
-                          animation:"cardIn .2s ease both", animationDelay:`${i*40}ms` }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-                            <div style={{ width:28, height:28, borderRadius:6, overflow:"hidden", flexShrink:0, background:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                              {itemImage(r) ? <img src={itemImage(r)} alt={r.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={13} color={C.muted}/>}
-                            </div>
-                            <div style={{ minWidth:0 }}>
-                              <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</div>
-                              <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>
-                                {!r.matched ? "Not linked to a stock ingredient" : `Need ${r.qty}${r.unit?" "+r.unit:""} · ${r.available}${r.unit?" "+r.unit:""} on hand`}
-                              </div>
-                            </div>
-                          </div>
-                          <span style={{ flexShrink:0, fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
-                            color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412",
-                            background: !r.matched ? "#fee2e2" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
-                            {!r.matched ? "UNMATCHED" : r.sufficient ? "OK" : "SHORT"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {!allOk && (
-                      <div style={{ display:"flex", gap:7, alignItems:"flex-start", background:C.warnBg, border:`1px solid ${C.warnBorder}`, borderRadius:9, padding:"9px 11px", marginBottom:12, fontSize:11.5, color:"#9a3412" }}>
-                        <AlertTriangle size={13} style={{ flexShrink:0, marginTop:1 }}/>
-                        <span>Some items can't be fulfilled yet. Top up stock via Receive Stock, then check again.</span>
-                      </div>
-                    )}
-                    <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-                      <button onClick={() => setMode(null)} disabled={dState.saving} style={ghostBtn}>Back</button>
-                      <button onClick={() => startDispose()} disabled={dState.saving} style={{ ...ghostBtn, borderColor:C.greenMid, color:C.greenDk }}>Re-check</button>
-                    <button onClick={() => onDisposeConfirm(order, dState.results)} disabled={!allOk || dState.saving}
-                      style={{ ...primaryBtn, cursor:(!allOk||dState.saving)?"not-allowed":"pointer", opacity:(!allOk||dState.saving)?0.55:1, display:"inline-flex", alignItems:"center", gap:6 }}>
-                      {dState.saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                      {dState.saving ? "Disposing…" : "Confirm Dispose"}
-                    </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {order.status === "disposed" && (
-              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk, animation:"cardIn .2s ease" }}>
-                <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
-                <span>This order was fulfilled and its items were deducted from the FIFO/FEFO stock queue.</span>
-              </div>
-            )}
             {order.status === "rejected" && (
               <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#7f1d1d", animation:"cardIn .2s ease" }}>
                 <X size={15} style={{ flexShrink:0, marginTop:1 }}/>
@@ -8693,7 +8945,6 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const userName = user?.name || "Admin";
 
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
 
   const [orders,      setOrders]      = useState([]);
   const [ingredients, setIngredients] = useState([]);
@@ -8702,12 +8953,16 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const [refreshingOrders, setRefreshingOrders] = useState(false);
 
   const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("pending"); 
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [viewOrder,    setViewOrder]    = useState(null);
-  const [disposeState, setDisposeState] = useState(null);  
   const [toast,        setToast]        = useState(null);
-  const [printQueue,   setPrintQueue]   = useState([]); 
+  const [printQueue,   setPrintQueue]   = useState([]);
   const [massAccepting, setMassAccepting] = useState(false);
+  const [acceptingId,   setAcceptingId]   = useState(null);
+
+  // NEW: automatic, per-order stock availability — replaces manual "check stock" + dispose flow
+  // shape: { [orderId]: { checking: bool, ok: bool, results: [{...item, matched, available, sufficient}] } }
+  const [stockAvailability, setStockAvailability] = useState({});
 
   const showToast = (type, title, message) => setToast({ type, title, message });
 
@@ -8751,35 +9006,6 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     setToast(null);
   };
 
-  const orderStockStatus = useMemo(() => {
-  const map = {};
-  orders.forEach(order => {
-    if (order.status !== "pending") return;
-    let ok = true;
-    const shortItems = [];
-    order.items.forEach(item => {
-      const available = Number(item.stock ?? 0);
-      const needed = Number(item.qty || 0);
-      const sufficient = item.shop_item_id != null && available >= needed;
-      if (!sufficient) {
-        ok = false;
-        shortItems.push({ name: item.name, needed, available, matched: item.shop_item_id != null });
-      }
-    });
-    map[order.id] = { ok, shortItems };
-  });
-  return map;
-}, [orders]);
-
-  const logIngredientActivity = useCallback(async (ingredientName, branchName, changes) => {
-    try {
-      await fetch(`${apiUrl}/ingredient-activity-log`, {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ action:"dispose", ingredient_name:ingredientName, branch:branchName, performed_by:userName, changes }),
-      });
-    } catch (err) { console.warn("Ingredient activity log failed (non-fatal):", err); }
-  }, [apiUrl, userName]);
-
   /* ── fetch orders + ingredients ── */
   const fetchOrders = async () => {
     setLoadingData(true);
@@ -8803,6 +9029,80 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
   useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
 
+  /* ── NEW: automatic stock availability for all pending orders ──
+     Runs whenever the order list changes — no button click needed.
+     Caps each item's availability at the linked ingredient's real batch stock,
+     same logic the old manual "check stock" step used, just automatic + upfront. */
+  const fetchShopItemsMap = async () => {
+    const res = await fetch(`${apiUrl}/shop-items`);
+    const data = await res.json();
+    const map = {};
+    (Array.isArray(data) ? data : []).forEach(i => { map[i.id] = i; });
+    return map;
+  };
+
+  const fetchBatchesFor = async (ingredientId) => {
+    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
+    const d = await res.json();
+    return Array.isArray(d) ? d : [];
+  };
+
+  const refreshStockAvailability = useCallback(async (orderList) => {
+    const pendingOrders = orderList.filter(o => o.status === "pending");
+    if (pendingOrders.length === 0) return;
+
+    setStockAvailability(prev => {
+      const next = { ...prev };
+      pendingOrders.forEach(o => { next[o.id] = { ...(next[o.id] || {}), checking: true }; });
+      return next;
+    });
+
+    let shopItemsMap;
+    try {
+      shopItemsMap = await fetchShopItemsMap();
+    } catch {
+      return; // leave previous state on failure rather than wiping availability
+    }
+
+    const batchStockCache = {}; // shared across orders in this pass — avoids duplicate fetches
+    const getIngredientStock = async (ingredientId) => {
+      if (batchStockCache[ingredientId] != null) return batchStockCache[ingredientId];
+      const batches = await fetchBatchesFor(ingredientId);
+      const total = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      batchStockCache[ingredientId] = total;
+      return total;
+    };
+
+    for (const order of pendingOrders) {
+      const neededByItem = {};
+      order.items.forEach(item => {
+        if (item.shop_item_id == null) return;
+        neededByItem[item.shop_item_id] = (neededByItem[item.shop_item_id] || 0) + Number(item.qty || 0);
+      });
+
+      const results = [];
+      for (const item of order.items) {
+        const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
+        if (!si) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
+
+        let available = Number(si.stock || 0);
+        if (si.ingredient_id) {
+          const ingredientStock = await getIngredientStock(si.ingredient_id);
+          available = Math.min(available, ingredientStock);
+        }
+        const totalNeeded = neededByItem[item.shop_item_id];
+        results.push({ ...item, matched:true, available, sufficient: available >= totalNeeded });
+      }
+
+      const ok = results.every(r => r.sufficient);
+      setStockAvailability(prev => ({ ...prev, [order.id]: { checking:false, ok, results } }));
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
+    if (orders.length > 0) refreshStockAvailability(orders);
+  }, [orders, refreshStockAvailability]);
+
   const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
     try {
@@ -8812,41 +9112,71 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       });
       if (!res.ok) {
         let detail = "";
-        let insufficientItems = null;
-        try {
-          const body = await res.json();
-          detail = body.error || body.message || JSON.stringify(body);
-          insufficientItems = body.insufficientItems || null;
-        } catch {
-          detail = await res.text().catch(() => "");
-        }
-        const err = new Error(detail || `Update failed (${res.status})`);
-        err.insufficientItems = insufficientItems;
-        throw err;
+        try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
+        throw new Error(detail || `Update failed (${res.status})`);
       }
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
       setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
       await logActivity("edit", `Order #${order.id}`, order.branch, changeNote || `status → ${nextUiStatus}`);
       await fetchActivityLog();
     } catch (err) {
-      if (!err.insufficientItems) {
-        showToast("error", "Couldn't update order", err.message);
-      }
+      showToast("error", "Couldn't update order", err.message);
       throw err;
     }
   };
 
-const handleAccept = async (order) => {
-  try {
-    await advanceStatus(order, "accepted", "Order accepted");
-    showToast("success", "Order accepted", `#${order.id} is ready to be fulfilled.`);
-  } catch (err) {
-    if (err.insufficientItems?.length) {
-      const list = err.insufficientItems.map(i => `${i.name} (need ${i.needed}, have ${i.available})`).join(", ");
-      showToast("error", "Not enough stock", list);
+  const deductStock = async (item, order) => {
+    const res = await fetch(`${apiUrl}/shop-items/${item.shop_item_id}/deduct-stock`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: item.qty, performed_by: userName,  performed_by_role: user?.role || "Unknown", order_id: order.id }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Failed to deduct stock for ${item.name}`);
     }
-  }
-};
+    return res.json();
+  };
+
+  /* ── NEW: accepting now deducts stock immediately (folds in what the old
+     dispose-confirm step used to do) and moves the order to "shipping" for
+     the franchisee side, since availability was already guaranteed up front. ── */
+  const acceptOrderWithDeduction = async (order) => {
+    const availability = stockAvailability[order.id];
+    if (!availability?.ok) {
+      const short = (availability?.results || []).filter(r => !r.sufficient);
+      const list = short.map(i => `${i.name} (need ${i.qty}, have ${i.available ?? 0})`).join(", ");
+      showToast("error", "Not enough stock", list || "Insufficient stock for this order.");
+      return false;
+    }
+
+    // merge quantities per shop_item_id (same item can appear more than once)
+    const merged = {};
+    for (const r of availability.results) {
+      if (!r.matched) continue;
+      if (!merged[r.shop_item_id]) merged[r.shop_item_id] = { ...r, qty: 0 };
+      merged[r.shop_item_id].qty += Number(r.qty || 0);
+    }
+
+    for (const m of Object.values(merged)) {
+      await deductStock(m, order);
+    }
+
+    await advanceStatus(order, "accepted", `Accepted — stock deducted, moved to shipping`);
+    return true;
+  };
+
+  const handleAccept = async (order) => {
+    setAcceptingId(order.id);
+    try {
+      const ok = await acceptOrderWithDeduction(order);
+      if (ok) showToast("success", "Order accepted", `#${order.id} is now shipping.`);
+    } catch (err) {
+      showToast("error", "Couldn't accept order", err.message);
+    } finally {
+      setAcceptingId(null);
+    }
+  };
 
   const handleReject = async (order, reason, note) => {
     try {
@@ -8857,8 +9187,8 @@ const handleAccept = async (order) => {
   };
 
   const handleMassAcceptAndPrint = async () => {
-    const pendingOrders = orders.filter(o => o.status === "pending" && orderStockStatus[o.id]?.ok);
-    const skipped = orders.filter(o => o.status === "pending" && !orderStockStatus[o.id]?.ok).length;
+    const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
+    const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
     if (pendingOrders.length === 0) {
       showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
       return;
@@ -8868,8 +9198,8 @@ const handleAccept = async (order) => {
     const accepted = [];
     for (const o of pendingOrders) {
       try {
-        await advanceStatus(o, "accepted", "Order accepted (mass accept)");
-        accepted.push({ ...o, status:"accepted" });
+        const ok = await acceptOrderWithDeduction(o);
+        if (ok) accepted.push({ ...o, status:"accepted" });
       } catch {}
     }
     setMassAccepting(false);
@@ -8881,114 +9211,6 @@ const handleAccept = async (order) => {
     }
     await fetchOrders();
   };
-
-  const fetchShopItemsMap = async () => {
-    const res = await fetch(`${apiUrl}/shop-items`);
-    const data = await res.json();
-    const map = {};
-    (Array.isArray(data) ? data : []).forEach(i => { map[i.id] = i; });
-    return map;
-  };
-
-  const matchIngredient = useCallback((itemName, branch) => {
-    const target = normalizeName(itemName);
-    return (
-      ingredients.find(i => normalizeName(i.name) === target && i.branch === branch) ||
-      ingredients.find(i => normalizeName(i.name) === target) ||
-      null
-    );
-  }, [ingredients]);
-
-  const fetchBatchesFor = async (ingredientId) => {
-    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
-    const d = await res.json();
-    return Array.isArray(d) ? d : [];
-  };
-
-const checkOrderStock = useCallback(async (order) => {
-  const shopItemsMap = await fetchShopItemsMap();
-
-  const neededByItem = {};
-  order.items.forEach(item => {
-    if (item.shop_item_id == null) return;
-    neededByItem[item.shop_item_id] = (neededByItem[item.shop_item_id] || 0) + Number(item.qty || 0);
-  });
-
-  const availabilityCache = {};
-  const getAvailability = async (shopItemId, si) => {
-    if (availabilityCache[shopItemId] != null) return availabilityCache[shopItemId];
-    let available = Number(si.stock || 0);
-    if (si.ingredient_id) {
-      const batches = await fetchBatchesFor(si.ingredient_id);
-      const ingredientStock = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
-      available = Math.min(available, ingredientStock);
-    }
-    availabilityCache[shopItemId] = available;
-    return available;
-  };
-
-  const results = [];
-  for (const item of order.items) {
-    const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
-    if (!si) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
-
-    const available = await getAvailability(item.shop_item_id, si);
-    const totalNeededForThisItem = neededByItem[item.shop_item_id];
-
-    results.push({
-      ...item,
-      matched: true,
-      available,
-      sufficient: available >= totalNeededForThisItem,
-    });
-  }
-  return results;
-}, []);
-
-  const runDisposeCheck = async (order) => {
-    setDisposeState({ orderId:order.id, checking:true, results:[], saving:false });
-    const results = await checkOrderStock(order);
-    setDisposeState({ orderId:order.id, checking:false, results, saving:false });
-  };
-
-const deductStock = async (item, order) => {
-  const res = await fetch(`${apiUrl}/shop-items/${item.shop_item_id}/deduct-stock`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ quantity: item.qty, performed_by: userName, order_id: order.id }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Failed to deduct stock for ${item.name}`);
-  }
-  return res.json(); // { item, ingredient }
-};
-
-const handleDisposeConfirm = async (order, results) => {
-  setDisposeState(prev => ({ ...prev, saving:true }));
-  try {
-    const mergedDeductions = {};
-    for (const r of results) {
-      if (!r.matched) continue;
-      if (!mergedDeductions[r.shop_item_id]) {
-        mergedDeductions[r.shop_item_id] = { ...r, qty: 0 };
-      }
-      mergedDeductions[r.shop_item_id].qty += Number(r.qty || 0);
-    }
-
-    for (const merged of Object.values(mergedDeductions)) {
-      await deductStock(merged, order);
-    }
-
-    await advanceStatus(order, "disposed", `Fulfilled — ${order.items.length} item(s) deducted from stock`);
-    setDisposeState(null);
-    setViewOrder(null);
-    showToast("success", "Order fulfilled", `#${order.id} stock was deducted and the order is complete.`);
-  } catch (err) {
-    setDisposeState(prev => ({ ...prev, saving:false }));
-    showToast("error", "Dispose failed", err.message);
-  }
-};
 
   const filtered = orders.filter(o => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
@@ -9009,11 +9231,10 @@ const handleDisposeConfirm = async (order, results) => {
   const FILTER_CHIPS = [
     { key:"all",      label:"All Orders",      count:counts.total },
     { key:"pending",  label:"Incoming Orders", count:counts.pending },
-    { key:"accepted", label:"Accepted",        count:counts.accepted },
+    { key:"accepted", label:"Shipping",        count:counts.accepted },
     { key:"rejected", label:"Rejected",        count:counts.rejected },
   ];
 
-  /* ── loading / error states ── */
   if (loadingData) return (
     <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
   );
@@ -9046,7 +9267,6 @@ const handleDisposeConfirm = async (order, results) => {
         }
       `}</style>
 
-      {/* Toolbar */}
       <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:18 }}>
         <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center",
           background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:10 }}>
@@ -9064,11 +9284,11 @@ const handleDisposeConfirm = async (order, results) => {
             ))}
           </select>
 
-        <button onClick={handleRefreshClick} disabled={refreshingOrders}
-          style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
-            background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: refreshingOrders ? 0.6 : 1 }}>
-          <RefreshCw size={13} style={ refreshingOrders ? { animation:"spin 0.8s linear infinite" } : undefined }/> Refresh
-        </button>
+          <button onClick={handleRefreshClick} disabled={refreshingOrders}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
+              background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: refreshingOrders ? 0.6 : 1 }}>
+            <RefreshCw size={13} style={ refreshingOrders ? { animation:"spin 0.8s linear infinite" } : undefined }/> Refresh
+          </button>
         </div>
 
         <div style={{ display:"flex", justifyContent:"flex-end", gap:8, flexWrap:"wrap" }}>
@@ -9078,13 +9298,11 @@ const handleDisposeConfirm = async (order, results) => {
               color: (massAccepting || counts.pending === 0) ? "#9ca3af" : "#fff",
               fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
             {massAccepting ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={13}/>}
-            {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && orderStockStatus[o.id]?.ok).length})`}
+            {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok).length})`}
           </button>
-
         </div>
       </div>
 
-      {/* Order grid */}
       {filtered.length === 0 ? (
         <div style={{ textAlign:"center", padding:"70px 20px", background:"#fff", borderRadius:18, border:`1px dashed ${C.border}`, animation:"cardIn .2s ease" }}>
           <Package size={34} color={C.muted} style={{ opacity:0.5, marginBottom:10 }}/>
@@ -9097,30 +9315,34 @@ const handleDisposeConfirm = async (order, results) => {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:14 }}>
           {filtered.map((order, i) => (
             <div key={order.id} style={{ animation:"cardIn .28s ease both", animationDelay:`${Math.min(i,10)*30}ms` }}>
-              <OrderCard order={order} onOpen={setViewOrder} stockStatus={orderStockStatus[order.id]}/>
+              <OrderCard
+                order={order}
+                onOpen={setViewOrder}
+                stockInfo={stockAvailability[order.id]}
+                onAccept={handleAccept}
+                acceptDisabled={acceptingId === order.id || (order.status === "pending" && !stockAvailability[order.id]?.ok)}
+                accepting={acceptingId === order.id}
+              />
             </div>
           ))}
         </div>
       )}
 
-      {/* Detail drawer */}
       {viewOrder && (
         <OrderDrawer
           order={orders.find(o => o.id === viewOrder.id) || viewOrder}
-          onClose={() => { setViewOrder(null); setDisposeState(null); }}
+          onClose={() => setViewOrder(null)}
           onAccept={handleAccept}
           onReject={handleReject}
-          onDisposeCheck={runDisposeCheck}
-          onDisposeConfirm={handleDisposeConfirm}
-          disposeState={disposeState}
           onPrint={triggerPrint}
-          stockStatus={orderStockStatus[viewOrder.id]}
+          stockInfo={stockAvailability[viewOrder.id]}
+          acceptDisabled={acceptingId === viewOrder.id || (viewOrder.status === "pending" && !stockAvailability[viewOrder.id]?.ok)}
+          accepting={acceptingId === viewOrder.id}
         />
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)}/>
 
-      {/* Hidden print target — only visible to the print engine (see @media print above) */}
       <div id="print-area">
         {printQueue.map(o => <ReceiptSlip key={o.id} order={o} />)}
       </div>

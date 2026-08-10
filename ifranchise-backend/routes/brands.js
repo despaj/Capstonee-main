@@ -27,14 +27,21 @@ router.post("/brands", async (req, res) => {
     );
     const brand = result.rows[0];
 
-    await logActivity(
-      restored ? "restore" : "create", brand.name, performed_by || "System",
-      {
+    await logActivity({
+      action: restored ? "restore" : "create",
+      itemName: brand.name,
+      performedBy: performed_by || "System",
+      details: {
         contact_email: brand.contact_email, contact_phone: brand.contact_phone, categories: brand.categories,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
-      req, brand.name, "Brand Management", latitude, longitude, role || "Unknown"
-    );
+      req,
+      branch: brand.name,
+      module: "Brand Management",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, brand });
   } catch (err) {
@@ -55,11 +62,18 @@ router.put("/brands/:id", async (req, res) => {
     );
     const brand = result.rows[0];
 
-    await logActivity(
-      "update", brand.name, performed_by || "System",
-      { from: oldBrand, to: brand },
-      req, brand.name, "Brand Management", latitude, longitude,  role || "Unknown"
-    );
+    await logActivity({
+      action: "update",
+      itemName: brand.name,
+      performedBy: performed_by || "System",
+      details: { from: oldBrand, to: brand },
+      req,
+      branch: brand.name,
+      module: "Brand Management",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, brand });
   } catch (err) {
@@ -75,11 +89,18 @@ router.delete("/brands/:id", async (req, res) => {
     await pool.query("DELETE FROM brands WHERE id=$1", [req.params.id]);
 
     if (brand) {
-      await logActivity(
-        "delete", brand.name, performed_by || "System",
-        { contact_email: brand.contact_email, contact_phone: brand.contact_phone },
-        req, brand.name, "Brand Management", latitude, longitude,  role || "Unknown"
-      );
+      await logActivity({
+        action: "delete",
+        itemName: brand.name,
+        performedBy: performed_by || "System",
+        details: { contact_email: brand.contact_email, contact_phone: brand.contact_phone },
+        req,
+        branch: brand.name,
+        module: "Brand Management",
+        latitude,
+        longitude,
+        role: role || "Unknown",
+      });
     }
 
     res.json({ success: true });
@@ -109,14 +130,21 @@ router.post("/branches", async (req, res) => {
     const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [brand_id]);
     const brandName = brandRes.rows[0]?.name || null;
 
-    await logActivity(
-      restored ? "restore" : "create", branch.name, performed_by || "System",
-      {
+    await logActivity({
+      action: restored ? "restore" : "create",
+      itemName: branch.name,
+      performedBy: performed_by || "System",
+      details: {
         region: branch.region, manager: branch.manager, brand: brandName,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
-      req, brandName, "Brand Management", latitude, longitude,  role || "Unknown"
-    );
+      req,
+      branch: brandName,
+      module: "Brand Management",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, branch });
   } catch (err) {
@@ -139,11 +167,18 @@ router.put("/branches/:id", async (req, res) => {
     const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [brand_id]);
     const brandName = brandRes.rows[0]?.name || null;
 
-    await logActivity(
-      "update", branch.name, performed_by || "System",
-      { from: oldBranch, to: branch },
-      req, brandName, "Brand Management", latitude, longitude, role || "Unknown"
-    );
+    await logActivity({
+      action: "update",
+      itemName: branch.name,
+      performedBy: performed_by || "System",
+      details: { from: oldBranch, to: branch },
+      req,
+      branch: brandName,
+      module: "Brand Management",
+      latitude,
+      longitude,
+      role: role || "Unknown",
+    });
 
     res.json({ success: true, branch });
   } catch (err) {
@@ -161,11 +196,18 @@ router.delete("/branches/:id", async (req, res) => {
     if (branch) {
       const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [branch.brand_id]);
       const brandName = brandRes.rows[0]?.name || null;
-      await logActivity(
-        "delete", branch.name, performed_by || "System",
-        { region: branch.region, manager: branch.manager },
-        req, brandName, "Brand Management", latitude, longitude,  role || "Unknown"
-      );
+      await logActivity({
+        action: "delete",
+        itemName: branch.name,
+        performedBy: performed_by || "System",
+        details: { region: branch.region, manager: branch.manager },
+        req,
+        branch: brandName,
+        module: "Brand Management",
+        latitude,
+        longitude,
+        role: role || "Unknown",
+      });
     }
 
     res.json({ success: true });

@@ -882,6 +882,55 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
   );
 }
 
+/* ── Searchable branch filter — same UX pattern as MenuInventoryContent's BrandBranchFilter,
+     but scoped to a single already-selected brand (BrandCard is itself the brand context) ── */
+function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
+  const [branchQ, setBranchQ] = useState("");
+  const [open, setOpen]       = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const filteredBranches = branches.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+
+  return (
+    <div ref={ref} style={{ position:"relative", minWidth:150 }}>
+      <div onClick={() => { setOpen(v=>!v); setBranchQ(""); }}
+        style={{ ...invInputSt, height:30, fontSize:11, display:"flex", alignItems:"center", gap:6, cursor:"pointer", paddingRight:26, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+        <StoreIcon size={11} color={C.green}/>
+        <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {activeBranch || "All Branches"}
+        </span>
+        <ChevronIcon size={10} dir={open?"up":"down"}/>
+      </div>
+      {open && (
+        <div style={dropSt}>
+          <div style={{ padding:"6px 8px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+            <div style={{ position:"relative" }}>
+              <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
+              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" onClick={e=>e.stopPropagation()}
+                style={{ ...invInputSt, height:28, fontSize:11, paddingLeft:26 }}/>
+            </div>
+          </div>
+          <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(""); setOpen(false); }}>All Branches</div>
+          {filteredBranches.map(br => (
+            <div key={br} style={optSt(activeBranch===br)} onMouseDown={() => { onChangeBranch(br); setOpen(false); }}>
+              <StoreIcon size={11} color={C.green}/> {br}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
@@ -894,37 +943,47 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onMana
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches]       = useState([]);
   const [batchLoading, setBatchLoading] = useState(false);
+  const didSetDefaultBranch = useRef(false); // ← new
 
   const brandItems = useMemo(
     () => items.filter(i => brandDef.match((i.brand || "").toLowerCase())),
     [items, brandDef]
   );
 
-  const branchOptions = useMemo(() => {
-    const set = new Set();
-    (brandObj?.branches || []).forEach(br => set.add(typeof br === "string" ? br : br.name));
-    brandItems.forEach(i => i.branch && set.add(i.branch));
-    return Array.from(set);
-  }, [brandObj, brandItems]);
+const branchOptions = useMemo(() => {
+  return (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
+}, [brandObj]);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return brandItems
-      .filter(i => {
-        if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (branchF && i.branch !== branchF) return false;
-        if (unitF && i.unit !== unitF) return false;
-        if (statusF === "low" && Number(i.stock) >= Number(i.min_stock)) return false;
-        if (statusF === "ok"  && Number(i.stock) <  Number(i.min_stock)) return false;
-        return true;
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [brandItems, search, branchF, unitF, statusF]);
+  const q = search.toLowerCase();
+  return brandItems
+    .filter(i => {
+      if (q && !i.name.toLowerCase().includes(q)) return false;
+      if (branchF && i.branch !== branchF) return false;
+      if (unitF && i.unit !== unitF) return false;
+      if (statusF === "low" && Number(i.stock) >= Number (i.min_stock)) return false;
+      if (statusF === "ok"  && Number(i.stock) <  Number(i.min_stock)) return false;
+      return true;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}, [brandItems, search, branchF, unitF, statusF]);
 
-    useEffect(() => {
-    setBranchF(initialBranchFilter);
+  useEffect(() => {
+    if (initialBranchFilter) {
+      setBranchF(initialBranchFilter);
+      didSetDefaultBranch.current = true;
+      return;
+    }
+    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
+      const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
+      if (headOffice) setBranchF(headOffice);
+      didSetDefaultBranch.current = true;
+    }
+  }, [initialBranchFilter, branchOptions]);
+
+  useEffect(() => {
     setStatusF(initialStatusFilter);
-  }, [initialBranchFilter, initialStatusFilter]);
+  }, [initialStatusFilter]);
 
   useEffect(() => {
     if (selectedId && !brandItems.find(i => i.id === selectedId)) setSelectedId(null);
@@ -982,10 +1041,7 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onMana
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
-        <select value={branchF} onChange={e=>setBranchF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:130 }}>
-          <option value="">All Branches</option>
-          {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
+<BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
         <select value={unitF} onChange={e=>setUnitF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:100 }}>
           <option value="">All Units</option>
           {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -1043,7 +1099,7 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onMana
    Expiry date must be at least MIN_SHELF_LIFE_DAYS (1 month) after the
    date received — anything shorter is rejected.
 ───────────────────────────────────────────────────────────────────────── */
-function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, onClose, onDone, showUiModal,setToast }) {
+function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, userRole, onClose, onDone, showUiModal, setToast }) {
   const nowLocal = () => {
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -1062,6 +1118,8 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
   const fuel   = isFuelBrand(product?.brand);
 
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const [noExpiry, setNoExpiry] = useState(false);
 
   // Earliest acceptable expiry date given the currently entered "received" date/time
   const minExpiryDate = useMemo(() => {
@@ -1093,31 +1151,32 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     if (form.mfg_date && form.received_at && isValidDateStr(form.mfg_date) && isValidDateStr(form.received_at) && new Date(form.received_at) < new Date(form.mfg_date)) {
       errors.push("Date received cannot be before the manufacture date.");
     }
-    if (!form.exp_date) {
-      errors.push("Expiry date is required.");
-    } else if (!isValidDateStr(form.exp_date)) {
-      errors.push("Expiry date is not a valid date.");
-    } else {
-      if (product) {
-        const status = computeExpiryStatus(form.exp_date, product.brand);
-        if (status === "expired") {
-          errors.push(pharma
-            ? "Expiry date does not meet iPharma's 3-year shelf life requirement."
-            : "Expiry date is already in the past.");
+    if (!noExpiry) {
+      if (!form.exp_date) {
+        errors.push("Expiry date is required.");
+      } else if (!isValidDateStr(form.exp_date)) {
+        errors.push("Expiry date is not a valid date.");
+      } else {
+        if (product) {
+          const status = computeExpiryStatus(form.exp_date, product.brand);
+          if (status === "expired") {
+            errors.push(pharma
+              ? "Expiry date does not meet iPharma's 3-year shelf life requirement."
+              : "Expiry date is already in the past.");
+          }
         }
-      }
-      if (form.mfg_date && isValidDateStr(form.mfg_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
-        errors.push("Manufacture date cannot be after the expiry date.");
-      }
-      if (form.received_at && isValidDateStr(form.received_at) && new Date(form.exp_date) < new Date(form.received_at)) {
-        errors.push("Expiry date cannot be earlier than the date received.");
-      }
-      // Minimum shelf life: expiry must be at least 1 month past the received date
-      const receivedBase = form.received_at ? new Date(form.received_at) : new Date();
-      const minExp = new Date(receivedBase);
-      minExp.setDate(minExp.getDate() + MIN_SHELF_LIFE_DAYS);
-      if (new Date(form.exp_date) < minExp) {
-        errors.push(`Expiry date must be at least 1 month (${MIN_SHELF_LIFE_DAYS} days) after the date received.`);
+        if (form.mfg_date && isValidDateStr(form.mfg_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
+          errors.push("Manufacture date cannot be after the expiry date.");
+        }
+        if (form.received_at && isValidDateStr(form.received_at) && new Date(form.exp_date) < new Date(form.received_at)) {
+          errors.push("Expiry date cannot be earlier than the date received.");
+        }
+        const receivedBase = form.received_at ? new Date(form.received_at) : new Date();
+        const minExp = new Date(receivedBase);
+        minExp.setDate(minExp.getDate() + MIN_SHELF_LIFE_DAYS);
+        if (new Date(form.exp_date) < minExp) {
+          errors.push(`Expiry date must be at least 1 month (${MIN_SHELF_LIFE_DAYS} days) after the date received.`);
+        }
       }
     }
     if (pharma && form.controlled_substance && !form.lot_number) {
@@ -1134,6 +1193,7 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
       return;
     }
     setSaving(true);
+    const coords = await getBrowserLocation();
     const body = {
       ingredient_id: product.id,
       stock: parseFloat(form.stock) || 0,
@@ -1143,6 +1203,10 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
       supply_date: form.received_at ? new Date(form.received_at).toISOString() : null,
       exp_date: form.exp_date || null,
       notes: form.notes || null,
+      performed_by: userName,
+      performed_by_role: userRole || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
       ...(pharma ? {
         lot_number: form.lot_number || null,
         ndc_code: form.ndc_code || null,
@@ -1163,14 +1227,13 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     try {
       const res = await fetch(`${apiUrl}/ingredient-batches`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
       const d = await res.json();
-      await syncIngredientStock(product);
       setSaving(false);
       onDone();
       setToast({ type: "success", title: "Stock Received", message: `${body.stock} ${product.unit} of "${product.name}" logged.` });
-   } catch {
+    } catch {
       setSaving(false);
       setToast({ type: "error", title: "Connection Error", message: "Failed to log the received stock." });
-     }
+    }
   };
 
   return (
@@ -1227,12 +1290,37 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
           </div>
 
           <div>
-            <label style={invLabelSt}>Expiry Date *</label>
-            <input type="date" style={invInputSt} value={form.exp_date} min={minExpiryDateStr} required onChange={e=>setF("exp_date", e.target.value)}/>
-            <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
-              Must be at least 1 month after the date received (earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>).
-            </div>
-          </div>
+  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+    <label style={{ ...invLabelSt, marginBottom:0 }}>Expiry Date {!noExpiry && "*"}</label>
+    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
+      <input
+        type="checkbox"
+        checked={noExpiry}
+        onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setF("exp_date", ""); }}
+      />
+      No expiry date
+    </label>
+  </div>
+  <input
+    type="date"
+    style={{ ...invInputSt, opacity: noExpiry ? 0.5 : 1 }}
+    value={form.exp_date}
+    min={minExpiryDateStr}
+    required={!noExpiry}
+    disabled={noExpiry}
+    onChange={e=>setF("exp_date", e.target.value)}
+  />
+  {!noExpiry && (
+    <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
+      Must be at least 1 month after the date received (earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>).
+    </div>
+  )}
+  {noExpiry && pharma && (
+    <div style={{ fontSize:11, color:C.warn, marginTop:5, fontWeight:600 }}>
+      ⚠ iPharma items are expected to carry expiry dates for compliance. Only use this for genuinely non-expiring stock.
+    </div>
+  )}
+</div>
 
           {pharma && (
             <div style={{ display:"grid", gap:12, padding:14, background:"#eef2ff", border:"1px solid #c7d2fe", borderRadius:10 }}>
@@ -1385,6 +1473,7 @@ function BatchDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
 function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
   const pharma = isPharmaBrand(ingredient.brand);
   const fuel   = isFuelBrand(ingredient.brand);
+  const [noExpiry, setNoExpiry] = useState(!batch.exp_date);
 
   const toDatetimeLocal = (isoStr) => {
   if (!isoStr) return "";
@@ -1563,7 +1652,7 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
    Rows are plain white, separated by a thin line (green for the next-out
    batch, gray otherwise) instead of colored backgrounds.
 ───────────────────────────────────────────────────────────────────────── */
-function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, showUiModal, setToast }) {
+function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, userRole, showUiModal, setToast }) {
   const pharma = isPharmaBrand(ingredient.brand);
   const [editingBatch, setEditingBatch] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1646,11 +1735,19 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
       return;
     }
     setSavingEdit(true);
+    const coords = await getBrowserLocation();
     const industryFields = {
       ...(pharma ? { lot_number:form.lot_number, ndc_code:form.ndc_code, dosage_form:form.dosage_form, strength:form.strength, storage_requirement:form.storage_requirement, controlled_substance:!!form.controlled_substance } : {}),
       ...(isFuelBrand(ingredient.brand) ? { tank_id:form.tank_id, grade:form.grade, octane_rating:form.octane_rating, delivery_temp:form.delivery_temp, truck_id:form.truck_id, volume_correction:form.volume_correction } : {}),
     };
-    const body = { ...form, ...industryFields };
+    const body = {
+      ...form,
+      ...industryFields,
+      performed_by: userName,
+      performed_by_role: userRole || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
     try {
       await fetch(`${apiUrl}/ingredient-batches/${editingBatch.id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
       await syncIngredientStock();
@@ -1867,7 +1964,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [toast, setToast] = useState(null);
 
   const brandList = propBrands.length > 0 ? propBrands : [];
-
+  
   const allBranches = useMemo(() => {
     const out = [];
     brandList.forEach(b =>
@@ -1895,6 +1992,10 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [activeBrandKey, setActiveBrandKey] = useState(null);
   const activeBrandDef = BRAND_DEFS.find(b => b.key === activeBrandKey) || null;
 
+  const currentBrandName = activeBrandDef
+  ? (brandList.find(b => activeBrandDef.match((b.name||"").toLowerCase()))?.name || "")
+  : "";
+
   const [uiModal,    setUiModal]    = useState(null);
   const showUiModal  = useCallback((opts) => setUiModal(opts), []);
   const closeUiModal = useCallback(() => setUiModal(null), []);
@@ -1919,7 +2020,7 @@ const emptyForm = useCallback(() => ({
   name:"", branch: isAdmin ? "" : userBranch, brand:"",
   unit:"pcs", min_stock:0, cost_per_unit:"", perishable:false,
   listInShop: false,
-  shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+  shopPrice:"", shopUnit:"", shopCategory:"",
 }), [isAdmin, userBranch]);
 
   const [form, setForm] = useState(emptyForm);
@@ -2174,27 +2275,46 @@ const emptyForm = useCallback(() => ({
           if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
           changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
         }
-        if (!editing && form.listInShop && form.shopPrice) {
-        try {
-          await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({
+        if (form.listInShop && form.shopPrice) {
+          try {
+            const ingredientId = editing ? editing.id : d.item.id;
+            const shopRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+            const shopData = await shopRes.json();
+            const existingShopItem = Array.isArray(shopData)
+              ? shopData.find(s => s.ingredient_id === ingredientId)
+              : null;
+
+            const shopBody = {
               name:payload.name,
               price:parseFloat(form.shopPrice)||0,
               unit:form.shopUnit||"",
-              stock:0,
               shop:form.shopCategory,
               brand:payload.brand||"",
-              image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
-              is_visible:true,
-              branches:[],
-              performed_by: userName,     
-              latitude: payload.latitude, 
+              performed_by: userName,
+              latitude: payload.latitude,
               longitude: payload.longitude,
-            }),
-          });
-        } catch {}
-      }
+            };
+
+            if (existingShopItem) {
+              await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`, {
+                method:"PUT", headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({ ...existingShopItem, ...shopBody }),
+              });
+            } else {
+              await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+                method:"POST", headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({
+                  ...shopBody,
+                  stock:0,
+                  image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
+                  is_visible:true,
+                  branches:[],
+                  ingredient_id: ingredientId,
+                }),
+              });
+            }
+          } catch {}
+        }
         await fetchItems(); await fetchActivityLog();
         closeModal();
         setToast({ type: "success", title: editing ? "Ingredient Updated" : "Ingredient Added", message: editing ? `"${payload.name}" has been updated.` : `"${payload.name}" has been added.` });
@@ -2260,14 +2380,25 @@ const handleRestore = async (entry) => {
   }
 };
 
-const openEdit = item => {
+const openEdit = async item => {
   setEditing(item);
+  let shopMatch = null;
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      shopMatch = data.find(s => s.ingredient_id === item.id) || null;
+    }
+  } catch {}
   setForm({
     name: item.name, brand: item.brand || "", branch: item.branch || "",
     unit: item.unit || "pcs", stock: item.stock, min_stock: item.min_stock,
     cost_per_unit: item.cost_per_unit || "",
     perishable: !!item.perishable,
-    listInShop: false, shopPrice:"", shopUnit:"", shopCategory:"Coffee Spot",
+    listInShop: !!shopMatch,
+    shopPrice: shopMatch ? String(shopMatch.price ?? "") : "",
+    shopUnit: shopMatch ? (shopMatch.unit || "") : "",
+    shopCategory: shopMatch ? (shopMatch.shop || item.brand || "Coffee Spot") : (item.brand || "Coffee Spot"),
   });
   setShowModal(true);
 };
@@ -2352,7 +2483,7 @@ const openEdit = item => {
             onQuickAdd={(bd2) => {
               setEditing(null);
               const matchedBrand = brandList.find(b => bd2.match((b.name||"").toLowerCase()));
-              setForm({ ...emptyForm(), brand: matchedBrand ? matchedBrand.name : "" });
+              setForm({ ...emptyForm(), brand: matchedBrand ? matchedBrand.name : "", shopCategory: matchedBrand ? matchedBrand.name : "" });
               setShowModal(true);
             }}
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
@@ -2381,12 +2512,10 @@ const openEdit = item => {
               </div>
 
               <div>
-                <label style={invLabelSt}>Brand *</label>
-                <select style={invInputSt} value={form.brand} required
-                  onChange={e => setForm(f => ({ ...f, brand: e.target.value, branch: "" }))}>
-                  <option value="">Select brand…</option>
-                  {brandList.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
-                </select>
+                <label style={invLabelSt}>Brand</label>
+                <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>
+                  {form.brand || currentBrandName || "—"}
+                </div>
               </div>
               {isAdmin ? (
                 <div>
@@ -2465,45 +2594,39 @@ const openEdit = item => {
                   <span>Stock starts at <strong>0</strong> and is automatically calculated from batches. Use <strong>Receive Stock</strong> on the ingredient row to add stock.</span>
                 </div>
               )}
-              {!editing && (
-                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:form.listInShop?14:0 }}>
-                    <div onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}
-                      style={{ width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative", background:form.listInShop?`linear-gradient(135deg,${C.teal},${C.green})`:"#e0e0e0", transition:"background .2s", flexShrink:0 }}>
-                      <div style={{ position:"absolute", top:3, left:form.listInShop?21:3, width:16, height:16, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
-                    </div>
-                    <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer" }} onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}>
-                      Also list in Mobile Shop Supplies
-                    </label>
+              <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:form.listInShop?14:0 }}>
+                  <div onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}
+                    style={{ width:40, height:22, borderRadius:11, cursor:"pointer", position:"relative", background:form.listInShop?`linear-gradient(135deg,${C.teal},${C.green})`:"#e0e0e0", transition:"background .2s", flexShrink:0 }}>
+                    <div style={{ position:"absolute", top:3, left:form.listInShop?21:3, width:16, height:16, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.2)", transition:"left .2s" }}/>
                   </div>
-                  {form.listInShop && (
-                    <div style={{ display:"grid", gap:12, marginTop:14, padding:"14px", background:C.bg, borderRadius:10, border:`1px solid ${C.border}` }}>
-                      <p style={{ fontSize:11, color:C.muted, margin:0 }}>Set the <strong>bulk/supply price and unit</strong> for the shop listing.</p>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                        
-                        <div>
-                          <label style={invLabelSt}>Shop Price (₱) *</label>
-                          <input type="number" min="0" step="0.01" style={invInputSt} placeholder="e.g. 500.00" value={form.shopPrice} onChange={e=>setForm(f=>({...f,shopPrice:e.target.value}))}/>
-                        </div>
-                        
-
-                        <div>
-                          <label style={invLabelSt}>Shop Unit</label>
-                          <input type="text" style={invInputSt} placeholder="e.g. per sack" value={form.shopUnit} onChange={e=>setForm(f=>({...f,shopUnit:e.target.value}))}/>
-                        </div>
-                        
+                  <label style={{ ...invLabelSt, marginBottom:0, cursor:"pointer" }} onClick={()=>setForm(f=>({...f,listInShop:!f.listInShop}))}>
+                    Also list in Mobile Shop Supplies
+                  </label>
+                </div>
+                {form.listInShop && (
+                  <div style={{ display:"grid", gap:12, marginTop:14, padding:"14px", background:C.bg, borderRadius:10, border:`1px solid ${C.border}` }}>
+                    <p style={{ fontSize:11, color:C.muted, margin:0 }}>Set the <strong>bulk/supply price and unit</strong> for the shop listing.</p>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                      <div>
+                        <label style={invLabelSt}>Shop Price (₱) *</label>
+                        <input type="number" min="0" step="0.01" style={invInputSt} placeholder="e.g. 500.00" value={form.shopPrice} onChange={e=>setForm(f=>({...f,shopPrice:e.target.value}))}/>
                       </div>
                       <div>
-                        <label style={invLabelSt}>Shop Category</label>
-                        <select style={invInputSt} value={form.shopCategory} onChange={e=>setForm(f=>({...f,shopCategory:e.target.value}))}>
-                          <option value="Coffee Spot">Coffee Spot</option>
-                          <option value="iPharma">iPharma</option>
-                        </select>
+                        <label style={invLabelSt}>Shop Unit</label>
+                        <input type="text" style={invInputSt} placeholder="e.g. per sack" value={form.shopUnit} onChange={e=>setForm(f=>({...f,shopUnit:e.target.value}))}/>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div>
+                      <label style={invLabelSt}>Shop Category</label>
+                      <select style={invInputSt} value={form.shopCategory} onChange={e=>setForm(f=>({...f,shopCategory:e.target.value}))}>
+                          <option value="">Select category…</option>
+                          {brandList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div style={{ display:"flex", justifyContent:"flex-end", gap:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
                 <button type="button" onClick={closeModal} style={btnSt}>Cancel</button>
                 <button type="submit" disabled={savingItem}
@@ -2524,6 +2647,7 @@ const openEdit = item => {
           initialProduct={receiveTarget.product}
           apiUrl={process.env.REACT_APP_API_URL}
           userName={userName}
+          userRole={user?.role}
           onClose={() => setReceiveTarget(null)}
           onDone={() => { setReceiveTarget(null); fetchItems(); fetchActivityLog(); }}
           showUiModal={showUiModal}
@@ -2539,6 +2663,7 @@ const openEdit = item => {
           loading={batchLoading}
           apiUrl={process.env.REACT_APP_API_URL}
           userName={userName}
+          userRole={user?.role}
           showUiModal={showUiModal}
           setToast={setToast}
           onRefresh={() => {

@@ -16,32 +16,39 @@ router.get("/shop-items", async (req, res) => {
 });
 
 router.post("/shop-items", async (req, res) => {
-  console.log("[DEBUG] shop-items body:", req.body.latitude, req.body.longitude, "ip:", req.socket.remoteAddress, req.headers["x-forwarded-for"]);
   try {
-    const { name, price, unit, image_url, shop, brand, stock, is_visible, branches, performed_by, latitude, longitude, imported } = req.body;
+    const { name, price, unit, image_url, shop, brand, stock, is_visible, branches, performed_by, latitude, longitude, imported, ingredient_id, performed_by_role, restored } = req.body;
     const result = await pool.query(
-      `INSERT INTO shop_items (name, price, unit, image_url, shop, brand, stock, is_visible, branches) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true, branches]
+      `INSERT INTO shop_items (name, price, unit, image_url, shop, brand, stock, is_visible, branches, ingredient_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [name, parseFloat(price), unit || null, image_url, shop, brand || null, parseInt(stock) || 0, is_visible ?? true, branches, ingredient_id || null]
     );
     const item = result.rows[0];
 
-    await logActivity(
-      imported ? "import" : "create",
-      item.name,
-      performed_by || "System",
-      { shop, brand, stock: item.stock, price: item.price, unit: item.unit },
-      req, shop, "Mobile Shop", latitude, longitude
-    );
+    const action = restored ? "restore" : imported ? "import" : "create";
+    await logActivity({
+      action,
+      itemName: item.name,
+      performedBy: performed_by || "System",
+      details: {
+        shop, brand, stock: item.stock, price: item.price, unit: item.unit,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req,
+      branch: shop,
+      module: "Mobile Shop",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item });
   } catch (err) {
     res.status(500).json({ error: "Failed to add shop item" });
   }
 });
-
 router.put("/shop-items/:id", async (req, res) => {
   try {
-    const { name, price, unit, image_url, shop, brand, stock, is_visible, branches, performed_by, latitude, longitude } = req.body;
+    const { name, price, unit, image_url, shop, brand, stock, is_visible, branches, performed_by, latitude, longitude, performed_by_role } = req.body;
 
     const before = await pool.query("SELECT * FROM shop_items WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -58,8 +65,18 @@ router.put("/shop-items/:id", async (req, res) => {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
-    await logActivity("update", updatedItem.name, performed_by || "System", changes, req, updatedItem.shop, "Mobile Shop", latitude, longitude);
-
+    await logActivity({
+      action: "update",
+      itemName: updatedItem.name,
+      performedBy: performed_by || "System",
+      details: changes,
+      req,
+      branch: updatedItem.shop,
+      module: "Mobile Shop",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
     res.json({ success: true, item: updatedItem });
   } catch (err) {
     res.status(500).json({ error: "Failed to update shop item" });
@@ -68,7 +85,7 @@ router.put("/shop-items/:id", async (req, res) => {
 
 router.put("/shop-items/:id/toggle", async (req, res) => {
   try {
-    const { performed_by, latitude, longitude } = req.body || {};
+    const { performed_by, latitude, longitude, performed_by_role } = req.body || {};
 
     const current = await pool.query("SELECT * FROM shop_items WHERE id=$1", [req.params.id]);
     if (current.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -77,13 +94,18 @@ router.put("/shop-items/:id/toggle", async (req, res) => {
     const result = await pool.query("UPDATE shop_items SET is_visible=$1 WHERE id=$2 RETURNING *", [!item.is_visible, req.params.id]);
     const updated = result.rows[0];
 
-    await logActivity(
-      updated.is_visible ? "show" : "hide",
-      item.name,
-      performed_by || "System",
-      { note: updated.is_visible ? "Item made visible" : "Item hidden" },
-      req, item.shop, "Mobile Shop", latitude, longitude
-    );
+    await logActivity({
+      action: updated.is_visible ? "show" : "hide",
+      itemName: item.name,
+      performedBy: performed_by || "System",
+      details: { note: updated.is_visible ? "Item made visible" : "Item hidden" },
+      req,
+      branch: item.shop,
+      module: "Mobile Shop",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true, item: updated });
   } catch (err) {
@@ -94,7 +116,7 @@ router.put("/shop-items/:id/toggle", async (req, res) => {
 router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { quantity, performed_by, order_id } = req.body;
+    const { quantity, performed_by, order_id, performed_by_role } = req.body;
     const qty = Number(quantity);
     if (!qty || qty <= 0) {
         return res.status(400).json({ error: "Invalid quantity" });
@@ -147,11 +169,11 @@ if (itemRes.rows.length === 0) {
       });
 
       const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
-if (totalAvailable < qty) {
-  console.log(`[deduct-stock] ingredient batch stock insufficient — ingredient ${item.ingredient_id}, have ${totalAvailable}, need ${qty}`);
-  await client.query("ROLLBACK");
-  return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
-}
+      if (totalAvailable < qty) {
+        console.log(`[deduct-stock] ingredient batch stock insufficient — ingredient ${item.ingredient_id}, have ${totalAvailable}, need ${qty}`);
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: "Insufficient linked ingredient stock to deduct" });
+      }
 
       let remaining = qty;
       for (const b of sortedBatches) {
@@ -176,17 +198,20 @@ if (totalAvailable < qty) {
 
     await client.query("COMMIT");
 
-    await logActivity(
-      "deduct",
-      item.name,
-      performed_by || "System",
-      {
-        note: `-${qty} deducted for Order #${order_id ?? "?"}`,
-        remaining_shop_stock: item.stock,
-        ...(ingredientResult ? { linked_ingredient: ingredientResult.name, remaining_ingredient_stock: ingredientResult.stock } : {}),
-      },
-      req, item.shop, "Mobile Shop"
-    );
+      await logActivity({
+        action: "deduct",
+        itemName: item.name,
+        performedBy: performed_by || "System",
+        details: {
+          note: `-${qty} deducted for Order #${order_id ?? "?"}`,
+          remaining_shop_stock: item.stock,
+          ...(ingredientResult ? { linked_ingredient: ingredientResult.name, remaining_ingredient_stock: ingredientResult.stock } : {}),
+        },
+        req,
+        branch: item.shop,
+        module: "Mobile Shop",
+        role: performed_by_role || "Unknown",
+      });
 
     res.json({ success: true, item, ingredient: ingredientResult });
   } catch (err) {
@@ -200,21 +225,78 @@ if (totalAvailable < qty) {
 
 router.delete("/shop-items/:id", async (req, res) => {
   try {
-    const { deleted_by, latitude, longitude } = req.body || {};
+    const { deleted_by, latitude, longitude, performed_by_role } = req.body || {};
 
     const before = await pool.query("SELECT * FROM shop_items WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
     const item = before.rows[0];
 
+    await pool.query(
+      "INSERT INTO shop_item_delete_history (shop_item_data, deleted_by) VALUES ($1,$2)",
+      [JSON.stringify(item), deleted_by || "Unknown"]
+    );
+
     await pool.query("DELETE FROM shop_items WHERE id=$1", [req.params.id]);
 
-    await logActivity("delete", item.name, deleted_by || "System",
-      { shop: item.shop, brand: item.brand, stock: item.stock, price: item.price },
-      req, item.shop, "Mobile Shop", latitude, longitude);
+    await logActivity({
+      action: "delete",
+      itemName: item.name,
+      performedBy: deleted_by || "System",
+      details: { shop: item.shop, brand: item.brand, stock: item.stock, price: item.price },
+      req,
+      branch: item.shop,
+      module: "Mobile Shop",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
 
     res.json({ success: true });
   } catch (err) {
+    console.error("DELETE /shop-items/:id error:", err);
+    if (err.code === "23503") {
+      return res.status(409).json({ error: "This item can't be deleted because it's linked to past orders. Hide it instead." });
+    }
     res.status(500).json({ error: "Failed to delete shop item" });
+  }
+});
+
+router.get("/shop-item-delete-history", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM shop_item_delete_history ORDER BY deleted_at DESC");
+    res.json(result.rows.map(row => ({
+      id: row.id,
+      data: row.shop_item_data,
+      deletedAt: row.deleted_at,
+      deletedBy: row.deleted_by,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch shop item delete history" });
+  }
+});
+
+router.delete("/shop-item-delete-history/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM shop_item_delete_history WHERE id=$1", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete history entry" });
+  }
+});
+
+router.get("/shop-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM users_activity_log
+       WHERE module = $1
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      ["Mobile Shop"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /shop-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch shop activity log" });
   }
 });
 
