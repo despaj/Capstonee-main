@@ -312,43 +312,86 @@ router.delete("/delete-history/:id", async (req, res) => {
   }
 });
 
-<<<<<<< Updated upstream
 router.get("/users-activity-log", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM users_activity_log WHERE module = $1 ORDER BY created_at DESC",
+      `SELECT *
+       FROM users_activity_log
+       WHERE module = $1
+       ORDER BY created_at DESC`,
       ["User Management"]
     );
+
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch user activity log" });
-=======
+    console.error("GET /users-activity-log error:", err);
+
+    res.status(500).json({
+      error: "Failed to fetch user activity log",
+    });
+  }
+});
+
+// =====================================================
+// VERIFY MANAGER PASSWORD
+// =====================================================
 router.post("/verify-manager-password", async (req, res) => {
   try {
     const { branch, password } = req.body;
+
     if (!branch || !password) {
-      return res.status(400).json({ valid: false, error: "Branch and password are required" });
+      return res.status(400).json({
+        valid: false,
+        error: "Branch and password are required",
+      });
     }
 
     const result = await pool.query(
-      "SELECT password FROM users WHERE branch=$1 AND role=$2",
+      `SELECT password
+       FROM users
+       WHERE branch = $1
+       AND role = $2`,
       [branch, "Manager"]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ valid: false, error: "No manager found for this branch" });
+      return res.status(404).json({
+        valid: false,
+        error: "No manager found for this branch",
+      });
     }
 
     for (const row of result.rows) {
-      const match = await bcrypt.compare(password, row.password);
-      if (match) return res.json({ valid: true });
+      if (!row.password) {
+        continue;
+      }
+
+      const match = await bcrypt.compare(
+        password,
+        row.password
+      );
+
+      if (match) {
+        return res.json({
+          valid: true,
+        });
+      }
     }
 
-    res.json({ valid: false, error: "Incorrect manager password" });
+    return res.json({
+      valid: false,
+      error: "Incorrect manager password",
+    });
   } catch (err) {
-    console.error("POST /verify-manager-password error:", err);
-    res.status(500).json({ valid: false, error: "Failed to verify password" });
->>>>>>> Stashed changes
+    console.error(
+      "POST /verify-manager-password error:",
+      err
+    );
+
+    res.status(500).json({
+      valid: false,
+      error: "Failed to verify password",
+    });
   }
 });
 
