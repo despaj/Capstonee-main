@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
+const { logActivity } = require("../utils/activityLogger");
 
 router.get("/orders", async (req, res) => {
   try {
@@ -70,56 +71,191 @@ router.post("/orders", async (req, res) => {
 });
 
 router.put("/orders/:id", async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { status } = req.body;
+    const { status, performed_by, performed_by_role, latitude, longitude } = req.body;
     const validStatuses = ["pending", "accepted", "rejected", "disposed"];
-    if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status value" });
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" }); // no client.release() here
+    }
+
+    await client.query("BEGIN");
+
+    const currentRes = await client.query("SELECT status FROM orders WHERE id=$1 FOR UPDATE", [req.params.id]);
+    if (currentRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Order not found" }); // no client.release() here either
+    }
+    const currentStatus = currentRes.rows[0].status;
 
     if (status === "accepted") {
-      const itemsRes = await pool.query(
-        `SELECT si.id, si.name, si.stock, oi.quantity
-         FROM order_items oi
-         JOIN shop_items si ON si.id = oi.shop_item_id
-         WHERE oi.order_id = $1`,
+      if (currentStatus !== "pending") {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: `Order is already "${currentStatus}" — can't accept again` });
+      }
+
+      const itemsRes = await client.query(
+        `SELECT oi.shop_item_id, oi.quantity, si.name AS item_name, si.shop,
+                si.ingredient_id, i.stock AS ingredient_stock, i.branch, i.brand, i.perishable
+        FROM order_items oi
+        JOIN shop_items si ON si.id = oi.shop_item_id
+        LEFT JOIN ingredients i ON i.id = si.ingredient_id
+        WHERE oi.order_id = $1`,
         [req.params.id]
       );
-      const insufficient = itemsRes.rows.filter(r => Number(r.stock) < Number(r.quantity));
+
+      const unlinked = itemsRes.rows.filter(r => !r.ingredient_id);
+      if (unlinked.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Some items are no longer linked to Stock Inventory and can't be fulfilled",
+          items: unlinked.map(r => r.item_name),
+        });
+      }
+
+      const neededByIngredient = new Map();
+      for (const row of itemsRes.rows) {
+        neededByIngredient.set(
+          row.ingredient_id,
+          (neededByIngredient.get(row.ingredient_id) || 0) + Number(row.quantity)
+        );
+      }
+
+      const insufficient = [];
+      for (const row of itemsRes.rows) {
+        const needed = neededByIngredient.get(row.ingredient_id);
+        if (Number(row.ingredient_stock) < needed && !insufficient.some(i => i.name === row.item_name)) {
+          insufficient.push({ name: row.item_name, needed, available: Number(row.ingredient_stock) });
+        }
+      }
       if (insufficient.length > 0) {
+        await client.query("ROLLBACK");
         return res.status(409).json({
           error: "Insufficient stock to accept this order",
-          insufficientItems: insufficient.map(r => ({
-            name: r.name,
-            needed: Number(r.quantity),
-            available: Number(r.stock),
-          })),
+          insufficientItems: insufficient,
+        });
+      }
+
+      // Deduct once per ingredient (not per shop_items row) so a shared
+      // ingredient isn't double-deducted, using the same FIFO/FEFO batch
+      // logic Stock Inventory uses elsewhere.
+      const processed = new Set();
+      for (const row of itemsRes.rows) {
+        if (processed.has(row.ingredient_id)) continue;
+        processed.add(row.ingredient_id);
+
+        const qty = neededByIngredient.get(row.ingredient_id);
+        const isFefo = (row.brand || "").toLowerCase().includes("ipharma") || !!row.perishable;
+
+        const batchesRes = await client.query(
+          `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
+          [row.ingredient_id]
+        );
+        const sortedBatches = [...batchesRes.rows].sort((a, b) => {
+          if (isFefo) {
+            const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+            const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+            return da - db;
+          }
+          const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+          const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+          return da - db;
+        });
+
+        const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
+        if (totalAvailable < qty) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({ error: `Insufficient batch stock for "${row.item_name}"` });
+        }
+
+        let remaining = qty;
+        for (const b of sortedBatches) {
+          if (remaining <= 0) break;
+          const take = Math.min(remaining, Number(b.stock));
+          await client.query(`UPDATE ingredient_batches SET stock = stock - $1, updated_at=NOW() WHERE id=$2`, [take, b.id]);
+          remaining -= take;
+        }
+
+        const totals = await client.query(
+          `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+           FROM ingredient_batches WHERE ingredient_id=$1`,
+          [row.ingredient_id]
+        );
+        const { total_stock, earliest_exp } = totals.rows[0];
+
+        await client.query(
+          `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3`,
+          [total_stock, earliest_exp || null, row.ingredient_id]
+        );
+
+        await client.query(`UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`, [total_stock, row.ingredient_id]);
+
+        await logActivity({
+          action: "deduct",
+          itemName: row.item_name,
+          performedBy: performed_by || "System",
+          details: { note: `-${qty} deducted for Order #${req.params.id}` },
+          req,
+          branch: row.branch,
+          module: "Stock Inventory",
+          latitude,
+          longitude,
+          role: performed_by_role || "Unknown",
         });
       }
     }
 
-    const result = await pool.query("UPDATE orders SET status=$1 WHERE id=$2 RETURNING *", [status, req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Order not found" });
-
+    const result = await client.query("UPDATE orders SET status=$1 WHERE id=$2 RETURNING *", [status, req.params.id]);
+    if (result.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Order not found" }); }
     const order = result.rows[0];
+
+    await logActivity({
+      action: status === "accepted" ? "accept" : status === "rejected" ? "reject" : "update",
+      itemName: `Order #${order.id}`,
+      performedBy: performed_by || "System",
+      details: { note: `Status changed to "${status}"` },
+      req,
+      branch: order.branch,
+      module: "Orders",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
+    });
+
     if (order?.user_id) {
       const statusLabels = {
         pending:  "Order Placed",
-        accepted: "Order Accepted",
+        shipping: "Order Accepted",
         disposed: "Order Fulfilled",
         rejected: "Order Rejected",
       };
-      await pool.query(
+      await client.query(
         `INSERT INTO notifications (user_id, type, title, body) VALUES ($1,$2,$3,$4)`,
         [order.user_id, `order_${status}`, statusLabels[status] || "Order Update", `Your order #${order.id} is now ${status}.`]
       );
+    }
+
+    await client.query("COMMIT");
+
+    if (order?.user_id) {
+      const statusLabels = {
+        pending:  "Order Placed",
+        shipping: "Order Accepted",
+        disposed: "Order Fulfilled",
+        rejected: "Order Rejected",
+      };
       const userRow = await pool.query("SELECT push_token FROM users WHERE id=$1", [order.user_id]);
       const token = userRow.rows[0]?.push_token;
       if (token) await sendPushNotification(token, statusLabels[status] || "Order Update", `Your order #${req.params.id} is now ${status}.`);
     }
 
-    res.json({ success: true, order: result.rows[0] });
+    res.json({ success: true, order });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("PUT /orders/:id error:", err);
     res.status(500).json({ error: "Failed to update order status" });
+  } finally {
+    client.release();
   }
 });
 
@@ -136,6 +272,22 @@ router.get("/api/orders/counts", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch order counts" });
+  }
+});
+
+router.get("/orders-activity-log", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM users_activity_log
+       WHERE module = $1
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      ["Orders"]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /orders-activity-log error:", err);
+    res.status(500).json({ error: "Failed to fetch orders activity log" });
   }
 });
 

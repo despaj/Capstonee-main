@@ -245,6 +245,14 @@ function sortBatchesByMethod(batches, brand, isPerishable) {
   });
 }
 
+function computeWeightedCost(batches) {
+  const active = batches.filter(b => Number(b.stock) > 0);
+  const totalQty = active.reduce((s, b) => s + Number(b.stock), 0);
+  if (totalQty === 0) return null; // no stock left to base cost on — leave cost_per_unit as-is
+  const totalCost = active.reduce((s, b) => s + Number(b.stock) * Number(b.cost_per_unit || 0), 0);
+  return Math.round((totalCost / totalQty) * 100) / 100;
+}
+
 function daysRemaining(exp_date) {
   if (!exp_date) return null;
   const now = new Date(); now.setHours(0,0,0,0);
@@ -1272,7 +1280,17 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
               <input type="number" min="0" step="0.01" style={invInputSt} value={form.cost_per_unit} placeholder="0.00" onChange={e=>setF("cost_per_unit", e.target.value)}/>
             </div>
           </div>
-
+          {form.cost_per_unit && Number(form.cost_per_unit) > 0 && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 13px", borderRadius:9, background:C.greenLt, border:`1px solid ${C.greenMid}` }}>
+              <div>
+                <div style={{ fontSize:11.5, fontWeight:700, color:C.greenDk }}>Shop Price (this batch's cost + 10%)</div>
+                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>Published price uses the weighted average across all active batches, not just this one</div>
+              </div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.greenDk }}>
+                ₱{(parseFloat(form.cost_per_unit) * 1.10).toFixed(2)}
+              </div>
+            </div>
+          )}
           <div>
             <label style={invLabelSt}>Supplier</label>
             <input style={invInputSt} value={form.supplier} placeholder="Supplier name" onChange={e=>setF("supplier", e.target.value)}/>
@@ -2020,7 +2038,7 @@ const emptyForm = useCallback(() => ({
   name:"", branch: isAdmin ? "" : userBranch, brand:"",
   unit:"pcs", min_stock:0, cost_per_unit:"", perishable:false,
   listInShop: false,
-  shopPrice:"", shopUnit:"", shopCategory:"",
+  shopCategory:"", 
 }), [isAdmin, userBranch]);
 
   const [form, setForm] = useState(emptyForm);
@@ -2224,7 +2242,7 @@ const emptyForm = useCallback(() => ({
     if (!form.brand) errors.push("Brand is required.");
     if (isAdmin && !form.branch) errors.push("Branch is required.");
     if (!form.unit) errors.push("Unit is required.");
-    if (isAdmin && !isPositiveOrZeroNumber(form.cost_per_unit)) errors.push("Cost per unit must be a valid number of 0 or more.");
+    if (isAdmin && !editing && !isPositiveOrZeroNumber(form.cost_per_unit)) errors.push("Cost per unit must be a valid number of 0 or more.");
     if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
   
     if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
@@ -2275,7 +2293,8 @@ const emptyForm = useCallback(() => ({
           if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
           changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
         }
-        if (form.listInShop && form.shopPrice) {
+        if (form.listInShop && form.cost_per_unit) {
+          const computedShopPrice = Math.round(parseFloat(form.cost_per_unit) * 1.10 * 100) / 100;
           try {
             const ingredientId = editing ? editing.id : d.item.id;
             const shopRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
@@ -2285,11 +2304,11 @@ const emptyForm = useCallback(() => ({
               : null;
 
             const shopBody = {
-              name:payload.name,
-              price:parseFloat(form.shopPrice)||0,
-              unit:form.shopUnit||"",
-              shop:form.shopCategory,
-              brand:payload.brand||"",
+              name: payload.name,
+              price: computedShopPrice,
+              unit: form.unit || "",
+              shop: form.shopCategory,
+              brand: payload.brand || "",
               performed_by: userName,
               latitude: payload.latitude,
               longitude: payload.longitude,
@@ -2395,9 +2414,7 @@ const openEdit = async item => {
     unit: item.unit || "pcs", stock: item.stock, min_stock: item.min_stock,
     cost_per_unit: item.cost_per_unit || "",
     perishable: !!item.perishable,
-    listInShop: !!shopMatch,
-    shopPrice: shopMatch ? String(shopMatch.price ?? "") : "",
-    shopUnit: shopMatch ? (shopMatch.unit || "") : "",
+    listInShop: !!shopMatch,                                              // stays true if already listed
     shopCategory: shopMatch ? (shopMatch.shop || item.brand || "Coffee Spot") : (item.brand || "Coffee Spot"),
   });
   setShowModal(true);
@@ -2549,14 +2566,16 @@ const openEdit = async item => {
                 </select>
               </div>
               <div>
-                <label style={invLabelSt}>Cost per Unit (₱){isAdmin ? " *" : ""}</label>
-                {isAdmin ? (
+                <label style={invLabelSt}>Cost per Unit (₱){isAdmin && !editing ? " *" : ""}</label>
+                {isAdmin && !editing ? (
                   <input type="number" style={invInputSt} value={form.cost_per_unit} min="0" step="0.01"
                     onChange={e=>setForm(f=>({...f,cost_per_unit:e.target.value}))} required placeholder="0.00"/>
                 ) : (
                   <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
                     ₱{Number(form.cost_per_unit||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                    <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:4 }}>(set by admin)</span>
+                    <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:4 }}>
+                      {editing ? "(computed from received batches)" : "(set by admin)"}
+                    </span>
                   </div>
                 )}
               </div>
@@ -2606,22 +2625,31 @@ const openEdit = async item => {
                 </div>
                 {form.listInShop && (
                   <div style={{ display:"grid", gap:12, marginTop:14, padding:"14px", background:C.bg, borderRadius:10, border:`1px solid ${C.border}` }}>
-                    <p style={{ fontSize:11, color:C.muted, margin:0 }}>Set the <strong>bulk/supply price and unit</strong> for the shop listing.</p>
+                    <p style={{ fontSize:11, color:C.muted, margin:0 }}>
+                      Shop price and unit are synced automatically from this ingredient's cost and unit.
+                    </p>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                       <div>
-                        <label style={invLabelSt}>Shop Price (₱) *</label>
-                        <input type="number" min="0" step="0.01" style={invInputSt} placeholder="e.g. 500.00" value={form.shopPrice} onChange={e=>setForm(f=>({...f,shopPrice:e.target.value}))}/>
+                        <label style={invLabelSt}>Shop Price (₱)</label>
+                        <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
+                          {form.cost_per_unit
+                            ? `₱${(parseFloat(form.cost_per_unit) * 1.10).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`
+                            : "—"}
+                          <span style={{ fontSize:10, color:C.muted, fontWeight:400 }}>(cost + 10%)</span>
+                        </div>
                       </div>
                       <div>
                         <label style={invLabelSt}>Shop Unit</label>
-                        <input type="text" style={invInputSt} placeholder="e.g. per sack" value={form.shopUnit} onChange={e=>setForm(f=>({...f,shopUnit:e.target.value}))}/>
+                        <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>
+                          {form.unit || "—"}
+                        </div>
                       </div>
                     </div>
                     <div>
                       <label style={invLabelSt}>Shop Category</label>
                       <select style={invInputSt} value={form.shopCategory} onChange={e=>setForm(f=>({...f,shopCategory:e.target.value}))}>
-                          <option value="">Select category…</option>
-                          {brandList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                        <option value="">Select category…</option>
+                        {brandList.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                       </select>
                     </div>
                   </div>

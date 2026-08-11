@@ -3759,22 +3759,6 @@ const handleRestore = async (entry) => {
   );
 }
 
-function Field({ label, error, children }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{ fontSize: 13, fontWeight: 700, color: "#2c3e50" }}>
-        {label}
-      </label>
-      {children}
-      {error && (
-        <span style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
-          {error}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function ShopDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
@@ -3923,76 +3907,101 @@ function UIModal({ modal, onClose, onConfirm }) {
   );
 }
 
-function MobileShopContent({ user, brands: propBrands = [] }) {
-  const msInputStyle = {
-    width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
-    border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
-    color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
-    fontFamily: "'Montserrat', sans-serif", // ensures typed text AND placeholder text use Montserrat
-  };
+function Field({ label, error, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ fontSize: 13, fontWeight: 700, color: "#2c3e50" }}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <span style={{ fontSize: 12, color: "#e53935", fontWeight: 600 }}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+
+const normalize = (str) => (str || "").trim().toLowerCase();
+const MARKUP = 1.10; // shop price = stock cost + 10%
+
+/* ── tiny inline icons (no external deps beyond lucide's core set) ── */
+
+const EditIcon   = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+const EyeIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
+const EyeOffIcon = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a20.3 20.3 0 0 1-3.22 4.44" /><path d="M1 1l22 22" /><path d="M9.53 9.53a3 3 0 0 0 4.24 4.24" /></svg>;
+const BoxIcon    = ({ size = 28 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>;
+const CheckCircleIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+const AlertIcon  = ({ size = 22 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
+const TagIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2.41 12.42A2 2 0 0 1 2 11V4a2 2 0 0 1 2-2h7a2 2 0 0 1 1.41.59l8.18 8.18a2 2 0 0 1 0 2.83Z" /><circle cx="7" cy="7" r="1" /></svg>;
+const ListIcon   = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+const LayersIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>;
+
+/* ── shared style atoms (mirrors Stock Inventory's system) ── */
+const msInputStyle = {
+  width: "100%", height: 38, padding: "0 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", transition: "border-color .15s, box-shadow .15s",
+};
+const readOnlyFieldStyle = {
+  width: "100%", minHeight: 38, padding: "9px 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.muted, background: "#f5f5f5", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", fontWeight: 700, display: "flex", alignItems: "center",
+};
+const toolbarBtnSt = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  height: 38, padding: "0 16px", borderRadius: 9,
+  fontSize: 13, fontWeight: 700, cursor: "pointer",
+  fontFamily: "inherit", whiteSpace: "nowrap", border: "none",
+};
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) { console.log("[DEBUG] geolocation not supported"); resolve(null); return; }
+    if (!navigator.geolocation) { resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log("[DEBUG] got coords:", position.coords.latitude, position.coords.longitude);
-        resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude });
-      },
-      (err) => { console.log("[DEBUG] geolocation error:", err.code, err.message); resolve(null); },
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
       { timeout: 5000, maximumAge: 60000 }
     );
   });
 };
 
+const computePrice = (cost) => (cost > 0 ? Math.round(cost * MARKUP * 100) / 100 : 0);
+const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(item.brand)}-${normalize(item.name)}`);
+
+function MobileShopContent({ user, brands: propBrands = [] }) {
+  const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [items,           setItems]           = useState([]);
-  const [errors,          setErrors]          = useState({});
-  const [loading,         setLoading]         = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [shopItems,       setShopItems]       = useState([]); // listing overrides: photo/visibility, keyed to a stock product
+  const [itemsLoading,    setItemsLoading]    = useState(true);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // item pending unlist confirmation (modal)
+  const [deleteLoading,   setDeleteLoading]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
   const [editErrors,      setEditErrors]      = useState({});
   const [editLoading,     setEditLoading]     = useState(false);
   const [searchQuery,     setSearchQuery]     = useState("");
   const [filterShop,      setFilterShop]      = useState("all");
-  const [brands,          setBrands]          = useState([]);
   const [stockItems,      setStockItems]      = useState([]);
-  const [newItem,         setNewItem]         = useState({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-  const excelRef = useRef(null);
-  const addImageRef = useRef(null); 
-  const editImageRef = useRef(null); 
+  const [toast,           setToast]           = useState(null);
+  const [selectedKeys,    setSelectedKeys]    = useState(() => new Set()); // multi-select for bulk listing
+  const [bulkListing,     setBulkListing]     = useState(false);
 
-  const [deleteHistory,     setDeleteHistory]     = useState([]);
-  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [restoringId,       setRestoringId]       = useState(null);
+  const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
 
-  const [toast, setToast] = useState(null);
-  const [uiModal, setUiModal] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importProgress, setImportProgress] = useState({ percent:0, label:"Preparing…", current:0, total:0 });
-
-  const showUiModal = (opts) => setUiModal(opts);
-  const closeUiModal = () => setUiModal(null);
-
-  const fetchDeleteHistory = useCallback(async () => {
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-item-delete-history`);
-      const data = await res.json();
-      setDeleteHistory(Array.isArray(data) ? data : []);
-    } catch (err) { console.error("Failed to fetch shop item delete history:", err); }
-  }, []);
+  const editImageRef = useRef(null);
 
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
       const data = await res.json();
       setActivityLog(Array.isArray(data) ? data.map(row => ({
-        id: row.id,
-        action: row.action,
+        id: row.id, action: row.action,
         itemName: row.item_name ?? row.itemName,
-        branch: row.branch,
+        shop: row.shop,
         performedBy: row.performed_by ?? row.performedBy,
         role: row.role,
         changes: row.changes,
@@ -4001,569 +4010,441 @@ const getBrowserLocation = () => {
     } catch (err) { console.error("Failed to fetch shop activity log:", err); }
   }, []);
 
-  const fetchItems = async () => {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-    const data = await res.json();
-    setItems(data);
-  };
-
-  const fetchBrands = async () => {
+  // Listing overrides (photo / visibility) for products that have
+  // been set up for the Mobile Shop. This is NOT the source of the product
+  // list — Stock Inventory is — it's just extra metadata per product.
+  const fetchShopItems = useCallback(async () => {
+    setItemsLoading(true);
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
       const data = await res.json();
-      setBrands(Array.isArray(data) ? data : []);
-    } catch { setBrands([]); }
-  };
+      setShopItems(Array.isArray(data) ? data : []);
+    } catch {
+      setShopItems([]);
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
 
-  const fetchStockItems = async () => {
+  // Stock Inventory ingredients — this is the single source of truth for
+  // which products can appear in the Mobile Shop at all, and for cost.
+  const fetchStockItems = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
       const data = await res.json();
       setStockItems(Array.isArray(data) ? data : []);
     } catch { setStockItems([]); }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchItems();
-    fetchBrands();
+    fetchShopItems();
     fetchStockItems();
     fetchActivityLog();
-    fetchDeleteHistory();
-  }, [fetchActivityLog, fetchDeleteHistory]);
+  }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
-  const uniqueShops = [...new Set(items.map(i => i.shop).filter(Boolean))];
+  const getCostFor = useCallback((brandName, itemName) => {
+    const b = normalize(brandName), n = normalize(itemName);
+    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
+    return match ? Number(match.cost_per_unit || 0) : 0;
+  }, [stockItems]);
 
-  const filteredItems = items.filter(item => {
-    const q = searchQuery.toLowerCase();
-    const matchesQuery =
-      !q ||
-      item.name?.toLowerCase().includes(q) ||
-      item.shop?.toLowerCase().includes(q) ||
-      String(item.stock ?? "").includes(q);
-    if (!matchesQuery) return false;
-    if (filterShop !== "all" && item.shop !== filterShop) return false;
-    return true;
+  // Every unique (brand, product name) combination that exists in Stock
+  // Inventory. This — and only this — determines what CAN show up here.
+const uniqueStockProducts = useMemo(() => {
+  const seen = new Map();
+  stockItems.forEach((si) => {
+    if (!si.brand || !si.name) return;
+    const key = `${normalize(si.brand)}|${normalize(si.name)}`;
+    if (!seen.has(key)) seen.set(key, { id: si.id, brand: si.brand, name: si.name });
   });
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+}, [stockItems]);
 
-  const getBranchesForBrand = (brandName) => {
-    const found = brands.find(b => b.name === brandName);
-    if (!found) return [];
-    return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
+  // Merge each Stock Inventory product with its Mobile Shop listing
+  // override (if one has been set up). Products with no override yet
+  // are still shown, marked as "Not Listed", so staff can list them.
+  // Price is always computed live from cost — it's never stored as a
+  // free-standing editable number. Stock is intentionally not exposed
+  // here — it lives in Stock Inventory's FIFO/FEFO queues.
+  const items = useMemo(() => {
+    return uniqueStockProducts.map((sp) => {
+      const match = shopItems.find(
+        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
+      );
+      const liveCost = getCostFor(sp.brand, sp.name);
+      return {
+        id: match ? match.id : null,
+        ingredient_id: sp.id, 
+        name: sp.name,
+        brand: sp.brand,
+        shop: match ? match.shop : sp.brand,
+        cost: liveCost,
+        price: computePrice(liveCost),
+        unit: match ? match.unit : "",
+        image_url: match ? match.image_url : "",
+        is_visible: match ? !!match.is_visible : false,
+        listed: !!match,
+      };
+    });
+  }, [uniqueStockProducts, shopItems, getCostFor]);
+
+  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
+
+const filteredItems = items.filter((item) => {
+  const q = searchQuery.toLowerCase();
+  const matchesQuery =
+    !q ||
+    item.name?.toLowerCase().includes(q) ||
+    item.shop?.toLowerCase().includes(q);
+  if (!matchesQuery) return false;
+  if (filterShop !== "all" && item.shop !== filterShop) return false;
+  if (filterListed === "listed" && !item.listed) return false;
+  if (filterListed === "unlisted" && item.listed) return false;
+  return true;
+});
+
+  // Clear out any selected keys that no longer exist in the current item set
+  // (e.g. a product was removed from Stock Inventory).
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      const validKeys = new Set(items.map(keyFor));
+      let changed = false;
+      const next = new Set();
+      prev.forEach((k) => {
+        if (validKeys.has(k)) next.add(k);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  const toggleSelect = (rowKey) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
   };
 
-  const getStockNamesForBrand = (brandName) => {
-    if (!brandName) return [];
-    const target = brandName.trim().toLowerCase();
-    const exact = stockItems.filter(i => (i.brand || "").trim().toLowerCase() === target);
-    const pool = exact.length > 0
-      ? exact
-      : stockItems.filter(i => (i.brand || "").trim().toLowerCase().includes(target) || target.includes((i.brand || "").trim().toLowerCase()));
-    return [...new Set(pool.map(i => i.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
+  const toggleSelectAllFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredItems.forEach((i) => next.delete(keyFor(i)));
+      } else {
+        filteredItems.forEach((i) => next.add(keyFor(i)));
+      }
+      return next;
+    });
   };
 
-const validate = () => {
-  const newErrors = {};
-  if (!newItem.brand) newErrors.brand = "Brand is required";
-  if (!newItem.name.trim()) newErrors.name = "Item name is required";
-  if (!newItem.price) newErrors.price = "Price is required";
-  else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-  if (!newItem.image_url) newErrors.image_url = "Photo is required";
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+  const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
+  const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
+  const allUnlistedCount = filteredItems.filter((i) => !i.listed).length;
 
-  // Reads a selected image file and stores it as a data URL in image_url
-  const handleImageSelect = (e, target /* "add" | "edit" */) => {
+  const validateEdit = () => {
+    const errs = {};
+    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
+    if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (target === "edit") setEditingItem(prev => ({ ...prev, image_url: ev.target.result }));
-      else setNewItem(prev => ({ ...prev, image_url: ev.target.result }));
-    };
+    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
     reader.readAsDataURL(file);
-    e.target.value = ""; // allow re-selecting the same file later
+    e.target.value = "";
   };
 
-const validateEdit = () => {
-  const errs = {};
-  if (!editingItem.name.trim()) errs.name = "Item name is required";
-  if (!editingItem.price) errs.price = "Price is required";
-  else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-  if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
-  setEditErrors(errs);
-  return Object.keys(errs).length === 0;
-};
-
-  const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-
-const addItem = async () => {
-  if (loading || !validate()) return;
-
-  const duplicate = items.find(
-    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
-      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
-  );
-  if (duplicate) {
-    showUiModal({ type:"error", title:"Duplicate Item", message:`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.` });
-    return;
-  }
-
-  setLoading(true);
-  const coords = await getBrowserLocation();
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name:      capitalize(newItem.name),
-        price:     Number(newItem.price),
-        unit:      "",
-        image_url: newItem.image_url,
-        shop:      newItem.brand,
-        brand:     newItem.brand,
-        stock:     0,
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude:  coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (!res.ok || !d.success) {
-      setToast({ type:"error", title:"Failed to Add", message: d.error || "An unexpected error occurred." });
-      return;
-    }
-    setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" });
-    setErrors({});
-    setShowAddModal(false);
-    fetchItems();
-    fetchActivityLog();
-    setToast({ type:"success", title:"Item Added", message:`"${capitalize(newItem.name)}" has been added.` });
-  } catch {
-    setToast({ type:"error", title:"Connection Error", message:"Failed to add item. Please check your connection." });
-  } finally {
-    setLoading(false);
-  }
-};
-
-const saveEdit = async () => {
-  if (editLoading || !validateEdit()) return;
-  setEditLoading(true);
-  const coords = await getBrowserLocation();
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name:       capitalize(editingItem.name.trim()),
-        price:      Number(editingItem.price),
-        unit:       editingItem.unit || "",
-        image_url:  editingItem.image_url,
-        shop:       editingItem.brand,
-        brand:      editingItem.brand,
-        stock:      Number(editingItem.stock ?? 0),
-        is_visible: editingItem.is_visible,
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude:  coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (!res.ok || !d.success) {
-      setToast({ type:"error", title:"Failed to Save", message: d.error || "An unexpected error occurred." });
-      return;
-    }
-    setEditingItem(null);
+  const openEditor = (item) => {
+    setEditingItem({ ...item });
     setEditErrors({});
-    fetchItems();
-    fetchActivityLog();
-    setToast({ type:"success", title:"Item Updated", message:`"${editingItem.name}" has been updated.` });
-  } catch {
-    setToast({ type:"error", title:"Connection Error", message:"Failed to save changes." });
-  } finally {
-    setEditLoading(false);
-  }
-};
-  
-const importExcel = e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  setImportLoading(true);
-  setImportProgress({ percent:5, label:"Reading file…", current:0, total:0 });
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    const coords = await getBrowserLocation();
-    setImportProgress({ percent:15, label:"Parsing spreadsheet…", current:0, total:0 });
-    const wb = XLSX.read(ev.target.result, { type: "array" });
-    const rows_to_save = [];
-    wb.SheetNames.forEach(sheetName => {
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
-      rows.forEach(row => {
-        const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-        const price = parseFloat(row.price || row.Price || 0) || 0;
-        if (!name || price <= 0) return;
-        const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
-        const alreadyExists = items.some(
-          i => i.name.trim().toLowerCase() === name.toLowerCase()
-            && i.shop.trim().toLowerCase() === shop.toLowerCase()
-        );
-        if (alreadyExists) return;
-        rows_to_save.push({
-          name: capitalize(name.trim()), price,
-          unit:      String(row.unit      || row.Unit      || "").trim(),
-          stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-          shop,
-          brand:     String(row.brand     || row.Brand     || "").trim(),
-          image_url: String(row.image_url || row["Image URL"] || "").trim(),
-          is_visible: true,
-        });
-      });
-    });
+  };
 
-    setImportProgress({ percent:25, label:`Found ${rows_to_save.length} rows. Importing…`, current:0, total:rows_to_save.length });
-    let saved = 0;
-    for (let idx=0; idx<rows_to_save.length; idx++) {
-      const item = rows_to_save[idx];
-      setImportProgress({ percent: 25+Math.round(((idx+1)/rows_to_save.length)*65), label:`Saving "${item.name}"…`, current:idx+1, total:rows_to_save.length });
+  // Creates the listing (POST) the first time a product is edited, or
+  // updates it (PUT) if a listing already exists. Stock is not part of
+  // this payload's concern here — price is always synced live from
+  // Stock Inventory, never entered manually.
+  const saveEdit = async () => {
+    if (editLoading || !validateEdit()) return;
+    setEditLoading(true);
+    const coords = await getBrowserLocation();
+    const liveCost = getCostFor(editingItem.brand, editingItem.name);
+    const payload = {
+      name: editingItem.name,
+      price: computePrice(liveCost),
+      unit: editingItem.unit || "",
+      image_url: editingItem.image_url,
+      shop: editingItem.brand,
+      brand: editingItem.brand,
+      ingredient_id: editingItem.ingredient_id || null, 
+      is_visible: editingItem.is_visible !== false,
+      performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
+    try {
+      const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
+      const method = editingItem.id ? "PUT" : "POST";
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      setToast({
+        type: "success",
+        title: editingItem.id ? "Item Updated" : "Item Listed",
+        message: editingItem.id
+          ? `"${editingItem.name}" has been updated.`
+          : `"${editingItem.name}" is now listed in the Mobile Shop.`,
+      });
+      setEditingItem(null);
+      setEditErrors({});
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to save changes." });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Bulk-list one or more not-yet-listed products in a single action.
+  // Photos are optional here — staff can attach one later via Edit —
+  // so this is meant for quickly getting products visible in the shop.
+  const bulkListItems = async (candidateItems) => {
+    const toList = candidateItems.filter((i) => !i.listed);
+    if (toList.length === 0) {
+      setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
+      return;
+    }
+    setBulkListing(true);
+    const coords = await getBrowserLocation();
+    let success = 0, failed = 0;
+    for (const it of toList) {
+      const liveCost = getCostFor(it.brand, it.name);
+      const payload = {
+        name: it.name,
+        price: computePrice(liveCost),
+        unit: it.unit || "",
+        image_url: it.image_url || null,
+        shop: it.brand,
+        brand: it.brand,
+        ingredient_id: it.ingredient_id || null,
+        is_visible: true,
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      };
       try {
         const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: item.name, price: item.price, unit: item.unit, stock: item.stock,
-            shop: item.shop, brand: item.brand, image_url: item.image_url, is_visible: item.is_visible,
-            performed_by: user?.name || "System",
-            performed_by_role: user?.role || "Unknown",
-            latitude: coords?.latitude, longitude: coords?.longitude,
-            imported: true,
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
         });
-        const d = await res.json();
-        if (d.success) saved++;
-      } catch {}
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
     }
-
-    setImportProgress({ percent:100, label:"Complete!", current:rows_to_save.length, total:rows_to_save.length });
-    fetchItems();
+    setBulkListing(false);
+    setSelectedKeys(new Set());
+    fetchShopItems();
     fetchActivityLog();
-    const skipped = rows_to_save.length - saved;
-    setTimeout(() => {
-      setImportLoading(false);
-      e.target.value = "";
-      showUiModal({
-        type: skipped > 0 ? "info" : "success",
-        title: "Import Complete",
-        message: `${saved} item(s) saved successfully.${skipped > 0 ? ` ${skipped} duplicate(s) skipped.` : ""}`,
+    setToast({
+      type: failed > 0 ? "error" : "success",
+      title: "Bulk Listing Complete",
+      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
+    });
+  };
+
+  // Bulk-unlist one or more currently-listed products in a single action.
+const bulkUnlistItems = async (candidateItems) => {
+  const toUnlist = candidateItems.filter((i) => i.listed);
+  if (toUnlist.length === 0) {
+    setToast({ type: "error", title: "Nothing to Unlist", message: "None of the selected items are listed." });
+    return;
+  }
+  setBulkListing(true);
+  const coords = await getBrowserLocation();
+  let success = 0, failed = 0;
+  for (const it of toUnlist) {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${it.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
       });
-    }, 400);
-  };
-  reader.readAsArrayBuffer(file);
-};
-
-const handleDeleteItem = (item) => setDeleteTarget(item);
-
-const confirmDelete = async () => {
-  if (!deleteTarget) return;
-  const item = deleteTarget;
-  setDeleting(true);
-  const coords = await getBrowserLocation();
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deleted_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (!res.ok || !d.success) {
-      setToast({ type:"error", title:"Failed to Delete", message: d.error || "An unexpected error occurred." });
-      return;
-    }
-    fetchItems();
-    fetchActivityLog();
-    fetchDeleteHistory();
-    setToast({ type:"success", title:"Item Deleted", message:`"${item.name}" moved to Delete History.` });
-  } catch {
-    setToast({ type:"error", title:"Connection Error", message:"Failed to delete the item." });
-  } finally {
-    setDeleting(false);
-    setDeleteTarget(null);
+      if (res.ok) success++; else failed++;
+    } catch { failed++; }
   }
+  setBulkListing(false);
+  setSelectedKeys(new Set());
+  fetchShopItems();
+  fetchActivityLog();
+  setToast({
+    type: failed > 0 ? "error" : "success",
+    title: "Bulk Unlisting Complete",
+    message: `${success} item${success === 1 ? "" : "s"} unlisted${failed > 0 ? `, ${failed} failed` : ""}.`,
+  });
 };
 
-const handleRestore = async (entry) => {
-  setRestoringId(entry.id);
-  const coords = await getBrowserLocation();
-  try {
-    const d = entry.data;
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: d.name, price: d.price, unit: d.unit, image_url: d.image_url,
-        shop: d.shop, brand: d.brand, stock: d.stock, is_visible: d.is_visible,
-        branches: d.branches, ingredient_id: d.ingredient_id,
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        restored: true,
-      }),
-    });
-    const result = await res.json();
-    if (result.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-item-delete-history/${entry.id}`, { method: "DELETE" });
-      fetchItems();
+  const deleteItem = async (item) => {
+    if (!item.id) { setConfirmDeleteItem(null); return; }
+    setDeleteLoading(true);
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleted_by: user?.name || "System",   performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDeleteItem(null);
+      fetchShopItems();
       fetchActivityLog();
-      fetchDeleteHistory();
-    } else {
-      alert(result.error || "Failed to restore item.");
     }
-  } catch {
-    alert("Connection error while restoring the item.");
-  } finally {
-    setRestoringId(null);
-  }
-};
-
-const toggleVisibility = async (id) => {
-  const coords = await getBrowserLocation();
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (!res.ok || !d.success) {
-      setToast({ type:"error", title:"Failed to Update", message: d.error || "An unexpected error occurred." });
-      return;
-    }
-    fetchItems();
-    fetchActivityLog();
-  } catch {
-    setToast({ type:"error", title:"Connection Error", message:"Failed to toggle visibility." });
-  }
-};
-
-  // Shared style for the toolbar action buttons (Add Item / Import Excel / Activity Log)
-  const toolbarBtnSt = {
-    display:"inline-flex", alignItems:"center", gap:6,
-    height:36, padding:"0 16px", borderRadius:9,
-    fontSize:13, fontWeight:700, cursor:"pointer",
-    fontFamily:"inherit", whiteSpace:"nowrap", border:"none",
   };
 
-  const closeAddModal = () => { setShowAddModal(false); setErrors({}); setNewItem({ name:"", price:"", stock:"", image_url:"", shop:"", brand:"" }); };
+  const toggleVisibility = async (item) => {
+    if (!item.id) return; // nothing to toggle until it's listed
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to update visibility." });
+    }
+  };
 
-  // Shared "click to upload / preview / remove" photo picker used in Add and Edit modals
   const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
     <Field label="Photo *" error={error}>
       <div
         onClick={() => inputRef.current.click()}
         style={{
-          cursor:"pointer", borderRadius:8, background:C.bg, textAlign:"center",
-          border:`1.5px dashed ${error ? "#e53935" : C.border}`,
-          padding: value ? 8 : "20px 8px",
-        }}>
+          cursor: "pointer", borderRadius: 12, background: C.bg, textAlign: "center", marginTop: 6,
+          border: `1.5px dashed ${error ? C.red : C.border}`,
+          padding: value ? 8 : "22px 8px", transition: "border-color .15s, background .15s",
+        }}
+      >
         {value ? (
-          <div style={{ position:"relative", display:"inline-block" }}>
-            <img src={value} alt="preview"
-              style={{ width:84, height:84, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}`, display:"block" }}/>
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <img src={value} alt="preview" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, display: "block", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
             <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              style={{ position:"absolute", top:-8, right:-8, width:20, height:20, borderRadius:"50%",
-                border:"none", background:"#e53935", color:"#fff", fontSize:11, lineHeight:1, cursor:"pointer" }}>
+              style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
               ✕
             </button>
           </div>
         ) : (
-          <div style={{ color:C.muted, fontSize:12, fontFamily:"'Montserrat', sans-serif" }}>
-            <div style={{ fontSize:20, marginBottom:4 }}>📷</div>
+          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
             Click to upload photo
           </div>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*" onChange={onPick} style={{ display:"none" }}/>
     </Field>
   );
 
   return (
-    <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Montserrat', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .msc-row { cursor: pointer; transition: background .15s ease; }
+        .msc-row:hover td { background: #f6fef8 !important; }
+        .msc-row.selected td { background: ${C.greenLt} !important; }
+        .msc-btn:not(:disabled):hover { filter: brightness(0.96); transform: translateY(-1px); }
+        .msc-btn:not(:disabled):active { transform: translateY(0); }
+        .msc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .msc-btn { transition: filter .12s ease, transform .12s ease, box-shadow .12s ease; }
+        .msc-icon-btn:hover { filter: brightness(0.94); }
+        .msc-edit:hover { background:#dcedff !important; }
+        .msc-del:hover  { background:#fddede !important; }
+        .msc-hide:hover { background:${C.greenLt} !important; }
+        select, input { transition: border-color .15s ease, box-shadow .15s ease; }
+        select:focus, input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
+        .msc-modal-card { animation: riseIn .18s cubic-bezier(.2,.8,.3,1); }
+      `}</style>
 
-      {/* ── Edit Modal ──────────────────────────────────────────────────── */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {/* ── Edit / List Modal ── */}
       {editingItem && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Edit Item</span>
-              <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 560, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                  <TagIcon size={15} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>{editingItem.id ? "Edit Listing" : "List Item"}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{editingItem.brand} · {editingItem.name}</div>
+                </div>
+              </div>
+              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            <div style={{ padding:"20px 24px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-                <Field label="Brand *" error={editErrors.brand}>
-                  <select
-                    value={editingItem.brand || ""}
-                    onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
-                    <option value="">Select brand…</option>
-                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                  </select>
+            <div style={{ padding: "22px 24px" }}>
+              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 14 }}>ℹ️</span>
+                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
+                <Field label="Brand">
+                  <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
                 </Field>
-                <Field label="Item Name *" error={editErrors.name}>
-                  {(() => {
-                    const stockNames = getStockNamesForBrand(editingItem.brand);
-                    // keep the item's current name selectable even if it's no longer in the stock list
-                    const options = editingItem.name && !stockNames.includes(editingItem.name)
-                      ? [editingItem.name, ...stockNames]
-                      : stockNames;
-                    return (
-                      <select
-                        value={editingItem.name}
-                        disabled={!editingItem.brand}
-                        onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
-                        style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}`,
-                          opacity: !editingItem.brand ? 0.6 : 1, cursor: !editingItem.brand ? "not-allowed" : "pointer" }}>
-                        {!editingItem.brand && <option value="">Select brand first…</option>}
-                        {options.map(n => <option key={n} value={n}>{n}</option>)}
-                      </select>
-                    );
-                  })()}
+                <Field label="Item Name">
+                  <div style={readOnlyFieldStyle}>{editingItem.name}</div>
                 </Field>
-                <Field label="Price" error={editErrors.price}>
-                  <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+                <Field label="Shop Price" error={editErrors.cost}>
+                  <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computePrice(editingItem.cost)) : "—"}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
+                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} + 10%` : "no cost set"}
+                    </span>
+                  </div>
                 </Field>
                 <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
-                <Field label="Stock (synced from Stock Inventory)">
-                  <div style={{
-                    ...msInputStyle, background:"#f5f5f5", color:C.muted, fontWeight:700,
-                    display:"flex", alignItems:"center", cursor:"not-allowed",
-                  }}>
-                    {editingItem.stock ?? 0}
-                  </div>
-                  <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
-                    Stock updates automatically when batches are received or adjusted in Stock Inventory.
-                  </span>
-                </Field>
-                <PhotoPicker
-                  value={editingItem.image_url}
-                  onPick={e => handleImageSelect(e, "edit")}
-                  onRemove={() => setEditingItem({ ...editingItem, image_url:"" })}
-                  inputRef={editImageRef}
-                  error={editErrors.image_url}
-                />
+                <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
               </div>
-              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
-                <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-                  Cancel
-                </button>
-                <button onClick={saveEdit} disabled={editLoading}
-                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
-                    background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                    color:C.white, fontWeight:800, fontSize:13, cursor: editLoading ? "not-allowed" : "pointer",
-                    opacity: editLoading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-                  {editLoading ? "Saving…" : "Save Changes"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
 
-      {/* ── Add New Item Modal (was a solo card — now a popup like Edit) ─── */}
-      {showAddModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Add New Item</span>
-              <button onClick={closeAddModal}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
-            </div>
-            <div style={{ padding:"20px 24px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-                <Field label="Brand *" error={errors.brand}>
-                  <select
-                    value={newItem.brand}
-                    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value, name:"" })}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
-                    <option value="">Select brand…</option>
-                    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-                  </select>
-                </Field>
-                <Field label="Item Name *" error={errors.name}>
-                  {(() => {
-                    const stockNames = getStockNamesForBrand(newItem.brand);
-                    return (
-                      <>
-                        <select
-                          value={newItem.name}
-                          disabled={!newItem.brand}
-                          onChange={e => setNewItem({ ...newItem, name: e.target.value })}
-                          style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}`,
-                            opacity: !newItem.brand ? 0.6 : 1, cursor: !newItem.brand ? "not-allowed" : "pointer" }}>
-                          <option value="">
-                            {!newItem.brand ? "Select brand first…" : stockNames.length === 0 ? "No products found for this brand" : "Select item…"}
-                          </option>
-                          {stockNames.map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                        {newItem.brand && stockNames.length === 0 && (
-                          <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
-                            No matching products in Stock Inventory for this brand yet.
-                          </span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </Field>
-              <Field label="Stock (synced from Stock Inventory)">
-                <div style={{
-                  ...msInputStyle, background:"#f5f5f5", color:C.muted, fontWeight:700,
-                  display:"flex", alignItems:"center", cursor:"not-allowed",
-                }}>
-                  0
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
+                <div onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}
+                  style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", position: "relative", background: editingItem.is_visible !== false ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0", transition: "background .2s", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 3, left: editingItem.is_visible !== false ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left .2s" }} />
                 </div>
-                <span style={{ fontSize:11, color:C.muted, fontStyle:"italic", marginTop:4, display:"block" }}>
-                  New items start at 0 stock. Use Receive Stock in Stock Inventory to add inventory.
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: "pointer" }} onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}>
+                  Visible in Mobile Shop
                 </span>
-              </Field>
-                <Field label="Price *" error={errors.price}>
-                  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
-                </Field>
-                <PhotoPicker
-                  value={newItem.image_url}
-                  onPick={e => handleImageSelect(e, "add")}
-                  onRemove={() => setNewItem({ ...newItem, image_url:"" })}
-                  inputRef={addImageRef}
-                  error={errors.image_url}
-                />
               </div>
 
-              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
-                <button onClick={closeAddModal}
-                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              <div style={{ marginTop: "1.4rem", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => { setEditingItem(null); setEditErrors({}); }} className="msc-btn"
+                  style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
                   Cancel
                 </button>
-                <button onClick={addItem} disabled={loading}
-                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
-                    background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                    color:C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-                  {loading ? "Adding…" : "Add Item"}
+                <button onClick={saveEdit} disabled={editLoading} className="msc-btn"
+                  style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "inherit" }}>
+                  {editLoading ? "Saving…" : editingItem.id ? "Save Changes" : "List Item"}
                 </button>
               </div>
             </div>
@@ -4571,125 +4452,198 @@ const toggleVisibility = async (id) => {
         </div>
       )}
 
-      {/* ── Shop Items Table ---*/}
-      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
-        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
-          <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
+      {/* ── Unlist Confirmation Modal ── */}
+      {confirmDeleteItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 400, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdeeee", color: "#e53935", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <AlertIcon />
+              </div>
+              <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Unlist this item?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+                <strong style={{ color: C.ink }}>{confirmDeleteItem.name}</strong> will be removed from the Mobile Shop. It'll stay in Stock Inventory and can be relisted anytime.
+              </div>
+            </div>
+            <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDeleteItem(null)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button onClick={() => deleteItem(confirmDeleteItem)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
+                {deleteLoading ? "Unlisting…" : "Yes, Unlist"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Shop Items Card ── */}
+      <div style={{ background: C.white, borderRadius: 18, border: "1px solid rgba(0,168,76,0.12)", boxShadow: "0 4px 20px rgba(0,140,60,0.08)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: "-0.01em" }}>Mobile Shop Supplies</div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set at cost + 10% · click a row to select it for listing</div>
+          </div>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", fontWeight: 700, background: "rgba(255,255,255,0.15)", padding: "5px 12px", borderRadius: 20 }}>{items.length} product{items.length !== 1 ? "s" : ""}</span>
         </div>
 
-        {/* Toolbar: search, filter, and the three aligned action buttons */}
-        <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-          <div style={{ position:"relative" }}>
-            <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+        {/* Toolbar */}
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fafffe" }}>
+          <div style={{ position: "relative" }}>
+            <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
             <input
-              type="text"
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding:"7px 12px 7px 28px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", width:220 }}
+              type="text" placeholder="Search items…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "inherit", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
             />
           </div>
-          <select
-            value={filterShop}
-            onChange={e => setFilterShop(e.target.value)}
-            style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, fontSize:13, background:C.bg, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 120}}>
             <option value="all">All Shops</option>
-            {uniqueShops.map(shop => <option key={shop} value={shop}>{shop}</option>)}
+            {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
           </select>
-          {(searchQuery || filterShop !== "all") && (
-            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }}
-              style={{ padding:"7px 12px", borderRadius:9, border:`1px solid ${C.border}`, background:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", color:"#5a7a65" }}>
+          <select value={filterListed} onChange={(e) => setFilterListed(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 130 }}>
+            <option value="all">All Statuses</option> 
+            <option value="listed">Listed Only</option>
+            <option value="unlisted">Not Listed</option>
+          </select>
+          {(searchQuery || filterShop !== "all" || filterListed !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); setFilterListed("all"); }} className="msc-btn"
+              style={{ height: 30, padding: "0 8px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
               Clear
             </button>
           )}
 
-          {/* ── Add Item / Import Excel / Activity Log — aligned together ── */}
-          <button onClick={() => setShowAddModal(true)}
-            style={{ ...toolbarBtnSt, background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white, boxShadow:"0 2px 10px rgba(0,180,90,0.28)" }}>
-            <span style={{ fontSize:15 }}>+</span> Add Item
-          </button>
+<span style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+  <button
+    onClick={() => bulkListItems(selectedItems)}
+    disabled={bulkListing || selectedUnlistedCount === 0}
+    className="msc-btn"
+    title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
+    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
+    <ListIcon size={12} /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
+  </button>
+  <button
+    onClick={() => bulkUnlistItems(selectedItems)}
+    disabled={bulkListing || selectedUnlistedCount === selectedItems.length}
+    className="msc-btn"
+    title={selectedItems.filter(i => i.listed).length === 0 ? "Select listed items in the table to enable this" : "Unlist all selected items"}
+    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: "1.5px solid #ffcdd2", background: "#fdeeee", color: "#c62828" }}>
+    <TrashIcon size={12} /> Unlist Items{selectedItems.filter(i => i.listed).length > 0 ? ` (${selectedItems.filter(i => i.listed).length})` : ""}
+  </button>
+  <button
+    onClick={() => bulkListItems(filteredItems)}
+    disabled={bulkListing || allUnlistedCount === 0}
+    className="msc-btn"
+    title="List every currently unlisted item shown below"
+    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
+    <LayersIcon size={12} /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
+  </button>
+</span>
 
-          <label style={{ ...toolbarBtnSt, border:`1px solid ${C.border}`, background:C.white, color:C.ink }}>
-            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-            Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-
-          <button onClick={() => setShowDeleteHistory(true)}
-            style={{ ...toolbarBtnSt, border:`1px solid #ffcdd2`, background:C.white, color:"#e53935" }}>
-            <HistoryIcon size={13}/> Delete History
-            {deleteHistory.length > 0 && (
-              <span style={{ background:"#e53935", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20, marginLeft:4 }}>
-                {deleteHistory.length}
-              </span>
-            )}  
-          </button>
-
-          <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
-            {filteredItems.length} of {items.length} items
+          <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
+            {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
           </span>
         </div>
 
-        {filteredItems.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
+        {itemsLoading ? (
+          <div style={{ padding: "60px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+            <RefreshCw size={20} style={{ animation: "spin 0.9s linear infinite", marginBottom: 10 }} />
+            <div>Loading shop items…</div>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ padding: "56px 0", textAlign: "center", color: C.muted }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, opacity: 0.4 }}><BoxIcon /></div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>No products found</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Add products in Stock Inventory first — they will then appear here.</div>
+          </div>
         ) : (
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Price","Stock","Unit","Status",""].map((label, i) => (
-                    <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
+                  <th style={{ padding: "11px 0 11px 18px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: "#f8fffe", width: 34 }}>
+                    <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered}
+                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} title="Select all shown" />
+                  </th>
+                  {["", "Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
+                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 6 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
                       {label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map(item => {
+                {filteredItems.map((item) => {
+                  const rowKey = keyFor(item);
+                  const isSelected = selectedKeys.has(rowKey);
                   return (
-                    <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                      <td style={{ padding:"10px 12px" }}>
-                        <img src={item.image_url || null} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
+                    <tr
+                      key={rowKey}
+                      className={`msc-row${isSelected ? " selected" : ""}`}
+                      onClick={() => toggleSelect(rowKey)}
+                      style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
+                    >
+                      <td onClick={(e) => e.stopPropagation()} style={{ padding: "11px 0 11px 18px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(rowKey)}
+                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} />
                       </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.shop}</span>
+                      <td style={{ padding: "11px 14px" }}>
+                        <div style={{ position: "relative", width: 40, height: 40 }}>
+                          <img src={item.image_url || null} alt="" style={{ width: 40, height: 40, borderRadius: 9, objectFit: "cover", border: `1px solid ${C.border}`, display: "block", background: C.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }} onError={(e) => (e.target.style.visibility = "hidden")} />
+                          {isSelected && (
+                            <div style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, borderRadius: "50%", background: C.green, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
+                              <CheckCircleIcon size={10} />
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{
-                          padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700,
-                          background: item.stock === 0 ? "#fde8e8" : item.stock <= 5 ? "#fff3e0" : "#e0f2f1",
-                          color: item.stock === 0 ? "#c62828" : item.stock <= 5 ? "#e65100" : "#00695c",
-                        }}>
-                          {item.stock ?? 0}
-                        </span>
+                      <td style={{ padding: "11px 14px" }}>
+                        <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
                       </td>
-                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                          {item.is_visible ? "Visible" : "Hidden"}
-                        </span>
+                      <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.cost > 0 ? (
+                          <div>
+                            <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
+                            <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                          </div>
+                        ) : (
+                          <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
+                        )}
                       </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                          <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
-                            style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
-                            Edit
+                      <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.listed ? (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                            {item.is_visible ? "Visible" : "Hidden"}
+                          </span>
+                        ) : (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
+                            Not Listed
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                          <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
+                            style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
+                            <EditIcon /> {item.listed ? "Edit" : "List"}
                           </button>
-                          <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
-                            {item.is_visible ? "Hide" : "Show"}
-                          </button>
-                          <button onClick={() => handleDeleteItem(item)}
-                            style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935" }}>
-                            <TrashIcon size={12}/> Delete
-                          </button>
+                          {item.listed && (
+                            <>
+                              <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
+                                style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
+                                {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
+                              </button>
+                              <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
+                                style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
+                                <TrashIcon />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -4700,15 +4654,6 @@ const toggleVisibility = async (id) => {
           </div>
         )}
       </div>
-
-<Toast toast={toast} onClose={() => setToast(null)} />
-<UIModal modal={uiModal} onClose={closeUiModal} onConfirm={closeUiModal} />
-<ShopDeleteConfirmModal item={deleteTarget} deleting={deleting} onConfirm={confirmDelete} onCancel={() => { if (!deleting) setDeleteTarget(null); }} />
-<ImportLoadingModal visible={importLoading} progress={importProgress} />
-{showDeleteHistory && (
-  <ShopDeleteHistoryPanel history={deleteHistory} restoringId={restoringId} onRestore={handleRestore} onClose={() => setShowDeleteHistory(false)} />
-)}
-  
     </div>
   );
 }
@@ -4717,7 +4662,7 @@ function generateTempPassword(length = 10) {
   const groups = [
     "ABCDEFGHJKLMNPQRSTUVWXYZ",
     "abcdefghjkmnpqrstuvwxyz",
-    "23456789",
+    "123456789",
     "!@#$",
   ];
   const chars = groups.join("");
@@ -8982,23 +8927,6 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     } catch (err) { console.error("Failed to fetch orders activity log:", err); }
   }, [apiUrl]);
 
-  const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          item_name: itemName,
-          branch: branchName,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          changes,
-        }),
-      });
-    } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
-  }, [user]);
-
   const handleRefreshClick = async () => {
     setRefreshingOrders(true);
     showToast("loading", "Refreshing orders…");
@@ -9047,6 +8975,9 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     return Array.isArray(d) ? d : [];
   };
 
+/* ── automatic stock availability, sourced entirely from Stock Inventory
+     (ingredients/ingredient_batches). shop_items.stock is just a mirror of
+     this now — never treated as authoritative. ── */
   const refreshStockAvailability = useCallback(async (orderList) => {
     const pendingOrders = orderList.filter(o => o.status === "pending");
     if (pendingOrders.length === 0) return;
@@ -9059,12 +8990,12 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
     let shopItemsMap;
     try {
-      shopItemsMap = await fetchShopItemsMap();
+      shopItemsMap = await fetchShopItemsMap(); // still needed to resolve shop_item_id -> ingredient_id
     } catch {
-      return; // leave previous state on failure rather than wiping availability
+      return;
     }
 
-    const batchStockCache = {}; // shared across orders in this pass — avoids duplicate fetches
+    const batchStockCache = {}; // shared across orders in this pass
     const getIngredientStock = async (ingredientId) => {
       if (batchStockCache[ingredientId] != null) return batchStockCache[ingredientId];
       const batches = await fetchBatchesFor(ingredientId);
@@ -9083,13 +9014,11 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       const results = [];
       for (const item of order.items) {
         const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
-        if (!si) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
 
-        let available = Number(si.stock || 0);
-        if (si.ingredient_id) {
-          const ingredientStock = await getIngredientStock(si.ingredient_id);
-          available = Math.min(available, ingredientStock);
-        }
+        // No linked ingredient = can't be fulfilled, same as backend now enforces.
+        if (!si || !si.ingredient_id) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
+
+        const available = await getIngredientStock(si.ingredient_id);
         const totalNeeded = neededByItem[item.shop_item_id];
         results.push({ ...item, matched:true, available, sufficient: available >= totalNeeded });
       }
@@ -9103,12 +9032,19 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     if (orders.length > 0) refreshStockAvailability(orders);
   }, [orders, refreshStockAvailability]);
 
-  const advanceStatus = async (order, nextUiStatus, changeNote) => {
+const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
+    const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
     try {
       const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
         method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
-        body: JSON.stringify({ status:dbStatus }),
+        body: JSON.stringify({
+          status: dbStatus,
+          performed_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
       });
       if (!res.ok) {
         let detail = "";
@@ -9117,7 +9053,6 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       }
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
       setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
-      await logActivity("edit", `Order #${order.id}`, order.branch, changeNote || `status → ${nextUiStatus}`);
       await fetchActivityLog();
     } catch (err) {
       showToast("error", "Couldn't update order", err.message);
@@ -9125,23 +9060,7 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     }
   };
 
-  const deductStock = async (item, order) => {
-    const res = await fetch(`${apiUrl}/shop-items/${item.shop_item_id}/deduct-stock`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity: item.qty, performed_by: userName,  performed_by_role: user?.role || "Unknown", order_id: order.id }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `Failed to deduct stock for ${item.name}`);
-    }
-    return res.json();
-  };
-
-  /* ── NEW: accepting now deducts stock immediately (folds in what the old
-     dispose-confirm step used to do) and moves the order to "shipping" for
-     the franchisee side, since availability was already guaranteed up front. ── */
-  const acceptOrderWithDeduction = async (order) => {
+    const acceptOrderWithDeduction = async (order) => {
     const availability = stockAvailability[order.id];
     if (!availability?.ok) {
       const short = (availability?.results || []).filter(r => !r.sufficient);
@@ -9150,20 +9069,13 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
       return false;
     }
 
-    // merge quantities per shop_item_id (same item can appear more than once)
-    const merged = {};
-    for (const r of availability.results) {
-      if (!r.matched) continue;
-      if (!merged[r.shop_item_id]) merged[r.shop_item_id] = { ...r, qty: 0 };
-      merged[r.shop_item_id].qty += Number(r.qty || 0);
+    try {
+      await advanceStatus(order, "accepted", `Accepted — stock deducted, moved to shipping`);
+      return true;
+    } catch (err) {
+      showToast("error", "Couldn't accept order", err.message || "Something went wrong accepting this order.");
+      return false;
     }
-
-    for (const m of Object.values(merged)) {
-      await deductStock(m, order);
-    }
-
-    await advanceStatus(order, "accepted", `Accepted — stock deducted, moved to shipping`);
-    return true;
   };
 
   const handleAccept = async (order) => {
