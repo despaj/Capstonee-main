@@ -332,9 +332,6 @@ router.get("/users-activity-log", async (req, res) => {
   }
 });
 
-// =====================================================
-// VERIFY MANAGER PASSWORD
-// =====================================================
 router.post("/verify-manager-password", async (req, res) => {
   try {
     const { branch, password } = req.body;

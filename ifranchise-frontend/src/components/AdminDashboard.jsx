@@ -3973,6 +3973,9 @@ const getBrowserLocation = () => {
 const computePrice = (cost) => (cost > 0 ? Math.round(cost * MARKUP * 100) / 100 : 0);
 const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(item.brand)}-${normalize(item.name)}`);
 
+const placeholderImageFor = (name) =>
+  `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
+
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4146,7 +4149,6 @@ const filteredItems = items.filter((item) => {
 
   const validateEdit = () => {
     const errs = {};
-    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
     if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
@@ -4179,10 +4181,10 @@ const filteredItems = items.filter((item) => {
       name: editingItem.name,
       price: computePrice(liveCost),
       unit: editingItem.unit || "",
-      image_url: editingItem.image_url,
+      image_url: editingItem.image_url || placeholderImageFor(editingItem.name),
       shop: editingItem.brand,
       brand: editingItem.brand,
-      ingredient_id: editingItem.ingredient_id || null, 
+      ingredient_id: editingItem.ingredient_id || null,
       is_visible: editingItem.is_visible !== false,
       performed_by: user?.name || "System",
       performed_by_role: user?.role || "Unknown",
@@ -4229,7 +4231,7 @@ const filteredItems = items.filter((item) => {
         name: it.name,
         price: computePrice(liveCost),
         unit: it.unit || "",
-        image_url: it.image_url || null,
+        image_url: it.image_url || placeholderImageFor(it.name),
         shop: it.brand,
         brand: it.brand,
         ingredient_id: it.ingredient_id || null,
@@ -4331,7 +4333,7 @@ const bulkUnlistItems = async (candidateItems) => {
   };
 
   const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
-    <Field label="Photo *" error={error}>
+    <Field label="Photo (optional)" error={error}>
       <div
         onClick={() => inputRef.current.click()}
         style={{
@@ -4348,12 +4350,13 @@ const bulkUnlistItems = async (candidateItems) => {
               ✕
             </button>
           </div>
-        ) : (
-          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
-            Click to upload photo
-          </div>
-        )}
+          ) : (
+            <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
+              <div style={{ fontSize: 22, marginBottom: 4 }}></div>
+              Click to upload photo
+              <div style={{ fontSize: 10.5, marginTop: 4, opacity: 0.75 }}>optional</div>
+            </div>
+          )}
       </div>
     </Field>
   );
@@ -4424,7 +4427,7 @@ const bulkUnlistItems = async (candidateItems) => {
                     style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
                 <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
-              </div>
+                </div>
               <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
 
               <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
