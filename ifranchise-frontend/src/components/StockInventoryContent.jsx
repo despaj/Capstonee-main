@@ -1987,7 +1987,7 @@ const restoreBatch = async (entry) => {
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [], initialFocus = null }) {
-  const isAdmin    = user?.role === "Super Admin";
+  const isAdmin = user?.role === "Super Admin" || user?.role === "Franchisee Operations Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
 
