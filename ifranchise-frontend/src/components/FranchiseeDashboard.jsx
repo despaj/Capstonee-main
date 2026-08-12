@@ -3409,6 +3409,68 @@ function FrReceiptsContent({ user }) {
   );
 }
 
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+      </div>
+
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FrReportsContent({ user, transactions = [] }){
   const branch = (user?.branch || '').trim();
   const today = new Date();
@@ -3435,6 +3497,25 @@ function FrReportsContent({ user, transactions = [] }){
   const [subPage,  setSubPage]  = useState(0);
   const [delPage,  setDelPage]  = useState(0);
 
+  const [toast, setToast] = useState(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
+  const showToast = (type, title, message) => setToast({ type, title, message });
+
+  const fmtPeriod = (period) => {
+  if (!period) return "—";
+  const parts = period.split("→").map(s => s.trim());
+  if (parts.length !== 2) return period;
+  const fmtOne = (d) => {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+  return `${fmtOne(parts[0])} - ${fmtOne(parts[1])}`;
+};
+
   const getBrowserLocation = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) { resolve(null); return; }
@@ -3445,7 +3526,7 @@ function FrReportsContent({ user, transactions = [] }){
     );
   });
 };
-  
+
   useEffect(() => { setGenPage(0); }, [reports]);
   useEffect(() => { setSubPage(0); }, [submittedReports]);
   useEffect(() => { setDelPage(0); }, [deletedReports]);
@@ -3567,7 +3648,7 @@ useEffect(() => {
 }, [dateFrom, dateTo]);
 
   const generateReport = async () => {
-  if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
+  if (!dateFrom || !dateTo) { showToast("error", "Missing Date Range", "Please select a date range first."); return; }
   setGenerating(true);
   setAiReport('');
   try {
@@ -3765,7 +3846,7 @@ ${topItems}
     };
 
 const deleteReport = async report => {
-  if (!window.confirm(`Delete report for ${report.period}? It will be recoverable for 30 days.`)) return;
+  setDeletingId(report.localId || report.id);
 
   if (!report.id) {
     setDeletedReports(prev => [{
@@ -3775,21 +3856,23 @@ const deleteReport = async report => {
     }, ...prev]);
     setReports(prev => prev.filter(r => r.localId !== report.localId));
     if (viewReportId === report.id) setViewReportId(null);
+    setDeletingId(null);
+    setConfirmDeleteTarget(null);
     return;
   }
 
-    try {
-        const coords = await getBrowserLocation();
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            performedBy: user?.name || user?.email || 'Branch Manager',
-            role: user?.role || 'Branch Manager',
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-          }),
-        });
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        performedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
     if (!res.ok) throw new Error('Delete failed');
     const data = await res.json();
 
@@ -3800,8 +3883,12 @@ const deleteReport = async report => {
     }, ...prev]);
     setReports(prev => prev.filter(r => r.id !== report.id));
     if (viewReportId === report.id) setViewReportId(null);
+    showToast("success", "Report Deleted", `Report for ${fmtPeriod(report.period)} moved to history.`);
   } catch {
-    alert('Failed to delete report. Please try again.');
+    showToast("error", "Delete Failed", "Failed to delete report. Please try again.");
+  } finally {
+    setDeletingId(null);
+    setConfirmDeleteTarget(null);
   }
 };
 
@@ -3843,8 +3930,9 @@ setRetrieving(report.id);
       saved: false,
     }, ...prev]);
     setDeletedReports(prev => prev.filter(r => r.id !== report.id));
+    showToast("success", "Report Restored", `Report for ${fmtPeriod(report.period)} has been restored.`);
   } catch {
-    alert('Failed to retrieve report. Please try again.');
+    showToast("error", "Retrieve Failed", "Failed to retrieve report. Please try again.");
   }
   setRetrieving(null);
 };
@@ -3899,7 +3987,7 @@ setRetrieving(report.id);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(160, 220, 190);
-    const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+    const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
     
     doc.text(`REP-${String(report.id).padStart(5, '0')}   |   Branch: ${branch}   |   Period: ${safePeriod}`, pageW / 2, 22, { align: 'center' });
     doc.text(`Generated: ${report.generatedDate}`, pageW / 2, 28, { align: 'center' });
@@ -3978,7 +4066,7 @@ setRetrieving(report.id);
       doc.setFontSize(7.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(120, 140, 130);
-      const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+      const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
       doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
       doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
     }
@@ -3987,20 +4075,23 @@ setRetrieving(report.id);
   };
 
 const saveReport = async report => {
-  if (!report.id) { alert('No report ID found. Try regenerating.'); return; }
+  if (!report.id) { showToast("error", "Save Failed", "No report ID found. Try regenerating."); return; }
+  setSavingId(report.id);
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const responseData = await res.json();
-    if (res.status === 409) { alert('Report already saved.'); return; }
+    if (res.status === 409) { showToast("error", "Already Saved", "This report has already been saved."); return; }
     if (!res.ok) throw new Error(responseData.error || 'Unknown error');
 
     setReports(prev => prev.map(r => r.id === report.id ? { ...r, saved: true } : r));
-    alert('Report saved successfully!');
-  } catch(err) {
-    alert('Failed to save report.');
+    showToast("success", "Report Saved", "The report has been saved successfully.");
+  } catch {
+    showToast("error", "Save Failed", "Failed to save report. Please try again.");
+  } finally {
+    setSavingId(null);
   }
 };
 
@@ -4042,8 +4133,9 @@ const submitReport = async report => {
     }, ...prev]);
 
     setReports(prev => prev.filter(r => r.id !== report.id));
+    showToast("success", "Report Submitted", `Report for ${fmtPeriod(report.period)} sent for review.`);
   } catch {
-    alert('Failed to submit report. Please try again.');
+    showToast("error", "Submit Failed", "Failed to submit report. Please try again.");
   }
   setSubmitting(null);
 };
@@ -4098,6 +4190,13 @@ const submitReport = async report => {
         icon={<FileText size={20} />}
         color="purple"
       />
+      <ConfirmDeleteReportModal
+        report={confirmDeleteTarget}
+        deleting={deletingId !== null}
+        onConfirm={() => confirmDeleteTarget && deleteReport(confirmDeleteTarget)}
+        onCancel={() => { if (!deletingId) setConfirmDeleteTarget(null); }}
+      />
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
 
     
@@ -4194,10 +4293,12 @@ const submitReport = async report => {
                         <button
                           className="v-btn v-btn-sm v-btn-blue"
                           onClick={() => saveReport(r)}
-                          disabled={r.saved}
-                          style={{ opacity: r.saved ? 0.6 : 1 }}
+                          disabled={r.saved || savingId === r.id}
+                          style={{ opacity: (r.saved || savingId === r.id) ? 0.6 : 1 }}
                         >
-                          <Save size={12} /> {r.saved ? 'Saved' : 'Save'}
+                          {savingId === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Saving…</>
+                            : <><Save size={12} /> {r.saved ? 'Saved' : 'Save'}</>}
                         </button>
                         <button
                           className="v-btn v-btn-primary v-btn-sm"
@@ -4295,8 +4396,8 @@ const submitReport = async report => {
   {(() => {
     const s = (h.status || 'submitted').toLowerCase();
     const cfg = {
-      approved: { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Approved' },
-      submitted: { bg: '#dbeafe', color: '#1e40af', dot: '#3b82f6', label: 'Submitted' },
+      approved:  { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Acknowledged' },
+      submitted: { bg: '#faeeda', color: '#633806', dot: '#BA7517', label: 'Pending' },
     };
     const { bg, color, dot, label } = cfg[s] || cfg.submitted;
     return (
@@ -4444,6 +4545,44 @@ const submitReport = async report => {
               <Paginator total={deletedReports.length} page={delPage} setPage={setDelPage} />
           </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteReportModal({ report, deleting, onConfirm, onCancel }) {
+
+  const fmtPeriod = (period) => {
+  if (!period) return "—";
+  const parts = period.split("→").map(s => s.trim());
+  if (parts.length !== 2) return period;
+  const fmtOne = (d) => {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+  return `${fmtOne(parts[0])} - ${fmtOne(parts[1])}`;
+};
+
+  if (!report) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Poppins,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5, fontFamily:"Montserrat,sans-serif" }}>Delete Report</div>
+          <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.6 }}>
+            Delete the report for <strong>{fmtPeriod(report.period)}</strong>? It will be recoverable for 30 days.
+          </div>
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} disabled={deleting} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 18px", borderRadius:9, border:"none", background: deleting ? "#ef9a9a" : "#dc2626", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
+            {deleting
+              ? <><div style={{ width:12, height:12, border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin .8s linear infinite" }} /> Deleting…</>
+              : "Yes, Delete"}
+          </button>
+        </div>
       </div>
     </div>
   );

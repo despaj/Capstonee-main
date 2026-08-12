@@ -1,98 +1,312 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import * as XLSX from "xlsx";
-import { RefreshCw, AlertTriangle, Check, X, Trash2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import logo from '../assets/logo.png';
+import Receipts from './Receipts';
+import jsPDF from 'jspdf';
+import {
+  Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
+  User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
+  DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
+  ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
+  Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
+  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown,
+  Brain, PieChart, LineChart, Sparkles, Shield, Send, Save, Receipt, Printer, Banknote, QrCode, CreditCard
+} from 'lucide-react';
+import StockInventoryContent from './StockInventoryContent';
+import MenuInventoryContent from './MenuInventoryContent';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
-  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
-  ok:"#2e7d32", okBg:"#e8f5e9",
+
+
+const VIBE_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --g1:#00c853; --g2:#00897b; --g3:#1a4a2e; --g4:#0d2b1e;
+    --green-primary:#2E7D32; --green-dark:#1B5E20; --green-light:#4CAF50;
+    --green-accent:#d4df33; --green-bg:#ccfcc7; --white:#ffffff;
+    --off-white:#F0EFE7; --gray-100:#F3F4F6; --gray-200:#E5E7EB;
+    --gray-300:#D1D5DB; --gray-400:#9CA3AF; --gray-500:#6B7280;
+    --gray-600:#4B5563; --gray-700:#374151; --gray-800:#1F2937;
+    --text-dark:#1A1A1A; --text-gray:#004d00;
+    --shadow:rgba(46,125,50,0.1); --shadow-strong:rgba(46,125,50,0.2);
+    --blue:#3B82F6; --red:#EF4444; --orange:#F59E0B; --success:#10B981;
+    --card-border:rgba(0,168,76,0.12);
+    --grad-main:linear-gradient(135deg,#00c853,#00897b);
+    --grad-dark:linear-gradient(135deg,#0d2b1e,#1a4a2e);
+    --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
+    --grad-bg:linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%);
+    --grad-blue:linear-gradient(135deg,#3b82f6,#1d4ed8);
+    --grad-orange:linear-gradient(135deg,#f59e0b,#d97706);
+    --grad-red:linear-gradient(135deg,#ef4444,#dc2626);
+    --grad-purple:linear-gradient(135deg,#8b5cf6,#7c3aed);
+  }
+  .v-card {
+    background:#fff; border:1px solid var(--card-border);
+    border-radius:20px; box-shadow:0 2px 20px rgba(0,140,60,0.07);
+    transition:transform .2s,box-shadow .2s; overflow:hidden;
+  }
+  .v-card:hover { transform:translateY(-3px); box-shadow:0 10px 32px rgba(0,140,60,0.14); }
+  .v-kpi {
+    background:#fff; border:1px solid var(--card-border);
+    border-radius:20px; padding:22px 24px;
+    box-shadow:0 2px 16px rgba(0,140,60,0.07);
+    transition:transform .2s,box-shadow .2s;
+    position:relative; overflow:hidden;
+  }
+  .v-kpi::before {
+    content:''; position:absolute; top:-30px; right:-30px;
+    width:100px; height:100px; border-radius:50%;
+    background:linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06));
+    pointer-events:none;
+  }
+  .v-kpi:hover { transform:translateY(-4px); box-shadow:0 12px 36px rgba(0,140,60,0.15); }
+  .v-kpi-label { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:#5a7a65; margin-bottom:8px; font-family:'Montserrat',sans-serif; }
+  .v-kpi-value { font-family:'Montserrat',sans-serif; font-size:26px; font-weight:800; color:#0d2b1e; }
+  .v-kpi-sub { font-size:11px; font-weight:600; color:#94a3b8; margin-top:4px; font-family:'Poppins',sans-serif; }
+  .v-kpi-icon { width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .v-kpi-icon.green { background:rgba(0,200,83,0.1); color:#00897b; }
+  .v-kpi-icon.blue  { background:rgba(59,130,246,0.1); color:#3b82f6; }
+  .v-kpi-icon.orange{ background:rgba(245,158,11,0.1); color:#f59e0b; }
+  .v-kpi-icon.red   { background:rgba(239,68,68,0.1); color:#ef4444; }
+  .v-kpi-icon.purple{ background:rgba(139,92,246,0.1); color:#8b5cf6; }
+  .v-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid rgba(0,168,76,0.1); }
+  .v-section-title { font-family:'Montserrat',sans-serif; font-size:1.3rem; font-weight:800; color:#0d2b1e; display:flex; align-items:center; gap:10px; }
+  .v-section-title-accent { width:6px; height:24px; border-radius:3px; background:var(--grad-main); }
+  .v-btn { padding:9px 20px; border-radius:12px; border:none; font-weight:700; cursor:pointer; transition:all .2s; font-family:'Montserrat',sans-serif; font-size:13px; display:inline-flex; align-items:center; gap:7px; letter-spacing:.02em; }
+  .v-btn-primary { background:var(--grad-main); color:#fff; box-shadow:0 4px 14px rgba(0,180,90,.3); }
+  .v-btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,180,90,.4); }
+  .v-btn-secondary { background:var(--gray-100); color:var(--gray-700); border:1px solid var(--gray-200); }
+  .v-btn-secondary:hover { background:var(--gray-200); }
+  .v-btn-danger { background:var(--grad-red); color:#fff; box-shadow:0 4px 14px rgba(239,68,68,.25); }
+  .v-btn-danger:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(239,68,68,.35); }
+  .v-btn-ghost { background:transparent; color:#00897b; border:1.5px solid rgba(0,137,123,0.3); }
+  .v-btn-ghost:hover { background:rgba(0,137,123,0.08); }
+  .v-btn-blue { background:var(--grad-blue); color:#fff; box-shadow:0 4px 14px rgba(59,130,246,.3); }
+  .v-btn-blue:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(59,130,246,.4); }
+  .v-btn-sm { padding:6px 14px; font-size:12px; border-radius:9px; }
+  .v-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px; font-family:'Montserrat',sans-serif; }
+  .v-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.7; }
+  .v-badge-green { background:rgba(0,200,83,0.12); color:#00897b; }
+  .v-badge-orange { background:rgba(245,158,11,0.12); color:#d97706; }
+  .v-badge-red { background:rgba(239,68,68,0.12); color:#dc2626; }
+  .v-badge-blue { background:rgba(59,130,246,0.12); color:#2563eb; }
+  .v-badge-purple { background:rgba(139,92,246,0.12); color:#7c3aed; }
+  .v-table { width:100%; border-collapse:collapse; }
+  .v-table th { text-align:left; padding:12px 16px; font-family:'Montserrat',sans-serif; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#5a7a65; background:rgba(0,168,76,0.05); border-bottom:2px solid rgba(0,168,76,0.1); }
+  .v-table th:first-child { border-radius:12px 0 0 0; }
+  .v-table th:last-child { border-radius:0 12px 0 0; }
+  .v-table td { padding:14px 16px; border-bottom:1px solid rgba(0,168,76,0.07); color:#374151; font-size:13.5px; transition:background .15s; font-family:'Poppins',sans-serif; }
+  .v-table tr:hover td { background:rgba(0,200,83,0.03); }
+  .v-table tr:last-child td { border-bottom:none; }
+  .v-search-wrap { position:relative; }
+  .v-search-wrap svg { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; }
+  .v-search { width:100%; padding:10px 14px 10px 38px; border:2px solid rgba(0,168,76,0.15); border-radius:12px; font-family:'Poppins',sans-serif; font-size:13px; color:#0d2b1e; background:#fafffc; transition:all .2s; outline:none; }
+  .v-search::placeholder { color:#94a3b8; }
+  .v-search:focus { border-color:#00897b; box-shadow:0 0 0 3px rgba(0,137,123,0.1); background:#fff; }
+  .v-form-group { margin-bottom:18px; }
+  .v-form-label { display:block; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:#5a7a65; margin-bottom:7px; font-family:'Montserrat',sans-serif; }
+  .v-form-input, .v-form-select { width:100%; padding:11px 14px; border:2px solid rgba(0,168,76,0.15); border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; color:#0d2b1e; background:#fafffc; outline:none; transition:all .2s; }
+  .v-form-input:focus, .v-form-select:focus { border-color:#00897b; box-shadow:0 0 0 3px rgba(0,137,123,0.1); background:#fff; }
+  .v-form-input:disabled { background:var(--gray-100); color:var(--gray-500); cursor:not-allowed; }
+  .v-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:2000; animation:vFadeIn .2s ease; backdrop-filter:blur(4px); }
+  .v-modal { background:#fff; padding:2rem; border-radius:22px; max-width:500px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 24px 80px rgba(0,0,0,0.25); animation:vSlideUp .25s ease; border:1px solid rgba(0,168,76,0.15); }
+  .v-modal-title { font-family:'Montserrat',sans-serif; font-size:1.4rem; font-weight:800; color:#0d2b1e; margin-bottom:6px; }
+  .v-tabs { display:flex; gap:3px; background:rgba(0,168,76,0.06); border-radius:14px; padding:4px; width:fit-content; margin-bottom:22px; }
+  .v-tab { padding:8px 20px; border-radius:10px; border:none; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s; font-family:'Montserrat',sans-serif; color:#5a7a65; background:transparent; }
+  .v-tab.active { background:var(--grad-main); color:#fff; box-shadow:0 3px 10px rgba(0,180,90,.3); }
+  .v-tab:hover:not(.active) { background:rgba(0,168,76,0.1); color:#0d2b1e; }
+  .v-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:22px; }
+  .v-empty { text-align:center; padding:60px 20px; color:#94a3b8; }
+  .v-empty-icon { font-size:3.5rem; margin-bottom:16px; }
+  .v-empty-title { font-family:'Montserrat',sans-serif; font-size:1.1rem; font-weight:800; color:#5a7a65; margin-bottom:8px; }
+  .v-empty-sub { font-size:13px; line-height:1.6; font-family:'Poppins',sans-serif; }
+  .v-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .v-dot-green { background:#00c853; box-shadow:0 0 6px #00c853; }
+  .v-dot-red { background:#ef4444; box-shadow:0 0 6px #ef4444; }
+  .v-dot-orange { background:#f59e0b; box-shadow:0 0 6px #f59e0b; }
+  .v-dot-blue { background:#3b82f6; box-shadow:0 0 6px #3b82f6; }
+  .placeholder-pill { display:inline-block; padding:5px 12px; border-radius:8px; background:linear-gradient(90deg,rgba(0,168,76,0.06) 25%,rgba(0,168,76,0.12) 50%,rgba(0,168,76,0.06) 75%); background-size:200% 100%; animation:shimmer 2s infinite; border:1.5px dashed rgba(0,168,76,0.25); color:#5a7a65; font-size:12px; font-weight:700; font-family:'Montserrat',sans-serif; margin-top:4px; }
+  .v-pw-box { margin-top:10px; padding:12px 14px; background:rgba(0,168,76,0.04); border:1.5px solid rgba(0,168,76,0.15); border-radius:12px; font-size:12px; }
+  .v-pw-rule { display:flex; align-items:center; gap:7px; padding:3px 0; font-weight:600; font-family:'Poppins',sans-serif; }
+  .v-pw-rule.pass { color:#00897b; }
+  .v-pw-rule.fail { color:#ef4444; }
+  @keyframes vFadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes vSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+`;
+
+
+const fmtPeso = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtReportId = (id) => `REP-${String(id).padStart(5, '0')}`;
+
+ const fmtDate = () =>
+  new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' });
+
+const fmtTime = () =>
+  new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+const generateReceiptNo = () => 'OR-' + Date.now().toString().slice(-8);
+const generateTxnId     = () => 'TXN-' + Math.random().toString(36).toUpperCase().slice(2, 10);
+
+const VAT_RATE        = 0.12;
+const MANAGER_PASSWORD = 'Admin123';
+
+const UNITS = ['pcs','kg','g','liters','ml','tbsp','tsp','cups','bottles','packs','bags','boxes','cans'];
+
+
+const validatePw = pw => {
+  const errs = [];
+  if (pw.length < 8) errs.push('minLength');
+  if (!/[A-Z]/.test(pw)) errs.push('uppercase');
+  if (!/[a-z]/.test(pw)) errs.push('lowercase');
+  if (!/\d/.test(pw)) errs.push('number');
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) errs.push('special');
+  return { valid: errs.length === 0, errs };
 };
 
-const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
-  fontSize:13, color:C.ink, outline:"none",
-  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
-};
-const invLabelSt = {
-  display:"block", fontSize:11, fontWeight:800,
-  color:C.muted, marginBottom:5,
-  textTransform:"uppercase", letterSpacing:"0.07em",
-};
-const btnSt = {
-  display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.white,
-  fontSize:13, fontWeight:700, cursor:"pointer",
-  fontFamily:"inherit", whiteSpace:"nowrap",
-};
-const btnPrimarySt = {
-  ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
-  color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
-};
-const smallBtnSt = {
-  display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 10px", borderRadius:7,
-  fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:C.white,
-};
+const VKpi = ({ label, value, sub, icon, color = 'green', placeholder }) => (
+  <div className="v-kpi">
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      <div style={{ flex: 1 }}>
+        <div className="v-kpi-label">{label}</div>
+        {placeholder
+          ? <div className="placeholder-pill">— Pending connection</div>
+          : <div className="v-kpi-value">{value}</div>}
+      </div>
+      <div className={`v-kpi-icon ${color}`}>{icon}</div>
+    </div>
+    {sub && <div className="v-kpi-sub">{sub}</div>}
+  </div>
+);
 
-const DEFAULT_PROFIT_MARGIN = 40;
-const PAGE_SIZE = 15;
-const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
+const VSectionTitle = ({ children, icon }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="v-section-title-accent" />
+    <span className="v-section-title">
+      {icon && <span style={{ color: '#00897b' }}>{icon}</span>}
+      {children}
+    </span>
+  </div>
+);
 
-const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
+const VEmptyState = ({ icon, title, sub }) => (
+  <div className="v-empty">
+    <div className="v-empty-icon">{icon}</div>
+    <div className="v-empty-title">{title}</div>
+    <div className="v-empty-sub">{sub}</div>
+  </div>
+);
 
-// ─── Fuzzy duplicate detection ────────────────────────────────────────────────
-const normalizeName = str => {
-  if (!str) return "";
-  return str.toLowerCase().trim().replace(/\s+/g," ").replace(/[''']/g,"").replace(/s$/,"");
-};
-const findDuplicate = (name, branch, existingItems) => {
-  const normalizedNew = normalizeName(name);
-  if (!normalizedNew) return null;
-  return existingItems.find(item => {
-    if (item.branch !== branch) return false;
-    return normalizeName(item.name) === normalizedNew;
-  }) || null;
-};
+const VPwBox = ({ errors }) => (
+  <div className="v-pw-box">
+    <div style={{ fontWeight: 800, fontSize: 11.5, color: '#5a7a65', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'Montserrat,sans-serif' }}>Password requirements</div>
+    {[['minLength','At least 8 characters'],['uppercase','One uppercase letter (A-Z)'],['lowercase','One lowercase letter (a-z)'],['number','One number (0-9)'],['special','One special character']].map(([k,t]) => (
+      <div key={k} className={`v-pw-rule ${errors.includes(k) ? 'fail' : 'pass'}`}>
+        <span style={{ fontSize: 14 }}>{errors.includes(k) ? '✗' : '✓'}</span> {t}
+      </div>
+    ))}
+  </div>
+);
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const TagIcon      = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
-const FilterIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
-const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
-const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
-const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-const ArrowLeftIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
+const ReadOnlyBanner = ({ message = 'View only — contact your admin to make changes.' }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '10px 16px', borderRadius: 12, marginBottom: 18,
+    background: 'linear-gradient(135deg,rgba(59,130,246,0.07),rgba(29,78,216,0.04))',
+    border: '1.5px solid rgba(59,130,246,0.15)',
+    fontSize: 12, fontWeight: 600, color: '#2563eb', fontFamily: 'Poppins,sans-serif',
+  }}>
+    <Lock size={14} color="#3b82f6" />
+    {message}
+  </div>
+);
 
-const getBrowserLocation = () => {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
+export default function FranchiseeDashboard() {
+  const navigate = useNavigate();
+  const [activeModule, setActiveModule] = useState(() => {
+    return sessionStorage.getItem('fr_activeModule') || 'dashboard';
   });
-};
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [transactions, setTransactions] = useState([]);
+  const [brands, setBrands] = useState([]);
 
-// ─── Chip ─────────────────────────────────────────────────────────────────────
-function Chip({ label, color, bg, onRemove }) {
+  const getUserFromStorage = () => {
+    const userString =
+    localStorage.getItem('user') ||
+    localStorage.getItem('rememberedUser') ||
+    sessionStorage.getItem('user'); 
+    
+    if (userString) return JSON.parse(userString);
+    return null;
+  };
+  const [user, setUser] = useState(getUserFromStorage);
+
+  useEffect(() => {
+    sessionStorage.setItem('fr_activeModule', activeModule);
+  }, [activeModule]);
+
+  useEffect(() => {
+    const currentUser = getUserFromStorage();
+    if (!currentUser) navigate('/admin-login');
+    else setUser(currentUser);
+  }, []);
+
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL}/transactions`)
+      .then(r => r.json()).then(d => setTransactions(d)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL}/brands`)
+      .then(r => r.json()).then(d => setBrands(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
+
+  const handleLogout = () => setShowLogoutModal(true);
+
+  const confirmLogout = async () => {
+  try {
+    const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const userId = stored ? JSON.parse(stored)?.id : null;
+
+    await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Logout error:", err);
+  } finally {
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberedUser");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("tempUser");
+    sessionStorage.removeItem("fr_activeModule");
+    setShowLogoutModal(false);
+    window.location.href = "/admin-login";
+  }
+};
+  const navigation = [
+    { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
+   { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
+    { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
+    { id: 'pos',            label: 'POS',             icon: <DollarSign size={20} /> },
+    // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
+    { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
+    { id: 'communication',  label: 'Announcement',   icon: <MessageCircle size={20} /> },
+    { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
+    { id: 'logout',         label: 'Logout',          icon: <LogOut size={20} />, action: handleLogout },
+  ];
+
+  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
+
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
       {label} <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
@@ -432,116 +646,727 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId, page, setP
     });
   }, [items, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
-
-  const Th = ({ col, label, style:s }) => {
-    const active = sort.col === col;
-    return (
-      <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
-        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
-        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
-          {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
-        </span>
-      </th>
-    );
+  const startPolling = (id) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/link-status/${id}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          clearInterval(pollRef.current);
+          clearInterval(timerRef.current);
+          setGcashRef(data.gcashRef || refNo);
+          setStep('paid');
+          setTimeout(() => onConfirm(data.gcashRef || refNo), 1500);
+        }
+      } catch {}
+    }, 3000);
   };
-  const ThStatic = ({ label, style:s }) => (
-    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
-  );
 
-  if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
+  const startCountdown = () => {
+    timerRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(timerRef.current);
+          clearInterval(pollRef.current);
+          setStep('error');
+          setErrorMsg('Payment window expired. Please try again.');
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  };
+
+  const handleRetry = () => {
+    clearInterval(pollRef.current);
+    clearInterval(timerRef.current);
+    setStep('loading');
+    setCountdown(180);
+    setErrorMsg('');
+  };
+
+  const fmtCountdown = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-          <thead>
-            <tr>
-              <Th col="name"      label="Item Name"   style={{ minWidth:160 }}/>
-              <Th col="category"  label="Category"    style={{ minWidth:110 }}/>
-              <Th col="branch"    label="Branch"      style={{ minWidth:130 }}/>
-              <Th col="stock"     label="Stock"       style={{ minWidth:72  }}/>
-              <Th col="min_stock" label="Min Stock"   style={{ minWidth:80  }}/>
-              <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
-              <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
-              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
-              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map(item => {
-              const low        = Number(item.stock) <= Number(item.min_stock);
-              const isDeleting = deletingId === item.id;
-              const ingredients= item.ingredients || [];
-              const isExpanded = expandedRows[item.id];
-              return (
-                <React.Fragment key={item.id}>
-                  <tr style={{ borderBottom: isExpanded?"none":`1px solid #f2faf5` }}
-                    onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
-                    </td>
-                    <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
-                        {item.stock}
-                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
-                      </span>
-                    </td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      {ingredients.length === 0 ? (
-                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
-                      ) : (
-                        <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
-                          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
-                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
-                          <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
-                        </button>
-                      )}
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                       <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
-                        <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
-                        style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
-                        {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                        {isDeleting ? "Deleting…" : "Delete"}
-                      </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded && ingredients.length > 0 && (
-                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
-                      <td colSpan={9} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
-                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
-                            Ingredients required per unit:
-                          </span>
-                          {ingredients.map((ing, idx) => (
-                            <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
-                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
-                              <span style={{ color:C.muted }}>×</span>
-                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
-                              {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+    <div onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20, backdropFilter: 'blur(6px)' }}>
+      <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 400, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.3)', fontFamily: "'Montserrat',sans-serif", animation: 'gcashSlideUp .25s cubic-bezier(.22,1,.36,1)' }}>
+        <style>{`
+          @keyframes gcashSlideUp { from{opacity:0;transform:translateY(28px) scale(0.97);} to{opacity:1;transform:translateY(0) scale(1);} }
+          @keyframes paidPop { 0%{transform:scale(0.8);opacity:0;} 70%{transform:scale(1.1);} 100%{transform:scale(1);opacity:1;} }
+          @keyframes scanLine { 0%{top:0;} 100%{top:196px;} }
+        `}</style>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#007acc,#0057a8)', padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 17, color: '#007acc' }}>G</div>
+            <div>
+              <div style={{ fontWeight: 900, fontSize: 15, color: '#fff' }}>GCash via PayMongo</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+                {step === 'loading' && 'Generating payment link…'}
+                {step === 'ready'   && `Waiting for payment · ${fmtCountdown(countdown)}`}
+                {step === 'paid'    && 'Payment confirmed ✓'}
+                {step === 'error'   && 'Payment failed'}
+              </div>
+            </div>
+          </div>
+          <button onClick={onCancel} style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>×</button>
+        </div>
+        {/* Amount bar */}
+        <div style={{ background: '#f0f7ff', padding: '12px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Amount</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#0057a8' }}>{fmtPHP(totalAmt)}</div>
+        </div>
+        {/* Body */}
+        <div style={{ padding: '22px 24px 24px', textAlign: 'center' }}>
+          {step === 'loading' && (
+            <div style={{ padding: '32px 0' }}>
+              <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite', marginBottom: 12 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              <div style={{ fontSize: 14, color: '#5a7a65', fontWeight: 600 }}>Creating payment link…</div>
+            </div>
+          )}
+          {(step === 'ready') && qrUrl && (
+            <>
+              <div style={{ fontSize: 13, color: '#374151', fontWeight: 600, marginBottom: 14 }}>Ask the customer to scan this QR code with their GCash app</div>
+              <div style={{ width: 200, height: 200, margin: '0 auto 14px', border: '3px solid #007acc', borderRadius: 16, overflow: 'hidden', position: 'relative' }}>
+                <img src={qrUrl} alt="PayMongo GCash QR" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,transparent,#007acc,transparent)', animation: 'scanLine 2s linear infinite' }} />
+              </div>
+              {refNo && <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>Ref # <strong style={{ color: '#374151', fontFamily: 'monospace' }}>{refNo}</strong></div>}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: countdown < 30 ? '#fee2e2' : '#f0f7ff', border: `1px solid ${countdown < 30 ? '#fecaca' : '#bfdbfe'}`, borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: countdown < 30 ? '#dc2626' : '#1e40af', marginBottom: 16 }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                Expires in {fmtCountdown(countdown)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 12, color: '#5a7a65' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#007acc" strokeWidth={2} style={{ animation: 'spin 1.2s linear infinite', flexShrink: 0 }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                Waiting for payment confirmation…
+              </div>
+              <button onClick={onCancel} style={{ marginTop: 14, width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #d1d5db', background: '#f9fafb', color: '#6b7280', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel payment</button>
+            </>
+          )}
+          {step === 'paid' && (
+            <div style={{ padding: '24px 0', animation: 'paidPop .4s ease' }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#059669,#047857)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 4px 20px rgba(5,150,105,0.4)' }}>
+                <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              </div>
+              <div style={{ fontWeight: 900, fontSize: 18, color: '#0d2b1e', marginBottom: 6 }}>Payment Received!</div>
+              <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 10 }}>{fmtPHP(totalAmt)} via GCash</div>
+              {gcashRef && <div style={{ background: '#f0fdf5', border: '1px solid #d1eedd', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 700, color: '#00695c', fontFamily: 'monospace', letterSpacing: '0.05em' }}>Ref: {gcashRef}</div>}
+              <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>Processing transaction…</div>
+            </div>
+          )}
+          {step === 'error' && (
+            <div style={{ padding: '24px 0' }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: '#0d2b1e', marginBottom: 6 }}>Payment Failed</div>
+              <div style={{ fontSize: 13, color: '#5a7a65', marginBottom: 20 }}>{errorMsg}</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={onCancel} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #d1d5db', background: '#f9fafb', color: '#6b7280', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                <button onClick={handleRetry} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#007acc,#0057a8)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Try Again</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECEIPT PRINT — Legal landscape 2-copy (identical to admin POS)
+// ─────────────────────────────────────────────────────────────────────────────
+function ReceiptModal({ show, receipt, onClose, onNewSale }) {
+  if (!show || !receipt) return null;
+
+  const handlePrint = () => {
+    const printWin = window.open('', '_blank', 'width=1360,height=860,resizable=yes');
+
+    const copyHTML = (label) => `
+      <div class="copy">
+        <div class="copy-label">${label}</div>
+        <div class="center bold" style="font-size:12px">iFranchise Business and Services Corporation</div>
+        <div class="center bold" style="font-size:11px">FranchiSync</div>
+        <div class="center header" style="margin-top:5px">
+          Main Office: Blk 113 Bldg. Connecticut St.,<br>
+          Greenhills San Juan City, Philippines<br>
+          Contact No.: 09271820495<br>
+          Email: franchise.ordering@gmail.com
+        </div>
+        <div class="center header" style="margin-top:5px">
+          VAT Registered TIN: _______________<br>
+          Permit No.: _______________<br>
+          Serial No.: _______________
+        </div>
+        <div class="divider-dash"></div>
+        <div class="center bold" style="font-size:11px;margin-bottom:5px">SALES INVOICE</div>
+        <div class="header">
+          <div><b>Receipt No.:</b> ${receipt.receiptNo}</div>
+          <div><b>Transaction ID:</b> ${receipt.txnId}</div>
+          <div><b>Date:</b> ${receipt.date}</div>
+          <div><b>Time:</b> ${receipt.time}</div>
+          <div><b>Cashier:</b> ${receipt.cashier}</div>
+          <div><b>Branch:</b> ${receipt.branch}</div>
+          <div><b>Terminal No.:</b> 001</div>
+        </div>
+        <div class="divider-solid"></div>
+        <div class="item-row bold">
+          <span class="col-item">ITEM</span>
+          <span class="col-qty">QTY</span>
+          <span class="col-price">PRICE</span>
+          <span class="col-total">TOTAL</span>
+        </div>
+        <div class="divider-solid"></div>
+        ${(receipt.items || []).map(item => `
+          <div class="item-row">
+            <span class="col-item">${item.name}</span>
+            <span class="col-qty">${item.qty}</span>
+            <span class="col-price">P${Number(item.price).toFixed(2)}</span>
+            <span class="col-total">P${Number(item.subtotal).toFixed(2)}</span>
+          </div>
+        `).join('')}
+        <div class="divider-solid"></div>
+        <div class="row"><span>SUBTOTAL</span><span>P${Number(receipt.subtotal).toFixed(2)}</span></div>
+        ${receipt.vat_enabled ? `<div class="row"><span>VAT 12%</span><span>P${Number(receipt.vat_amt || 0).toFixed(2)}</span></div>` : ''}
+        ${receipt.discount_pct > 0 ? `<div class="row"><span>DISCOUNT (${receipt.discount_label || receipt.discount_pct + '%'})</span><span>-P${Number(receipt.discount_amt || 0).toFixed(2)}</span></div>` : ''}
+        <div class="divider-solid"></div>
+        <div class="row bold" style="font-size:10px"><span>TOTAL</span><span>P${Number(receipt.total).toFixed(2)}</span></div>
+        ${receipt.payment_method === 'Cash' ? `
+          <div class="row"><span>CASH</span><span>P${Number(receipt.cash_received).toFixed(2)}</span></div>
+          <div class="row"><span>CHANGE</span><span>P${Number(receipt.change_due).toFixed(2)}</span></div>
+        ` : ''}
+        ${receipt.is_split ? `
+          <div class="row"><span>GCASH</span><span>P${Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
+          ${receipt.gcash_ref ? `<div class="row"><span>GCash Ref</span><span>${receipt.gcash_ref}</span></div>` : ''}
+          <div class="row"><span>CASH</span><span>P${Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
+        ` : ''}
+        <div class="divider-dash"></div>
+        <div class="header">
+          <div><b>Payment Method:</b> ${receipt.payment_method}</div>
+          ${receipt.gcash_ref && !receipt.is_split ? `<div><b>GCash Ref #:</b> ${receipt.gcash_ref}</div>` : ''}
+          <div><b>Payment Status:</b> PAID</div>
+          <div><b>Processed By:</b> FranchiSync</div>
+          <div><b>Approval Status:</b> Verified</div>
+        </div>
+        <div class="divider-dash"></div>
+        <div class="center header">
+          THIS SERVES AS YOUR SALES INVOICE.<br>
+          Please keep this invoice for future reference.<br>
+          All franchise payments are subject to verification<br>
+          and approval by iFranchise Business and<br>
+          Services Corporation.<br><br>
+          For support: franchise.ordering@gmail.com<br>
+          (+63) 9271820495
+        </div>
+      </div>
+    `;
+
+    const css = [
+      '* { margin: 0; padding: 0; box-sizing: border-box; }',
+      'body { font-family: Courier New, monospace; background: #f0f0f0; color: #000; display: flex; justify-content: center; align-items: flex-start; padding: 24px; min-height: 100vh; }',
+      '.page-wrapper { background: #fff; display: flex; flex-direction: row; align-items: flex-start; box-shadow: 0 2px 16px rgba(0,0,0,0.15); padding: 14px 10px; width: fit-content; }',
+      '.copy { width: 165mm; padding: 6px 10px; font-size: 10px; }',
+      '.cut-line { width: 1px; min-height: 100%; border-left: 1.5px dashed #555; margin: 0 10px; align-self: stretch; position: relative; }',
+      ".cut-line::after { content: 'CUT'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(90deg); font-size: 7px; color: #888; background: #fff; padding: 2px 4px; letter-spacing: 0.1em; white-space: nowrap; }",
+      '.copy-label { text-align: center; font-size: 9px; font-weight: 700; border: 1px solid #000; padding: 2px 4px; margin-bottom: 6px; letter-spacing: 0.06em; }',
+      '.center { text-align: center; }',
+      '.bold { font-weight: 700; }',
+      '.row { display: flex; justify-content: space-between; font-size: 9px; line-height: 1.65; }',
+      '.item-row { display: flex; font-size: 9px; line-height: 1.65; }',
+      '.col-item { width: 44%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }',
+      '.col-qty { width: 10%; text-align: right; }',
+      '.col-price { width: 22%; text-align: right; }',
+      '.col-total { width: 22%; text-align: right; }',
+      '.divider-solid { border-top: 1px solid #000; margin: 4px 0; }',
+      '.divider-dash { border-top: 1px dashed #000; margin: 4px 0; }',
+      '.header { font-size: 9px; line-height: 1.7; }',
+      '@media print {',
+      '  body { background: #fff; display: block; padding: 0; }',
+      '  .page-wrapper { box-shadow: none; padding: 0; width: 100%; }',
+      '  .copy { width: 48%; padding: 4px 8px; }',
+      '  .cut-line { width: 4px; margin: 0 4px; }',
+      '  @page { size: legal landscape; margin: 8mm 10mm; }',
+      '}',
+    ].join('\n');
+
+    const html = [
+      '<!DOCTYPE html><html><head>',
+      '<title>Sales Invoice - ' + receipt.receiptNo + '</title>',
+      '<style>' + css + '</style>',
+      '</head><body>',
+      '<div class="page-wrapper">',
+      copyHTML('CUSTOMER COPY'),
+      '<div class="cut-line"></div>',
+      copyHTML('MERCHANT COPY'),
+      '</div>',
+      '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<' + '/script>',
+      '</body></html>',
+    ].join('');
+
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', border: '1px solid rgba(0,168,76,0.15)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#fff' }}>Sales Invoice</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>{receipt.receiptNo} — {receipt.date}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={14} />
+          </button>
+        </div>
+        {/* Preview */}
+        <div style={{ padding: '18px 22px', background: '#f8fffe', maxHeight: '50vh', overflowY: 'auto' }}>
+          <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8, padding: '14px 16px', fontFamily: 'Courier New, monospace', fontSize: 11 }}>
+            <div style={{ textAlign: 'center', marginBottom: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>iFranchise Business and Services Corporation</div>
+              <div style={{ fontWeight: 600, fontSize: 11 }}>FranchiSync — {receipt.branch}</div>
+              <div style={{ marginTop: 4, fontSize: 10, color: '#5a7a65' }}>Receipt: {receipt.receiptNo} · {receipt.date} {receipt.time}</div>
+              <div style={{ fontSize: 10, color: '#5a7a65' }}>Cashier: {receipt.cashier}</div>
+            </div>
+            <div style={{ borderTop: '1px dashed #ccc', borderBottom: '1px dashed #ccc', padding: '8px 0', margin: '8px 0' }}>
+              {(receipt.items || []).map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                  <span>{item.name} ×{item.qty}</span>
+                  <span style={{ fontWeight: 700 }}>₱{Number(item.subtotal).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}><span>Subtotal</span><span>₱{Number(receipt.subtotal).toFixed(2)}</span></div>
+              {receipt.discount_pct > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, color: '#d97706' }}><span>Discount ({receipt.discount_pct}%)</span><span>−₱{Number(receipt.discount_amt || 0).toFixed(2)}</span></div>}
+              {receipt.vat_enabled && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, color: '#2563eb' }}><span>VAT 12%</span><span>+₱{Number(receipt.vat_amt || 0).toFixed(2)}</span></div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13, borderTop: '1px solid #ccc', paddingTop: 5, marginBottom: 5 }}><span>TOTAL</span><span style={{ color: '#00897b' }}>₱{Number(receipt.total).toFixed(2)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>Payment</span><span style={{ fontWeight: 700 }}>{receipt.payment_method}</span></div>
+              {receipt.is_split && (
+                <div style={{ background: '#f0fdf5', borderRadius: 6, padding: '6px 8px', margin: '4px 0', fontSize: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>GCash</span><span>₱{Number(receipt.split_gcash_amt || 0).toFixed(2)}</span></div>
+                  {receipt.gcash_ref && <div style={{ color: '#00695c', fontFamily: 'monospace' }}>Ref: {receipt.gcash_ref}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span>₱{Number(receipt.split_cash_amt || 0).toFixed(2)}</span></div>
+                </div>
+              )}
+              {receipt.payment_method === 'Cash' && !receipt.is_split && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>Cash Received</span><span>₱{Number(receipt.cash_received).toFixed(2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontWeight: 800, color: '#00897b' }}>₱{Number(receipt.change_due).toFixed(2)}</span></div>
+                </>
+              )}
+              {receipt.gcash_ref && !receipt.is_split && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}><span>GCash Ref #</span><span style={{ fontFamily: 'monospace' }}>{receipt.gcash_ref}</span></div>}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 10, fontSize: 10, color: '#5a7a65' }}>Thank you for your purchase! 🎉</div>
+          </div>
+        </div>
+        {/* Actions */}
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #e0f2f1', display: 'flex', gap: 10 }}>
+          <button onClick={handlePrint}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Printer size={14} /> Print 2 Copies
+          </button>
+          <button onClick={onNewSale}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '11px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Check size={14} /> New Sale
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOID MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+function VoidModal({ show, tx, onClose, onConfirm }) {
+  const [pw,  setPw]  = useState('');
+  const [err, setErr] = useState('');
+
+  const handleConfirm = () => {
+    if (!pw) { setErr('Please enter the manager password.'); return; }
+    if (pw !== MANAGER_PASSWORD) { setErr('Incorrect manager password.'); return; }
+    onConfirm(tx); setPw(''); setErr('');
+  };
+  const handleClose = () => { setPw(''); setErr(''); onClose(); };
+  if (!show) return null;
+
+  return (
+    <div onClick={handleClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#fff' }}>Void Transaction</div>
+          <button onClick={handleClose} style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+        </div>
+        <div style={{ padding: 24 }}>
+          {tx && (
+            <div style={{ padding: '12px 14px', background: '#fff3e0', borderRadius: 10, border: '1px solid #ffcc80', marginBottom: 18, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: '#0d2b1e' }}>#{tx.id} — {fmtPeso(tx.total)}</div>
+              <div style={{ color: '#5a7a65', fontSize: 12, marginTop: 2 }}>This action cannot be undone.</div>
+            </div>
+          )}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Manager Password</label>
+            <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(''); }} onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }} placeholder="Enter manager password to authorize"
+              style={{ width: '100%', padding: '10px 13px', borderRadius: 10, border: `1.5px solid ${err ? '#fca5a5' : '#b2dfdb'}`, background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            {err && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 5, fontWeight: 600 }}>{err}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={handleConfirm} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Void Transaction</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FrPOSContent({ user }) {
+  const userBranch = (user?.branch || '').trim();
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const [menuItems,     setMenuItems]     = useState([]);
+  const [cart,          setCart]          = useState([]);
+  const [transactions,  setTransactions]  = useState([]);
+  const [loadingTx,     setLoadingTx]     = useState(false);
+  const [searchProduct, setSearchProduct] = useState('');
+  const [txSearch,      setTxSearch]      = useState('');
+  const [txDateFrom,    setTxDateFrom]    = useState('');
+  const [txDateTo,      setTxDateTo]      = useState('');
+  const [activeTab,     setActiveTab]     = useState('cashier');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [cashReceived,  setCashReceived]  = useState('');
+  const [discountPct,   setDiscountPct]   = useState(0);
+  const [discountType,  setDiscountType]  = useState('None');
+  const [vatEnabled,    setVatEnabled]    = useState(false);
+  const [processing,    setProcessing]    = useState(false);
+  const [txPage,        setTxPage]        = useState(0);
+  const [noteInput,     setNoteInput]     = useState('');
+
+  // Split payment
+  const [isSplitPayment,  setIsSplitPayment]  = useState(false);
+  const [splitGcashAmt,   setSplitGcashAmt]   = useState('');
+  const [splitCashAmt,    setSplitCashAmt]     = useState('');
+  const [splitGcashPaid,  setSplitGcashPaid]   = useState(false);
+  const [splitGcashRef,   setSplitGcashRef]    = useState('');
+
+  // GCash / PayMongo
+  const [showGCashModal,  setShowGCashModal]  = useState(false);
+  const [gcashRefNumber,  setGcashRefNumber]  = useState('');
+  const [gcashPaymentAmt, setGcashPaymentAmt] = useState(0);
+
+  // Discount auth
+  const [showDiscountAuth,   setShowDiscountAuth]   = useState(false);
+  const [pendingDiscount,    setPendingDiscount]     = useState(null);
+  const [discountAuthInput,  setDiscountAuthInput]   = useState('');
+  const [discountAuthErr,    setDiscountAuthErr]     = useState('');
+  const [customDiscountInput,setCustomDiscountInput] = useState('');
+
+  // Modals
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [lastReceipt,      setLastReceipt]      = useState(null);
+  const [showVoidModal,    setShowVoidModal]     = useState(false);
+  const [voidTarget,       setVoidTarget]        = useState(null);
+  const [modal,            setModal]             = useState({ show: false });
+
+  const TX_PAGE_SIZE = 20;
+
+  const showAlert = (title, message, type = 'info') =>
+    setModal({ show: true, title, message, type, onConfirm: null });
+  const closeModal = () => setModal(m => ({ ...m, show: false }));
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const fetchProducts = useCallback(async () => {
+    if (!userBranch) return;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory?branch=${encodeURIComponent(userBranch)}`);
+      const d   = await res.json();
+      setMenuItems(Array.isArray(d) ? d : []);
+    } catch { setMenuItems([]); }
+  }, [userBranch]);
+
+  const fetchTransactions = useCallback(async () => {
+    if (!userBranch) return;
+    setLoadingTx(true);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`);
+      const d   = await res.json();
+      setTransactions(Array.isArray(d) ? d : []);
+    } catch { setTransactions([]); }
+    finally { setLoadingTx(false); }
+  }, [userBranch]);
+
+  useEffect(() => { fetchProducts(); },     [fetchProducts]);
+  useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
+  useEffect(() => { setTxPage(0); }, [txSearch, txDateFrom, txDateTo]);
+
+  // ── Products ──────────────────────────────────────────────────────────────
+  const allProducts = useMemo(() => {
+    const q = searchProduct.toLowerCase();
+    return menuItems
+      .map(m => ({ ...m, source: 'menu', displayName: m.name }))
+      .filter(p => !q || p.displayName.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q));
+  }, [menuItems, searchProduct]);
+
+  // ── Cart ──────────────────────────────────────────────────────────────────
+  const addToCart = (product) => {
+    setCart(prev => {
+      const existing = prev.find(c => c.id === product.id);
+      if (existing) return prev.map(c => c.id === product.id ? { ...c, qty: c.qty + 1 } : c);
+      return [...prev, { ...product, qty: 1 }];
+    });
+  };
+  const updateQty    = (id, delta) => setCart(prev => prev.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0));
+  const removeFromCart = (id) => setCart(prev => prev.filter(c => c.id !== id));
+  const clearCart    = () => {
+    setCart([]); setCashReceived(''); setDiscountPct(0); setDiscountType('None');
+    setNoteInput(''); setGcashRefNumber(''); setGcashPaymentAmt(0);
+    setIsSplitPayment(false); setSplitGcashAmt(''); setSplitCashAmt('');
+    setSplitGcashPaid(false); setSplitGcashRef('');
+    setShowDiscountAuth(false); setPendingDiscount(null);
+    setDiscountAuthInput(''); setCustomDiscountInput('');
+  };
+
+  // ── Discount auth ─────────────────────────────────────────────────────────
+  const confirmDiscountAuth = () => {
+    if (discountAuthInput !== MANAGER_PASSWORD) {
+      setDiscountAuthErr('Incorrect manager password.');
+      return;
+    }
+    if (pendingDiscount.label === 'Others') {
+      const pct = parseFloat(customDiscountInput);
+      if (!pct || pct <= 0 || pct > 100) {
+        setDiscountAuthErr('Enter a valid discount % (1–100).');
+        return;
+      }
+      setDiscountPct(pct);
+      setDiscountType('Others');
+    } else {
+      setDiscountPct(pendingDiscount.pct);
+      setDiscountType(pendingDiscount.label);
+    }
+    setShowDiscountAuth(false);
+    setDiscountAuthInput('');
+    setDiscountAuthErr('');
+    setCustomDiscountInput('');
+    setPendingDiscount(null);
+  };
+
+  // ── Totals ────────────────────────────────────────────────────────────────
+  const subtotal    = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
+  const discountAmt = subtotal * (discountPct / 100);
+  const discounted  = subtotal - discountAmt;
+  const vatAmt      = vatEnabled ? discounted * VAT_RATE : 0;
+  const totalAmt    = discounted + vatAmt;
+  const changeDue   = paymentMethod === 'Cash' ? Math.max(0, parseFloat(cashReceived || 0) - totalAmt) : 0;
+  const cashShortfall = paymentMethod === 'Cash' && cashReceived !== ''
+    ? parseFloat(cashReceived || 0) - totalAmt : 0;
+
+  // ── Process sale ──────────────────────────────────────────────────────────
+  const processSale = async () => {
+    if (cart.length === 0) { showAlert('Empty Cart', 'Please add at least one item.', 'warning'); return; }
+
+    if (isSplitPayment) {
+      const gcash = parseFloat(splitGcashAmt) || 0;
+      const cash  = parseFloat(splitCashAmt)  || 0;
+      if (Math.abs((gcash + cash) - totalAmt) > 0.01) {
+        showAlert('Split Amounts Mismatch', `GCash + Cash must equal ${fmtPeso(totalAmt)}.`, 'error');
+        return;
+      }
+      if (gcash > 0 && !splitGcashPaid) {
+        showAlert('GCash Pending', 'Please complete the GCash payment first.', 'warning');
+        return;
+      }
+    } else {
+      if (paymentMethod === 'Cash' && parseFloat(cashReceived || 0) < totalAmt) {
+        showAlert('Insufficient Cash', 'Cash received is less than the total amount.', 'error');
+        return;
+      }
+      if (paymentMethod === 'GCash' && !gcashRefNumber) {
+        setShowGCashModal(true);
+        return;
+      }
+    }
+
+    setProcessing(true);
+    try {
+      const receiptNo = generateReceiptNo();
+      const txnId     = generateTxnId();
+
+      const payload = {
+        branch: userBranch, cashier: user?.name || 'Staff', shop: '',
+        payment_method: isSplitPayment ? 'Split' : paymentMethod,
+        is_split: isSplitPayment,
+        split_gcash_amt: isSplitPayment ? (parseFloat(splitGcashAmt) || 0) : null,
+        split_cash_amt:  isSplitPayment ? (parseFloat(splitCashAmt)  || 0) : null,
+        gcash_ref: isSplitPayment ? splitGcashRef : (paymentMethod === 'GCash' ? gcashRefNumber : null),
+        cash_received: isSplitPayment
+          ? (parseFloat(splitCashAmt) || 0)
+          : (paymentMethod === 'Cash' ? parseFloat(cashReceived) : totalAmt),
+        discount_pct: discountPct, discount_label: discountType,
+        subtotal, discount_amt: discountAmt,
+        vat_enabled: vatEnabled, vat_amt: vatAmt,
+        total: totalAmt,
+        change_due: isSplitPayment
+          ? Math.max(0, (parseFloat(splitCashAmt) || 0) - (totalAmt - (parseFloat(splitGcashAmt) || 0)))
+          : changeDue,
+        note: noteInput,
+        receipt_no: receiptNo, txn_id: txnId,
+        items: cart.map(c => ({ id: c.id, source: 'menu', name: c.displayName, price: c.price, qty: c.qty, subtotal: c.price * c.qty })),
+      };
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setLastReceipt({ ...payload, receiptNo, txnId, date: fmtDate(), time: fmtTime(), cashier: user?.name || 'Staff', branch: userBranch });
+        setShowReceiptModal(true);
+        clearCart();
+        fetchTransactions();
+        fetchProducts();
+      } else {
+        showAlert('Transaction Failed', d.error || 'Failed to process sale.', 'error');
+      }
+    } catch {
+      showAlert('Connection Error', 'Failed to process sale. Check your connection.', 'error');
+    } finally { setProcessing(false); }
+  };
+
+  // ── Void ──────────────────────────────────────────────────────────────────
+  const handleVoidRequest = (tx) => { setVoidTarget(tx); setShowVoidModal(true); };
+  const handleVoidConfirm = async (tx) => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${tx.id}/void`, { method: 'PUT' });
+      const d   = await res.json();
+      setShowVoidModal(false); setVoidTarget(null);
+      if (d.success) { showAlert('Voided', 'Transaction has been voided successfully.', 'success'); fetchTransactions(); }
+      else showAlert('Void Failed', d.error || 'Could not void this transaction.', 'error');
+    } catch { setShowVoidModal(false); showAlert('Connection Error', 'Failed to void transaction.', 'error'); }
+  };
+
+  // ── Filtered transactions ─────────────────────────────────────────────────
+  const filteredTx = useMemo(() => {
+    const q = txSearch.toLowerCase();
+    return transactions.filter(tx => {
+      if (q && !String(tx.id).includes(q) && !(tx.cashier || '').toLowerCase().includes(q)) return false;
+      if (txDateFrom && tx.created_at < txDateFrom) return false;
+      if (txDateTo   && tx.created_at > txDateTo + 'T23:59:59') return false;
+      return true;
+    });
+  }, [transactions, txSearch, txDateFrom, txDateTo]);
+
+  const txPageItems  = filteredTx.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE);
+  const todayStr     = new Date().toISOString().slice(0, 10);
+  const todaySales   = transactions.filter(tx => (tx.created_at || '').startsWith(todayStr) && !tx.voided);
+  const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
+
+  // ── Shared styles ─────────────────────────────────────────────────────────
+  const inp = { width: '100%', padding: '9px 12px', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', color: '#0d2b1e', outline: 'none', boxSizing: 'border-box' };
+  const smallBtn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid #b2dfdb', background: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily: "'Montserrat', sans-serif", padding: '18px 20px', minHeight: '100vh' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      `}</style>
+
+      {/* ── Modals ── */}
+      <Modal show={modal.show} title={modal.title} message={modal.message} type={modal.type}
+        onConfirm={closeModal} onCancel={closeModal} />
+      <ReceiptModal show={showReceiptModal} receipt={lastReceipt}
+        onClose={() => setShowReceiptModal(false)} onNewSale={() => setShowReceiptModal(false)} />
+      <VoidModal show={showVoidModal} tx={voidTarget}
+        onClose={() => { setShowVoidModal(false); setVoidTarget(null); }}
+        onConfirm={handleVoidConfirm} />
+      {showGCashModal && (
+        <GCashQRModal
+          totalAmt={isSplitPayment ? (parseFloat(splitGcashAmt) || 0) : totalAmt}
+          fmtPHP={fmtPeso}
+          onConfirm={refNum => {
+            setShowGCashModal(false);
+            if (isSplitPayment) { setSplitGcashPaid(true); setSplitGcashRef(refNum); setGcashRefNumber(refNum); }
+            else { setGcashRefNumber(refNum); setTimeout(() => processSale(), 100); }
+          }}
+          onCancel={() => { setShowGCashModal(false); setGcashPaymentAmt(0); }}
+        />
+      )}
+
+      {/* ── Discount Auth Modal ── */}
+      {showDiscountAuth && pendingDiscount && (
+        <div onClick={() => setShowDiscountAuth(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 18, padding: '26px 28px', width: 340, maxWidth: '95vw', boxShadow: '0 16px 48px rgba(0,0,0,0.22)' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#0d2b1e', marginBottom: 4 }}>{pendingDiscount.label} Discount</div>
+            <div style={{ fontSize: 12, color: '#5a7a65', marginBottom: 16 }}>Manager authorization required.</div>
+            {pendingDiscount.label === 'Others' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Custom Discount %</div>
+                <input type="number" min="1" max="100" placeholder="e.g. 15" value={customDiscountInput} onChange={e => setCustomDiscountInput(e.target.value)} style={inp} />
+              </div>
+            )}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Manager Password</div>
+              <input type="password" placeholder="Enter password…" value={discountAuthInput}
+                onChange={e => { setDiscountAuthInput(e.target.value); setDiscountAuthErr(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') confirmDiscountAuth(); }}
+                autoFocus style={inp} />
+              {discountAuthErr && <div style={{ marginTop: 5, fontSize: 12, color: '#e53935', fontWeight: 700 }}>⚠ {discountAuthErr}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowDiscountAuth(false)} style={{ ...smallBtn, flex: 1, height: 38, fontSize: 13 }}>Cancel</button>
+              <button onClick={confirmDiscountAuth}
+                style={{ flex: 1, height: 38, borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Apply Discount
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Stat cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+        {[
+          { label: "Today's Revenue",    value: fmtPeso(todayRevenue),          sub: `${todaySales.length} transactions` },
+          { label: 'Transactions Today', value: todaySales.length,              sub: 'Completed sales' },
+          { label: 'Avg Order Value',    value: fmtPeso(todaySales.length ? todayRevenue / todaySales.length : 0), sub: 'Per transaction' },
+          { label: 'Items in Cart',      value: cart.reduce((s, c) => s + c.qty, 0), sub: 'Current session' },
+        ].map((s, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 8px rgba(0,140,60,0.06)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#5a7a65', marginBottom: 5 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e' }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', gap: 4, background: 'rgba(0,168,76,0.06)', borderRadius: 12, padding: 4, marginBottom: 18, width: 'fit-content' }}>
+        {[
+          { id: 'cashier', label: 'Cashier',             red: false },
+          { id: 'history', label: 'Transaction History', red: false },
+          { id: 'voided',  label: 'Voided',              red: true },
+        ].map(({ id, label, red }) => {
+          const isActive     = activeTab === id;
+          const voidedCount  = transactions.filter(t => t.voided).length;
+          return (
+            <button key={id} onClick={() => setActiveTab(id)}
+              style={{ padding: '8px 20px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, background: isActive ? (red ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#00c853,#00897b)') : 'transparent', color: isActive ? '#fff' : (red ? '#ef4444' : '#5a7a65'), boxShadow: isActive ? (red ? '0 2px 8px rgba(239,68,68,.3)' : '0 2px 8px rgba(0,180,90,.3)') : 'none' }}>
+              {label}
+              {id === 'voided' && voidedCount > 0 && (
+                <span style={{ background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.15)', color: isActive ? '#fff' : '#dc2626', padding: '1px 7px', borderRadius: 10, fontSize: 11, fontWeight: 800 }}>{voidedCount}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
       {totalPages > 1 && <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>}
     </div>

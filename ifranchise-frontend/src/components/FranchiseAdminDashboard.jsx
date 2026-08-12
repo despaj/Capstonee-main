@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
+import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
 import {
   Home, FileCheck, Users, BarChart2, MessageCircle, User,
@@ -12,7 +13,7 @@ import {
   Unlock, CheckCircle2, FileText, Eye, Download, RefreshCw,
   BarChart, Calendar, Archive, Package, Info, Clock, Pin,
   Megaphone, ChevronDown, ArrowUpRight,ArrowDownRight, PieChart,
-  Activity, TrendingDown, Target, ShoppingCart, Brain, Zap
+  Activity, TrendingDown, Target, ShoppingCart, Brain, Zap, Printer
 } from 'lucide-react';
 
 const C = {
@@ -465,7 +466,7 @@ export default function FranchiseAdminDashboard() {
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
     { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
-    { id: 'mobileOrders',   label: 'Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
+    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
     { id: 'applications',  label: 'Applications',  icon: <FileCheck size={20} />,     section: 'main' },
     { id: 'communication', label: 'Announcements',       icon: <MessageCircle size={20} />, section: 'main' },
     { id: 'brandBranch',   label: 'Brand & Branch',      icon: <GitBranch size={20} />,     section: 'main' },
@@ -635,8 +636,8 @@ export default function FranchiseAdminDashboard() {
         <div className="fa-content">
           {activeModule === 'dashboard'      && <FADashboardContent transactions={transactions} brands={brands} />}
             {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
-            {activeModule === 'stockInventory' && <FAStockInventoryContent user={user} brands={brands} />}
-            {activeModule === 'mobileOrders'   && <FAMobileOrdersContent />}
+            {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+            {activeModule === 'mobileOrders'   && <FAMobileOrdersContent user={user} brands={brands} />}
             {activeModule === 'applications'  && <FAApplicationsContent user={user} alertModal={alertModal} setAlertModal={setAlertModal} />}
             {activeModule === 'communication' && <FACommunicationContent user={user} brands={brands} />}
             {activeModule === 'brandBranch'   && <FABrandBranchContent user={user} brands={brands} onBrandsChange={setBrands} />}
@@ -2709,748 +2710,884 @@ function UIModal({ modal, onClose, onConfirm }) {
 }
 
 // MOBILE ORDERS
-const DB_TO_UI_STATUS = {
-  pending:   "pending",
-  shipping:  "in_transit",
-  received:  "received",
-  cancelled: "rejected",
-};
-const UI_TO_DB_STATUS = {
-  pending:    "pending",
-  accepted:   "pending",
-  in_transit: "shipping",
-  received:   "received",
-  rejected:   "cancelled",
-};
+
+const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
+const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
 
 const STATUS_CONFIG = {
-  pending:    { label:"Processing",    bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  accepted:   { label:"Accepted",   bg:"#e1f5ee", color:"#085041", dot:"#0F6E56" },
-  in_transit: { label:"In Transit", bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
-  received:   { label:"Received",   bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  rejected:   { label:"Rejected",   bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
+  pending:  { label:"Incoming",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  accepted: { label:"Accepted",  bg:"#e6f1fb", color:"#0c447c", dot:"#185FA5" },
+  disposed: { label:"Fulfilled", bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+  rejected: { label:"Rejected",  bg:"#fcebeb", color:"#501313", dot:"#A32D2D" },
 };
 
-const STATUS_FLOW = {
-  pending:    { nextAction:"Accept",        nextStatus:"accepted",   secondAction:"Reject", secondStatus:"rejected" },
-  accepted:   { nextAction:"Ship",          nextStatus:"in_transit" },
-  in_transit: { nextAction:"Mark Received", nextStatus:"received" },
-};
+const REJECT_REASONS = [
+  "Out of stock",
+  "Customer requested cancellation",
+  "Unable to fulfill in time",
+  "Duplicate order",
+  "Other",
+];
+
+/* ── FIFO / FEFO helpers — mirror Stock Inventory exactly ── */
+function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
+function getFifoMethod(brand) {
+  return isPharmaBrand(brand)
+    ? { method:"FEFO", queueLabel:"nearest expiry dispensed first" }
+    : { method:"FIFO", queueLabel:"oldest received batch used first" };
+}
+function sortBatchesByMethod(batches, brand) {
+  const { method } = getFifoMethod(brand);
+  return [...batches].sort((a, b) => {
+    if (method === "FEFO") {
+      const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+      const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+      return da - db;
+    }
+    const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+    const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+    return da - db;
+  });
+}
 
 function normalizeOrder(o) {
   return {
-    id:        `ORD-${String(o.id).padStart(4, "0")}`,
-    _dbId:     o.id,
-    customer:  o.user_name ?? `User #${o.user_id}`,
-    phone:     o.phone  ?? "",
-    brand:     o.brand  ?? "",
-    branch:    o.branch ?? "",
-    address:   o.address ?? "",  
-    items:     Array.isArray(o.items) ? o.items : [],
-    total:     o.total_amount,
-    status:    DB_TO_UI_STATUS[o.status] ?? "pending",
+    id: `ORD-${String(o.id).padStart(4, "0")}`,
+    _dbId: o.id,
+    customer: o.user_name ?? `User #${o.user_id}`,
+    phone: o.phone ?? "",
+    brand: o.brand ?? "",
+    branch: o.branch ?? "",
+    address: o.address ?? "",
+    items: Array.isArray(o.items) ? o.items : [],
+    total: o.total_amount,
+    status: DB_TO_UI_STATUS[o.status] ?? "pending",
     createdAt: o.created_at,
   };
 }
 
-function FAMobileOrdersContent() {
-  const [orders,       setOrders]       = useState([]);
-  const [loadingData,  setLoadingData]  = useState(true);
-  const [error,        setError]        = useState(null);
-  const [filterBrand,  setFilterBrand]  = useState("all");
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-PH", { month:"short", day:"numeric" });
+}
+
+const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit", hour12:true });
+
+const itemImage = (item) => item.image || item.image_url || item.photo || item.photo_url || null;
+
+const primaryBtn = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.25)" };
+const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
+const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
+const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:"1px solid #fecaca", background:"#fef2f2", color:"#dc2626", fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"inherit" };
+const printBtn = { padding:"10px 16px", borderRadius:10, border:`1.5px solid ${C.green}`, background:"#fff", color:C.greenDk, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", display:"inline-flex", alignItems:"center", gap:6 };
+
+function StatusBadge({ status, size="md" }) {
+  const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const small = size === "sm";
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding: small ? "2px 8px" : "4px 11px", borderRadius:20, fontSize: small ? 10.5 : 12, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }} />
+      {s.label}
+    </span>
+  );
+}
+
+
+
+function OrderStepper({ status }) {
+  const steps = [
+    { key:"pending",  label:"Placed" },
+    { key:"accepted", label:"Accepted" },
+    { key:"disposed", label:"Fulfilled" },
+  ];
+  const rejected = status === "rejected";
+  const activeIdx = rejected ? 0 : steps.findIndex(s => s.key === status);
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", padding:"14px 4px 4px" }}>
+      {steps.map((s, i) => {
+        const done = !rejected && i < activeIdx;
+        const current = !rejected && i === activeIdx;
+        const isLast = i === steps.length - 1;
+        const showAsRejectedTail = rejected && i > 0;
+        return (
+          <React.Fragment key={s.key}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:64 }}>
+              <div style={{
+                width:26, height:26, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:11, fontWeight:800,
+                background: showAsRejectedTail ? "#f3f4f6" : (done || current) ? `linear-gradient(135deg,${C.teal},${C.green})` : "#eef6f1",
+                color: showAsRejectedTail ? "#9ca3af" : (done || current) ? "#fff" : "#9db8a8",
+                border: current ? `2px solid ${C.green}` : "none",
+                transition:"background .25s ease, color .25s ease",
+              }}>
+                {done ? <Check size={13}/> : i + 1}
+              </div>
+              <span style={{ fontSize:10.5, fontWeight:700, color: showAsRejectedTail ? "#9ca3af" : (done||current) ? C.ink : "#9db8a8", whiteSpace:"nowrap" }}>{s.label}</span>
+            </div>
+            {!isLast && (
+              <div style={{ flex:1, height:2, margin:"0 2px 18px", background: (!rejected && i < activeIdx) ? C.green : "#e5efe8", transition:"background .25s ease" }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+      {rejected && (
+        <div style={{ marginLeft:10, display:"flex", alignItems:"center", gap:6, color:"#dc2626", fontSize:11.5, fontWeight:800 }}>
+          <X size={14}/> Rejected
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Reason picker used for Reject / Cancel — required field, validated ── */
+function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }) {
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [touched, setTouched] = useState(false);
+  const valid = reason !== "";
+
+  return (
+    <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:12, padding:14, animation:"cardIn .18s ease" }}>
+      <div style={{ fontSize:12.5, fontWeight:800, color:"#7f1d1d", marginBottom:10 }}>{title}</div>
+      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Reason *</label>
+      <select value={reason} onChange={e => setReason(e.target.value)} onBlur={() => setTouched(true)}
+        style={{ width:"100%", height:36, borderRadius:8, border:`1px solid ${touched && !valid ? "#dc2626" : "#fecaca"}`, padding:"0 10px", fontSize:12.5, fontFamily:"inherit", marginBottom: touched && !valid ? 4 : 10, background:"#fff" }}>
+        <option value="">Select a reason…</option>
+        {REJECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+      </select>
+      {touched && !valid && <div style={{ fontSize:11, color:"#dc2626", fontWeight:700, marginBottom:10 }}>Please choose a reason before continuing.</div>}
+      <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#7f1d1d", marginBottom:5 }}>Note (optional)</label>
+      <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add any extra context…"
+        style={{ width:"100%", height:56, borderRadius:8, border:"1px solid #fecaca", padding:"8px 10px", fontSize:12.5, fontFamily:"inherit", resize:"vertical", marginBottom:12, background:"#fff", boxSizing:"border-box" }}/>
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+        <button onClick={onCancel} disabled={saving} style={ghostBtn}>Back</button>
+        <button
+          onClick={() => { if (!valid) { setTouched(true); return; } onConfirm(reason, note); }}
+          disabled={saving}
+          style={{ ...dangerBtn, opacity: saving ? 0.6 : 1, display:"inline-flex", alignItems:"center", gap:6 }}>
+          {saving && <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>}
+          {saving ? "Saving…" : confirmLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepting }) {
+  const isPending = order.status === "pending";
+  const shortItems = (stockInfo?.results || []).filter(r => !r.sufficient);
+  const insufficient = isPending && stockInfo && !stockInfo.checking && shortItems.length > 0;
+
+  const statusStyle = {
+    pending:  { bg:"#fff7ed", border:"#fed7aa", color:"#9a3412", label:"Incoming" },
+    accepted: { bg:C.greenLt, border:C.greenMid, color:C.greenDk, label:"Shipping" },
+    rejected: { bg:"#fef2f2",  border:"#fecaca", color:"#7f1d1d", label:"Rejected" },
+  }[order.status] || { bg:"#f3f4f6", border:"#e5e7eb", color:"#374151", label:order.status };
+
+  return (
+    <div
+      onClick={() => onOpen(order)}
+      style={{
+        background:C.white, border:`1px solid ${C.border}`, borderRadius:14, padding:14,
+        cursor:"pointer", display:"flex", flexDirection:"column", gap:10,
+        boxShadow:"0 1px 4px rgba(0,0,0,0.04)", transition:"box-shadow .15s, transform .15s",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.09)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div>
+          <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>#{order.id}</div>
+          <div style={{ fontSize:11.5, color:C.muted, marginTop:2 }}>{fmtDate(order.createdAt)}</div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:800, padding:"3px 9px", borderRadius:20, background:statusStyle.bg, color:statusStyle.color, border:`1px solid ${statusStyle.border}`, whiteSpace:"nowrap" }}>
+          {statusStyle.label}
+        </span>
+      </div>
+
+      <div style={{ fontSize:12.5, fontWeight:700, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+        {order.customer}
+      </div>
+
+      <div style={{ fontSize:11.5, color:C.muted }}>
+        {order.items.length} item{order.items.length !== 1 ? "s" : ""} · <span style={{ fontWeight:700, color:C.green }}>{fmtPeso(order.total)}</span>
+      </div>
+
+      {isPending && stockInfo?.checking && (
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.muted }}>
+          <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/> Checking stock…
+        </div>
+      )}
+
+      {insufficient && (
+        <div style={{ display:"flex", gap:6, alignItems:"flex-start", background:C.warnBg, border:"1px solid #fed7aa", borderRadius:8, padding:"7px 9px", fontSize:10.5, color:"#9a3412" }}>
+          <AlertTriangle size={12} style={{ flexShrink:0, marginTop:1 }}/>
+          <span>Insufficient stock for {shortItems.length} item{shortItems.length !== 1 ? "s" : ""}</span>
+        </div>
+      )}
+
+      {isPending && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onAccept(order); }}
+          disabled={acceptDisabled}
+          style={{
+            ...primaryBtn,
+            opacity: acceptDisabled ? 0.5 : 1,
+            cursor: acceptDisabled ? "not-allowed" : "pointer",
+            display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6,
+            padding:"8px 0", fontSize:12,
+          }}
+        >
+          {accepting && <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>}
+          {accepting ? "Accepting…" : insufficient ? "Insufficient Stock" : "Accept"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── Half-page receipt slip — 8.5in × 4.25in landscape, sized for manual receipt pads ── */
+function ReceiptSlip({ order }) {
+  return (
+    <div className="receipt-page" style={{
+      width:"8.5in", height:"4.25in", padding:"0.28in 0.4in", boxSizing:"border-box",
+      fontFamily:"'Courier New', Courier, monospace", color:"#000", background:"#fff",
+      display:"flex", flexDirection:"column" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", borderBottom:"1px dashed #000", paddingBottom:6, marginBottom:6 }}>
+        <div>
+          <div style={{ fontSize:15, fontWeight:800 }}>{order.brand || "Order Receipt"}</div>
+          <div style={{ fontSize:10 }}>{order.branch}</div>
+        </div>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ fontSize:13, fontWeight:800 }}>#{order.id}</div>
+          <div style={{ fontSize:10 }}>{fmtDate(order.createdAt)}</div>
+        </div>
+      </div>
+      <div style={{ fontSize:11, marginBottom:6, lineHeight:1.5 }}>
+        <div><b>Customer:</b> {order.customer}</div>
+        <div><b>Phone:</b> {order.phone || "—"}</div>
+        {order.address && <div><b>Address:</b> {order.address}</div>}
+      </div>
+      <div style={{ flex:1, overflow:"hidden" }}>
+        <table style={{ width:"100%", fontSize:10.5, borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ borderBottom:"1px solid #000" }}>
+              <th style={{ textAlign:"left", padding:"2px 0" }}>Item</th>
+              <th style={{ textAlign:"center", padding:"2px 0", width:40 }}>Qty</th>
+              <th style={{ textAlign:"right", padding:"2px 0", width:70 }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {order.items.map((it, i) => (
+              <tr key={i}>
+                <td style={{ padding:"1.5px 0" }}>{it.name}</td>
+                <td style={{ textAlign:"center" }}>{it.qty}</td>
+                <td style={{ textAlign:"right" }}>{fmtPeso(it.price * it.qty)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ borderTop:"1px dashed #000", paddingTop:6, display:"flex", justifyContent:"space-between", fontWeight:800, fontSize:13 }}>
+        <span>TOTAL</span>
+        <span>{fmtPeso(order.total)}</span>
+      </div>
+      <div style={{ fontSize:9, textAlign:"center", marginTop:5, color:"#333" }}>Thank you for your order!</div>
+    </div>
+  );
+}
+
+function SectionCard({ title, children, tint }) {
+  const bg = tint === "amber" ? "#fffdf0" : "#f8fffe";
+  const border = tint === "amber" ? "#e8d5a3" : C.greenLt;
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.06em", color:C.muted, marginBottom:7 }}>{title}</div>
+      <div style={{ padding:"12px 13px", background:bg, borderRadius:12, border:`1px solid ${border}` }}>{children}</div>
+    </div>
+  );
+}
+
+function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, acceptDisabled, accepting }) {
+  const [mode, setMode] = useState(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => { setMode(null); }, [order?.id]);
+
+  if (!order) return null;
+
+  const doPrint = async () => {
+    setPrinting(true);
+    onPrint([order]);
+    setTimeout(() => setPrinting(false), 400);
+  };
+
+  const doReject = async (reason, note) => {
+    setRejecting(true);
+    try { await onReject(order, reason, note); setMode(null); } finally { setRejecting(false); }
+  };
+
+  const shortItems = (stockInfo?.results || []).filter(r => !r.sufficient);
+  const showStockWarning = order.status === "pending" && stockInfo && !stockInfo.checking && shortItems.length > 0;
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end", animation:"overlayIn .18s ease" }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
+
+        {/* Header */}
+        <div style={{ padding:"18px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", flexShrink:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div>
+              <div style={{ fontSize:17, fontWeight:800 }}>Order #{order.id}</div>
+              <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>Placed {fmtDate(order.createdAt)}</div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              {order.status === "accepted" && (
+                <button onClick={doPrint} disabled={printing} style={{ ...printBtn, opacity: printing ? 0.6 : 1 }}>
+                  {printing ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={14}/>} Print Receipt
+                </button>
+              )}
+              <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <X size={14}/>
+              </button>
+            </div>
+          </div>
+          <OrderStepper status={order.status}/>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:"auto", padding:"18px 22px" }}>
+
+          {/* Customer */}
+          <SectionCard title="Customer">
+            <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>{order.customer}</div>
+            <div style={{ fontSize:12.5, color:C.muted, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Phone size={12}/> {order.phone || "—"}</div>
+          </SectionCard>
+
+          {order.address && (
+            <SectionCard title="Delivery Address" tint="amber">
+              <div style={{ display:"flex", gap:7, alignItems:"flex-start" }}>
+                <MapPin size={13} color="#8a6a00" style={{ marginTop:1, flexShrink:0 }}/>
+                <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{order.address}</div>
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Items — with live per-item stock availability inline, no separate check step */}
+          <SectionCard title={`Items (${order.items.length})`}>
+            {order.items.length === 0 ? (
+              <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No item details available.</div>
+            ) : (
+              <div style={{ display:"grid", gap:6 }}>
+                {order.items.map((item, i) => {
+                  const r = stockInfo?.results?.[i];
+                  const showBadge = order.status === "pending" && r;
+                  return (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"space-between", padding:"7px 10px", borderRadius:8, background:i%2===0?"#f8fffe":"#fff", border:`1px solid ${C.greenLt}` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                        <div style={{ width:36, height:36, borderRadius:8, overflow:"hidden", flexShrink:0, background:"#f0f0f0", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          {itemImage(item) ? <img src={itemImage(item)} alt={item.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Package size={16} color={C.muted}/>}
+                        </div>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontWeight:700, fontSize:12.5, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+                          <div style={{ fontSize:11, color:C.muted }}>
+                            Qty {item.qty}
+                            {showBadge && (
+                              <span style={{ marginLeft:6, fontWeight:700, color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412" }}>
+                                · {!r.matched ? "unmatched" : `${r.available ?? 0} available`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                        {showBadge && (
+                          <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20,
+                            color: !r.matched ? "#991b1b" : r.sufficient ? "#27500a" : "#9a3412",
+                            background: !r.matched ? "#fee2e2" : r.sufficient ? "#eaf3de" : "#fef3c7" }}>
+                            {!r.matched ? "UNMATCHED" : r.sufficient ? "OK" : "SHORT"}
+                          </span>
+                        )}
+                        <div style={{ fontWeight:700, fontSize:12.5, color:C.green }}>{fmtPeso(item.price * item.qty)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:10, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop:8 }}>
+              <div style={{ fontWeight:800, fontSize:13, color:C.ink }}>Total</div>
+              <div style={{ fontWeight:800, fontSize:16, color:C.green }}>{fmtPeso(order.total)}</div>
+            </div>
+          </SectionCard>
+
+          {/* ── Actions ── */}
+          <div style={{ marginTop:6 }}>
+            {order.status === "pending" && mode !== "reject" && (
+              <div>
+                {stockInfo?.checking && (
+                  <div style={{ display:"flex", gap:7, alignItems:"center", background:C.bg, border:`1px solid ${C.border}`, borderRadius:9, padding:"9px 11px", marginBottom:10, fontSize:11.5, color:C.muted }}>
+                    <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>
+                    Checking stock availability…
+                  </div>
+                )}
+                {showStockWarning && (
+                  <div style={{ display:"flex", gap:7, alignItems:"flex-start", background:C.warnBg, border:"1px solid #fed7aa", borderRadius:9, padding:"9px 11px", marginBottom:10, fontSize:11.5, color:"#9a3412" }}>
+                    <AlertTriangle size={13} style={{ flexShrink:0, marginTop:1 }}/>
+                    <div>
+                      <div style={{ fontWeight:700, marginBottom:2 }}>Can't accept — insufficient stock</div>
+                      {shortItems.map((s, i) => (
+                        <div key={i}>
+                          {s.name}: {s.matched ? `need ${s.qty}, have ${s.available ?? 0}` : "not linked to a stock item"}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={() => onAccept(order)} disabled={acceptDisabled}
+                    style={{ ...primaryBtn, flex:1,
+                      opacity: acceptDisabled ? 0.5 : 1,
+                      cursor: acceptDisabled ? "not-allowed" : "pointer",
+                      display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                    {accepting && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                    {accepting ? "Accepting…" : showStockWarning ? "Insufficient Stock" : "Accept Order"}
+                  </button>
+                  <button onClick={() => setMode("reject")} style={dangerTextBtn}>Reject</button>
+                </div>
+              </div>
+            )}
+            {order.status === "pending" && mode === "reject" && (
+              <ReasonForm title="Reject this order" confirmLabel="Reject Order" saving={rejecting}
+                onCancel={() => setMode(null)} onConfirm={doReject}/>
+            )}
+
+            {/* Accepted = shipping. No dispose step — stock was already deducted on accept. */}
+            {order.status === "accepted" && mode !== "reject" && (
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk }}>
+                  <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                  <span>This order is accepted and shipping. Stock was already deducted.</span>
+                </div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={() => onPrint([order])} style={{ ...printBtn, flex:1 }}>
+                    <Printer size={14}/> Print Receipt
+                  </button>
+                  <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {order.status === "accepted" && mode === "reject" && (
+              <ReasonForm title="Cancel this order" confirmLabel="Cancel Order" saving={rejecting}
+                onCancel={() => setMode(null)} onConfirm={doReject}/>
+            )}
+
+            {order.status === "rejected" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#7f1d1d", animation:"cardIn .2s ease" }}>
+                <X size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                <span>This order was rejected. No stock was deducted.</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
+  const apiUrl   = process.env.REACT_APP_API_URL;
+  const userName = user?.name || "Admin";
+
+  const [activityLog,     setActivityLog]     = useState([]);
+
+  const [orders,      setOrders]      = useState([]);
+  const [ingredients, setIngredients] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error,       setError]       = useState(null);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
+
   const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [viewOrder,    setViewOrder]    = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
-  const [openDropdown, setOpenDropdown] = useState(null);
-  const [activeTab,    setActiveTab]    = useState("active");
+  const [toast,        setToast]        = useState(null);
+  const [printQueue,   setPrintQueue]   = useState([]);
+  const [massAccepting, setMassAccepting] = useState(false);
+  const [acceptingId,   setAcceptingId]   = useState(null);
 
-  const [printReceipts, setPrintReceipts] = useState([]);
-  const printRef = useRef(null);
+  // Automatic, per-order stock availability — replaces manual "check stock" + dispose flow
+  // shape: { [orderId]: { checking: bool, ok: bool, results: [{...item, matched, available, sufficient}] } }
+  const [stockAvailability, setStockAvailability] = useState({});
 
-  const [itemsModal, setItemsModal] = useState(null); 
+  const showToast = (type, title, message) => setToast({ type, title, message });
 
-  useEffect(() => {
-    if (!openDropdown) return;
-    const close = () => { setOpenDropdown(null); setDropdownRect(null); };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [openDropdown]);
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const triggerPrint = (ordersToPrint) => {
+    if (!ordersToPrint || ordersToPrint.length === 0) return;
+    setPrintQueue(ordersToPrint);
+    setTimeout(() => { window.print(); setPrintQueue([]); }, 80);
+  };
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${apiUrl}/orders-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+  }, [apiUrl]);
+
+  const handleRefreshClick = async () => {
+    setRefreshingOrders(true);
+    showToast("loading", "Refreshing orders…");
+    await fetchOrders();
+    setToast(null);
+  };
+
+  /* ── fetch orders + ingredients ── */
   const fetchOrders = async () => {
     setLoadingData(true);
     setError(null);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/orders`, { credentials:"include" });
       if (!res.ok) throw new Error("Failed to load orders");
       const data = await res.json();
       setOrders(data.map(normalizeOrder));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoadingData(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setLoadingData(false); }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  const fetchIngredients = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/ingredients`);
+      const d = await res.json();
+      setIngredients(Array.isArray(d) ? d : []);
+    } catch (err) { console.warn("Failed to fetch ingredients:", err); }
+  }, [apiUrl]);
+
+  useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
+
+  /* ── automatic stock availability, sourced entirely from Stock Inventory
+     (ingredients/ingredient_batches). shop_items.stock is just a mirror of
+     this now — never treated as authoritative. ── */
+  const fetchShopItemsMap = async () => {
+    const res = await fetch(`${apiUrl}/shop-items`);
+    const data = await res.json();
+    const map = {};
+    (Array.isArray(data) ? data : []).forEach(i => { map[i.id] = i; });
+    return map;
+  };
+
+  const fetchBatchesFor = async (ingredientId) => {
+    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredientId}`);
+    const d = await res.json();
+    return Array.isArray(d) ? d : [];
+  };
+
+  const refreshStockAvailability = useCallback(async (orderList) => {
+    const pendingOrders = orderList.filter(o => o.status === "pending");
+    if (pendingOrders.length === 0) return;
+
+    setStockAvailability(prev => {
+      const next = { ...prev };
+      pendingOrders.forEach(o => { next[o.id] = { ...(next[o.id] || {}), checking: true }; });
+      return next;
+    });
+
+    let shopItemsMap;
+    try {
+      shopItemsMap = await fetchShopItemsMap();
+    } catch {
+      return;
+    }
+
+    const batchStockCache = {}; // shared across orders in this pass
+    const getIngredientStock = async (ingredientId) => {
+      if (batchStockCache[ingredientId] != null) return batchStockCache[ingredientId];
+      const batches = await fetchBatchesFor(ingredientId);
+      const total = batches.reduce((s, b) => s + Number(b.stock || 0), 0);
+      batchStockCache[ingredientId] = total;
+      return total;
+    };
+
+    for (const order of pendingOrders) {
+      const neededByItem = {};
+      order.items.forEach(item => {
+        if (item.shop_item_id == null) return;
+        neededByItem[item.shop_item_id] = (neededByItem[item.shop_item_id] || 0) + Number(item.qty || 0);
+      });
+
+      const results = [];
+      for (const item of order.items) {
+        const si = item.shop_item_id != null ? shopItemsMap[item.shop_item_id] : null;
+
+        // No linked ingredient = can't be fulfilled, same as backend now enforces.
+        if (!si || !si.ingredient_id) { results.push({ ...item, matched:false, available:0, sufficient:false }); continue; }
+
+        const available = await getIngredientStock(si.ingredient_id);
+        const totalNeeded = neededByItem[item.shop_item_id];
+        results.push({ ...item, matched:true, available, sufficient: available >= totalNeeded });
+      }
+
+      const ok = results.every(r => r.sufficient);
+      setStockAvailability(prev => ({ ...prev, [order.id]: { checking:false, ok, results } }));
+    }
+  }, [apiUrl]);
 
   useEffect(() => {
-    localStorage.setItem("bm_active_tab", "mobile_orders");
-  }, []);
+    if (orders.length > 0) refreshStockAvailability(orders);
+  }, [orders, refreshStockAvailability]);
 
-  // ── Convert order → receipt shape for ReceiptPrintTemplate ───────────────
-  const orderToReceipt = (order) => ({
-    merchant:     order.customer,
-    date:         order.createdAt ? order.createdAt.slice(0, 10) : "",
-    currency:     "PHP",
-    total_amount: order.total,
-    brand:        order.brand,
-    branch:       order.branch,
-    address:      order.address,
-    phone:        order.phone,
-    reference_no: order.id,
-    lineItems: (order.items || []).map(item => ({
-      description: item.name,
-      quantity:    item.qty ?? item.quantity ?? 1,
-      unit_price:  item.price ?? 0,
-      total_price: (item.price ?? 0) * (item.qty ?? item.quantity ?? 1),
-    })),
-  });
-
-  // ── Print handler (mirrors Receipts.jsx handlePrint) ──────────────────────
-  const handlePrint = (order) => {
-    const receipt = orderToReceipt(order);
-    setPrintReceipts([receipt]);
-    setTimeout(() => {
-      const el = printRef.current;
-      if (!el) return;
-      el.setAttribute("data-print", "true");
-      el.style.display = "block";
-      document.body.appendChild(el);
-      const img = el.querySelector("img");
-      if (img && !img.complete) {
-        img.onload = () => {
-          window.print();
-          el.style.display = "none";
-          el.removeAttribute("data-print");
-        };
-      } else {
-        window.print();
-        el.style.display = "none";
-        el.removeAttribute("data-print");
-      }
-    }, 300);
-  };
-
-  // ── Status advance ────────────────────────────────────────────────────────
-  const advanceStatus = async (id, nextUiStatus) => {
-    const order = orders.find(o => o.id === id);
-    if (!order) return;
+  const advanceStatus = async (order, nextUiStatus, changeNote) => {
     const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
-
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: nextUiStatus } : o));
-    if (viewOrder?.id === id) setViewOrder(v => ({ ...v, status: nextUiStatus }));
-    if (itemsModal?.id === id) setItemsModal(v => ({ ...v, status: nextUiStatus }));
-
+    const coords = await getBrowserLocation();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/orders/${order._dbId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: dbStatus }),
+      const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+        method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
+        body: JSON.stringify({
+          status: dbStatus,
+          performed_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
       });
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) {
+        let detail = "";
+        try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
+        throw new Error(detail || `Update failed (${res.status})`);
+      }
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
+      setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
+      await fetchActivityLog();
     } catch (err) {
-      fetchOrders();
-      alert(`Could not update order: ${err.message}`);
+      showToast("error", "Couldn't update order", err.message);
+      throw err;
     }
   };
 
-  const requestAdvance = (id, nextUiStatus, label) => {
-    setOpenDropdown(null);
-    setConfirmModal({ id, nextUiStatus, label });
+  const acceptOrderWithDeduction = async (order) => {
+    const availability = stockAvailability[order.id];
+    if (!availability?.ok) {
+      const short = (availability?.results || []).filter(r => !r.sufficient);
+      const list = short.map(i => `${i.name} (need ${i.qty}, have ${i.available ?? 0})`).join(", ");
+      showToast("error", "Not enough stock", list || "Insufficient stock for this order.");
+      return false;
+    }
+
+    try {
+      await advanceStatus(order, "accepted", `Accepted — stock deducted, moved to shipping`);
+      return true;
+    } catch (err) {
+      showToast("error", "Couldn't accept order", err.message || "Something went wrong accepting this order.");
+      return false;
+    }
   };
 
-  const confirmAdvance = () => {
-    if (!confirmModal) return;
-    advanceStatus(confirmModal.id, confirmModal.nextUiStatus);
-    setConfirmModal(null);
+  const handleAccept = async (order) => {
+    setAcceptingId(order.id);
+    try {
+      const ok = await acceptOrderWithDeduction(order);
+      if (ok) showToast("success", "Order accepted", `#${order.id} is now shipping.`);
+    } catch (err) {
+      showToast("error", "Couldn't accept order", err.message);
+    } finally {
+      setAcceptingId(null);
+    }
   };
 
-  const allBrands   = [...new Set(orders.map(o => o.brand))];
-  const allBranches = [...new Set(orders.map(o => o.branch))];
+  const handleReject = async (order, reason, note) => {
+    try {
+      const changeNote = `${order.status === "accepted" ? "Cancelled" : "Rejected"} — ${reason}${note ? `: ${note}` : ""}`;
+      await advanceStatus(order, "rejected", changeNote);
+      showToast("success", "Order rejected", `#${order.id} was marked as rejected.`);
+    } catch {}
+  };
 
-  const fmtPeso = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  const handleMassAcceptAndPrint = async () => {
+    const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
+    const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
+    if (pendingOrders.length === 0) {
+      showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
+      return;
+    }
+    setMassAccepting(true);
+    showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
+    const accepted = [];
+    for (const o of pendingOrders) {
+      try {
+        const ok = await acceptOrderWithDeduction(o);
+        if (ok) accepted.push({ ...o, status:"accepted" });
+      } catch {}
+    }
+    setMassAccepting(false);
+    if (accepted.length > 0) {
+      showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
+      triggerPrint(accepted);
+    } else {
+      setToast(null);
+    }
+    await fetchOrders();
+  };
 
   const filtered = orders.filter(o => {
-    if (filterBrand  !== "all" && o.brand  !== filterBrand)  return false;
-    if (filterBranch !== "all" && o.branch !== filterBranch) return false;
-    if (filterStatus !== "all" && o.status !== filterStatus) return false;
+    if (statusFilter !== "all" && o.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!o.id.toLowerCase().includes(q) && !o.customer.toLowerCase().includes(q)) return false;
     }
     return true;
-  });
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const counts = {
-    total:      orders.length,
-    pending:    orders.filter(o => o.status === "processing").length,
-    in_transit: orders.filter(o => o.status === "in_transit").length,
-    received:   orders.filter(o => o.status === "received").length,
+    total:    orders.length,
+    pending:  orders.filter(o => o.status === "pending").length,
+    accepted: orders.filter(o => o.status === "accepted").length,
+    rejected: orders.filter(o => o.status === "rejected").length,
   };
 
-  // ── Sub-components ────────────────────────────────────────────────────────
+  const FILTER_CHIPS = [
+    { key:"all",      label:"All Orders",      count:counts.total },
+    { key:"pending",  label:"Incoming Orders", count:counts.pending },
+    { key:"accepted", label:"Shipping",        count:counts.accepted },
+    { key:"rejected", label:"Rejected",        count:counts.rejected },
+  ];
 
-  const StatusBadge = ({ status }) => {
-    const s = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
-        {s.label}
-      </span>
-    );
-  };
-
-  // ── Confirmation Modal ────────────────────────────────────────────────────
-  const ConfirmModal = () => {
-    if (!confirmModal) return null;
-    const order = orders.find(o => o.id === confirmModal.id);
-    const isDanger = confirmModal.nextUiStatus === "rejected";
-    return (
-      <div
-        onClick={() => setConfirmModal(null)}
-        style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20 }}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{ background: "#fff", borderRadius: 18, padding: "28px 30px", maxWidth: 360, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.22)", border: "1px solid rgba(0,168,76,0.15)" }}
-        >
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: isDanger ? "#fef2f2" : "#f0fdf5", border: `1.5px solid ${isDanger ? "#fecaca" : "#d1eedd"}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-            {isDanger ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00897b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
-                <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
-                <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
-              </svg>
-            )}
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: isDanger ? "#dc2626" : "#00897b", marginBottom: 6 }}>
-            Confirm Action
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#0d2b1e", marginBottom: 6 }}>{confirmModal.label}</div>
-          <div style={{ fontSize: 13, color: "#5a7a65", marginBottom: 24 }}>
-            Order <strong style={{ color: "#0d2b1e" }}>#{confirmModal.id}</strong>
-            {order ? <span> · {order.customer}</span> : null}
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button onClick={() => setConfirmModal(null)} style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid #d1eedd", background: "#f8fffe", color: "#5a7a65", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-              Cancel
-            </button>
-            <button onClick={confirmAdvance} style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: isDanger ? "linear-gradient(135deg,#dc2626,#b91c1c)" : "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-              Confirm
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Action Dropdown ───────────────────────────────────────────────────────
-  const [dropdownRect, setDropdownRect] = useState(null);
-
-  const ActionButtons = ({ order }) => {
-    const flow  = STATUS_FLOW[order.status];
-    const isOpen = openDropdown === order.id;
-    const btnRef = useRef(null);
-
-    if (!flow) return <span style={{ fontSize: 11, color: "#5a7a65", fontWeight: 600 }}>—</span>;
-
-    const actions = [
-      { label: flow.nextAction, nextStatus: flow.nextStatus, danger: false },
-      ...(flow.secondAction ? [{ label: flow.secondAction, nextStatus: flow.secondStatus, danger: true }] : []),
-    ];
-
-    const handleToggle = (e) => {
-      e.stopPropagation();
-      if (isOpen) {
-        setOpenDropdown(null);
-        setDropdownRect(null);
-      } else {
-        const rect = btnRef.current.getBoundingClientRect();
-        setDropdownRect({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-        setOpenDropdown(order.id);
-      }
-    };
-
-    return (
-      <div style={{ display: "inline-block" }} onClick={e => e.stopPropagation()}>
-        <button ref={btnRef} onClick={handleToggle}
-          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c" }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2c1.3 0 1.9.5 2.5 1"/>
-            <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4a11.6 11.6 0 0 0 1.62 6"/>
-            <path d="M12 10V2"/><path d="M12 2l-3 3"/><path d="M12 2l3 3"/>
-          </svg>
-          Action
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </button>
-
-        {isOpen && dropdownRect && (
-          <div style={{ position: "fixed", top: dropdownRect.top, right: dropdownRect.right, zIndex: 9999, background: "#fff", border: "1px solid #d1eedd", borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.13)", minWidth: 180, overflow: "hidden" }}>
-            {actions.map(({ label, nextStatus, danger }) => (
-              <button key={nextStatus} onClick={() => requestAdvance(order.id, nextStatus, label)}
-                style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", background: "transparent", border: "none", borderTop: danger ? "1px solid #fecaca" : "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, textAlign: "left", color: danger ? "#dc2626" : "#0d2b1e" }}
-                onMouseEnter={e => e.currentTarget.style.background = danger ? "#fff5f5" : "#f0fdf5"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                {danger ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                ) : (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                )}
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ── Order Items Modal (with Print button) ─────────────────────────────────
-  const OrderItemsModal = () => {
-    if (!itemsModal) return null;
-    const order = itemsModal;
-    return (
-      <div
-        onClick={() => setItemsModal(null)}
-        style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}
-        >
-          {/* Modal header */}
-          <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <path d="M16 10a4 4 0 01-8 0"/>
-              </svg>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{order.id}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(order.createdAt)}</div>
-              </div>
-            </div>
-            <button onClick={() => setItemsModal(null)}
-              style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-
-          <div style={{ padding: "22px 24px" }}>
-            {/* Customer */}
-            <div style={{ marginBottom: 14, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 5 }}>Customer</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{order.customer}</div>
-              {order.phone && <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{order.phone}</div>}
-            </div>
-
-            {/* Delivery Address */}
-            {order.address && (
-              <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2, flexShrink: 0 }}>
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                </svg>
-                <div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{order.address}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Brand / Branch */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              {[{ label: "Brand", value: order.brand }, { label: "Branch", value: order.branch }].map(({ label, value }, i) => (
-                <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 3 }}>{label}</div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{value || "—"}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Items table */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
-              {order.items.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#5a7a65", fontStyle: "italic", padding: "10px 12px" }}>No item details available.</div>
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr>
-                      {["Item", "Qty", "Price", "Total"].map(h => (
-                        <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#ffffff", background: "linear-gradient(135deg,#2E7D32,#00897b)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.items.map((item, i) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? "#f8fffe" : "#fff", borderBottom: "1px solid #e0f2f1" }}>
-                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#0d2b1e" }}>{item.name}</td>
-                        <td style={{ padding: "9px 10px", color: "#5a7a65", textAlign: "center" }}>{item.qty ?? item.quantity ?? 1}</td>
-                        <td style={{ padding: "9px 10px", color: "#5a7a65" }}>{fmtPeso(item.price)}</td>
-                        <td style={{ padding: "9px 10px", fontWeight: 700, color: "#00897b" }}>{fmtPeso((item.price ?? 0) * (item.qty ?? item.quantity ?? 1))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ borderTop: "2px solid #d1eedd" }}>
-                      <td colSpan={3} style={{ padding: "10px 10px", fontWeight: 800, textAlign: "right", color: "#00695c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em" }}>Total</td>
-                      <td style={{ padding: "10px 10px", fontWeight: 800, fontSize: 15, color: "#00897b" }}>{fmtPeso(order.total)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              )}
-            </div>
-
-            {/* Status + Print */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid #e0f2f1" }}>
-              <StatusBadge status={order.status} />
-              <button
-                onClick={() => { setItemsModal(null); handlePrint(order); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,140,60,0.25)" }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-                </svg>
-                Print Order
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Loading / Error states ────────────────────────────────────────────────
   if (loadingData) return (
-    <div style={{ padding: 60, textAlign: "center", color: "#5a7a65", fontFamily: "'Montserrat',sans-serif" }}>
-      Loading orders…
-    </div>
+    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
   );
-
   if (error) return (
-    <div style={{ padding: 40, textAlign: "center", fontFamily: "'Montserrat',sans-serif" }}>
-      <div style={{ color: "#dc2626", marginBottom: 12 }}>{error}</div>
-      <button onClick={fetchOrders} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, cursor: "pointer" }}>
-        Retry
-      </button>
+    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ color:"#dc2626", marginBottom:12 }}>{error}</div>
+      <button onClick={fetchOrders} style={{ padding:"8px 20px", borderRadius:8, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, cursor:"pointer" }}>Retry</button>
     </div>
   );
 
-  // ── Derived tab lists ─────────────────────────────────────────────────────
-  const activeOrders    = filtered.filter(o => o.status !== "received" && o.status !== "rejected");
-  const completedOrders = filtered.filter(o => o.status === "received" || o.status === "rejected");
-
-  // ── Items cell button (shared between both tables) ────────────────────────
-  const ItemsButton = ({ order, completed = false }) => (
-    <button
-      onClick={(e) => { e.stopPropagation(); setItemsModal(order); }}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-        cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-        border: "1px solid #b2dfdb",
-        background: completed ? "#f0fdf5" : "#FFF7ED",
-        color: "#00695c",
-      }}
-    >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <path d="M16 10a4 4 0 01-8 0"/>
-      </svg>
-      {order.items.length}
-    </button>
-  );
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: "'Montserrat',sans-serif" }}>
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes drawerIn { from { transform:translateX(100%); } to { transform:translateX(0); } }
+        @keyframes overlayIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes toastIn { from { opacity:0; transform:translateY(10px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+        button:not(:disabled) { transition: filter .15s ease, transform .1s ease; }
+        button:not(:disabled):hover { filter: brightness(0.96); }
+        button:not(:disabled):active { transform: translateY(1px); }
+        select:focus, input:focus, textarea:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); outline:none; }
+        #print-area { display:none; }
+        @media print {
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
+          #print-area { display:block !important; position: fixed; top:0; left:0; }
+          .receipt-page { page-break-after: always; }
+          @page { size: 8.5in 4.25in; margin: 0; }
+        }
+      `}</style>
 
-      {/* ── Modals ── */}
-      <ConfirmModal />
-      <OrderItemsModal />
-
-      {/* ── View Order Modal ── */}
-      {viewOrder && (
-        <div onClick={() => setViewOrder(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 480, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
-
-            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", borderRadius: "20px 20px 0 0", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <path d="M16 10a4 4 0 01-8 0"/>
-                </svg>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>Order #{viewOrder.id}</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{fmtDate(viewOrder.createdAt)}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {/* Print button in view modal header */}
-                <button
-                  onClick={() => { setViewOrder(null); handlePrint(viewOrder); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: 12, fontFamily: "inherit" }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-                  </svg>
-                  Print
-                </button>
-                <button onClick={() => setViewOrder(null)}
-                  style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-            </div>
-
-            <div style={{ padding: "22px 24px" }}>
-              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#f0fdf5", borderRadius: 12, border: "1px solid #d1eedd" }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 6 }}>Customer</div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#0d2b1e" }}>{viewOrder.customer}</div>
-                <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2 }}>{viewOrder.phone}</div>
-              </div>
-
-              <div style={{ marginBottom: 18, padding: "12px 14px", background: "#fffdf0", borderRadius: 12, border: "1px solid #e8d5a3", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a6a00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2, flexShrink: 0 }}>
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                </svg>
-                <div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#8a6a00", marginBottom: 4 }}>Delivery Address</div>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "#0d2b1e" }}>{viewOrder.address || "—"}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-                {[{ label: "Brand", value: viewOrder.brand }, { label: "Branch", value: viewOrder.branch }].map(({ label, value }, i) => (
-                  <div key={label} style={{ padding: "10px 12px", background: i === 0 ? "#e0f2f1" : "#f8fffe", borderRadius: 10, border: i === 0 ? "1px solid #b2dfdb" : "1px solid #e0f2f1" }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 3 }}>{label}</div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#5a7a65", marginBottom: 8 }}>Order Items</div>
-                {viewOrder.items.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "#5a7a65", fontStyle: "italic", padding: "10px 12px" }}>No item details available.</div>
-                ) : viewOrder.items.map((item, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: i % 2 === 0 ? "#f8fffe" : "#fff", border: "1px solid #e0f2f1", marginBottom: 4 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{item.name}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65" }}>Qty: {item.qty}</div>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#00897b" }}>{fmtPeso(item.price * item.qty)}</div>
-                  </div>
-                ))}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, background: "linear-gradient(135deg,#d1fae5,#e0f2f1)", marginTop: 8 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e" }}>Total</div>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#00897b" }}>{fmtPeso(viewOrder.total)}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <StatusBadge status={viewOrder.status} />
-                <ActionButtons order={viewOrder} />
-              </div>
-            </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:18 }}>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center",
+          background:"#fff", border:`1px solid ${C.border}`, borderRadius:12, padding:10 }}>
+          <div style={{ position:"relative", flex:"1 1 220px", minWidth:200 }}>
+            <Search size={15} color={C.muted} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", pointerEvents:"none" }}/>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
+              style={{ width:"100%", height:38, padding:"0 14px 0 36px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
           </div>
-        </div>
-      )}
 
-      {/* ── Stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
-        <BmStatCard label="Total Orders"  value={counts.total}      icon={<Package size={20} color="#065f46" />}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All time" />
-        <BmStatCard label="Processing"    value={counts.pending}    icon={<AlertTriangle size={20} color="#92400e" />} bg="linear-gradient(135deg,#fef9c3,#fde68a)" sub="Awaiting action" />
-        <BmStatCard label="In Transit"    value={counts.in_transit} icon={<TrendingUp size={20} color="#1e40af" />}    bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="On the way" />
-        <BmStatCard label="Received"      value={counts.received}   icon={<Check size={20} color="#065f46" />}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed" />
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
+              fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background:"#fff", cursor:"pointer" }}>
+            {FILTER_CHIPS.map(c => (
+              <option key={c.key} value={c.key}>{c.label} ({c.count})</option>
+            ))}
+          </select>
+
+          <button onClick={handleRefreshClick} disabled={refreshingOrders}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:`1px solid ${C.border}`,
+              background:C.greenLt, color:C.greenDk, fontWeight:700, fontSize:12, cursor: refreshingOrders ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: refreshingOrders ? 0.6 : 1 }}>
+            <RefreshCw size={13} style={ refreshingOrders ? { animation:"spin 0.8s linear infinite" } : undefined }/> Refresh
+          </button>
+        </div>
+
+        <div style={{ display:"flex", justifyContent:"flex-end", gap:8, flexWrap:"wrap" }}>
+          <button onClick={handleMassAcceptAndPrint} disabled={massAccepting || counts.pending === 0}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, border:"none",
+              background: (massAccepting || counts.pending === 0) ? "#e5e7eb" : `linear-gradient(135deg,${C.teal},${C.green})`,
+              color: (massAccepting || counts.pending === 0) ? "#9ca3af" : "#fff",
+              fontWeight:700, fontSize:12, cursor: (massAccepting || counts.pending === 0) ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
+            {massAccepting ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={13}/>}
+            {massAccepting ? "Accepting…" : `Accept & Print All (${orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok).length})`}
+          </button>
+        </div>
       </div>
 
-      {/* ── Tab bar + Refresh ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 4, background: "#fff", border: "1px solid #d1eedd", borderRadius: 14, padding: 5, width: "fit-content", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
-          {[
-            { key: "active",    label: "Active Orders", count: activeOrders.length },
-            { key: "completed", label: "Completed",     count: completedOrders.length },
-          ].map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ padding: "8px 22px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, transition: "all .15s", background: activeTab === tab.key ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: activeTab === tab.key ? "#fff" : "#5a7a65", boxShadow: activeTab === tab.key ? "0 2px 10px rgba(0,180,90,0.28)" : "none" }}>
-              {tab.label}
-              <span style={{ padding: "1px 8px", borderRadius: 20, fontSize: 11, background: activeTab === tab.key ? "rgba(255,255,255,0.25)" : "rgba(0,168,76,0.12)", color: activeTab === tab.key ? "#fff" : "#00695c" }}>
-                {tab.count}
-              </span>
-            </button>
+      {filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:"70px 20px", background:"#fff", borderRadius:18, border:`1px dashed ${C.border}`, animation:"cardIn .2s ease" }}>
+          <Package size={34} color={C.muted} style={{ opacity:0.5, marginBottom:10 }}/>
+          <div style={{ fontSize:14, fontWeight:700, color:C.ink, marginBottom:4 }}>No orders here</div>
+          <div style={{ fontSize:12.5, color:C.muted }}>
+            {statusFilter === "all" ? "New orders will show up here as soon as customers place them." : "Try a different filter or search term."}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:14 }}>
+          {filtered.map((order, i) => (
+            <div key={order.id} style={{ animation:"cardIn .28s ease both", animationDelay:`${Math.min(i,10)*30}ms` }}>
+              <OrderCard
+                order={order}
+                onOpen={setViewOrder}
+                stockInfo={stockAvailability[order.id]}
+                onAccept={handleAccept}
+                acceptDisabled={acceptingId === order.id || (order.status === "pending" && !stockAvailability[order.id]?.ok)}
+                accepting={acceptingId === order.id}
+              />
+            </div>
           ))}
         </div>
-        <button onClick={fetchOrders}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #d1eedd", background: "#e0f2f1", color: "#00695c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          ⟳ Refresh
-        </button>
+      )}
+
+      {viewOrder && (
+        <OrderDrawer
+          order={orders.find(o => o.id === viewOrder.id) || viewOrder}
+          onClose={() => setViewOrder(null)}
+          onAccept={handleAccept}
+          onReject={handleReject}
+          onPrint={triggerPrint}
+          stockInfo={stockAvailability[viewOrder.id]}
+          acceptDisabled={acceptingId === viewOrder.id || (viewOrder.status === "pending" && !stockAvailability[viewOrder.id]?.ok)}
+          accepting={acceptingId === viewOrder.id}
+        />
+      )}
+
+      <Toast toast={toast} onClose={() => setToast(null)}/>
+
+      <div id="print-area">
+        {printQueue.map(o => <ReceiptSlip key={o.id} order={o} />)}
       </div>
-
-      {/* ── Active Orders Panel ── */}
-      {activeTab === "active" && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
-          <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}> Active Orders</span>
-            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{activeOrders.length} order{activeOrders.length !== 1 ? "s" : ""}</small>
-          </div>
-          <div style={{ width: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "10%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status","Actions"].map(h => (
-                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
-                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No active orders</div>
-                    </td>
-                  </tr>
-                ) : activeOrders.map(order => (
-                  <tr key={order.id}
-                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
-                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
-                  >
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <ItemsButton order={order} />
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><ActionButtons order={order} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Completed Orders Panel ── */}
-      {activeTab === "completed" && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 14px rgba(0,140,60,0.07)" }}>
-          <div style={{ background: "linear-gradient(135deg,#309920,#3B6D11)", padding: "11px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}>✓ Completed Orders</span>
-            <small style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{completedOrders.length} order{completedOrders.length !== 1 ? "s" : ""}</small>
-          </div>
-          <div style={{ width: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "11%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {["Order #","Customer","Brand","Branch","Items","Total","Date Placed","Status"].map(h => (
-                    <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "1px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {completedOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ padding: "52px 0", textAlign: "center", color: "#94a3b8" }}>
-                      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}></div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#5a7a65", marginBottom: 6 }}>No completed orders</div>
-                    </td>
-                  </tr>
-                ) : completedOrders.map(order => (
-                  <tr key={order.id}
-                    onMouseEnter={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = "#f6fef8"); }}
-                    onMouseLeave={e => { Array.from(e.currentTarget.querySelectorAll("td")).forEach(td => td.style.background = ""); }}
-                  >
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#0d2b1e", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{order.id}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <div style={{ fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.customer}</div>
-                      <div style={{ fontSize: 11, color: "#5a7a65", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.phone}</div>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.brand}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", overflow: "hidden" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.branch}</span>
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}>
-                      <ItemsButton order={order} completed />
-                    </td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontWeight: 800, color: "#00897b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtPeso(order.total)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0", fontSize: 11, color: "#5a7a65", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(order.createdAt)}</td>
-                    <td style={{ padding: "11px 10px", borderBottom: "1px solid #f0f8f0" }}><StatusBadge status={order.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Print template (hidden, mirrors Receipts.jsx pattern) ── */}
-      <ReceiptPrintTemplate ref={printRef} receipts={printReceipts} />
     </div>
   );
 }
+
 
 // APPLICATIONS 
 function generateTempPassword(length = 10) {
@@ -3468,25 +3605,126 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Delete confirmation modal (ported from ApplicationsContent)
+// ─────────────────────────────────────────────────────────────────────────
+function FAApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
+  if (!app) return null;
+  return (
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete application?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete the application from <strong>"{app.name}"</strong>{app.email ? ` (${app.email})` : ""}.
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={14} />}
+            {deleting ? "Deleting…" : "Delete Application"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Main content
+// ─────────────────────────────────────────────────────────────────────────
 function FAApplicationsContent({ user, applications: initialApps }) {
-  const [applications, setApplications] = useState(initialApps || []);
-  const [viewApp,      setViewApp]      = useState(null);
-  const [accountApp,   setAccountApp]   = useState(null);
-  const [alertModal, setAlertModal] = useState(null);
-  
-  const showAlert = (message, type = "info") =>
-  setAlertModal({ message, type });
+  const [activityLog,   setActivityLog]   = useState([]);
+  const [applications,  setApplications]  = useState(initialApps || []);
+  const [viewApp,       setViewApp]       = useState(null);
+  const [accountApp,    setAccountApp]    = useState(null);
+  const [alertModal,    setAlertModal]    = useState(null);
+  const [restoringId,   setRestoringId]   = useState(null);
+
+  const showAlert = (title, message, type = "info") =>
+    setAlertModal({ title, message, type });
 
   const [menuApp, setMenuApp] = useState(null);
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
-  const [role, setRole] = useState("franchisee"); 
+  const [role, setRole] = useState("franchisee");
 
   const [filterStatus,    setFilterStatus]    = useState("all");
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting,     setDeleting]     = useState(false);
   const [processingId, setProcessingId] = useState(null);
+
+  const handleDelete = (id) => {
+    const app = applications.find(a => a.id === id);
+    if (app) setDeleteTarget(app);
+  };
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id, action: row.action,
+        ingredientName: row.ingredient_name ?? row.ingredientName,
+        branch: row.branch,
+        performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
+        changes: row.changes,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch applications activity log:", err); }
+  }, []);
 
   const fetchApplications = async () => {
     try {
@@ -3499,25 +3737,25 @@ function FAApplicationsContent({ user, applications: initialApps }) {
   };
 
   const getBrowserLocation = () => {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
-  });
-};
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
 
   const filteredApps = applications.filter(app => {
-  const q = searchQuery.toLowerCase();
-  if (q && !app.name?.toLowerCase().includes(q) &&
-           !app.email?.toLowerCase().includes(q) &&
-           !app.phone?.toLowerCase().includes(q)) return false;
-  if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
-  if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
-  return true;
-});
+    const q = searchQuery.toLowerCase();
+    if (q && !app.name?.toLowerCase().includes(q) &&
+             !app.email?.toLowerCase().includes(q) &&
+             !app.phone?.toLowerCase().includes(q)) return false;
+    if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
+    if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
+    return true;
+  });
 
   const fetchAppDeleteHistory = async () => {
     try {
@@ -3539,141 +3777,159 @@ function FAApplicationsContent({ user, applications: initialApps }) {
   useEffect(() => {
     fetchApplications();
     fetchAppDeleteHistory();
+    fetchActivityLog();
   }, []);
 
-const handleApprove = async (id) => {
-  if (processingId) return;
-  setProcessingId(id);
-  try {
-    const coords = await getBrowserLocation();
-    await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        status: "approved",
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
-    setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
-  } finally {
-    setProcessingId(null);
-  }
-};
+  useEffect(() => {
+    if (!alertModal) return;
+    const timer = setTimeout(() => {
+      setAlertModal(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [alertModal]);
 
-const handleReject = async (id) => {
-  if (processingId) return;
-  setProcessingId(id);
-  try {
-    const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        status: "rejected",
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
-
-    const app = applications.find(a => a.id === id);
-    if (app?.email) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ to: app.email, name: app.name }),
-      });
-    }
-
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
-    setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
-  } finally {
-    setProcessingId(null);
-  }
-};
-
-const handleDelete = async (id) => {
-  if (!window.confirm("Delete this application?")) return;
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deleted_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setApplications(prev => prev.filter(a => a.id !== id));
-      await fetchAppDeleteHistory();
-    } else {
-      alert(data.error || "Failed to delete application.");
-    }
-  } catch {
-    alert("Failed to delete application.");
-  }
-};
-
-  const handleRestoreApplication = async (entry) => {
+  const handleApprove = async (id) => {
+    if (processingId) return;
+    setProcessingId(id);
+    setAlertModal({ title: "Approving application…", type: "loading" });
     try {
-      const d = entry.data; // raw DB row — snake_case keys
-
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
-        method:  "POST",
+      const coords = await getBrowserLocation();
+      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:             d.name,
-          email:            d.email,
-          phone:            d.phone,
-          franchise:        d.franchise,
-          paymentMode:      d.payment_mode,
-          dob:              d.dob,
-          civilStatus:      d.civil_status,
-          gender:           d.gender,
-          nationality:      d.nationality,
-          address:          d.address,
-          dependents:       d.dependents,
-          spouseName:       d.spouse_name,
-          spouseOccupation: d.spouse_occupation,
-          employmentType:   d.employment_type,
-          yearsEmployer:    d.years_employer,
-          income:           d.income,
-          employerName:     d.employer_name,
-          businessAddress:  d.business_address,
-          position:         d.position,
-          businessNature:   d.business_nature,
-          signature:        d.signature,
-          dateSigned:       d.date_signed,
+          status: "approved",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
+      setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
+      await fetchActivityLog();
+      setAlertModal({ title: "Application approved", type: "success" });
+    } catch {
+      setAlertModal({ title: "Failed to approve", message: "Please try again.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (processingId) return;
+    setProcessingId(id);
+    setAlertModal({ title: "Rejecting application…", type: "loading" });
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "rejected",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAlertModal({ title: "Failed to reject", message: data.error || "Please try again.", type: "error" }); return; }
+
+      const app = applications.find(a => a.id === id);
+      if (app?.email) {
+        await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: app.email, name: app.name }),
+        });
+      }
+
+      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
+      setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
+      await fetchActivityLog();
+      setAlertModal({ title: "Application rejected", type: "success" });
+    } catch {
+      setAlertModal({ title: "Failed to reject", message: "Please try again.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const confirmDeleteApplication = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setAlertModal({ title: "Deleting application…", type: "loading" });
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setApplications(prev => prev.filter(a => a.id !== deleteTarget.id));
+        await fetchAppDeleteHistory();
+        await fetchActivityLog();
+        setAlertModal({ title: `"${deleteTarget.name}" deleted`, type: "success" });
+      } else {
+        setAlertModal({ title: "Failed to delete", message: data.error || "Please try again.", type: "error" });
+      }
+    } catch {
+      setAlertModal({ title: "Failed to delete", message: "Please try again.", type: "error" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRestoreApplication = async (entry) => {
+    setRestoringId(entry.id);
+    setAlertModal({ title: "Restoring application…", type: "loading" });
+    try {
+      const d = entry.data; // raw DB row — snake_case keys
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name, email: d.email, phone: d.phone, franchise: d.franchise,
+          paymentMode: d.payment_mode, dob: d.dob, civilStatus: d.civil_status,
+          gender: d.gender, nationality: d.nationality, address: d.address,
+          dependents: d.dependents, spouseName: d.spouse_name, spouseOccupation: d.spouse_occupation,
+          employmentType: d.employment_type, yearsEmployer: d.years_employer, income: d.income,
+          employerName: d.employer_name, businessAddress: d.business_address,
+          position: d.position, businessNature: d.business_nature,
+          signature: d.signature, dateSigned: d.date_signed,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
         }),
       });
       const result = await res.json();
 
       if (result.success) {
-        // Remove from delete history
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
-          { method: "DELETE" }
-        );
+        await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
         await fetchAppDeleteHistory();
         await fetchApplications();
-        alert(`"${d.name}" has been restored.`);
+        await fetchActivityLog();
+        setAlertModal({ title: `"${d.name}" restored`, type: "success" });
       } else {
-        alert(result.error || "Failed to restore.");
+        setAlertModal({ title: "Failed to restore", message: result.error || "Please try again.", type: "error" });
       }
     } catch (err) {
       console.error("Restore error:", err);
-      alert("Failed to restore application.");
+      setAlertModal({ title: "Failed to restore", message: "Please try again.", type: "error" });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -3795,15 +4051,27 @@ const handleDelete = async (id) => {
 
                   <button
                     onClick={() => handleRestoreApplication(entry)}
+                    disabled={restoringId !== null}
                     style={{
                       display: "flex", alignItems: "center", gap: 5,
                       padding: "7px 14px", borderRadius: 9,
-                      border: "1.5px solid #00897b", background: "#e0f2f1",
+                      border: "1.5px solid #00897b",
+                      background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
                       color: "#00695c", fontSize: 12, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                      cursor: restoringId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit", whiteSpace: "nowrap",
+                      opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                     }}
                   >
-                    <RotateCcw size={12} /> Restore
+                    {restoringId === entry.id ? (
+                      <>
+                        <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw size={12} /> Restore
+                      </>
+                    )}
                   </button>
                 </div>
               );
@@ -3817,13 +4085,19 @@ const handleDelete = async (id) => {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Delete History Modal (rendered at root level, NOT inside table) */}
+      {/* ── Delete History Modal (root level, NOT inside table) */}
       <DeleteHistoryModal />
 
+      {/* ── Delete confirmation modal ── */}
+      <FAApplicationConfirmModal
+        app={deleteTarget}
+        deleting={deleting}
+        onConfirm={confirmDeleteApplication}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
       {/* ── View Application Modal ── */}
-      {viewApp && ( 
-         <>
-    {console.log("viewApp:", JSON.stringify(viewApp, null, 2))}
+      {viewApp && (
         <div onClick={() => setViewApp(null)} style={{
           position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -3857,11 +4131,11 @@ const handleDelete = async (id) => {
               <StatusBadge status={viewApp.status} />
               <span style={{ fontSize: 12, color: "#5a7a65" }}>
                 Date Applied: <strong>
-                  {viewApp.date 
-                    ? new Date(viewApp.date).toLocaleDateString("en-PH", { 
+                  {viewApp.date
+                    ? new Date(viewApp.date).toLocaleDateString("en-PH", {
                         year: "numeric", month: "short", day: "numeric",
                         timeZone: "Asia/Manila"
-                      }) 
+                      })
                     : "—"}
                 </strong>
               </span>
@@ -3900,181 +4174,178 @@ const handleDelete = async (id) => {
                 </div>
               );
 
-             const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : null;
+              const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : null;
 
               return (
                 <>
-{viewApp.franchise === "iPharma Mart" ? (
-  // ── iPharma-specific view ──
-  <>
-    <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
-      <Field label="Email Address"      value={viewApp.email} />
-      <Field label="Phone Number"       value={viewApp.phone} />
-      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
-    </Section>
+                  {viewApp.franchise === "iPharma Mart" ? (
+                    // ── iPharma-specific view ──
+                    <>
+                      <Section title="Basic Information">
+                        <Field label="Full Name"          value={viewApp.name}              full />
+                        <Field label="Email Address"      value={viewApp.email} />
+                        <Field label="Phone Number"       value={viewApp.phone} />
+                        <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+                      </Section>
 
-    <Section title="Personal Information">
-      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
-      <Field label="Marital Status"     value={viewApp.maritalStatus || viewApp.civil_status} />
-      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
-      <Field label="TIN"                value={viewApp.tin} />
-      <Field label="ID Type Used"       value={viewApp.idType} />
-      <Field label="Address"            value={viewApp.address}           full />
-    </Section>
+                      <Section title="Personal Information">
+                        <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+                        <Field label="Marital Status"     value={viewApp.maritalStatus || viewApp.civil_status} />
+                        <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+                        <Field label="TIN"                value={viewApp.tin} />
+                        <Field label="ID Type Used"       value={viewApp.idType} />
+                        <Field label="Address"            value={viewApp.address}           full />
+                      </Section>
 
-    {(viewApp.spouseName || viewApp.spouseOccupation) && (
-      <Section title="Spouse Information">
-        <Field label="Spouse Name"       value={viewApp.spouseName} />
-        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
-        <Field label="Spouse Date of Birth" value={fmtDate(viewApp.spouseDob)} />
-      </Section>
-    )}
+                      {(viewApp.spouseName || viewApp.spouseOccupation) && (
+                        <Section title="Spouse Information">
+                          <Field label="Spouse Name"       value={viewApp.spouseName} />
+                          <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+                          <Field label="Spouse Date of Birth" value={fmtDate(viewApp.spouseDob)} />
+                        </Section>
+                      )}
 
-    {viewApp.education?.length > 0 && (
-      <Section title="Educational Background">
-        {viewApp.education.map((e, i) => (
-          <React.Fragment key={i}>
-            <Field label={`Degree #${i+1}`}  value={e.degree} />
-            <Field label="School"            value={e.school} />
-            <Field label="Course"            value={e.course} />
-            <Field label="Year Graduated"    value={e.yearGrad?.toString()} />
-          </React.Fragment>
-        ))}
-      </Section>
-    )}
+                      {viewApp.education?.length > 0 && (
+                        <Section title="Educational Background">
+                          {viewApp.education.map((e, i) => (
+                            <React.Fragment key={i}>
+                              <Field label={`Degree #${i+1}`}  value={e.degree} />
+                              <Field label="School"            value={e.school} />
+                              <Field label="Course"            value={e.course} />
+                              <Field label="Year Graduated"    value={e.yearGrad?.toString()} />
+                            </React.Fragment>
+                          ))}
+                        </Section>
+                      )}
 
-    <Section title="Business Interest">
-      <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
-      <Field label="Equity Owned (%)"       value={viewApp.equity} />
-      <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
-      <Field label="Source of Funds"        value={viewApp.fundSource} />
-      <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
-      <Field label="Preferred Location"     value={viewApp.location}       full />
-    </Section>
+                      <Section title="Business Interest">
+                        <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
+                        <Field label="Equity Owned (%)"       value={viewApp.equity} />
+                        <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
+                        <Field label="Source of Funds"        value={viewApp.fundSource} />
+                        <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
+                        <Field label="Preferred Location"     value={viewApp.location}       full />
+                      </Section>
 
-    <Section title="Declaration">
-      <Field label="Family Dependence"      value={viewApp.familyDepend}   full />
-      <Field label="Market Area"            value={viewApp.marketArea}     full />
-      <Field label="Target Start Date"      value={fmtDate(viewApp.startDate)} />
-    </Section>
-  </>
-) : (
-  // ── Regular franchise view (existing fields) ──
-  <>
-    <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
-      <Field label="Email Address"      value={viewApp.email} />
-      <Field label="Phone Number"       value={viewApp.phone} />
-      <Field label="Franchise Interest" value={viewApp.franchise} />
-      <Field label="Payment Mode"       value={viewApp.paymentMode} />
-      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
-    </Section>
+                      <Section title="Declaration">
+                        <Field label="Family Dependence"      value={viewApp.familyDepend}   full />
+                        <Field label="Market Area"            value={viewApp.marketArea}     full />
+                        <Field label="Target Start Date"      value={fmtDate(viewApp.startDate)} />
+                      </Section>
+                    </>
+                  ) : (
+                    // ── Regular franchise view (existing fields) ──
+                    <>
+                      <Section title="Basic Information">
+                        <Field label="Full Name"          value={viewApp.name}              full />
+                        <Field label="Email Address"      value={viewApp.email} />
+                        <Field label="Phone Number"       value={viewApp.phone} />
+                        <Field label="Franchise Interest" value={viewApp.franchise} />
+                        <Field label="Payment Mode"       value={viewApp.paymentMode} />
+                        <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+                      </Section>
 
-    <Section title="Personal Information">
-      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
-      <Field label="Civil Status"       value={viewApp.civilStatus} />
-      <Field label="Gender"             value={viewApp.gender} />
-      <Field label="Nationality"        value={viewApp.nationality} />
-      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
-      <Field label="ID Type Used"       value={viewApp.idType} />
-      <Field label="Address"            value={viewApp.address}           full />
-    </Section>
+                      <Section title="Personal Information">
+                        <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+                        <Field label="Civil Status"       value={viewApp.civilStatus} />
+                        <Field label="Gender"             value={viewApp.gender} />
+                        <Field label="Nationality"        value={viewApp.nationality} />
+                        <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+                        <Field label="ID Type Used"       value={viewApp.idType} />
+                        <Field label="Address"            value={viewApp.address}           full />
+                      </Section>
 
-    {(viewApp.spouseName || viewApp.spouseOccupation) && (
-      <Section title="Spouse Information">
-        <Field label="Spouse Name"       value={viewApp.spouseName} />
-        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
-      </Section>
-    )}
+                      {(viewApp.spouseName || viewApp.spouseOccupation) && (
+                        <Section title="Spouse Information">
+                          <Field label="Spouse Name"       value={viewApp.spouseName} />
+                          <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+                        </Section>
+                      )}
 
-    <Section title="Employment Information">
-      <Field label="Employment Type"    value={viewApp.employmentType} />
-      <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
-      <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
-      <Field label="Position"           value={viewApp.position} />
-      <Field label="Company Name"       value={viewApp.employerName}      full />
-      <Field label="Business Address"   value={viewApp.businessAddress}   full />
-      <Field label="Nature of Business" value={viewApp.businessNature} />
-    </Section>
-  </>
-)}
-                  
-                    <div style={{ marginBottom: 20 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 800, color: "#00897b",
-                letterSpacing: "0.1em", textTransform: "uppercase",
-                marginBottom: 10, paddingBottom: 6,
-                borderBottom: "1.5px solid #e0f2f1",
-              }}>Required Documents</div>
+                      <Section title="Employment Information">
+                        <Field label="Employment Type"    value={viewApp.employmentType} />
+                        <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
+                        <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
+                        <Field label="Position"           value={viewApp.position} />
+                        <Field label="Company Name"       value={viewApp.employerName}      full />
+                        <Field label="Business Address"   value={viewApp.businessAddress}   full />
+                        <Field label="Nature of Business" value={viewApp.businessNature} />
+                      </Section>
+                    </>
+                  )}
 
-              {/* Letter of Intent */}
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Letter of Intent (PDF)</div>
-                {viewApp.letterOfIntent ? (
-                   <button
-                      onClick={() => {
-                        let base64 = viewApp.letterOfIntent;
-                        
-                        // Strip the data URL prefix if present
-                        if (base64.includes(",")) {
-                          base64 = base64.split(",")[1];
-                        }
-                        
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: "application/pdf" });
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, "_blank");
-                      }}
-                       style={{
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 800, color: "#00897b",
+                      letterSpacing: "0.1em", textTransform: "uppercase",
+                      marginBottom: 10, paddingBottom: 6,
+                      borderBottom: "1.5px solid #e0f2f1",
+                    }}>Required Documents</div>
+
+                    {/* Letter of Intent */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Letter of Intent (PDF)</div>
+                      {viewApp.letterOfIntent ? (
+                        <button
+                          onClick={() => {
+                            let base64 = viewApp.letterOfIntent;
+                            if (base64.includes(",")) {
+                              base64 = base64.split(",")[1];
+                            }
+                            const byteCharacters = atob(base64);
+                            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: "application/pdf" });
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, "_blank");
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "10px 14px", borderRadius: 8,
+                            border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+                            color: "#00695c", fontSize: 13, fontWeight: 700,
+                            cursor: "pointer", fontFamily: "inherit", width: "fit-content",
+                          }}
+                        >
+                          <FileText size={15} /> View Letter of Intent
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                          No Letter of Intent uploaded
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ID Attachment */}
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
+                      {viewApp.idImage ? (
+                        <img
+                          src={viewApp.idImage}
+                          alt="Government ID"
+                          style={{
+                            maxWidth: "100%", maxHeight: 200,
+                            borderRadius: 10, border: "1.5px solid #b2dfdb",
+                            objectFit: "contain", background: "#f8fffe",
+                          }}
+                        />
+                      ) : viewApp.idType ? (
+                        <div style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "10px 14px", borderRadius: 8,
-                          border: "1.5px solid #b2dfdb", background: "#e0f2f1",
-                          color: "#00695c", fontSize: 13, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", width: "fit-content",
-                        }}
-                    >
-                    <FileText size={15} /> View Letter of Intent
-                      </button>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
-                    No Letter of Intent uploaded
+                          border: "1.5px solid #a5d6a7", background: "#e8f5e9",
+                          fontSize: 13, fontWeight: 600, color: "#1b5e20",
+                        }}>
+                          <CheckCircle2 size={15} color="#2E7D32" />
+                          ID Verified — {viewApp.idType}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                          No ID attached
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* ID Attachment */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
-                {viewApp.idImage ? (
-                  <img
-                    src={viewApp.idImage}
-                    alt="Government ID"
-                    style={{
-                      maxWidth: "100%", maxHeight: 200,
-                      borderRadius: 10, border: "1.5px solid #b2dfdb",
-                      objectFit: "contain", background: "#f8fffe",
-                    }}
-                  />
-                ) : viewApp.idType ? (
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "10px 14px", borderRadius: 8,
-                    border: "1.5px solid #a5d6a7", background: "#e8f5e9",
-                    fontSize: 13, fontWeight: 600, color: "#1b5e20",
-                  }}>
-                    <CheckCircle2 size={15} color="#2E7D32" />
-                    ID Verified — {viewApp.idType}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
-                    No ID attached
-                  </div>
-                )}
-              </div>
-            </div>
                 </>
               );
             })()}
@@ -4091,23 +4362,16 @@ const handleDelete = async (id) => {
             </div>
           </div>
         </div>
-         </>
       )}
 
-      {alertModal && (
-  <AlertModal
-    open={!!alertModal}
-    type={alertModal.type}
-    message={alertModal.message}
-    onClose={() => setAlertModal(null)}
-  />
-)}
+      {/* ── Toast (replaces AlertModal) ── */}
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
 
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
           defaultRole="franchisee"
-          roles={['Franchisee']}    
+          roles={['Franchisee']}
           onClose={() => setAccountApp(null)}
           onAlert={(message, type) => setAlertModal({ message, type })}
         />
@@ -4149,7 +4413,7 @@ const handleDelete = async (id) => {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setViewApp(menuApp); setMenuApp(null); showAlert("Viewing application", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11,
@@ -4161,7 +4425,7 @@ const handleDelete = async (id) => {
                 <Eye size={15} /> View Application Details
               </button>
               <button
-                onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setAccountApp(menuApp); setMenuApp(null); showAlert("Opening account creation", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -4175,7 +4439,7 @@ const handleDelete = async (id) => {
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "approved"}
+                disabled={menuApp.status === "approved" || processingId !== null}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -4192,30 +4456,29 @@ const handleDelete = async (id) => {
                 <Check size={15} />
                 {menuApp.status === "approved" ? "Already Approved" : "Approve Application"}
               </button>
-            <button
+              <button
                 onClick={() => { handleReject(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "rejected"}
+                disabled={menuApp.status === "rejected" || processingId !== null}
                 style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "12px 16px", borderRadius: 11, border: "none",
-                    background: menuApp.status === "rejected"
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 11, border: "none",
+                  background: menuApp.status === "rejected"
                     ? "#e0e0e0"
                     : "linear-gradient(135deg,#ef4444,#dc2626)",
-                    color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
-                    fontSize: 13, fontWeight: 700,
-                    cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    opacity: menuApp.status === "rejected" ? 0.6 : 1,
+                  color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: menuApp.status === "rejected" ? 0.6 : 1,
                 }}
-                >
+              >
                 <X size={15} />
                 {menuApp.status === "rejected" ? "Already Rejected" : "Reject Application"}
-                </button>
-
-                            </div>
-                        </div>
-                        </div>
-                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main content ── */}
       <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
@@ -4301,7 +4564,7 @@ const handleDelete = async (id) => {
               </button>
             )}
 
-            {/* Result count pushed right */}
+            {/* Result count */}
             <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
               {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
             </span>
@@ -4339,7 +4602,7 @@ const handleDelete = async (id) => {
                 Export CSV
               </button>
 
-              {/* Delete History button — fixed: moved outside table markup */}
+              {/* Delete History button */}
               <button
                 onClick={() => setShowAppDeleteHistory(true)}
                 style={{
@@ -4364,7 +4627,6 @@ const handleDelete = async (id) => {
               </button>
             </div>
           </div>
-          
 
           {/* Table */}
           <div style={{ overflowX: "auto" }}>
@@ -4420,7 +4682,7 @@ const handleDelete = async (id) => {
                       {app.franchise}
                     </td>
                     <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
-                       {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
+                      {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <StatusBadge status={app.status} />
@@ -4466,12 +4728,13 @@ const handleDelete = async (id) => {
   );
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert }) {
+function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
   const [sending, setSending] = useState(false);
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [branches, setBranches] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState(roles?.[0] || 'Franchisee');
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
@@ -4488,7 +4751,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
     e.preventDefault();
     const form = e.target;
     const name = form.fullName.value, email = form.email.value, phone = form.phone.value;
-    const role = 'Franchisee';
+    const role = selectedRole;
     const branch = form.branch.value;
     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
     const brand = selectedBrand?.name || '';
@@ -4499,15 +4762,15 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
       });
-      if (!res.ok) { const err = await res.json(); 
-        
+      if (!res.ok) {
+        const err = await res.json();
         if (err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
           onAlert(`An account with the email "${email}" already exists. Please use a different email or check existing accounts.`, 'error');
-          } else {
-            onAlert(err.error || 'Failed to create account.', 'error');
-          }
-          return;
+        } else {
+          onAlert(err.error || 'Failed to create account.', 'error');
         }
+        return;
+      }
 
       await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4536,7 +4799,22 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
           ))}
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Role</label>
-            <input value="Franchisee" disabled style={{ ...bmInput, marginTop: 4, background: '#f5f5f5', cursor: 'not-allowed', opacity: 0.7 }} />
+            {roles && roles.length > 1 ? (
+              <select
+                value={selectedRole}
+                onChange={e => setSelectedRole(e.target.value)}
+                required
+                style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}
+              >
+                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            ) : (
+              <input
+                value={selectedRole}
+                disabled
+                style={{ ...bmInput, marginTop: 4, background: '#f5f5f5', cursor: 'not-allowed', opacity: 0.7 }}
+              />
+            )}
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Brand</label>
@@ -4554,9 +4832,12 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button type="submit" disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: sending ? 0.7 : 1 }}>
-              {sending ? 'Creating…' : '✉ Create & Send'}
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button type="submit" disabled={sending}
+              style={{ display:'flex', alignItems:'center', gap:6, flex: 1, justifyContent:'center', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+               opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+              {sending ? "Creating…" : "✉ Create & Send"}
             </button>
           </div>
         </form>
@@ -4565,11 +4846,6 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
   );
 }
 
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-// MODULE 4 — ANNOUNCEMENTS (re-exported from AdminDashboard logic)
-// ═════════════════════════════════════════════════════════════════════════════
 function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds] = useState(new Set());
@@ -4585,11 +4861,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [deleteHistory, setDeleteHistory] = useState([]);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  // ── Activity log state (ported from ApplicationsContent) ────────────────
   const [activityLog, setActivityLog] = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
-  // ── Toast + loading states ──────────────────────────────────────────────
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -4602,7 +4876,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const PIN_KEY = 'fa_announcement_pins';
 
-  // ── Activity log fetch (mirrors ApplicationsContent's fetchActivityLog) ─
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
@@ -4620,7 +4893,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     } catch (err) { console.error("Failed to fetch announcements activity log:", err); }
   }, []);
 
-  // ── Geolocation helper (mirrors ApplicationsContent's getBrowserLocation)
   const getBrowserLocation = () => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) { resolve(null); return; }
@@ -4789,82 +5061,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const isDeletingConfirmTarget = confirmModal && deletingId === confirmModal.itemId;
 
-  // ── Activity Log Modal (mirrors the delete-history modal pattern) ───────
-  const ActivityLogModal = () => {
-    if (!showActivityLog) return null;
-    return (
-      <div
-        onClick={() => setShowActivityLog(false)}
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: 20, backdropFilter: 'blur(4px)',
-        }}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            background: '#fff', borderRadius: 20, padding: '28px 32px',
-            width: '100%', maxWidth: 680, maxHeight: '80vh',
-            display: 'flex', flexDirection: 'column',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-            border: '1px solid rgba(0,168,76,0.15)',
-            fontFamily: 'Montserrat, sans-serif',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Activity Log</h2>
-              {activityLog.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#e0f2f1', color: '#00695c' }}>
-                  {activityLog.length} entries
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => setShowActivityLog(false)}
-              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X size={15} />
-            </button>
-          </div>
-
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {activityLog.length === 0 ? (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13, fontStyle: 'italic' }}>
-                No activity recorded yet.
-              </div>
-            ) : activityLog.map((entry, i) => (
-              <div
-                key={entry.id ?? i}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i < activityLog.length - 1 ? '1px solid #f0f8f0' : 'none' }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e' }}>
-                    {entry.action?.toUpperCase()} · {entry.itemName || '—'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>
-                    {entry.performedBy || 'Unknown'} ({entry.role || 'Unknown'}){entry.branch ? ` · ${entry.branch}` : ''}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                    {entry.timestamp ? fmt(entry.timestamp) : '—'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
       {/* Toast */}
       <Toast toast={toast} onClose={closeToast} />
-
-      {/* Activity Log Modal */}
-      <ActivityLogModal />
 
       {/* Confirm modal */}
       {confirmModal && (
@@ -4899,17 +5099,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#d4df33', boxShadow: '0 0 0 3px rgba(212,223,51,0.3)' }} />
             <span style={{ fontSize: 9, fontWeight: 800, color: '#d4df33', letterSpacing: '0.15em' }}>LIVE</span>
           </div>
-          <button
-            onClick={() => setShowActivityLog(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.10)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <History size={14} /> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background: 'rgba(255,255,255,0.28)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 20 }}>
-                {activityLog.length}
-              </span>
-            )}
-          </button>
           <button onClick={() => { setEditing(null); setTitle(''); setContent(''); setImageUrl(''); setImageError(false); setModalVisible(true); }}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Plus size={14} /> New

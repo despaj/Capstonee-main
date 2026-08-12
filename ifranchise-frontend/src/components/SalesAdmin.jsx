@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import ifranchisejpg from '../assets/ifranchisejpg.jpg';
+import franchisync from '../assets/franchisyncjpg.jpg';
+import jsPDF from 'jspdf';
 import MenuInventoryContent from './MenuInventoryContent';
 import StockInventoryContent from './StockInventoryContent';
+
+import {
+  FileText, Download, Eye
+} from 'lucide-react';
 
 import {
   Home, Box, Layers, ShoppingCart, Package,
@@ -42,9 +49,54 @@ const bmInput = {
   boxSizing: "border-box",
 };
 
+const invInputSt = {
+  height:36, padding:"0 11px", borderRadius:9,
+  border:`1px solid ${C.border}`, background:C.bg,
+  fontSize:13, color:C.ink, outline:"none",
+  fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+};
+
+const BmSection = ({ children, style = {} }) => (
+  <div style={{
+    background: C.white, border: `1px solid rgba(0,168,76,0.12)`,
+    borderRadius: 18, boxShadow: "0 2px 14px rgba(0,140,60,0.07)",
+    overflow: "hidden", marginBottom: 24, ...style,
+  }}>
+    {children}
+  </div>
+);
+
+const BmSectionHeader = ({ title, subtitle, action }) => (
+  <div style={{
+    background: `linear-gradient(135deg,#2E7D32,#00897b)`,
+    color: C.white, padding: "16px 22px",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+  }}>
+    <div>
+      <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: "-0.3px" }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>{subtitle}</div>}
+    </div>
+    {action && <div style={{ display: "flex", gap: 8 }}>{action}</div>}
+  </div>
+);
+
 const bmLabel = {
   display: "block", fontSize: 11, fontWeight: 800, color: "#2e6725",
   marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
+};
+
+const fmtPeriod = (period) => {
+  if (!period) return "—";
+
+  const parts = period.split("→").map(p => p.trim());
+
+  const formatPart = (p) => {
+    const d = new Date(p);
+    if (isNaN(d.getTime())) return p; 
+    return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  return parts.map(formatPart).join(" → ");
 };
 
 const fmtPeso = (n) => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -138,6 +190,7 @@ export default function SalesAdmin() {
     { id: 'inventory',      label: 'Menu Inventory',       icon: <Box size={20} />,          section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',      icon: <Layers size={20} />,       section: 'main' },
     { id: 'mobileShop',     label: 'Shop Supplies',        icon: <ShoppingCart size={20} />, section: 'main' },
+    { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,    section: 'main' },
     { id: 'profile',        label: 'Edit Profile',         icon: <User size={20} />,         section: 'account' },
     { id: 'logout',         label: 'Logout',               icon: <LogOut size={20} />,       section: 'account', action: () => setShowLogoutModal(true) },
   ];
@@ -315,6 +368,7 @@ export default function SalesAdmin() {
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'     && <SalesMobileShopContent />}
+          {activeModule === 'reports'       && <SalesReportsContent user={user} brands={brands} />}
           {activeModule === 'profile'        && <SalesProfileContent user={user} />}
         </div>
       </main>
@@ -1760,256 +1814,765 @@ function MultiSelectBranchDropdown({ branches, selected, onChange, disabled, err
   );
 }
 
-function SalesMobileShopContent() {
-  const msInputStyle = {
-    width: "100%", padding: "0.6rem 0.75rem", borderRadius: "8px",
-    border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.875rem",
-    color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#f0fdf5",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Montserrat',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+      </div>
+
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ShopDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:680, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+            {history.length > 0 && (
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#e53935" }}>{history.length} deleted</span>
+            )}
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            ✕
+          </button>
+        </div>
+        {history.length > 0 && (
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:700, color:"#5a7a65", textTransform:"uppercase", letterSpacing:"0.06em" }}>
+            <span>Item</span><span>Shop</span><span>Price</span><span>Deleted At</span><span></span>
+          </div>
+        )}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {history.length === 0 ? (
+            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
+          ) : history.map((entry, i) => {
+            const d = entry.data || {};
+            return (
+              <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 100px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
+                  <div style={{ fontSize:11, color:"#5a7a65", marginTop:2 }}>{d.brand || "—"}</div>
+                </div>
+                <div style={{ fontSize:12, color:"#5a7a65" }}>{d.shop}</div>
+                <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price || 0)}</div>
+                <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deletedAt ? new Date(entry.deletedAt).toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit", timeZone:"Asia/Manila" }) : "—"}</div>
+                <button onClick={() => onRestore(entry)} disabled={restoringId !== null}
+                  style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:"1.5px solid #00897b", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor: restoringId !== null ? "not-allowed" : "pointer", fontFamily:"inherit", whiteSpace:"nowrap", opacity: restoringId !== null ? (restoringId === entry.id ? 0.85 : 0.4) : 1 }}>
+                  {restoringId === entry.id ? "Restoring…" : "Restore"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShopDeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
+  if (!item) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
+          <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
+            Are you sure you want to delete <strong>"{item.name}"</strong>?
+          </div>
+          <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+            This will move the item to Delete History where it can be restored.
+          </div>
+        </div>
+        <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:20 }}>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Shop</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{item.shop}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Price</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{fmtPeso(item.price)}</div>
+          </div>
+          <div style={{ fontSize:12 }}>
+            <div style={{ color:C.muted, fontSize:10, fontWeight:700, textTransform:"uppercase", marginBottom:3 }}>Stock</div>
+            <div style={{ fontWeight:700, color:C.ink }}>{item.stock ?? 0}</div>
+          </div>
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} disabled={deleting} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.5 : 1 }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#e53935", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit", opacity: deleting ? 0.7 : 1 }}>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImportLoadingModal({ visible, progress }) {
+  if (!visible) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
+      <div style={{ background:C.white, borderRadius:18, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:"1px solid #c8e6c9", fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+        <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginBottom:6 }}>Importing Excel</div>
+        <div style={{ fontSize:13, color:C.muted, marginBottom:20 }}>Please wait while your data is being processed…</div>
+        <div style={{ background:"#e8f5e9", borderRadius:999, height:6, overflow:"hidden", marginBottom:12 }}>
+          <div style={{ background:`linear-gradient(90deg,${C.teal},${C.green})`, borderRadius:999, height:"100%", width:`${progress.percent}%`, transition:"width 0.4s ease" }}/>
+        </div>
+        <div style={{ fontSize:12, color:C.muted, fontWeight:600, marginBottom:6 }}>{progress.label}</div>
+        {progress.current > 0 && (
+          <div style={{ fontSize:11, color:C.muted, opacity:0.7 }}>{progress.current} / {progress.total} rows processed</div>
+        )}
+        <div style={{ marginTop:18, fontSize:12, fontWeight:700, color:C.green }}>Do not close this window</div>
+      </div>
+    </div>
+  );
+}
+
+function UIModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const { type, title, message, confirmLabel, cancelLabel } = modal;
+  const hc = {
+    error:   { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
+    success: { bg:"#e8f5e9", border:"#c8e6c9", titleColor:"#00695c" },
+    info:    { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" },
+    confirm: { bg:"#fef2f2", border:"#fecaca", titleColor:"#991b1b" },
+  }[type] || { bg:"#eff6ff", border:"#bfdbfe", titleColor:"#1e3a8a" };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}` }}>
+          <div style={{ fontSize:15, fontWeight:800, color:hc.titleColor, marginBottom:4 }}>{title}</div>
+          {message && <div style={{ fontSize:13, color:C.ink, lineHeight:1.6, opacity:0.85 }}>{message}</div>}
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          {type === "confirm" && (
+            <button onClick={onClose} style={{ padding:"8px 16px", borderRadius:8, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              {cancelLabel || "Cancel"}
+            </button>
+          )}
+          <button
+            onClick={type === "confirm" ? onConfirm : onClose}
+            style={{
+              padding:"8px 18px", borderRadius:8, border:"none",
+              background: type === "confirm" ? "#e53935" : `linear-gradient(135deg,${C.teal},${C.green})`,
+              color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit",
+            }}
+          >
+            {confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnlistBlockedModal({ item, onClose, onHideInstead }) {
+  if (!item) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+      <div onClick={(e) => e.stopPropagation()} className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 420, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+        <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fff3e0", color: "#e65100", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+            <AlertIcon />
+          </div>
+          <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Can't Unlist This Item</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+            <strong style={{ color: C.ink }}>{item.name}</strong> is linked to past orders and can't be removed from the Mobile Shop. Hide it instead — that keeps order history intact while taking it off the customer-facing shop.
+          </div>
+        </div>
+        <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+          <button onClick={onClose} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            Close
+          </button>
+          <button onClick={() => onHideInstead(item)} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(0,180,90,0.3)" }}>
+            Hide Instead
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const normalize = (str) => (str || "").trim().toLowerCase();
+const MARKUP = 1.10; // shop price = stock cost + 10%
+
+/* ── tiny inline icons (no external deps beyond lucide's core set) ── */
+
+const EditIcon   = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+const EyeIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>;
+const EyeOffIcon = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a20.3 20.3 0 0 1-3.22 4.44" /><path d="M1 1l22 22" /><path d="M9.53 9.53a3 3 0 0 0 4.24 4.24" /></svg>;
+const BoxIcon    = ({ size = 28 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>;
+const CheckCircleIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>;
+const AlertIcon  = ({ size = 22 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>;
+const TagIcon    = ({ size = 12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2.41 12.42A2 2 0 0 1 2 11V4a2 2 0 0 1 2-2h7a2 2 0 0 1 1.41.59l8.18 8.18a2 2 0 0 1 0 2.83Z" /><circle cx="7" cy="7" r="1" /></svg>;
+const ListIcon   = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+const LayersIcon = ({ size = 13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>;
+
+/* ── shared style atoms (mirrors Stock Inventory's system) ── */
+const msInputStyle = {
+  width: "100%", height: 38, padding: "0 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.ink, background: C.white, outline: "none", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", transition: "border-color .15s, box-shadow .15s",
+};
+const readOnlyFieldStyle = {
+  width: "100%", minHeight: 38, padding: "9px 12px", borderRadius: 9,
+  border: `1px solid ${C.border}`, marginTop: "0.3rem", fontSize: "0.85rem",
+  color: C.muted, background: "#f5f5f5", boxSizing: "border-box",
+  fontFamily: "'Montserrat', sans-serif", fontWeight: 700, display: "flex", alignItems: "center",
+};
+const toolbarBtnSt = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  height: 38, padding: "0 16px", borderRadius: 9,
+  fontSize: 13, fontWeight: 700, cursor: "pointer",
+  fontFamily: "inherit", whiteSpace: "nowrap", border: "none",
+};
+
+const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
+const computePrice = (cost) => (cost > 0 ? Math.round(cost * MARKUP * 100) / 100 : 0);
+const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(item.brand)}-${normalize(item.name)}`);
+
+const placeholderImageFor = (name) =>
+  `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
+
+function SalesMobileShopContent({ user, brands: propBrands = [] }) {
+  const [activityLog,     setActivityLog]     = useState([]);
+  const [shopItems,       setShopItems]       = useState([]);
+  const [itemsLoading,    setItemsLoading]    = useState(true);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null);
+  const [deleteLoading,   setDeleteLoading]   = useState(false);
+  const [editingItem,     setEditingItem]     = useState(null);
+  const [editErrors,      setEditErrors]      = useState({});
+  const [editLoading,     setEditLoading]     = useState(false);
+  const [searchQuery,     setSearchQuery]     = useState("");
+  const [filterShop,      setFilterShop]      = useState("all");
+  const [stockItems,      setStockItems]      = useState([]);
+  const [toast,           setToast]           = useState(null);
+  const [selectedKeys,    setSelectedKeys]    = useState(() => new Set());
+  const [bulkListing,     setBulkListing]     = useState(false);
+  const [filterListed,    setFilterListed]    = useState("all");
+
+  const editImageRef = useRef(null);
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id, action: row.action,
+        itemName: row.item_name ?? row.itemName,
+        shop: row.shop,
+        performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
+        changes: row.changes,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch shop activity log:", err); }
+  }, []);
+
+  const fetchShopItems = useCallback(async () => {
+    setItemsLoading(true);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+      const data = await res.json();
+      setShopItems(Array.isArray(data) ? data : []);
+    } catch {
+      setShopItems([]);
+    } finally {
+      setItemsLoading(false);
+    }
+  }, []);
+
+  const fetchStockItems = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
+      const data = await res.json();
+      setStockItems(Array.isArray(data) ? data : []);
+    } catch { setStockItems([]); }
+  }, []);
+
+  useEffect(() => {
+    fetchShopItems();
+    fetchStockItems();
+    fetchActivityLog();
+  }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
+
+  const getCostFor = useCallback((brandName, itemName) => {
+    const b = normalize(brandName), n = normalize(itemName);
+    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
+    return match ? Number(match.cost_per_unit || 0) : 0;
+  }, [stockItems]);
+
+  const uniqueStockProducts = useMemo(() => {
+    const seen = new Map();
+    stockItems.forEach((si) => {
+      if (!si.brand || !si.name) return;
+      const key = `${normalize(si.brand)}|${normalize(si.name)}`;
+      if (!seen.has(key)) seen.set(key, { id: si.id, brand: si.brand, name: si.name });
+    });
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [stockItems]);
+
+  const items = useMemo(() => {
+    return uniqueStockProducts.map((sp) => {
+      const match = shopItems.find(
+        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
+      );
+      const liveCost = getCostFor(sp.brand, sp.name);
+      return {
+        id: match ? match.id : null,
+        ingredient_id: sp.id,
+        name: sp.name,
+        brand: sp.brand,
+        shop: match ? match.shop : sp.brand,
+        cost: liveCost,
+        price: computePrice(liveCost),
+        unit: match ? match.unit : "",
+        image_url: match ? match.image_url : "",
+        is_visible: match ? !!match.is_visible : false,
+        listed: !!match,
+      };
+    });
+  }, [uniqueStockProducts, shopItems, getCostFor]);
+
+  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
+
+  const filteredItems = items.filter((item) => {
+    const q = searchQuery.toLowerCase();
+    const matchesQuery =
+      !q ||
+      item.name?.toLowerCase().includes(q) ||
+      item.shop?.toLowerCase().includes(q);
+    if (!matchesQuery) return false;
+    if (filterShop !== "all" && item.shop !== filterShop) return false;
+    if (filterListed === "listed" && !item.listed) return false;
+    if (filterListed === "unlisted" && item.listed) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    setSelectedKeys((prev) => {
+      const validKeys = new Set(items.map(keyFor));
+      let changed = false;
+      const next = new Set();
+      prev.forEach((k) => {
+        if (validKeys.has(k)) next.add(k);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  const toggleSelect = (rowKey) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
   };
 
-  const [items,         setItems]         = useState([]);
-  const [errors,        setErrors]        = useState({});
-  const [loading,       setLoading]       = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [editingItem,   setEditingItem]   = useState(null); // holds the item being edited
-  const [editErrors,    setEditErrors]    = useState({});
-  const [editLoading,   setEditLoading]   = useState(false);
-  const [newItem, setNewItem] = useState({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"",  });
-
-  const excelRef = useRef(null);
-const [brands, setBrands] = useState([]);
-
-useEffect(() => { fetchItems(); fetchBrands(); }, []);
-
-const fetchBrands = async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-    const data = await res.json();
-    setBrands(Array.isArray(data) ? data : []);
-  } catch { setBrands([]); }
-};
-
-// Derive flat branch list from selected brand
-const getBranchesForBrand = (brandName) => {
-  const found = brands.find(b => b.name === brandName);
-  if (!found) return [];
-  return (found.branches || []).map(br => typeof br === "string" ? br : br.name);
-};
-  const fetchItems = async () => {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-    const data = await res.json();
-    setItems(data);
+  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
+  const toggleSelectAllFiltered = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredItems.forEach((i) => next.delete(keyFor(i)));
+      } else {
+        filteredItems.forEach((i) => next.add(keyFor(i)));
+      }
+      return next;
+    });
   };
 
-  const validate = () => {
-  const newErrors = {};
-  if (!newItem.brand) newErrors.brand = "Brand is required";
-  if (!newItem.name.trim()) newErrors.name = "Item name is required";
-  if (!newItem.price) newErrors.price = "Price is required";
-  else if (isNaN(newItem.price) || Number(newItem.price) <= 0) newErrors.price = "Price must be greater than 0";
-  if (!newItem.image_url.trim()) newErrors.image_url = "Image URL is required";
-  else { try { new URL(newItem.image_url); } catch { newErrors.image_url = "Invalid URL"; } }
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+  const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
+  const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
+  const allUnlistedCount = filteredItems.filter((i) => !i.listed).length;
 
   const validateEdit = () => {
     const errs = {};
-    if (!editingItem.name.trim()) errs.name = "Item name is required";
-    if (!editingItem.price) errs.price = "Price is required";
-    else if (isNaN(editingItem.price) || Number(editingItem.price) <= 0) errs.price = "Price must be greater than 0";
-    if (!editingItem.image_url.trim()) errs.image_url = "Image URL is required";
-    else { try { new URL(editingItem.image_url); } catch { errs.image_url = "Invalid URL"; } }
+    if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
   };
-const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-  const addItem = async () => {
-  console.log("addItem called", newItem);  // ADD THIS
-  if (loading || !validate()) return;
-  console.log("passed validation");  // ADD THIS
 
-  // Duplicate check — same name + shop
-  const duplicate = items.find(
-    i => i.name.trim().toLowerCase() === newItem.name.trim().toLowerCase()
-      && i.shop.trim().toLowerCase() === newItem.shop.trim().toLowerCase()
-  );
-  if (duplicate) {
-    alert(`"${newItem.name}" already exists in ${newItem.shop}. Please edit the existing item instead.`);
-    return;
-  }
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
-  setLoading(true);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name:      capitalize(newItem.name),
-        price:     Number(newItem.price),
-        unit:      newItem.unit,
-        image_url: newItem.image_url,
-        shop:      newItem.brand,
-        brand:     newItem.brand,
-        stock:     0,
-        }),
-    });
-    setNewItem({ name:"", price:"", unit:"", image_url:"", shop:"", brand:"", stock:"", branches:[] });
-    setErrors({});
-    setLoading(false);
-    fetchItems();
+  const openEditor = (item) => {
+    setEditingItem({ ...item });
+    setEditErrors({});
   };
 
   const saveEdit = async () => {
     if (editLoading || !validateEdit()) return;
     setEditLoading(true);
-    await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-  name:       capitalize(editingItem.name.trim()),
-  price:      Number(editingItem.price),
-  unit:       editingItem.unit || "",
-  image_url:  editingItem.image_url,
-  shop:       editingItem.brand,
-  brand:      editingItem.brand,
-  stock:      Number(editingItem.stock),
-  is_visible: editingItem.is_visible,
-}),
-    });
-    setEditingItem(null);
-    setEditErrors({});
-    setEditLoading(false);
-    fetchItems();
-  };
-
-  const importExcel = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      const wb = XLSX.read(ev.target.result, { type: "array" });
-      const rows_to_save = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
-        rows.forEach(row => {
-  const name  = String(row.name  || row.Name  || row["ITEM NAME"] || "").trim();
-  const price = parseFloat(row.price || row.Price || 0) || 0;
-  if (!name || price <= 0) return;
-
-  const shop = String(row.shop || row.Shop || "Coffee Spot").trim();
-
-  // Skip duplicates — same name + shop
-  const alreadyExists = items.some(
-    i => i.name.trim().toLowerCase() === name.toLowerCase()
-      && i.shop.trim().toLowerCase() === shop.toLowerCase()
-  );
-  if (alreadyExists) return;
-
-rows_to_save.push({
-  name: capitalize(name.trim()), price,
-  unit:      String(row.unit      || row.Unit      || "").trim(),
-  stock:     parseInt(row.stock   || row.Stock     || 0) || 0,
-  shop:      String(row.shop      || row.Shop      || "Coffee Spot").trim(),
-  brand:     String(row.brand     || row.Brand     || "").trim(),
-  image_url: String(row.image_url || row["Image URL"] || "").trim(),
-  is_visible: true,
-});
-        });
-      });
-      let saved = 0;
-      for (const item of rows_to_save) {
-        try {
-          const capitalize = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name:      capitalize(item.name.trim()),
-              price:      item.price,
-  unit:       item.unit,
-  stock:      item.stock,
-  shop:       item.shop,
-  brand:      item.brand,
-  image_url:  item.image_url,
-  is_visible: item.is_visible,
-            }),
-          });
-          const d = await res.json();
-          if (d.success) saved++;
-        } catch {}
-      }
-      e.target.value = "";
-     const skipped = rows_to_save.length - saved;
-alert(
-  `Parsed ${rows_to_save.length} row(s).\n` +
-  `✅ Saved: ${saved} item(s)\n` +
-  `${skipped > 0 ? `⏭ Skipped (duplicates): ${skipped}` : ""}`
-);
-      fetchItems();
+    const coords = await getBrowserLocation();
+    const liveCost = getCostFor(editingItem.brand, editingItem.name);
+    const payload = {
+      name: editingItem.name,
+      price: computePrice(liveCost),
+      unit: editingItem.unit || "",
+      image_url: editingItem.image_url || placeholderImageFor(editingItem.name),
+      shop: editingItem.brand,
+      brand: editingItem.brand,
+      ingredient_id: editingItem.ingredient_id || null,
+      is_visible: editingItem.is_visible !== false,
+      performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
     };
-    reader.readAsArrayBuffer(file);
+    try {
+      const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
+      const method = editingItem.id ? "PUT" : "POST";
+      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      setToast({
+        type: "success",
+        title: editingItem.id ? "Item Updated" : "Item Listed",
+        message: editingItem.id
+          ? `"${editingItem.name}" has been updated.`
+          : `"${editingItem.name}" is now listed in the Mobile Shop.`,
+      });
+      setEditingItem(null);
+      setEditErrors({});
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to save changes." });
+    } finally {
+      setEditLoading(false);
+    }
   };
 
-  const deleteItem       = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}`, { method:"DELETE" }); setConfirmDelete(null); fetchItems(); };
-  const toggleVisibility = async (id) => { await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${id}/toggle`, { method:"PUT" }); fetchItems(); };
+  const bulkListItems = async (candidateItems) => {
+    const toList = candidateItems.filter((i) => !i.listed);
+    if (toList.length === 0) {
+      setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
+      return;
+    }
+    setBulkListing(true);
+    const coords = await getBrowserLocation();
+    let success = 0, failed = 0;
+    for (const it of toList) {
+      const liveCost = getCostFor(it.brand, it.name);
+      const payload = {
+        name: it.name,
+        price: computePrice(liveCost),
+        unit: it.unit || "",
+        image_url: it.image_url || placeholderImageFor(it.name),
+        shop: it.brand,
+        brand: it.brand,
+        ingredient_id: it.ingredient_id || null,
+        is_visible: true,
+        performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      };
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        });
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
+    }
+    setBulkListing(false);
+    setSelectedKeys(new Set());
+    fetchShopItems();
+    fetchActivityLog();
+    setToast({
+      type: failed > 0 ? "error" : "success",
+      title: "Bulk Listing Complete",
+      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
+    });
+  };
+
+  const bulkUnlistItems = async (candidateItems) => {
+    const toUnlist = candidateItems.filter((i) => i.listed);
+    if (toUnlist.length === 0) {
+      setToast({ type: "error", title: "Nothing to Unlist", message: "None of the selected items are listed." });
+      return;
+    }
+    setBulkListing(true);
+    const coords = await getBrowserLocation();
+    let success = 0, failed = 0;
+    for (const it of toUnlist) {
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${it.id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            deleted_by: user?.name || "System",
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        });
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
+    }
+    setBulkListing(false);
+    setSelectedKeys(new Set());
+    fetchShopItems();
+    fetchActivityLog();
+    setToast({
+      type: failed > 0 ? "error" : "success",
+      title: "Bulk Unlisting Complete",
+      message: `${success} item${success === 1 ? "" : "s"} unlisted${failed > 0 ? `, ${failed} failed` : ""}.`,
+    });
+  };
+
+const deleteItem = async (item) => {
+  if (!item.id) { setConfirmDeleteItem(null); return; }
+  setDeleteLoading(true);
+  const coords = await getBrowserLocation();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        setConfirmDeleteItem(null);
+        setBlockedUnlistItem(item);
+      } else {
+        setToast({ type: "error", title: "Failed to Unlist", message: data.error || "An unexpected error occurred." });
+        setConfirmDeleteItem(null);
+      }
+      return;
+    }
+
+    setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
+    setConfirmDeleteItem(null);
+  } catch {
+    setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
+    setConfirmDeleteItem(null);
+  } finally {
+    setDeleteLoading(false);
+    fetchShopItems();
+    fetchActivityLog();
+  }
+};
+
+  const toggleVisibility = async (item) => {
+    if (!item.id) return;
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+      });
+      fetchShopItems();
+      fetchActivityLog();
+    } catch {
+      setToast({ type: "error", title: "Connection Error", message: "Failed to update visibility." });
+    }
+  };
+
+  const [blockedUnlistItem, setBlockedUnlistItem] = useState(null);
+
+  const forceHide = async (item) => {
+    if (!item.id || item.is_visible === false) { setBlockedUnlistItem(null); return; }
+    await toggleVisibility(item);
+    setBlockedUnlistItem(null);
+  };
+
+  const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
+    <Field label="Photo (optional)" error={error}>
+      <div
+        onClick={() => inputRef.current.click()}
+        style={{
+          cursor: "pointer", borderRadius: 12, background: C.bg, textAlign: "center", marginTop: 6,
+          border: `1.5px dashed ${error ? C.red : C.border}`,
+          padding: value ? 8 : "22px 8px", transition: "border-color .15s, background .15s",
+        }}
+      >
+        {value ? (
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <img src={value} alt="preview" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, display: "block", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
+            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
+            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
+            Click to upload photo
+            <div style={{ fontSize: 10.5, marginTop: 4, opacity: 0.75 }}>optional</div>
+          </div>
+        )}
+      </div>
+    </Field>
+  );
 
   return (
-    <div style={{ maxWidth:960, margin:"0 auto", fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Montserrat', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .msc-row { cursor: pointer; transition: background .15s ease; }
+        .msc-row:hover td { background: #f6fef8 !important; }
+        .msc-row.selected td { background: ${C.greenLt} !important; }
+        .msc-btn:not(:disabled):hover { filter: brightness(0.96); transform: translateY(-1px); }
+        .msc-btn:not(:disabled):active { transform: translateY(0); }
+        .msc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .msc-btn { transition: filter .12s ease, transform .12s ease, box-shadow .12s ease; }
+        .msc-icon-btn:hover { filter: brightness(0.94); }
+        .msc-edit:hover { background:#dcedff !important; }
+        .msc-del:hover  { background:#fddede !important; }
+        .msc-hide:hover { background:${C.greenLt} !important; }
+        select, input { transition: border-color .15s ease, box-shadow .15s ease; }
+        select:focus, input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
+        .msc-modal-card { animation: riseIn .18s cubic-bezier(.2,.8,.3,1); }
+      `}</style>
 
-      {/* ── Edit Modal ──────────────────────────────────────────────────── */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {editingItem && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", overflow:"hidden" }}>
-            {/* Header */}
-            <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span style={{ fontSize:15, fontWeight:900, color:"#fff" }}>Edit Item</span>
-              <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.8)", fontSize:20, cursor:"pointer", lineHeight:1, padding:0 }}>✕</button>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 560, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                  <TagIcon size={15} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>{editingItem.id ? "Edit Listing" : "List Item"}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{editingItem.brand} · {editingItem.name}</div>
+                </div>
+              </div>
+              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
-            {/* Body */}
-            <div style={{ padding:"20px 24px" }}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-  <Field label="Brand *" error={editErrors.brand}>
-    <select
-      value={editingItem.brand || ""}
-      onChange={e => setEditingItem({ ...editingItem, brand: e.target.value, shop: e.target.value, branches: [] })}
-      style={{ ...msInputStyle, border:`1px solid ${editErrors.brand ? "#e53935" : C.border}` }}>
-      <option value="">Select brand…</option>
-      {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-    </select>
-  </Field>
-  <Field label="Item Name *" error={editErrors.name}>
-    <input value={editingItem.name} onChange={e => setEditingItem({...editingItem, name:e.target.value})}
-      style={{ ...msInputStyle, border:`1px solid ${editErrors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-  </Field>
-  
-  <Field label="Price" error={editErrors.price}>
-                  <input value={editingItem.price} onChange={e => setEditingItem({...editingItem, price:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
+            <div style={{ padding: "22px 24px" }}>
+              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 14 }}>ℹ️</span>
+                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
+                <Field label="Brand">
+                  <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
+                </Field>
+                <Field label="Item Name">
+                  <div style={readOnlyFieldStyle}>{editingItem.name}</div>
+                </Field>
+                <Field label="Shop Price" error={editErrors.cost}>
+                  <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computePrice(editingItem.cost)) : "—"}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
+                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} + 10%` : "no cost set"}
+                    </span>
+                  </div>
                 </Field>
                 <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={e => setEditingItem({...editingItem, unit:e.target.value})}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
+                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
-                <Field label="Image URL" error={editErrors.image_url}>
-                  <input value={editingItem.image_url || ""} onChange={e => setEditingItem({...editingItem, image_url:e.target.value})}
-                    style={{ ...msInputStyle, border:`1px solid ${editErrors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
-                  {editingItem.image_url && !editErrors.image_url && (
-                    <img src={editingItem.image_url} alt="preview"
-                      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
-                      onError={e => (e.target.style.display="none")}/>
-                  )}
-                </Field>
+                <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
               </div>
-              <div style={{ marginTop:"1.25rem", display:"flex", gap:8, justifyContent:"flex-end" }}>
-                <button onClick={() => { setEditingItem(null); setEditErrors({}); }}
-                  style={{ padding:"8px 18px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
+
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
+                <div onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}
+                  style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", position: "relative", background: editingItem.is_visible !== false ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0", transition: "background .2s", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: 3, left: editingItem.is_visible !== false ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left .2s" }} />
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: "pointer" }} onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}>
+                  Visible in Mobile Shop
+                </span>
+              </div>
+
+              <div style={{ marginTop: "1.4rem", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => { setEditingItem(null); setEditErrors({}); }} className="msc-btn"
+                  style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
                   Cancel
                 </button>
-                <button onClick={saveEdit} disabled={editLoading}
-                  style={{ padding:"8px 22px", borderRadius:9, border:"none",
-                    background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                    color:C.white, fontWeight:800, fontSize:13, cursor: editLoading ? "not-allowed" : "pointer",
-                    opacity: editLoading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-                  {editLoading ? "Saving…" : "Save Changes"}
+                <button onClick={saveEdit} disabled={editLoading} className="msc-btn"
+                  style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "inherit" }}>
+                  {editLoading ? "Saving…" : editingItem.id ? "Save Changes" : "List Item"}
                 </button>
               </div>
             </div>
@@ -2017,136 +2580,194 @@ alert(
         </div>
       )}
 
-      {/* ── Add New Item ────────────────────────────────────────────────── */}
-      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", marginBottom:24, overflow:"hidden" }}>
-        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Add New Item</span>
-        </div>
-        <div style={{ padding:"20px 24px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"1rem" }}>
-            <Field label="Brand *" error={errors.brand}>
-  <select
-    value={newItem.brand}
-    onChange={e => setNewItem({ ...newItem, brand: e.target.value, shop: e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.brand ? "#e53935" : C.border}` }}>
-    <option value="">Select brand…</option>
-    {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-  </select>
-</Field>
-<Field label="Item Name *" error={errors.name}>
-  <input value={newItem.name} onChange={e => setNewItem({...newItem, name:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.name ? "#e53935" : C.border}` }} placeholder="e.g. Espresso"/>
-</Field>
-<Field label="Price *" error={errors.price}>
-  <input value={newItem.price} onChange={e => setNewItem({...newItem, price:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.price ? "#e53935" : C.border}` }} placeholder="0.00"/>
-</Field>
-<Field label="Unit (Optional)">
-  <input value={newItem.unit} onChange={e => setNewItem({...newItem, unit:e.target.value})}
-    style={msInputStyle} placeholder="e.g. per cup, per bottle"/>
-</Field>
-<Field label="Image URL *" error={errors.image_url}>
-  <input value={newItem.image_url} onChange={e => setNewItem({...newItem, image_url:e.target.value})}
-    style={{ ...msInputStyle, border:`1px solid ${errors.image_url ? "#e53935" : C.border}` }} placeholder="https://..."/>
-  {newItem.image_url && !errors.image_url && (
-    <img src={newItem.image_url} alt="preview"
-      style={{ marginTop:8, width:72, height:72, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }}
-      onError={e => (e.target.style.display="none")}/>
-  )}
-</Field>
+      {confirmDeleteItem && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 400, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+            <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdeeee", color: "#e53935", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <AlertIcon />
+              </div>
+              <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Unlist this item?</div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+                <strong style={{ color: C.ink }}>{confirmDeleteItem.name}</strong> will be removed from the Mobile Shop. It'll stay in Stock Inventory and can be relisted anytime.
+              </div>
+            </div>
+            <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDeleteItem(null)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                Cancel
+              </button>
+              <button onClick={() => deleteItem(confirmDeleteItem)} disabled={deleteLoading} className="msc-btn"
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
+                {deleteLoading ? "Unlisting…" : "Yes, Unlist"}
+              </button>
+            </div>
           </div>
+        </div>
+      )}
 
-          <div style={{ marginTop:"1.25rem", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-            <label style={{
-              display:"inline-flex", alignItems:"center", gap:6,
-              height:36, padding:"0 16px", borderRadius:9,
-              border:`1px solid ${C.border}`, background:C.white,
-              fontSize:13, fontWeight:700, cursor:"pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap",
-            }}>
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              Import Excel
-              <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-            </label>
+      <div style={{ background: C.white, borderRadius: 18, border: "1px solid rgba(0,168,76,0.12)", boxShadow: "0 4px 20px rgba(0,140,60,0.08)", overflow: "hidden" }}>
+        <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: "-0.01em" }}>Mobile Shop Supplies</div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set at cost + 10% · click a row to select it for listing</div>
+          </div>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", fontWeight: 700, background: "rgba(255,255,255,0.15)", padding: "5px 12px", borderRadius: 20 }}>{items.length} product{items.length !== 1 ? "s" : ""}</span>
+        </div>
 
-            <button onClick={addItem} disabled={loading}
-              style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 20px", borderRadius:9, border:"none",
-                background: loading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`,
-                color: C.white, fontWeight:800, fontSize:13, cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1, boxShadow:"0 2px 10px rgba(0,180,90,0.28)", fontFamily:"inherit" }}>
-              {loading ? "Adding…" : <><span style={{ fontSize:15 }}>+</span> Add Item</>}
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fafffe" }}>
+          <div style={{ position: "relative" }}>
+            <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              type="text" placeholder="Search items…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "inherit", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
+            />
+          </div>
+          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 120}}>
+            <option value="all">All Shops</option>
+            {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
+          </select>
+          <select value={filterListed} onChange={(e) => setFilterListed(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 130 }}>
+            <option value="all">All Statuses</option>
+            <option value="listed">Listed Only</option>
+            <option value="unlisted">Not Listed</option>
+          </select>
+          {(searchQuery || filterShop !== "all" || filterListed !== "all") && (
+            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); setFilterListed("all"); }} className="msc-btn"
+              style={{ height: 30, padding: "0 8px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
+              Clear
             </button>
+          )}
+
+          <span style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+            <button
+              onClick={() => bulkListItems(selectedItems)}
+              disabled={bulkListing || selectedUnlistedCount === 0}
+              className="msc-btn"
+              title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
+              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
+              <ListIcon size={12} /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
+            </button>
+            <button
+              onClick={() => bulkUnlistItems(selectedItems)}
+              disabled={bulkListing || selectedUnlistedCount === selectedItems.length}
+              className="msc-btn"
+              title={selectedItems.filter(i => i.listed).length === 0 ? "Select listed items in the table to enable this" : "Unlist all selected items"}
+              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: "1.5px solid #ffcdd2", background: "#fdeeee", color: "#c62828" }}>
+              <TrashIcon size={12} /> Unlist Items{selectedItems.filter(i => i.listed).length > 0 ? ` (${selectedItems.filter(i => i.listed).length})` : ""}
+            </button>
+            <button
+              onClick={() => bulkListItems(filteredItems)}
+              disabled={bulkListing || allUnlistedCount === 0}
+              className="msc-btn"
+              title="List every currently unlisted item shown below"
+              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
+              <LayersIcon size={12} /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
+            </button>
+          </span>
+
+          <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
+            {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
+          </span>
+        </div>
+
+        {itemsLoading ? (
+          <div style={{ padding: "60px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+            <RefreshCw size={20} style={{ animation: "spin 0.9s linear infinite", marginBottom: 10 }} />
+            <div>Loading shop items…</div>
           </div>
-
-          <p style={{ marginTop:10, fontSize:11, color:C.muted, fontStyle:"italic" }}>
-            Excel columns: <strong>name</strong>, <strong>price</strong> — <em>shop</em>, <em>brand</em>, <em>unit</em>, <em>stock</em>, <em>image_url</em> optional.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Shop Items Table ---*/}
-      <div style={{ background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)`, boxShadow:"0 2px 14px rgba(0,140,60,0.07)", overflow:"hidden" }}>
-        <div style={{ padding:"16px 22px", background:"linear-gradient(135deg,#2E7D32,#00897b)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontSize:15, fontWeight:900, color:"#fff", letterSpacing:"-0.01em" }}>Shop Items</span>
-          <span style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{items.length} item{items.length !== 1 ? "s" : ""}</span>
-        </div>
-        {items.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No shop items yet. Add one above.</div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ padding: "56px 0", textAlign: "center", color: C.muted }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, opacity: 0.4 }}><BoxIcon /></div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>No products found</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Add products in Stock Inventory first — they will then appear here.</div>
+          </div>
         ) : (
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr>
-                  {["Image","Shop","Item Name","Brand","Price","Unit","Status",""].map((label, i) => (
-                    <th key={i} style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f8fffe" }}>
+                  <th style={{ padding: "11px 0 11px 18px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: "#f8fffe", width: 34 }}>
+                    <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered}
+                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} title="Select all shown" />
+                  </th>
+                  {["", "Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
+                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 6 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
                       {label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => {
-                  const isConfirm = confirmDelete === item.id;
+                {filteredItems.map((item) => {
+                  const rowKey = keyFor(item);
+                  const isSelected = selectedKeys.has(rowKey);
                   return (
-                    <tr key={item.id} style={{ borderBottom:`1px solid #f0f8f0` }}
-                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
-                      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                      <td style={{ padding:"10px 12px" }}>
-                        <img src={item.image_url || null} alt="" style={{ width:48, height:48, borderRadius:8, objectFit:"cover", border:`1px solid ${C.border}`, display:"block" }} onError={e => (e.target.style.display="none")}/>
+                    <tr
+                      key={rowKey}
+                      className={`msc-row${isSelected ? " selected" : ""}`}
+                      onClick={() => toggleSelect(rowKey)}
+                      style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
+                    >
+                      <td onClick={(e) => e.stopPropagation()} style={{ padding: "11px 0 11px 18px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(rowKey)}
+                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} />
                       </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.shop}</span>
+                      <td style={{ padding: "11px 14px" }}>
+                        <div style={{ position: "relative", width: 40, height: 40 }}>
+                          <img src={item.image_url || null} alt="" style={{ width: 40, height: 40, borderRadius: 9, objectFit: "cover", border: `1px solid ${C.border}`, display: "block", background: C.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }} onError={(e) => (e.target.style.visibility = "hidden")} />
+                          {isSelected && (
+                            <div style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, borderRadius: "50%", background: C.green, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
+                              <CheckCircleIcon size={10} />
+                            </div>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.brand || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-                      <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                      <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>{item.unit || <span style={{ fontStyle:"italic" }}>—</span>}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                        {item.is_visible ? "Visible" : "Hidden"}
-                      </span>
-                    </td>
-                      <td style={{ padding:"10px 12px" }}>
-                        <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                          {/* Edit */}
-                          <button onClick={() => { setEditingItem({...item}); setEditErrors({}); }}
-                            style={{ ...smallBtnSt, border:`1px solid #bbdefb`, color:"#1565c0", background:"#e3f2fd" }}>
-                            Edit
+                      <td style={{ padding: "11px 14px" }}>
+                        <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
+                      </td>
+                      <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.cost > 0 ? (
+                          <div>
+                            <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
+                            <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                          </div>
+                        ) : (
+                          <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
+                      <td style={{ padding: "11px 14px" }}>
+                        {item.listed ? (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                            {item.is_visible ? "Visible" : "Hidden"}
+                          </span>
+                        ) : (
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
+                            Not Listed
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                          <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
+                            style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
+                            <EditIcon /> {item.listed ? "Edit" : "List"}
                           </button>
-                          {/* Hide/Show */}
-                          <button onClick={() => toggleVisibility(item.id)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green }}>
-                            {item.is_visible ? "Hide" : "Show"}
-                          </button>
-                          {/* Delete */}
-                          <button onClick={() => { if (isConfirm) { deleteItem(item.id); } else { setConfirmDelete(item.id); } }}
-                            style={{ ...smallBtnSt, border:isConfirm?"none":"1px solid #ffcdd2", color:isConfirm?C.white:"#e53935", background:isConfirm?"#e53935":C.white }}>
-                            <TrashIcon size={12}/> {isConfirm ? "Confirm?" : "Delete"}
-                          </button>
-                          {isConfirm && (
-                            <button onClick={() => setConfirmDelete(null)} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.muted }}>Cancel</button>
+                          {item.listed && (
+                            <>
+                              <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
+                                style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
+                                {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
+                              </button>
+                              <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
+                                style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
+                                <TrashIcon />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -2158,9 +2779,752 @@ alert(
           </div>
         )}
       </div>
+      <UnlistBlockedModal
+        item={blockedUnlistItem}
+        onClose={() => setBlockedUnlistItem(null)}
+        onHideInstead={forceHide}
+      />
     </div>
   );
 }
+
+function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
+  const [brandQ, setBrandQ]   = React.useState("");
+  const [branchQ, setBranchQ] = React.useState("");
+  const [openB, setOpenB]     = React.useState(false);
+  const [openBr, setOpenBr]   = React.useState(false);
+  const brandRef  = React.useRef(null);
+  const branchRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const fn = e => {
+      if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
+      if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const selectedBrand    = brands.find(b => b.id === activeBrand);
+  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br=>typeof br==="string"?br:br.name) : [];
+  const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const optSt  = active => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+
+  return (
+    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+      <div ref={brandRef} style={{ position:"relative", minWidth:170 }}>
+        <div onClick={()=>{setOpenB(v=>!v);setBrandQ("");}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{selectedBrand?selectedBrand.name:"All Brands"}</span>
+        </div>
+        {openB && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search brand…" onClick={e=>e.stopPropagation()} style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBrand)} onMouseDown={()=>{onChangeBrand(null);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>All Brands</div>
+            {filteredBrands.map(b=>(
+              <div key={b.id} style={optSt(activeBrand===b.id)} onMouseDown={()=>{onChangeBrand(b.id);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>
+                {b.name} <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches||[]).length} branches</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45 }}>
+        <div onClick={()=>{if(activeBrand){setOpenBr(v=>!v);setBranchQ("");}}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+          <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{activeBranch||(activeBrand?"All Branches":"Select brand first")}</span>
+        </div>
+        {openBr && activeBrand && (
+          <div style={dropSt}>
+            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" style={{ ...invInputSt, height:30, fontSize:12 }}/>
+            </div>
+            <div style={optSt(!activeBranch)} onMouseDown={()=>{onChangeBranch(null);setOpenBr(false);}}>All Branches</div>
+            {filteredBranches.map(br=>(
+              <div key={br} style={optSt(activeBranch===br)} onMouseDown={()=>{onChangeBranch(br);setOpenBr(false);}}>{br}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const REPORT_STATUS = {
+  pending:   { label:"Pending",      bg:"#faeeda", color:"#633806", dot:"#BA7517" },
+  approved:  { label:"Acknowledged",     bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
+};
+
+const API = process.env.REACT_APP_API_URL || "";
+
+function Chip({ label, color, bg, onRemove }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
+      {label} <X size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
+    </span>
+  );
+}
+
+function SalesReportsContent({ user, brands: propBrands = [] }) {
+  const [reports,      setReports]      = useState([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);  
+  const [error,        setError]        = useState(null);
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [search,       setSearch]       = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [brandBranchFilter, setBrandBranchFilter] = useState({});
+
+  const [activityLog,     setActivityLog]     = useState([]);
+
+  const [viewReport,    setViewReport]    = useState(null);
+  const [approveReport, setApproveReport] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [logoB64, setlogoB64] = useState(null);
+  const [iFranchise_logoB64, setiFranchise_logoB64] = useState(null);
+
+  const [filterBrand,  setFilterBrand]  = useState(null); 
+  const [filterBranch, setFilterBranch] = useState(null);
+
+  const [alertModal, setAlertModal] = useState(null);
+
+  const showAlert = (title, message, type = "info") => setAlertModal({ title, message, type });
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
+  const fetchActivityLog = useCallback(async () => {
+  try {
+    const res  = await fetch(`${process.env.REACT_APP_API_URL}/reports-activity-log`);
+    const data = await res.json();
+    setActivityLog(Array.isArray(data) ? data : []);
+  } catch (err) { console.error("Failed to fetch orders activity log:", err); }
+}, []);
+
+const logActivity = useCallback(async (action, itemName, branchName, changes = null) => {
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        item_name: itemName,
+        branch: branchName,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        changes,
+      }),
+    });
+  } catch (err) { console.warn("Activity log failed (non-fatal):", err); }
+}, [user]);
+
+  const fetchReports = useCallback(async () => {
+    if (reports.length === 0) {
+      setInitialLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (filterStatus !== "all") params.set("status", filterStatus);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+      const res  = await fetch(`${API}/reports?${params}`);
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      setReports(data);
+    } catch (err) {
+      console.error("fetchReports:", err);
+      setError("Failed to load reports. Please try again.");
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
+    }
+  }, [filterStatus, debouncedSearch]);
+
+  useEffect(() => { fetchReports(); fetchActivityLog(); }, [fetchReports, fetchActivityLog]);
+
+  useEffect(() => {
+    loadImageAsBase64(franchisync).then(setlogoB64).catch(err => console.warn("Failed to load left logo:", err));
+    loadImageAsBase64Circular(ifranchisejpg).then(setiFranchise_logoB64).catch(err => console.warn("Failed to load right logo:", err));
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fmtDate = (iso) => new Date(iso).toLocaleString("en-PH", {
+    month:"short", day:"numeric", year:"numeric",
+    hour:"numeric", minute:"2-digit", hour12:true,
+  });
+
+  // ── Sync open modals when reports state changes ─────────────────
+  const syncModals = (updated) => {
+    setViewReport    (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
+    setApproveReport (prev => prev    ? (updated.find(r => r.id === prev.id)    || prev) : null);
+  };
+
+  const patchReport = (updated) => {
+    setReports(prev => {
+      const next = prev.map(r => r.id === updated.id ? updated : r);
+      syncModals(next);
+      return next;
+    });
+  };
+
+  const brandList = useMemo(() => {
+  const map = {};
+  reports.forEach(r => {
+    if (!map[r.brand]) map[r.brand] = { id: r.brand, name: r.brand, branches: [] };
+    if (!map[r.brand].branches.includes(r.branch)) {
+      map[r.brand].branches.push(r.branch);
+    }
+  });
+  return Object.values(map);
+}, [reports]);
+
+const handleApprove = async (report) => {
+  setActionLoading(true);
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/approve`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        performedBy: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    await fetchReports();
+    await fetchActivityLog();
+    setViewReport(null);
+    setApproveReport(null);
+    setPdfPreviewUrl(null);
+    showAlert("Report Acknowledged", `Report #${report.id} has been acknowledged.`, "success");
+  } catch {
+    showAlert("Acknowledgment Failed", "Something went wrong while approving this report.", "error");
+  } finally {
+    setActionLoading(false);
+  }
+};
+
+  // ── Export CSV ─────────────────────────
+  const handleExport = (brand) => {
+    const params = new URLSearchParams();
+    if (brand)                    params.set("brand",  brand);
+    if (filterStatus !== "all")   params.set("status", filterStatus);
+    window.open(`${API}/reports/export?${params}`, "_blank");
+  };
+
+  const allBrands = useMemo(() => {
+    return [...new Set(
+      reports
+        .filter(r => !filterBrand  || r.brand  === filterBrand)
+        .filter(r => !filterBranch || r.branch === filterBranch)
+        .map(r => r.brand)
+    )];
+  }, [reports, filterBrand, filterBranch]);
+
+    const getBrandBranches = (brand) =>
+      [...new Set(reports.filter(r => r.brand === brand).map(r => r.branch))];
+
+    const getBrandReports = (brand) => {
+      const branchFilter = brandBranchFilter[brand] || "all";
+      return reports.filter(r => {
+        if (r.brand !== brand) return false;
+        if (branchFilter !== "all" && r.branch !== branchFilter) return false;
+        if (filterBranch && r.branch !== filterBranch) return false; // ← new
+        if (filterStatus !== "all" && r.status !== filterStatus) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          if (!String(r.id).toLowerCase().includes(q) &&
+              !r.submittedBy.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      });
+    };
+
+  const counts = {
+    total:     reports.length,
+    pending:   reports.filter(r => r.status === "pending").length,
+    reviewed:  reports.filter(r => r.status === "submitted").length, 
+    approved:  reports.filter(r => r.status === "approved").length,
+  };
+
+const downloadReport = (report) => {
+  const doc = generatePdfDoc(report);
+  const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
+  doc.save(`report_${(report.branch||'').replace(/\s+/g,'_')}_${safePeriod.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+};
+
+const loadImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0); 
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
+const loadImageAsBase64Circular = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+
+      const offsetX = (img.width - size) / 2;
+      const offsetY = (img.height - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      ctx.restore();
+
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
+
+const generatePdfDoc = (report) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = 0;
+
+  const addPage = () => { doc.addPage(); y = margin; };
+  const checkY = (needed = 8) => { if (y + needed > pageH - margin) addPage(); };
+
+  const writeLine = (text, fontSize = 10, style = 'normal', color = [30,30,30], indent = 0) => {
+    doc.setFontSize(fontSize); doc.setFont('helvetica', style); doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(text, contentW - indent);
+    lines.forEach(line => { checkY(fontSize * 0.45 + 2); doc.text(line, margin + indent, y); y += fontSize * 0.45 + 1.5; });
+  };
+  const writeDivider = (color = [180,180,180]) => {
+    checkY(6); doc.setDrawColor(...color); doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y); y += 4;
+  };
+
+  y = margin;
+  doc.setFillColor(13, 43, 30);
+  doc.rect(0, 0, pageW, 38, 'F');
+
+  const circleLogoSize = 12;   // small circular iFranchise logo
+  const wideLogoW = 34;        // wider main logo
+  const wideLogoH = 12;
+  const gap = 6;
+  const logoY = 4;
+
+  const totalWidth = circleLogoSize + gap + wideLogoW;
+  const startX = (pageW - totalWidth) / 2;
+  try {
+  if (iFranchise_logoB64) {
+    doc.addImage(iFranchise_logoB64, 'JPEG', startX, logoY, circleLogoSize, circleLogoSize);
+  }
+  if (logoB64) {
+    doc.addImage(logoB64, 'JPEG', startX + circleLogoSize + gap, logoY, wideLogoW, wideLogoH);
+  }
+} catch (err) {
+  console.warn('Failed to add logos to PDF:', err);
+}
+
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(255,255,255);
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 28, { align: 'center' });
+
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(160,220,190);
+  const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
+  
+  doc.setFontSize(8); doc.setTextColor(120,180,150);
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 34, { align: 'center' });
+  y = 46;
+
+  const cleanContent = (report.content || '').replace(/₱/g,'PHP ').replace(/→/g,'to')
+    .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
+    .replace(/\u2013/g,'-').replace(/\u2014/g,'--').replace(/[═─━]+/g,'')
+    .replace(/[^\x00-\x7F]/g,'').replace(/\n{3,}/g,'\n\n').trim();
+
+  if (!cleanContent) {
+    writeLine('No report content available.', 10, 'normal', [100,100,100]);
+  } else {
+    cleanContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) { y += 3; return; }
+      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+        checkY(14); y += 4;
+        doc.setFillColor(0,137,123); doc.rect(margin, y - 4, 3, 9, 'F');
+        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(13,43,30);
+        doc.text(trimmed, margin + 6, y + 2); y += 8; writeDivider([0,137,123]);
+      } else if (/^\d+\.\s+/.test(trimmed)) {
+        checkY(8);
+        const parts = trimmed.split(/(?<=^\d+\.)\s+/);
+        const num = parts[0]; const rest = parts.slice(1).join(' ');
+        doc.setFontSize(9.5); doc.setFont('helvetica','bold'); doc.setTextColor(0,137,123);
+        doc.text(num.replace('.',''), margin + 2, y);
+        doc.setFont('helvetica','normal'); doc.setTextColor(40,40,40);
+        const wrapped = doc.splitTextToSize(rest, contentW - 10);
+        wrapped.forEach((wl, i) => { if (i > 0) checkY(6); doc.text(wl, margin + 9, y); y += 5.5; });
+      } else {
+        writeLine(trimmed, 9.5, 'normal', [50,50,50]);
+        y += 1;
+      }
+    });
+  }
+
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i); doc.setFillColor(245,247,245); doc.rect(0, pageH - 12, pageW, 12, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(120,140,130);
+    doc.text(`${report.branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+    doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+  }
+
+  return doc; // return doc instead of calling .save()
+};
+
+  // ── Sub-components (unchanged styling) ─────────────────────────
+  const StatusBadge = ({ status }) => {
+    const s = REPORT_STATUS[status] || REPORT_STATUS.pending;
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:s.bg, color:s.color }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background:s.dot, display:"inline-block" }}/>
+        {s.label}
+      </span>
+    );
+  };
+
+  const handleViewReport = (report) => {
+    const doc = generatePdfDoc(report);
+    const url = doc.output('bloburl');
+    setViewReport(report);
+    setPdfPreviewUrl(url);
+  };
+
+  const ModalShell = ({ title, subtitle, icon, onClose, children, maxWidth=500 }) => (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", maxHeight:"92vh", overflowY:"auto" }}>
+        <div style={{ background:"linear-gradient(135deg,#2E7D32,#00897b)", borderRadius:"20px 20px 0 0", padding:"16px 22px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+            {icon}
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>{title}</div>
+              {subtitle && <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:1 }}>{subtitle}</div>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <X size={14}/>
+          </button>
+        </div>
+        <div style={{ padding:"22px 24px" }}>{children}</div>
+      </div>
+    </div>
+  );
+
+  const ReportMetaGrid = ({ report }) => (
+    <>
+      <div style={{ marginBottom:16, padding:"12px 14px", background:"#f0fdf5", borderRadius:12, border:"1px solid #d1eedd" }}>
+        <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:5 }}>Submitted By</div>
+        <div style={{ fontWeight:800, fontSize:14, color:"#0d2b1e" }}>{report.submittedBy}</div>
+        <div style={{ fontSize:12, color:"#5a7a65", marginTop:1 }}>{report.role}</div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+        {[{ label:"Brand", value:report.brand },{ label:"Branch", value:report.branch },
+          { label:"Period", value:fmtPeriod(report.period) },{ label:"Submitted", value:fmtDate(report.submittedAt) }
+        ].map(({ label, value }) => (
+          <div key={label} style={{ padding:"10px 12px", background:"#f8fffe", borderRadius:10, border:"1px solid #e0f2f1" }}>
+            <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.07em", color:"#5a7a65", marginBottom:3 }}>{label}</div>
+            <div style={{ fontWeight:700, fontSize:13, color:"#0d2b1e" }}>{value}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  if (initialLoading) return (
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", gap:14 }}>
+    <div style={{ width:36, height:36, border:"3px solid #d1eedd", borderTopColor:"#00897b", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
+    <div style={{ fontSize:13, fontWeight:700, color:"#5a7a65" }}>Loading reports…</div>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>
+);
+
+  if (error) return (
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
+    <div style={{ fontSize:13, fontWeight:700, color:"#dc2626" }}>{error}</div>
+    <button onClick={fetchReports} style={{ padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      Retry
+    </button>
+  </div>
+);
+
+  // ── Render ──────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+
+      {viewReport && (
+        <ModalShell
+          title={`Report #${viewReport.id}`}
+          subtitle={viewReport.brand + " · " + viewReport.branch}
+          icon={<FileText size={16} color="#fff"/>}
+          onClose={() => { setViewReport(null); setPdfPreviewUrl(null); }}
+          maxWidth={680}
+        >
+          <ReportMetaGrid report={viewReport}/>
+
+          {/* PDF shows immediately — no click needed */}
+          <div style={{ marginBottom: 16, borderRadius: 12, overflow: "hidden", border: "1px solid #d1eedd" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", background: "#f0fdf5", borderBottom: "1px solid #d1eedd" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#00897b" }}>
+                REP-{String(viewReport.id).padStart(5, '0')} · {fmtPeriod(viewReport.period)}
+              </span>
+              <button
+                onClick={() => downloadReport(viewReport)}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Download size={11}/> Download
+              </button>
+            </div>
+            {pdfPreviewUrl && (
+              <iframe
+                src={pdfPreviewUrl}
+                style={{ width: "100%", height: 500, border: "none", display: "block" }}
+                title="Report PDF Preview"
+              />
+            )}
+          </div>
+
+          {viewReport.remark && (
+            <div style={{ marginBottom: 16, padding: "12px 14px", background: "#fff3e0", borderRadius: 12, border: "1px solid #ffcc80" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#e65100", marginBottom: 4 }}>Return Remark</div>
+              <div style={{ fontSize: 13, color: "#bf360c" }}>{viewReport.remark}</div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <StatusBadge status={viewReport.status}/>
+            <div style={{ display: "flex", gap: 8 }}>
+              {viewReport.status !== "approved" && (
+                <button
+                  onClick={() => setApproveReport(viewReport)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: actionLoading ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: actionLoading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  {actionLoading ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge
+                </button>
+              )}
+              <button
+                onClick={() => { setViewReport(null); setPdfPreviewUrl(null); }}
+                style={{ padding: "8px 20px", borderRadius: 10, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </ModalShell>
+      )}
+
+      {/* APPROVE modal */}
+      {approveReport && (
+        <ModalShell title={`Acknowledge Report #${approveReport.id}`} subtitle={approveReport.brand + " · " + approveReport.branch} icon={<Check size={16} color="#fff"/>} onClose={() => setApproveReport(null)} maxWidth={440}>
+          <ReportMetaGrid report={approveReport}/>
+          <div style={{ padding:"14px 16px", borderRadius:12, background:"linear-gradient(135deg,#d1fae5,#e0f2f1)", border:"1px solid #a7f3d0", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
+            <Check size={18} color="#00897b"/>
+            <div>
+              <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e" }}>Confirm Acknowledgment</div>
+              <div style={{ fontSize:12, color:"#5a7a65", marginTop:2 }}>This will mark the report as acknowledged. This action cannot be undone.</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <button onClick={() => setApproveReport(null)} style={{ padding:"9px 20px", borderRadius:10, border:"1px solid #b2dfdb", background:"#f0fdf5", color:"#5a7a65", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={() => handleApprove(approveReport)} disabled={actionLoading}
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 22px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:13, fontWeight:700, cursor:actionLoading?"not-allowed":"pointer", fontFamily:"inherit", opacity:actionLoading?0.7:1, boxShadow:"0 2px 10px rgba(0,180,90,0.35)" }}>
+              {actionLoading ? <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/> : <Check size={14}/>} Acknowledge Report
+            </button>
+          </div>
+        </ModalShell>
+      )}
+      
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+        <BmStatCard label="Total Reports" value={counts.total}    icon={<FileText size={20} color="#065f46"/>}      bg="linear-gradient(135deg,#d1fae5,#6ee7b7)" sub="All submissions"  />
+        <BmStatCard label="Under Review" value={counts.reviewed} icon={<Search size={20} color="#1e40af"/>} bg="linear-gradient(135deg,#dbeafe,#93c5fd)" sub="Awaiting admin approval" />
+        <BmStatCard label="Reviewed"      value={counts.reviewed} icon={<Search size={20} color="#1e40af"/>}        bg="linear-gradient(135deg,#dbeafe,#93c5fd)"  sub="Under evaluation" />
+        <BmStatCard label="Acknowledged"  value={counts.approved} icon={<Check size={20} color="#065f46"/>}         bg="linear-gradient(135deg,#d1fae5,#a7f3d0)" sub="Completed"        />
+      </div>
+
+<div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+  <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+
+    {/* Search */}
+    <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+      <Search size={13} color="#5a7a65" style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)" }}/>
+      <input type="text" placeholder="Search ID or submitter..." value={search} onChange={e => setSearch(e.target.value)}
+        style={{ ...bmInput, paddingLeft:30, height:36, width:"100%" }}/>
+      {search && (
+        <div onClick={() => setSearch("")} style={{ position:"absolute", right:9, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:"#5a7a65" }}>
+          <X size={12}/>
+        </div>
+      )}
+    </div>
+
+    {/* Status */}
+    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+      style={{ ...bmInput, height:36, width:"auto", appearance:"none", cursor:"pointer" }}>
+      <option value="all">All Statuses</option>
+      {Object.entries(REPORT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+    </select>
+
+    {/* Brand + Branch (the fancy component) */}
+    <BrandBranchFilter
+      brands={brandList}
+      activeBrand={filterBrand}
+      activeBranch={filterBranch}
+      onChangeBrand={id  => { setFilterBrand(id);  setFilterBranch(null); }}
+      onChangeBranch={val => setFilterBranch(val)}
+    />
+
+    {/* Export + Refresh pushed right */}
+    <button onClick={() => handleExport(filterBrand || null)}
+      style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      <Download size={13}/> Export CSV
+    </button>
+    <button onClick={fetchReports}
+      style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+      <RefreshCw size={13}/> Refresh
+    </button>
+  </div>
+
+  {/* Active filter chips — mirrors inventory pattern */}
+  {(search || filterStatus !== "all" || filterBrand || filterBranch) && (
+    <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:"1px solid #d1eedd", flexWrap:"wrap" }}>
+      <span style={{ fontSize:11, color:"#5a7a65", fontWeight:600 }}>Active:</span>
+      {search       && <Chip label={`"${search}"`}        color="#3949ab" bg="#e8eaf6" onRemove={() => setSearch("")}/>}
+      {filterStatus !== "all" && <Chip label={REPORT_STATUS[filterStatus]?.label} color="#00695c" bg="#e0f2f1" onRemove={() => setFilterStatus("all")}/>}
+      {filterBrand && !filterBranch && <Chip label={brandList.find(b => b.id === filterBrand)?.name} color="#00695c" bg="#e8f5e9" onRemove={() => { setFilterBrand(null); setFilterBranch(null); }}/>}
+      {filterBranch && <Chip label={filterBranch} color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)}/>}
+      <button
+        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterBrand(null); setFilterBranch(null); }}
+        style={{ height:24, padding:"0 10px", borderRadius:7, border:"1px solid #d1eedd", background:"#fff", color:"#5a7a65", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>
+        Clear all
+      </button>
+    </div>
+  )}
+</div>
+
+      {/* One BmSection per brand */}
+      {allBrands.length === 0 ? (
+        <div style={{ padding:"60px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>
+          No reports found.
+        </div>
+      ) : allBrands.map(brand => {
+        const branches     = getBrandBranches(brand);
+        const activeBranch = brandBranchFilter[brand] || "all";
+        const brandReports = getBrandReports(brand);
+
+        return (
+          <BmSection key={brand}>
+            <BmSectionHeader
+              title={brand}
+              icon={<Globe size={16} color="#fff"/>}
+              right={
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.07em" }}>Branch</span>
+                    <select value={activeBranch} onChange={e => setBrandBranchFilter(prev => ({ ...prev, [brand]: e.target.value }))}
+                      style={{ height:30, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
+                      <option value="all" style={{ color:"#0d2b1e", background:"#fff" }}>All branches</option>
+                      {branches.map(b => <option key={b} value={b} style={{ color:"#0d2b1e", background:"#fff" }}>{b}</option>)}
+                    </select>
+                  </div>
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
+                    {brandReports.length} report{brandReports.length !== 1 ? "s" : ""}
+                  </span>
+                  {/* Per-brand export */}
+                  <button onClick={() => handleExport(brand)}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 12px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    <Download size={11}/> Export
+                  </button>
+                </div>
+              }
+            />
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:780 }}>
+                <thead>
+                  <tr>
+                    {["Report #","Submitted By","Role","Branch","Period","Date Submitted","Status",""].map(h => (
+                      <th key={h} style={{ padding:"10px 14px", textAlign:"left", fontWeight:800, fontSize:10.5, color:"#00897b", letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:"1px solid #d1eedd", background:"#f8fffe", whiteSpace:"nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {brandReports.length === 0 ? (
+                    <tr><td colSpan={8} style={{ padding:"36px 0", textAlign:"center", color:"#5a7a65", fontSize:13, fontStyle:"italic" }}>No reports match the current filters.</td></tr>
+                  ) : brandReports.map(report => (
+                    <tr key={report.id}
+                      onMouseEnter={e => e.currentTarget.style.background="#f6fef8"}
+                      onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                      style={{ borderBottom:"1px solid #f0f8f0" }}>
+                      <td style={{ padding:"11px 14px", fontWeight:800, color:"#0d2b1e", fontSize:12 }}>
+                        REP-{String(report.id).padStart(5, '0')}  {/* ← was #{report.id} */}
+                      </td>
+                      <td style={{ padding:"11px 14px", fontWeight:700, color:"#0d2b1e" }}>{report.submittedBy}</td>
+                      <td style={{ padding:"11px 14px" }}>
+                        <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"rgba(0,137,123,0.1)", color:"#00695c" }}>{report.role}</span>
+                      </td>
+                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65" }}>{report.branch}</td>
+                      <td style={{ padding:"11px 14px", fontSize:12, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtPeriod(report.period)}</td>
+                      <td style={{ padding:"11px 14px", fontSize:11, color:"#5a7a65", whiteSpace:"nowrap" }}>{fmtDate(report.submittedAt)}</td>
+                      <td style={{ padding:"11px 14px" }}><StatusBadge status={report.status}/></td>
+                      <td style={{ padding:"11px 14px" }}>
+                        <button
+                          onClick={() => handleViewReport(report)}
+                          style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:9, border:"1.5px solid #b2dfdb", background:"#e0f2f1", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                          <Eye size={13}/> View Report
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </BmSection>
+        );
+      })}
+
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
+
+    </div>
+  );
+}
+
 
 //PROFIILEE
 function AlertModal({ message, type = "info", onClose }) {

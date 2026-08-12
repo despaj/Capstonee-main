@@ -17,7 +17,7 @@ import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
-  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch, DoorOpen, Logout,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon, HistoryIcon,
@@ -344,8 +344,9 @@ export default function AdminDashboard() {
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
-  const confirmLogout = async () => {
-    try {
+const confirmLogout = async () => {
+  setIsLoggingOut(true);
+  try {
       const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
       await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
@@ -362,6 +363,7 @@ export default function AdminDashboard() {
       sessionStorage.removeItem("user");
       sessionStorage.removeItem("tempUser");
       sessionStorage.removeItem("fr_activeModule");
+      setIsLoggingOut(false);
       setShowLogoutModal(false);
       window.location.href = "/admin-login";
     }
@@ -582,6 +584,8 @@ useEffect(() => {
   const handleViewApplication = (applicant) => { setSelectedApplicant(applicant); setShowViewApplicationModal(true); };
 
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
+
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   return (
     <div className="admin-dashboard-root">
@@ -826,21 +830,35 @@ useEffect(() => {
       {showLogoutModal && (
         <div
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, backdropFilter:'blur(4px)' }}
-          onClick={() => setShowLogoutModal(false)}
+          onClick={() => { if (!isLoggingOut) setShowLogoutModal(false); }}
         >
           <div
             style={{ background:C.white, borderRadius:22, padding:'32px 36px', maxWidth:400, width:'90%', textAlign:'center', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', border:'1px solid rgba(0,168,76,0.15)', animation:'slideUp .25s ease' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2rem', border:'1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
+            <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', border:'1.5px solid rgba(239,68,68,0.15)' }}>
+              <LogOut size={28} color="#dc2626" strokeWidth={1.75} />
+            </div>
             <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
             <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:'Poppins,sans-serif' }}>
               You'll need to sign in again to access your account.
             </p>
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setShowLogoutModal(false)} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Montserrat,sans-serif' }}>Cancel</button>
-              <button onClick={confirmLogout} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
-                <LogOut size={14} /> Log out
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                disabled={isLoggingOut}
+                style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', opacity: isLoggingOut ? 0.5 : 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                disabled={isLoggingOut}
+                style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7, opacity: isLoggingOut ? 0.85 : 1 }}
+              >
+                {isLoggingOut
+                  ? <><RefreshCw size={14} style={{ animation:'spin .8s linear infinite' }} /> Logging out…</>
+                  : <><LogOut size={14} /> Log out</>}
               </button>
             </div>
           </div>
@@ -4000,6 +4018,35 @@ function Field({ label, error, children }) {
   );
 }
 
+function UnlistBlockedModal({ item, onClose, onHideInstead }) {
+  if (!item) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+      <div onClick={(e) => e.stopPropagation()} className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 420, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+        <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fff3e0", color: "#e65100", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+            <AlertIcon />
+          </div>
+          <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Can't Unlist This Item</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+            <strong style={{ color: C.ink }}>{item.name}</strong> is linked to past orders and can't be removed from the Mobile Shop. Hide it instead — that keeps order history intact while taking it off the customer-facing shop.
+          </div>
+        </div>
+        <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+          <button onClick={onClose} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            Close
+          </button>
+          <button onClick={() => onHideInstead(item)} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(0,180,90,0.3)" }}>
+            Hide Instead
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 const normalize = (str) => (str || "").trim().toLowerCase();
 const MARKUP = 1.10; // shop price = stock cost + 10%
@@ -4050,8 +4097,9 @@ const getBrowserLocation = () => {
 const computePrice = (cost) => (cost > 0 ? Math.round(cost * MARKUP * 100) / 100 : 0);
 const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(item.brand)}-${normalize(item.name)}`);
 
-<<<<<<< Updated upstream
-=======
+const placeholderImageFor = (name) =>
+  `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
+
 /* ─────────────────────────────────────────────────────────────────────────
    MAIN COMPONENT
 
@@ -4069,7 +4117,6 @@ const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(i
    FIFO/FEFO batches) are intentionally not shown here — that detail
    belongs to Stock Inventory.
 ───────────────────────────────────────────────────────────────────────── */
->>>>>>> Stashed changes
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4087,11 +4134,8 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const [selectedKeys,    setSelectedKeys]    = useState(() => new Set()); // multi-select for bulk listing
   const [bulkListing,     setBulkListing]     = useState(false);
 
-<<<<<<< Updated upstream
   const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
 
-=======
->>>>>>> Stashed changes
   const editImageRef = useRef(null);
 
   const fetchActivityLog = useCallback(async () => {
@@ -4142,12 +4186,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     fetchActivityLog();
   }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
-<<<<<<< Updated upstream
-  const getCostFor = useCallback((brandName, itemName) => {
-    const b = normalize(brandName), n = normalize(itemName);
-    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? Number(match.cost_per_unit || 0) : 0;
-=======
   // Pull the live unit cost from Stock Inventory. The shop price is always
   // derived from this — never entered by hand — so it stays in sync
   // automatically whenever cost changes upstream.
@@ -4155,19 +4193,10 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     const b = normalize(brandName), n = normalize(itemName);
     const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
     return match ? Number(match.cost || 0) : 0;
->>>>>>> Stashed changes
   }, [stockItems]);
 
   // Every unique (brand, product name) combination that exists in Stock
   // Inventory. This — and only this — determines what CAN show up here.
-<<<<<<< Updated upstream
-const uniqueStockProducts = useMemo(() => {
-  const seen = new Map();
-  stockItems.forEach((si) => {
-    if (!si.brand || !si.name) return;
-    const key = `${normalize(si.brand)}|${normalize(si.name)}`;
-    if (!seen.has(key)) seen.set(key, { id: si.id, brand: si.brand, name: si.name });
-=======
   const uniqueStockProducts = useMemo(() => {
     const seen = new Map();
     stockItems.forEach((si) => {
@@ -4216,57 +4245,10 @@ const uniqueStockProducts = useMemo(() => {
     if (!matchesQuery) return false;
     if (filterShop !== "all" && item.shop !== filterShop) return false;
     return true;
->>>>>>> Stashed changes
   });
   return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
 }, [stockItems]);
 
-<<<<<<< Updated upstream
-  // Merge each Stock Inventory product with its Mobile Shop listing
-  // override (if one has been set up). Products with no override yet
-  // are still shown, marked as "Not Listed", so staff can list them.
-  // Price is always computed live from cost — it's never stored as a
-  // free-standing editable number. Stock is intentionally not exposed
-  // here — it lives in Stock Inventory's FIFO/FEFO queues.
-  const items = useMemo(() => {
-    return uniqueStockProducts.map((sp) => {
-      const match = shopItems.find(
-        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
-      );
-      const liveCost = getCostFor(sp.brand, sp.name);
-      return {
-        id: match ? match.id : null,
-        ingredient_id: sp.id, 
-        name: sp.name,
-        brand: sp.brand,
-        shop: match ? match.shop : sp.brand,
-        cost: liveCost,
-        price: computePrice(liveCost),
-        unit: match ? match.unit : "",
-        image_url: match ? match.image_url : "",
-        is_visible: match ? !!match.is_visible : false,
-        listed: !!match,
-      };
-    });
-  }, [uniqueStockProducts, shopItems, getCostFor]);
-
-  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
-
-const filteredItems = items.filter((item) => {
-  const q = searchQuery.toLowerCase();
-  const matchesQuery =
-    !q ||
-    item.name?.toLowerCase().includes(q) ||
-    item.shop?.toLowerCase().includes(q);
-  if (!matchesQuery) return false;
-  if (filterShop !== "all" && item.shop !== filterShop) return false;
-  if (filterListed === "listed" && !item.listed) return false;
-  if (filterListed === "unlisted" && item.listed) return false;
-  return true;
-});
-
-=======
->>>>>>> Stashed changes
   // Clear out any selected keys that no longer exist in the current item set
   // (e.g. a product was removed from Stock Inventory).
   useEffect(() => {
@@ -4277,7 +4259,6 @@ const filteredItems = items.filter((item) => {
       prev.forEach((k) => {
         if (validKeys.has(k)) next.add(k);
         else changed = true;
-<<<<<<< Updated upstream
       });
       return changed ? next : prev;
     });
@@ -4311,209 +4292,6 @@ const filteredItems = items.filter((item) => {
 
   const validateEdit = () => {
     const errs = {};
-    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
-    if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
-    setEditErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const openEditor = (item) => {
-    setEditingItem({ ...item });
-    setEditErrors({});
-  };
-
-  // Creates the listing (POST) the first time a product is edited, or
-  // updates it (PUT) if a listing already exists. Stock is not part of
-  // this payload's concern here — price is always synced live from
-  // Stock Inventory, never entered manually.
-  const saveEdit = async () => {
-    if (editLoading || !validateEdit()) return;
-    setEditLoading(true);
-    const coords = await getBrowserLocation();
-    const liveCost = getCostFor(editingItem.brand, editingItem.name);
-    const payload = {
-      name: editingItem.name,
-      price: computePrice(liveCost),
-      unit: editingItem.unit || "",
-      image_url: editingItem.image_url,
-      shop: editingItem.brand,
-      brand: editingItem.brand,
-      ingredient_id: editingItem.ingredient_id || null, 
-      is_visible: editingItem.is_visible !== false,
-      performed_by: user?.name || "System",
-      performed_by_role: user?.role || "Unknown",
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-    };
-    try {
-      const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
-      const method = editingItem.id ? "PUT" : "POST";
-      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      setToast({
-        type: "success",
-        title: editingItem.id ? "Item Updated" : "Item Listed",
-        message: editingItem.id
-          ? `"${editingItem.name}" has been updated.`
-          : `"${editingItem.name}" is now listed in the Mobile Shop.`,
-      });
-      setEditingItem(null);
-      setEditErrors({});
-      fetchShopItems();
-      fetchActivityLog();
-    } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to save changes." });
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // Bulk-list one or more not-yet-listed products in a single action.
-  // Photos are optional here — staff can attach one later via Edit —
-  // so this is meant for quickly getting products visible in the shop.
-  const bulkListItems = async (candidateItems) => {
-    const toList = candidateItems.filter((i) => !i.listed);
-    if (toList.length === 0) {
-      setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
-      return;
-    }
-    setBulkListing(true);
-    const coords = await getBrowserLocation();
-    let success = 0, failed = 0;
-    for (const it of toList) {
-      const liveCost = getCostFor(it.brand, it.name);
-      const payload = {
-        name: it.name,
-        price: computePrice(liveCost),
-        unit: it.unit || "",
-        image_url: it.image_url || null,
-        shop: it.brand,
-        brand: it.brand,
-        ingredient_id: it.ingredient_id || null,
-        is_visible: true,
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      };
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-        });
-        if (res.ok) success++; else failed++;
-      } catch { failed++; }
-    }
-    setBulkListing(false);
-    setSelectedKeys(new Set());
-    fetchShopItems();
-    fetchActivityLog();
-    setToast({
-      type: failed > 0 ? "error" : "success",
-      title: "Bulk Listing Complete",
-      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
-    });
-  };
-
-  // Bulk-unlist one or more currently-listed products in a single action.
-const bulkUnlistItems = async (candidateItems) => {
-  const toUnlist = candidateItems.filter((i) => i.listed);
-  if (toUnlist.length === 0) {
-    setToast({ type: "error", title: "Nothing to Unlist", message: "None of the selected items are listed." });
-    return;
-  }
-  setBulkListing(true);
-  const coords = await getBrowserLocation();
-  let success = 0, failed = 0;
-  for (const it of toUnlist) {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${it.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deleted_by: user?.name || "System",
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      if (res.ok) success++; else failed++;
-    } catch { failed++; }
-  }
-  setBulkListing(false);
-  setSelectedKeys(new Set());
-  fetchShopItems();
-  fetchActivityLog();
-  setToast({
-    type: failed > 0 ? "error" : "success",
-    title: "Bulk Unlisting Complete",
-    message: `${success} item${success === 1 ? "" : "s"} unlisted${failed > 0 ? `, ${failed} failed` : ""}.`,
-  });
-};
-
-  const deleteItem = async (item) => {
-    if (!item.id) { setConfirmDeleteItem(null); return; }
-    setDeleteLoading(true);
-    const coords = await getBrowserLocation();
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deleted_by: user?.name || "System",   performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-      });
-      setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
-    } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
-    } finally {
-      setDeleteLoading(false);
-      setConfirmDeleteItem(null);
-      fetchShopItems();
-      fetchActivityLog();
-    }
-  };
-
-=======
-      });
-      return changed ? next : prev;
-    });
-  }, [items]);
-
-  const toggleSelect = (rowKey) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(rowKey)) next.delete(rowKey);
-      else next.add(rowKey);
-      return next;
-    });
-  };
-
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
-  const toggleSelectAllFiltered = () => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (allFilteredSelected) {
-        filteredItems.forEach((i) => next.delete(keyFor(i)));
-      } else {
-        filteredItems.forEach((i) => next.add(keyFor(i)));
-      }
-      return next;
-    });
-  };
-
-  const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
-  const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
-  const allUnlistedCount = filteredItems.filter((i) => !i.listed).length;
-
-  const validateEdit = () => {
-    const errs = {};
-    if (!editingItem.image_url || !editingItem.image_url.trim()) errs.image_url = "Photo is required";
     if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
@@ -4641,7 +4419,6 @@ const bulkUnlistItems = async (candidateItems) => {
     }
   };
 
->>>>>>> Stashed changes
   const toggleVisibility = async (item) => {
     if (!item.id) return; // nothing to toggle until it's listed
     const coords = await getBrowserLocation();
@@ -4649,11 +4426,7 @@ const bulkUnlistItems = async (candidateItems) => {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-<<<<<<< Updated upstream
-        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-=======
         body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
->>>>>>> Stashed changes
       });
       fetchShopItems();
       fetchActivityLog();
@@ -4662,8 +4435,16 @@ const bulkUnlistItems = async (candidateItems) => {
     }
   };
 
-  const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
-    <Field label="Photo *" error={error}>
+  const [blockedUnlistItem, setBlockedUnlistItem] = useState(null);
+
+  const forceHide = async (item) => {
+    if (!item.id || item.is_visible === false) { setBlockedUnlistItem(null); return; }
+    await toggleVisibility(item);
+    setBlockedUnlistItem(null);
+  };
+
+const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
+    <Field label="Photo (optional)" error={error}>
       <div
         onClick={() => inputRef.current.click()}
         style={{
@@ -4679,11 +4460,12 @@ const bulkUnlistItems = async (candidateItems) => {
               style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
               ✕
             </button>
-          </div>
+          </div>                {/* ← added: this closes the "has photo" branch's wrapper div */}
         ) : (
           <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
+            <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
             Click to upload photo
+            <div style={{ fontSize: 10.5, marginTop: 4, opacity: 0.75 }}>optional</div>
           </div>
         )}
       </div>
@@ -4756,7 +4538,7 @@ const bulkUnlistItems = async (candidateItems) => {
                     style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
                 <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
-              </div>
+                </div>
               <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
 
               <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
@@ -4831,21 +4613,6 @@ const bulkUnlistItems = async (candidateItems) => {
             />
           </div>
           <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
-<<<<<<< Updated upstream
-            style={{ ...msInputStyle, marginTop: 0, width: 120}}>
-            <option value="all">All Shops</option>
-            {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
-          </select>
-          <select value={filterListed} onChange={(e) => setFilterListed(e.target.value)}
-            style={{ ...msInputStyle, marginTop: 0, width: 130 }}>
-            <option value="all">All Statuses</option> 
-            <option value="listed">Listed Only</option>
-            <option value="unlisted">Not Listed</option>
-          </select>
-          {(searchQuery || filterShop !== "all" || filterListed !== "all") && (
-            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); setFilterListed("all"); }} className="msc-btn"
-              style={{ height: 30, padding: "0 8px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
-=======
             style={{ ...msInputStyle, marginTop: 0, width: 160 }}>
             <option value="all">All Shops</option>
             {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
@@ -4853,39 +4620,10 @@ const bulkUnlistItems = async (candidateItems) => {
           {(searchQuery || filterShop !== "all") && (
             <button onClick={() => { setSearchQuery(""); setFilterShop("all"); }} className="msc-btn"
               style={{ height: 38, padding: "0 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
->>>>>>> Stashed changes
               Clear
             </button>
           )}
 
-<<<<<<< Updated upstream
-<span style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
-  <button
-    onClick={() => bulkListItems(selectedItems)}
-    disabled={bulkListing || selectedUnlistedCount === 0}
-    className="msc-btn"
-    title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
-    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
-    <ListIcon size={12} /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
-  </button>
-  <button
-    onClick={() => bulkUnlistItems(selectedItems)}
-    disabled={bulkListing || selectedUnlistedCount === selectedItems.length}
-    className="msc-btn"
-    title={selectedItems.filter(i => i.listed).length === 0 ? "Select listed items in the table to enable this" : "Unlist all selected items"}
-    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: "1.5px solid #ffcdd2", background: "#fdeeee", color: "#c62828" }}>
-    <TrashIcon size={12} /> Unlist Items{selectedItems.filter(i => i.listed).length > 0 ? ` (${selectedItems.filter(i => i.listed).length})` : ""}
-  </button>
-  <button
-    onClick={() => bulkListItems(filteredItems)}
-    disabled={bulkListing || allUnlistedCount === 0}
-    className="msc-btn"
-    title="List every currently unlisted item shown below"
-    style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
-    <LayersIcon size={12} /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
-  </button>
-</span>
-=======
           <span style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
             <button
               onClick={() => bulkListItems(selectedItems)}
@@ -4908,7 +4646,6 @@ const bulkUnlistItems = async (candidateItems) => {
               Activity Log
             </button>
           </span>
->>>>>>> Stashed changes
 
           <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
             {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
@@ -5021,30 +4758,6 @@ const bulkUnlistItems = async (candidateItems) => {
           </div>
         )}
       </div>
-<<<<<<< Updated upstream
-=======
-
-      {/* ── Activity Log Panel ── */}
-      {showActivityLog && (
-        <div onClick={() => setShowActivityLog(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)", animation: "fadeIn .15s ease" }}>
-          <div onClick={(e) => e.stopPropagation()} className="msc-modal-card" style={{ background: C.white, borderRadius: 18, padding: "26px 28px", width: "100%", maxWidth: 680, maxHeight: "78vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: C.ink, margin: 0 }}>Shop Activity Log</h2>
-              <button onClick={() => setShowActivityLog(false)} style={{ width: 30, height: 30, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.greenLt, cursor: "pointer", color: C.green }}>✕</button>
-            </div>
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              {activityLog.length === 0 ? (
-                <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No activity yet.</div>
-              ) : activityLog.map((entry, i) => (
-                <div key={entry.id || i} style={{ padding: "10px 0", borderBottom: `1px solid ${C.bg}`, fontSize: 12.5, color: C.ink }}>
-                  <strong>{entry.performed_by || entry.performedBy || "System"}</strong> — {entry.action || "update"} {entry.item_name ? `· ${entry.item_name}` : ""}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
->>>>>>> Stashed changes
     </div>
   );
 }
@@ -6093,10 +5806,6 @@ const handleRestoreApplication = async (entry) => {
               <option value="iFuel">iFuel</option>
             </select>
 
-              <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
-                {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
-              </span>
-
             {/* Clear */}
             {(searchQuery || filterStatus !== "all" || filterFranchise !== "all") && (
               <button
@@ -6389,9 +6098,7 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
 
 const REPORT_STATUS = {
   pending:   { label:"Pending",      bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  submitted: { label:"Under Review", bg:"#e3edfb", color:"#1e40af", dot:"#3b6dde" },
   approved:  { label:"Acknowledged",     bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  returned:  { label:"Returned",     bg:"#fde8e8", color:"#7f1d1d", dot:"#dc2626" },
 };
 
 const API = process.env.REACT_APP_API_URL || "";
