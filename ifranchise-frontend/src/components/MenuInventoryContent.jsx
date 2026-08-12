@@ -108,7 +108,11 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
+<<<<<<< Updated upstream
 // ─── BranchSearchSelect (used in Add/Edit form) ────────────────────────────────
+=======
+// ─── BranchSearchSelect ───────────────────────────────────────────────────────
+>>>>>>> Stashed changes
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -410,6 +414,145 @@ function InventoryActivityLogPanel({ log, onClose }) {
   );
 }
 
+<<<<<<< Updated upstream
+=======
+// ─── InventoryTable ───────────────────────────────────────────────────────────
+// Self-contained pagination/sorting — each brand card gets its own instance,
+// so paging one brand never affects another. Resets to page 0 whenever the
+// item list it's given changes (new filters, different branch selected, etc).
+function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
+  const [sort, setSort]             = useState({ col:"name", asc:true });
+  const [page, setPage]             = useState(0);
+  const [expandedRows, setExpanded] = useState({});
+
+  useEffect(() => { setPage(0); }, [items]);
+
+  const sorted = useMemo(() => {
+    return [...items].sort((a,b) => {
+      let va=a[sort.col]??"", vb=b[sort.col]??"";
+      if(typeof va==="string") va=va.toLowerCase();
+      if(typeof vb==="string") vb=vb.toLowerCase();
+      return sort.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
+    });
+  }, [items, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
+
+  const Th = ({ col, label, style:s }) => {
+    const active = sort.col === col;
+    return (
+      <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
+          {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
+        </span>
+      </th>
+    );
+  };
+  const ThStatic = ({ label, style:s }) => (
+    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
+  );
+
+  if (!items.length) return <div style={{ padding:"36px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
+
+  return (
+    <div>
+      <div style={{ overflowX:"auto" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+          <thead>
+            <tr>
+              <Th col="name"      label="Item Name"   style={{ minWidth:160 }}/>
+              <Th col="category"  label="Category"    style={{ minWidth:110 }}/>
+              <Th col="branch"    label="Branch"      style={{ minWidth:130 }}/>
+              <Th col="stock"     label="Stock"       style={{ minWidth:72  }}/>
+              <Th col="min_stock" label="Min Stock"   style={{ minWidth:80  }}/>
+              <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
+              <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
+              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
+              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map(item => {
+              const low        = Number(item.stock) <= Number(item.min_stock);
+              const isDeleting = deletingId === item.id;
+              const ingredients= item.ingredients || [];
+              const isExpanded = expandedRows[item.id];
+              return (
+                <React.Fragment key={item.id}>
+                  <tr style={{ borderBottom: isExpanded?"none":`1px solid #f2faf5` }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
+                    </td>
+                    <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
+                    </td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
+                        {item.stock}
+                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
+                      </span>
+                    </td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
+                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
+                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
+                    <td style={{ padding:"10px 12px" }}>
+                      {ingredients.length === 0 ? (
+                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
+                      ) : (
+                        <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
+                          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
+                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
+                          <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding:"10px 12px" }}>
+                      <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
+                       <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
+                        <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
+                        style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
+                        {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                        {isDeleting ? "Deleting…" : "Delete"}
+                      </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && ingredients.length > 0 && (
+                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
+                      <td colSpan={9} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
+                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
+                            Ingredients required per unit:
+                          </span>
+                          {ingredients.map((ing, idx) => (
+                            <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
+                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
+                              <span style={{ color:C.muted }}>×</span>
+                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
+                              {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 && <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>}
+    </div>
+  );
+}
+
+>>>>>>> Stashed changes
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
@@ -770,18 +913,42 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
+<<<<<<< Updated upstream
   // ── Screen state: "brands" (card grid) → "inventory" (row-list card) ──────
   const [screen, setScreen] = useState(isAdmin ? "brands" : "inventory");
+=======
+  // map branch name -> brand name, used to group inventory rows by brand
+  const branchToBrand = useMemo(() => {
+    const map = {};
+    brandList.forEach(b => (b.branches||[]).forEach(br => {
+      const name = typeof br==="string"?br:br.name;
+      map[name] = b.name;
+    }));
+    return map;
+  }, [brandList]);
+>>>>>>> Stashed changes
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
+<<<<<<< Updated upstream
   const [filterBrand,     setFilterBrand]     = useState(null);
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
   const [deleteTarget,    setDeleteTarget]    = useState(null);
+=======
+  const [filterBrandName, setFilterBrandName] = useState("");   // "" = show every brand card
+  const [filterCategory,  setFilterCategory]  = useState("");
+  const [filterStatus,    setFilterStatus]    = useState("");
+  const [searchQuery,     setSearchQuery]     = useState("");
+  const [brandBranchFilter, setBrandBranchFilter] = useState({}); // { [brandName]: branchName | "all" }
+  const [showAddModal,    setShowAddModal]    = useState(false);
+  const [showEditModal,   setShowEditModal]   = useState(false);
+  const [editingItem,     setEditingItem]     = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+>>>>>>> Stashed changes
 
   const [saving,          setSaving]          = useState(false);
   const [deletingId,      setDeletingId]      = useState(null);
@@ -814,12 +981,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
 
   // ── Category helpers (still needed by the Add/Edit form) ───────────────────
   const inventoryCategories = useMemo(() => {
-    if (filterBrand) {
-      const brand = brandList.find(b => b.id === filterBrand);
-      return brand?.categories || [];
-    }
     return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-  }, [filterBrand, brandList]);
+  }, [brandList]);
 
   const formBrand = useMemo(() => {
     if (!formData.branch) return null;
@@ -896,6 +1059,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   }, []);
 
   // ── Effects ─────────────────────────────────────────────────────────────────
+  // Admins pull the full inventory once and the brand cards below split it up
+  // client-side; non-admins only ever see their own branch's items.
   useEffect(() => {
     if (!isAdmin) { fetchInventory(userBranch); return; }
     fetchInventory();
@@ -904,6 +1069,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
 
+<<<<<<< Updated upstream
   const refetch = () => fetchInventory(!isAdmin ? userBranch : undefined);
 
   // items scoped to the currently selected brand (admin) or the user's own branch (non-admin)
@@ -915,6 +1081,45 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     const names = (b.branches || []).map(br => typeof br === "string" ? br : br.name);
     return inventory.filter(i => names.includes(i.branch));
   }, [inventory, isAdmin, filterBrand, brandList]);
+=======
+  const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
+
+  // Search / category / status filters only — brand & branch narrowing happens
+  // per-card below so each brand keeps its own row set and its own pagination.
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return inventory.filter(i => {
+      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
+      if (filterCategory && i.category!==filterCategory) return false;
+      if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
+      if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+      return true;
+    });
+  }, [inventory, searchQuery, filterCategory, filterStatus]);
+
+  const filteredCategories = useMemo(() => {
+    if (filterBrandName) {
+      const brand = brandList.find(b => b.name === filterBrandName);
+      return brand?.categories || [];
+    }
+    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
+  }, [filterBrandName, brandList]);
+
+  // Group the filtered rows by brand, keep them in the brand's own list order,
+  // then apply the top "Brand" narrowing filter (if any) on top of that.
+  const brandGroups = useMemo(() => {
+    const map = {};
+    filteredItems.forEach(item => {
+      const brandName = branchToBrand[item.branch] || "Unassigned";
+      if (!map[brandName]) map[brandName] = [];
+      map[brandName].push(item);
+    });
+    let names = brandList.map(b => b.name).filter(n => map[n]);
+    if (map["Unassigned"]) names.push("Unassigned");
+    if (filterBrandName) names = names.filter(n => n === filterBrandName);
+    return names.map(name => ({ name, items: map[name] }));
+  }, [filteredItems, branchToBrand, brandList, filterBrandName]);
+>>>>>>> Stashed changes
 
   // ── Computed cost from ingredients ──────────────────────────────────────────
   const computedCost = useMemo(() => {
@@ -932,6 +1137,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     setFormData(prev => ({ ...prev, cost, price }));
   }, [computedCost]);
 
+<<<<<<< Updated upstream
   const handleAddItem = async e => {
     e.preventDefault();
     const branch    = isAdmin ? formData.branch : userBranch;
@@ -950,6 +1156,26 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
       longitude: coords?.longitude,
     };
     try {
+=======
+const handleAddItem = async e => {
+  e.preventDefault();
+  const branch    = isAdmin ? formData.branch : userBranch;
+  const duplicate = findDuplicate(formData.name, branch, inventory);
+  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+  
+  setSaving(true);
+  const coords = await getBrowserLocation();
+  const payload = {
+    ...formData,
+    branch,
+    min_stock: formData.minStock,
+    performed_by: userName,
+    performed_by_role: user?.role || "Unknown",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+  };
+   try {
+>>>>>>> Stashed changes
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
@@ -1422,7 +1648,12 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     </>
   );
 
+<<<<<<< Updated upstream
   const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
+=======
+  const anyFilter = filterBrandName||filterCategory||filterStatus||searchQuery;
+  const clearAll  = () => { setFilterBrandName(""); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+>>>>>>> Stashed changes
 
   const goBackToBrands = () => {
     setScreen("brands");
@@ -1480,14 +1711,69 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
       {fontImport}
 
+<<<<<<< Updated upstream
       {isAdmin && (
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
           <button onClick={goBackToBrands} style={{ ...btnSt, gap:6 }}>
             <ArrowLeftIcon size={13}/> All Brands
+=======
+      {/* Filter bar */}
+      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
+            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
+            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
+            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
+          </div>
+          {isAdmin && (
+            <select value={filterBrandName} onChange={e=>{setFilterBrandName(e.target.value);setFilterCategory("");}} style={{ ...invInputSt, width:170 }}>
+              <option value="">All Brands</option>
+              {brandList.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
+            </select>
+          )}
+          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
+            <option value="">All Categories</option>
+            {filteredCategories.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
+            <option value="">All Status</option>
+            <option value="low">Low Stock</option>
+            <option value="ok">In Stock</option>
+          </select>
+          <div style={{ flex:1 }}/>
+
+          {/* ── History buttons ── */}
+          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
+            <HistoryIcon size={13}/> Delete History
+            {deleteHistory.length > 0 && (
+              <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>
+            )}
+          </button>
+          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
+            <ActivityIcon size={13}/> Activity Log
+            {activityLog.length > 0 && (
+              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
+            )}
+          </button>
+
+          <label style={{ ...btnSt, cursor:"pointer" }}>
+            <FileIcon size={13}/> Import Excel
+            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
+          </label>
+          <button onClick={()=>{
+            const branch = isAdmin ? "" : userBranch;
+            setFormData({...emptyForm(), branch});
+            fetchStockItems(branch);
+            setFormBrandId("");
+            setShowAddModal(true);
+          }} style={btnPrimarySt}>
+            <PlusIcon/> Add New Item
+>>>>>>> Stashed changes
           </button>
         </div>
       )}
 
+<<<<<<< Updated upstream
       <MenuBrandCard
         label={selectedBrandObj ? selectedBrandObj.name : "Menu Inventory"}
         items={itemsForBrand}
@@ -1504,6 +1790,73 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
         deleteHistoryCount={deleteHistory.length}
         activityLogCount={activityLog.length}
       />
+=======
+        {/* Active filter chips */}
+        {anyFilter && (
+          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
+            {searchQuery     && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
+            {filterBrandName && <Chip label={filterBrandName}    color={C.greenDk} bg={C.greenLt} onRemove={()=>setFilterBrandName("")}/>}
+            {filterCategory  && <Chip label={filterCategory}     color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
+            {filterStatus    && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
+            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+          </div>
+        )}
+      </div>
+
+      {/* One card per brand — rows are already grouped by brand this way,
+          and each card gets its own branch dropdown + its own pagination. */}
+      {loading ? (
+        <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)` }}>
+          Loading inventory…
+        </div>
+      ) : brandGroups.length === 0 ? (
+        <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic", background:C.white, borderRadius:18, border:`1px dashed ${C.border}` }}>
+          No items match your filters.
+        </div>
+      ) : brandGroups.map(group => {
+        const branches     = [...new Set(group.items.map(i => i.branch))].sort();
+        const activeBranch = brandBranchFilter[group.name] || "all";
+        const displayItems = activeBranch === "all" ? group.items : group.items.filter(i => i.branch === activeBranch);
+        const lowCount      = displayItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
+
+        return (
+          <div key={group.name} style={{ marginBottom:22, background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+            <div style={{ padding:"14px 20px", background:`linear-gradient(135deg,#2E7D32,#00897b)`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:34, height:34, borderRadius:9, background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <StoreIcon size={17} color="#fff"/>
+                </div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>{group.name}</div>
+                  <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.8)", marginTop:1 }}>
+                    {displayItems.length} item{displayItems.length!==1?"s":""}{lowCount>0?` · ${lowCount} low stock`:""}
+                  </div>
+                </div>
+              </div>
+              {branches.length > 1 && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Branch</span>
+                  <select
+                    value={activeBranch}
+                    onChange={e=>setBrandBranchFilter(p=>({...p,[group.name]:e.target.value}))}
+                    style={{ height:32, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
+                    <option value="all" style={{ color:"#0d2b1e" }}>All branches</option>
+                    {branches.map(b=><option key={b} value={b} style={{ color:"#0d2b1e" }}>{b}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <InventoryTable
+              items={displayItems}
+              onEdit={openEditModal}
+              onRequestDelete={setDeleteTarget}
+              deletingId={deletingId}
+            />
+          </div>
+        );
+      })}
+>>>>>>> Stashed changes
 
       {deleteTarget && (
         <DeleteConfirmModal
