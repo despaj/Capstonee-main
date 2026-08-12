@@ -42,7 +42,6 @@ const smallBtnSt = {
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
-const PAGE_SIZE = 15;
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -63,21 +62,21 @@ const findDuplicate = (name, branch, existingItems) => {
 };
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
-const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const TagIcon      = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
-const FilterIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
-const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
-const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
-const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+const SearchIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
+const EditIcon      = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const TrashIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
+const XIcon         = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const PlusIcon      = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const StoreIcon     = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const FileIcon      = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
+const TagIcon       = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
+const ChevronIcon   = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
+const HistoryIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
+const RestoreIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
+const ActivityIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
+const ArrowLeftIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
+const ArrowRightIcon= ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
+const EyeIcon       = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
@@ -90,6 +89,16 @@ const getBrowserLocation = () => {
   });
 };
 
+// ─── MiniBar (borrowed look from Stock Inventory) ─────────────────────────────
+function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
+  const w = Math.max(0, Math.min(100, pct ?? 0));
+  return (
+    <div style={{ background:track, borderRadius:20, height, overflow:"hidden", width:"100%" }}>
+      <div style={{ width:`${w}%`, height:"100%", background:color, borderRadius:20, transition:"width .3s ease" }}/>
+    </div>
+  );
+}
+
 // ─── Chip ─────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
   return (
@@ -99,75 +108,7 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
-// ─── BrandBranchFilter ────────────────────────────────────────────────────────
-function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
-  const [brandQ, setBrandQ]   = useState("");
-  const [branchQ, setBranchQ] = useState("");
-  const [openB, setOpenB]     = useState(false);
-  const [openBr, setOpenBr]   = useState(false);
-  const brandRef  = useRef(null);
-  const branchRef = useRef(null);
-
-  useEffect(() => {
-    const fn = e => {
-      if (brandRef.current  && !brandRef.current.contains(e.target))  setOpenB(false);
-      if (branchRef.current && !branchRef.current.contains(e.target)) setOpenBr(false);
-    };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  const selectedBrand    = brands.find(b => b.id === activeBrand);
-  const branchList       = selectedBrand ? (selectedBrand.branches||[]).map(br=>typeof br==="string"?br:br.name) : [];
-  const filteredBrands   = brands.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
-  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = active => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
-
-  return (
-    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-      <div ref={brandRef} style={{ position:"relative", minWidth:180 }}>
-        <div onClick={()=>{setOpenB(v=>!v);setBrandQ("");}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:30, userSelect:"none", color:activeBrand?C.ink:C.muted }}>
-          <FilterIcon/> <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{selectedBrand?selectedBrand.name:"All Brands"}</span>
-          <ChevronIcon dir={openB?"up":"down"} style={{ position:"absolute", right:10 }}/>
-        </div>
-        {openB && (
-          <div style={dropSt}>
-            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
-              <input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search brand…" onClick={e=>e.stopPropagation()} style={{ ...invInputSt, height:30, fontSize:12 }}/>
-            </div>
-            <div style={optSt(!activeBrand)} onMouseDown={()=>{onChangeBrand(null);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>All Brands</div>
-            {filteredBrands.map(b=>(
-              <div key={b.id} style={optSt(activeBrand===b.id)} onMouseDown={()=>{onChangeBrand(b.id);onChangeBranch(null);setBrandQ("");setOpenB(false);}}>
-                {b.name} <span style={{ marginLeft:"auto", fontSize:11, color:C.muted }}>{(b.branches||[]).length} branches</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div ref={branchRef} style={{ position:"relative", minWidth:190, opacity:activeBrand?1:0.45 }}>
-        <div onClick={()=>{if(activeBrand){setOpenBr(v=>!v);setBranchQ("");}}} style={{ ...invInputSt, display:"flex", alignItems:"center", gap:7, cursor:activeBrand?"pointer":"not-allowed", paddingRight:30, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
-          <StoreIcon size={12} color={activeBrand?C.green:C.muted}/> <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:13 }}>{activeBranch||(activeBrand?"All Branches":"Select brand first")}</span>
-        </div>
-        {openBr && activeBrand && (
-          <div style={dropSt}>
-            <div style={{ padding:"7px 9px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
-              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" style={{ ...invInputSt, height:30, fontSize:12 }}/>
-            </div>
-            <div style={optSt(!activeBranch)} onMouseDown={()=>{onChangeBranch(null);setOpenBr(false);}}>All Branches</div>
-            {filteredBranches.map(br=>(
-              <div key={br} style={optSt(activeBranch===br)} onMouseDown={()=>{onChangeBranch(br);setOpenBr(false);}}>
-                <StoreIcon size={11} color={C.green}/> {br}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── BranchSearchSelect ───────────────────────────────────────────────────────
+// ─── BranchSearchSelect (used in Add/Edit form) ────────────────────────────────
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -184,7 +125,7 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
       <div style={{ position:"relative" }}>
         <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
         <input type="text" value={query} placeholder="Search branch…"
-          onChange={e=>{setQuery(e.target.value);setOpen(true);}} 
+          onChange={e=>{setQuery(e.target.value);setOpen(true);}}
           onFocus={()=>setOpen(true)}
           style={{ ...invInputSt, paddingLeft:30 }}/>
       </div>
@@ -204,7 +145,55 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
   );
 }
 
-// ─── CategorySelect ───────────────────────────────────────────────────────────
+// ─── Searchable single-branch filter (Stock Inventory look) ───────────────────
+function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
+  const [branchQ, setBranchQ] = useState("");
+  const [open, setOpen]       = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const filteredBranches = branches.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
+  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+
+  return (
+    <div ref={ref} style={{ position:"relative", minWidth:170 }}>
+      <div onClick={() => { setOpen(v=>!v); setBranchQ(""); }}
+        style={{ ...invInputSt, height:34, fontSize:12, display:"flex", alignItems:"center", gap:6, cursor:"pointer", paddingRight:26, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+        <StoreIcon size={12} color={C.green}/>
+        <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {activeBranch || "All Branches"}
+        </span>
+        <ChevronIcon size={11} dir={open?"up":"down"}/>
+      </div>
+      {open && (
+        <div style={dropSt}>
+          <div style={{ padding:"6px 8px", borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, background:C.white }}>
+            <div style={{ position:"relative" }}>
+              <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
+              <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search branch…" onClick={e=>e.stopPropagation()}
+                style={{ ...invInputSt, height:28, fontSize:11, paddingLeft:26 }}/>
+            </div>
+          </div>
+          <div style={optSt(!activeBranch)} onMouseDown={() => { onChangeBranch(""); setOpen(false); }}>All Branches</div>
+          {filteredBranches.map(br => (
+            <div key={br} style={optSt(activeBranch===br)} onMouseDown={() => { onChangeBranch(br); setOpen(false); }}>
+              <StoreIcon size={11} color={C.green}/> {br}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CategorySelect (still used in Add/Edit form) ──────────────────────────────
 function CategorySelect({ value, onChange, categories, onAddCategory }) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -232,30 +221,6 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
           <button type="button" onClick={()=>{setAdding(false);setNewCat("");}} style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935" }}><XIcon size={13}/></button>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Pagination ───────────────────────────────────────────────────────────────
-function Pagination({ page, setPage, total, pageSize }) {
-  const totalPgs = Math.max(1, Math.ceil(total / pageSize));
-  if (totalPgs <= 1) return null;
-  return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
-      <span style={{ fontSize:12, color:C.muted }}>
-        Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
-      </span>
-      <div style={{ display:"flex", gap:4 }}>
-        {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
-        ))}
-        {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
-        ))}
-        {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -294,12 +259,11 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        
+
         <style>{`
           @keyframes spin { to { transform: rotate(360deg); } }
         `}</style>
 
-        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
@@ -314,14 +278,12 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
           </button>
         </div>
 
-        {/* Column headers */}
         {history.length > 0 && (
           <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
             <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
           </div>
         )}
 
-        {/* Rows */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {history.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
@@ -348,7 +310,6 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
                     {restoringId === entry.id ? "Restoring…" : "Restore"}
                   </button>
                 </div>
-                {/* Ingredient chips */}
                 {ings.length > 0 && (
                   <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:5, paddingLeft:4 }}>
                     <span style={{ fontSize:10, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center" }}>Ingredients:</span>
@@ -399,7 +360,6 @@ function InventoryActivityLogPanel({ log, onClose }) {
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
 
-        {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
@@ -410,7 +370,6 @@ function InventoryActivityLogPanel({ log, onClose }) {
           </button>
         </div>
 
-        {/* Filters */}
         <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
           <div style={{ position:"relative", flex:"1 1 200px" }}>
             <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
@@ -426,12 +385,10 @@ function InventoryActivityLogPanel({ log, onClose }) {
           </select>
         </div>
 
-        {/* Column headers */}
         <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
           <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
         </div>
 
-        {/* Rows */}
         <div style={{ overflowY:"auto", flex:1 }}>
           {filtered.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
@@ -449,136 +406,6 @@ function InventoryActivityLogPanel({ log, onClose }) {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── InventoryTable ───────────────────────────────────────────────────────────
-function InventoryTable({ items, onEdit, onRequestDelete, deletingId, page, setPage }) {
-  const [sort, setSort]             = useState({ col:"name", asc:true });
-  const [expandedRows, setExpanded] = useState({});
-
-  const sorted = useMemo(() => {
-    return [...items].sort((a,b) => {
-      let va=a[sort.col]??"", vb=b[sort.col]??"";
-      if(typeof va==="string") va=va.toLowerCase();
-      if(typeof vb==="string") vb=vb.toLowerCase();
-      return sort.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
-    });
-  }, [items, sort]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageItems  = sorted.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
-
-  const Th = ({ col, label, style:s }) => {
-    const active = sort.col === col;
-    return (
-      <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
-        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
-        <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
-          {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
-        </span>
-      </th>
-    );
-  };
-  const ThStatic = ({ label, style:s }) => (
-    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
-  );
-
-  if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
-
-  return (
-    <div>
-      <div style={{ overflowX:"auto" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-          <thead>
-            <tr>
-              <Th col="name"      label="Item Name"   style={{ minWidth:160 }}/>
-              <Th col="category"  label="Category"    style={{ minWidth:110 }}/>
-              <Th col="branch"    label="Branch"      style={{ minWidth:130 }}/>
-              <Th col="stock"     label="Stock"       style={{ minWidth:72  }}/>
-              <Th col="min_stock" label="Min Stock"   style={{ minWidth:80  }}/>
-              <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
-              <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
-              <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
-              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map(item => {
-              const low        = Number(item.stock) <= Number(item.min_stock);
-              const isDeleting = deletingId === item.id;
-              const ingredients= item.ingredients || [];
-              const isExpanded = expandedRows[item.id];
-              return (
-                <React.Fragment key={item.id}>
-                  <tr style={{ borderBottom: isExpanded?"none":`1px solid #f2faf5` }}
-                    onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
-                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
-                    </td>
-                    <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
-                      <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
-                        {item.stock}
-                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
-                      </span>
-                    </td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
-                    <td style={{ padding:"10px 12px", color:C.muted }}>{fmtPeso(item.cost||0)}</td>
-                    <td style={{ padding:"10px 12px", fontWeight:700, color:C.green }}>{fmtPeso(item.price)}</td>
-                    <td style={{ padding:"10px 12px" }}>
-                      {ingredients.length === 0 ? (
-                        <span style={{ fontSize:11, color:C.muted, fontStyle:"italic" }}>—</span>
-                      ) : (
-                        <button onClick={()=>setExpanded(p=>({...p,[item.id]:!p[item.id]}))}
-                          style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:isExpanded?C.greenMid:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, cursor:"pointer" }}>
-                          {ingredients.length} ingredient{ingredients.length!==1?"s":""}
-                          <ChevronIcon size={10} dir={isExpanded?"up":"down"}/>
-                        </button>
-                      )}
-                    </td>
-                    <td style={{ padding:"10px 12px" }}>
-                      <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
-                       <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
-                        <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
-                        style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
-                        {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
-                        {isDeleting ? "Deleting…" : "Delete"}
-                      </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {isExpanded && ingredients.length > 0 && (
-                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
-                      <td colSpan={9} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
-                          <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
-                            Ingredients required per unit:
-                          </span>
-                          {ingredients.map((ing, idx) => (
-                            <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
-                              <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
-                              <span style={{ color:C.muted }}>×</span>
-                              <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
-                              {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {totalPages > 1 && <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>}
     </div>
   );
 }
@@ -645,6 +472,288 @@ function Toast({ toast, onClose }) {
   );
 }
 
+// ─── BrandOverviewCard — landing screen, Stock-Inventory style ────────────────
+function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(); }}
+      style={{
+        background:C.white, border:"1px solid rgba(0,168,76,0.14)", borderRadius:20,
+        overflow:"hidden", boxShadow:"0 4px 20px rgba(0,140,60,0.08)", cursor:"pointer",
+        transition:"transform .15s ease, box-shadow .15s ease", display:"flex", flexDirection:"column",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,140,60,0.16)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,140,60,0.08)"; }}
+    >
+      <div style={{ padding:"22px 20px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white }}>
+        <div style={{ width:44, height:44, borderRadius:12, background:"rgba(255,255,255,0.18)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}>
+          <StoreIcon size={22} color="#fff"/>
+        </div>
+        <div style={{ fontSize:17, fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
+        <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
+      </div>
+      <div style={{ padding:"16px 20px 20px", display:"flex", flexDirection:"column", gap:10 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Items</span>
+          <span style={{ fontSize:15, fontWeight:800, color:C.ink }}>{itemCount}</span>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Low Stock</span>
+          <span style={{ fontSize:15, fontWeight:800, color:lowCount>0?C.warn:C.green }}>{lowCount}</span>
+        </div>
+        <div style={{ marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px 0", borderRadius:9, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700 }}>
+          View Products <ArrowRightIcon size={11}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ItemDetailPanel — content shown inside the "View Item Details" modal ─────
+function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
+  if (!item) return null;
+
+  const low        = Number(item.stock) <= Number(item.min_stock);
+  const isDeleting = deletingId === item.id;
+  const ingredients = item.ingredients || [];
+
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:16, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+          <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:5 }}>
+            <StoreIcon size={11} color={C.green}/> {item.branch}
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+          <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity:isDeleting?0.5:1, cursor:isDeleting?"not-allowed":"pointer" }}><EditIcon size={11}/> Edit</button>
+          <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
+            {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
+            {isDeleting ? "Deleting…" : <><TrashIcon size={11}/> Delete</>}
+          </button>
+        </div>
+      </div>
+
+      {item.image_url && (
+        <img src={item.image_url} alt={item.name}
+          style={{ width:"100%", maxWidth:280, height:170, objectFit:"cover", borderRadius:12, border:`1px solid ${C.border}`, marginBottom:14 }}
+          onError={e => e.target.style.display="none"}/>
+      )}
+
+      <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+        <div style={{ flex:1, background:low?C.warnBg:C.okBg, borderRadius:10, padding:"10px 14px" }}>
+          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Stock</div>
+          <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
+            {item.stock}
+            {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:"#fff3e0", padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+          </div>
+        </div>
+        <div style={{ flex:1, background:C.greenLt, borderRadius:10, padding:"10px 14px" }}>
+          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Price</div>
+          <div style={{ fontSize:18, fontWeight:800, color:C.greenDk }}>{fmtPeso(item.price)}</div>
+        </div>
+        {item.category && (
+          <div style={{ flex:1, background:C.bg, borderRadius:10, padding:"10px 14px" }}>
+            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Category</div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.category}</div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>Ingredients</div>
+        {ingredients.length === 0 ? (
+          <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No ingredients linked.</div>
+        ) : (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+            {ingredients.map((ing, idx) => (
+              <span key={idx} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 11px", borderRadius:20, fontSize:12, fontWeight:600, background:C.white, color:C.ink, border:`1px solid ${C.border}` }}>
+                <span style={{ color:C.green, fontWeight:700 }}>{ing.name}</span>
+                <span style={{ color:C.muted }}>×</span>
+                <span style={{ fontWeight:800, color:C.greenDk }}>{ing.qty_required}</span>
+                {ing.unit && <span style={{ fontSize:11, color:C.muted, background:C.bg, padding:"1px 6px", borderRadius:20 }}>{ing.unit}</span>}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ItemDetailModal — popup shown when "View" is clicked on a row ────────────
+function ItemDetailModal({ item, onClose, onEdit, onRequestDelete, deletingId }) {
+  if (!item) return null;
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"26px 28px", width:"100%", maxWidth:520, maxHeight:"86vh", overflowY:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+          <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0, display:"flex", alignItems:"center", gap:8 }}>
+            <EyeIcon size={15}/> Item Details
+          </h2>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={15}/>
+          </button>
+        </div>
+        <ItemDetailPanel item={item} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+      </div>
+    </div>
+  );
+}
+
+// ─── MenuBrandCard — the main card, now a simple row/table list ───────────────
+function MenuBrandCard({
+  label, items, branchOptions, showBranchFilter,
+  onEdit, onRequestDelete, deletingId, onQuickAdd,
+  onImportExcel, excelRef,
+  onOpenDeleteHistory, onOpenActivityLog, deleteHistoryCount, activityLogCount,
+}) {
+  const [search, setSearch]     = useState("");
+  const [branchF, setBranchF]   = useState("");
+  const [statusF, setStatusF]   = useState("");
+  const [viewingItem, setViewingItem] = useState(null);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items
+      .filter(i => {
+        if (q && !i.name.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
+        if (branchF && i.branch !== branchF) return false;
+        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
+        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        return true;
+      })
+      .sort((a,b) => a.name.localeCompare(b.name));
+  }, [items, search, branchF, statusF]);
+
+  useEffect(() => {
+    if (viewingItem && !items.find(i => i.id === viewingItem.id)) setViewingItem(null);
+  }, [items, viewingItem]);
+
+  // Keep the modal's item in sync with any live edits (stock/price changes, etc.)
+  const liveViewingItem = viewingItem ? (items.find(i => i.id === viewingItem.id) || null) : null;
+
+  const lowCount  = items.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
+  const anyFilter = search || branchF || statusF;
+  const clearAll  = () => { setSearch(""); setBranchF(""); setStatusF(""); };
+
+  const rowGridCols = "1fr 150px 90px 100px 90px 190px";
+
+  return (
+    <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* header */}
+      <div style={{ padding:"14px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
+        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <StoreIcon size={17} color="#fff"/>
+          <span style={{ fontWeight:800, fontSize:16 }}>{label}</span>
+        </span>
+        <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
+          <span style={{ opacity:0.92 }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+          <button onClick={onQuickAdd} title="Add a new menu item"
+            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"1px solid rgba(255,255,255,0.5)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            <PlusIcon size={12}/> Add Item
+          </button>
+        </span>
+      </div>
+
+      {/* filter row */}
+      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", background:"#fafffe" }}>
+        <div style={{ position:"relative", flex:"1 1 200px", minWidth:160 }}>
+          <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item, branch…" style={{ ...invInputSt, height:34, fontSize:12, paddingLeft:28 }}/>
+        </div>
+        {showBranchFilter && <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>}
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:34, fontSize:12, width:120 }}>
+          <option value="">All Status</option>
+          <option value="low">Low Stock</option>
+          <option value="ok">In Stock</option>
+        </select>
+        <div style={{ flex:1 }}/>
+        <button onClick={onOpenDeleteHistory} style={{ ...btnSt, height:34, fontSize:12, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
+          <HistoryIcon size={12}/> Delete History
+          {deleteHistoryCount > 0 && (
+            <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistoryCount}</span>
+          )}
+        </button>
+        <button onClick={onOpenActivityLog} style={{ ...btnSt, height:34, fontSize:12, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
+          <ActivityIcon size={12}/> Activity Log
+          {activityLogCount > 0 && (
+            <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLogCount}</span>
+          )}
+        </button>
+        <label style={{ ...btnSt, height:34, fontSize:12, cursor:"pointer" }}>
+          <FileIcon size={12}/> Import Excel
+          <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
+        </label>
+      </div>
+
+      {anyFilter && (
+        <div style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px", borderBottom:`1px solid ${C.border}`, flexWrap:"wrap", background:"#fafffe" }}>
+          <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
+          {search   && <Chip label={`"${search}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearch("")}/>}
+          {branchF  && <Chip label={branchF}        color="#00695c" bg="#e0f7fa" onRemove={()=>setBranchF("")}/>}
+          {statusF  && <Chip label={statusF==="low"?"Low Stock":"In Stock"} color={statusF==="low"?C.warn:C.ok} bg={statusF==="low"?C.warnBg:C.okBg} onRemove={()=>setStatusF("")}/>}
+          <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+        </div>
+      )}
+
+      {/* row/table header */}
+      <div style={{ display:"grid", gridTemplateColumns:rowGridCols, gap:8, padding:"10px 20px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+        <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Status</span><span>Actions</span>
+      </div>
+
+      {/* row list */}
+      <div style={{ maxHeight:560, overflowY:"auto" }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding:"36px 14px", textAlign:"center", color:C.muted, fontSize:12.5 }}>No items found.</div>
+        ) : filtered.map(item => {
+          const low = Number(item.stock) <= Number(item.min_stock);
+          return (
+            <div key={item.id}
+              style={{ display:"grid", gridTemplateColumns:rowGridCols, gap:8, alignItems:"center", padding:"12px 20px", borderBottom:`1px solid ${C.bg}` }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+                {item.category && <div style={{ fontSize:11, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.category}</div>}
+              </div>
+              <div style={{ fontSize:12, color:C.muted, display:"flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                <StoreIcon size={11} color={C.green}/> {item.branch}
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:C.ink }}>{item.stock}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:C.greenDk }}>{fmtPeso(item.price)}</div>
+              <div>
+                {low
+                  ? <span style={{ fontSize:10, fontWeight:800, color:C.warn, background:C.warnBg, padding:"3px 9px", borderRadius:20 }}>LOW</span>
+                  : <span style={{ fontSize:10, fontWeight:800, color:C.ok, background:C.okBg, padding:"3px 9px", borderRadius:20 }}>OK</span>}
+              </div>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                <button onClick={()=>setViewingItem(item)} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.greenDk }}><EyeIcon size={10}/> View</button>
+                <button onClick={()=>onEdit(item)} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
+                <button onClick={()=>onRequestDelete(item)} disabled={deletingId===item.id} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {liveViewingItem && (
+        <ItemDetailModal
+          item={liveViewingItem}
+          onClose={() => setViewingItem(null)}
+          onEdit={(it) => { setViewingItem(null); onEdit(it); }}
+          onRequestDelete={(it) => { setViewingItem(null); onRequestDelete(it); }}
+          deletingId={deletingId}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Super Admin";
@@ -661,20 +770,18 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
+  // ── Screen state: "brands" (card grid) → "inventory" (row-list card) ──────
+  const [screen, setScreen] = useState(isAdmin ? "brands" : "inventory");
+
   // ── Core state ──────────────────────────────────────────────────────────────
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
   const [filterBrand,     setFilterBrand]     = useState(null);
-  const [filterBranch,    setFilterBranch]    = useState(null);
-  const [filterCategory,  setFilterCategory]  = useState("");
-  const [filterStatus,    setFilterStatus]    = useState("");
-  const [searchQuery,     setSearchQuery]     = useState("");
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [page,            setPage]            = useState(0);
+  const [deleteTarget,    setDeleteTarget]    = useState(null);
 
   const [saving,          setSaving]          = useState(false);
   const [deletingId,      setDeletingId]      = useState(null);
@@ -695,17 +802,17 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [ingPicked,   setIngPicked]   = useState(null);
   const [ingDropOpen, setIngDropOpen] = useState(false);
   const ingRef = useRef(null);
-  
-const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch,
-  cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
-}), [isAdmin, userBranch]);
+
+  const emptyForm = useCallback(() => ({
+    name:"", category:"", branch:isAdmin?"":userBranch,
+    cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
+  }), [isAdmin, userBranch]);
   const excelRef = useRef(null);
 
   const [formData,    setFormData]    = useState(emptyForm);
   const [formBrandId, setFormBrandId] = useState("");
 
-  // ── Category helpers ────────────────────────────────────────────────────────
+  // ── Category helpers (still needed by the Add/Edit form) ───────────────────
   const inventoryCategories = useMemo(() => {
     if (filterBrand) {
       const brand = brandList.find(b => b.id === filterBrand);
@@ -769,71 +876,45 @@ const emptyForm = useCallback(() => ({
     } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
   }, []);
 
-const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data.map(row => ({
-      id: row.id, action: row.action,
-      itemName: row.item_name ?? row.itemName,
-      performedBy: row.performed_by ?? row.performedBy,
-      branch: row.branch,
-      performedBy: row.performed_by ?? row.performedBy,
-      role: row.role,
-      changes: row.changes,
-      location: row.location,
-      timestamp: row.created_at ?? row.timestamp,
-    })) : []);
-  } catch (err) {
-    console.error("Failed to fetch menu activity log:", err);
-  }
-}, []);
-
-useEffect(() => {
-  fetchActivityLog();
-}, [fetchActivityLog]);
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id, action: row.action,
+        itemName: row.item_name ?? row.itemName,
+        performedBy: row.performed_by ?? row.performedBy,
+        branch: row.branch,
+        role: row.role,
+        changes: row.changes,
+        location: row.location,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) {
+      console.error("Failed to fetch menu activity log:", err);
+    }
+  }, []);
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isAdmin) { fetchInventory(userBranch); return; }
-    fetchInventory(filterBranch||undefined);
-  }, [filterBranch, isAdmin, userBranch, fetchInventory]);
+    fetchInventory();
+  }, [isAdmin, userBranch, fetchInventory]);
 
   useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
-  useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
 
-  const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
+  const refetch = () => fetchInventory(!isAdmin ? userBranch : undefined);
 
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter(i => {
-      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-      if (filterBranch) { if (i.branch!==filterBranch) return false; }
-      else if (filterBrand) {
-        const b = brandList.find(x=>x.id===filterBrand);
-        if (b) { const names=(b.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
-      }
-      if (filterCategory && i.category!==filterCategory) return false;
-      if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
-      if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
-      return true;
-    });
-  }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
-
-  const filteredCategories = useMemo(() => {
-    if (filterBrand) {
-      const brand = brandList.find(b => b.id === filterBrand);
-      return brand?.categories || [];
-    }
-    if (filterBranch) {
-      const brand = brandList.find(b =>
-        (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === filterBranch)
-      );
-      return brand?.categories || [];
-    }
-    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-  }, [filterBrand, filterBranch, brandList]);
+  // items scoped to the currently selected brand (admin) or the user's own branch (non-admin)
+  const itemsForBrand = useMemo(() => {
+    if (!isAdmin) return inventory;
+    if (!filterBrand) return inventory;
+    const b = brandList.find(x => x.id === filterBrand);
+    if (!b) return inventory;
+    const names = (b.branches || []).map(br => typeof br === "string" ? br : br.name);
+    return inventory.filter(i => names.includes(i.branch));
+  }, [inventory, isAdmin, filterBrand, brandList]);
 
   // ── Computed cost from ingredients ──────────────────────────────────────────
   const computedCost = useMemo(() => {
@@ -851,27 +932,24 @@ useEffect(() => {
     setFormData(prev => ({ ...prev, cost, price }));
   }, [computedCost]);
 
-  const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
-  const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
+  const handleAddItem = async e => {
+    e.preventDefault();
+    const branch    = isAdmin ? formData.branch : userBranch;
+    const duplicate = findDuplicate(formData.name, branch, inventory);
+    if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
 
-const handleAddItem = async e => {
-  e.preventDefault();
-  const branch    = isAdmin ? formData.branch : userBranch;
-  const duplicate = findDuplicate(formData.name, branch, inventory);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-  
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown",
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
-   try {
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const payload = {
+      ...formData,
+      branch,
+      min_stock: formData.minStock,
+      performed_by: userName,
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
+    try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
@@ -898,23 +976,23 @@ const handleAddItem = async e => {
     finally { setSaving(false); }
   };
 
-const handleEditItem = async e => {
-  e.preventDefault();
-  const branch     = isAdmin ? formData.branch : userBranch;
-  const otherItems = inventory.filter(i => i.id !== editingItem.id);
-  const duplicate  = findDuplicate(formData.name, branch, otherItems);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown", 
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
+  const handleEditItem = async e => {
+    e.preventDefault();
+    const branch     = isAdmin ? formData.branch : userBranch;
+    const otherItems = inventory.filter(i => i.id !== editingItem.id);
+    const duplicate  = findDuplicate(formData.name, branch, otherItems);
+    if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const payload = {
+      ...formData,
+      branch,
+      min_stock: formData.minStock,
+      performed_by: userName,
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
@@ -932,13 +1010,13 @@ const handleEditItem = async e => {
           })
         });
 
-        // Build human-readable changes string
         const changed = [];
         if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
         if (String(editingItem.min_stock) !== String(formData.minStock)) changed.push(`min: ${editingItem.min_stock} → ${formData.minStock}`);
         if (String(editingItem.price)     !== String(formData.price))    changed.push(`price: ₱${editingItem.price} → ₱${formData.price}`);
         if (editingItem.category          !== formData.category)         changed.push(`category: ${editingItem.category} → ${formData.category}`);
         const changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
+        void changesStr;
 
         await refetch();
         await fetchActivityLog();
@@ -949,79 +1027,79 @@ const handleEditItem = async e => {
     finally { setSaving(false); }
   };
 
-const handleDeleteItem = async id => {
-  setDeletingId(id);
-  try {
-    const coords = await getBrowserLocation();
-   const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deleted_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (d.success) {
-      await refetch();
-      await fetchDeleteHistory();
-      await fetchActivityLog();
-      showToast("success", "Item deleted", "The item was removed.");
-        } else showToast("error", "Failed to delete", d.error || "Something went wrong.");
-      } catch { showToast("error", "Failed to delete", "Something went wrong. Please try again."); }
-      finally { setDeletingId(null); }
-};
+  const handleDeleteItem = async id => {
+    setDeletingId(id);
+    try {
+      const coords = await getBrowserLocation();
+     const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        await refetch();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showToast("success", "Item deleted", "The item was removed.");
+          } else showToast("error", "Failed to delete", d.error || "Something went wrong.");
+        } catch { showToast("error", "Failed to delete", "Something went wrong. Please try again."); }
+        finally { setDeletingId(null); }
+  };
 
-const handleRestore = async (entry) => {
-  setRestoringId(entry.id);
-  try {
-    const d    = entry.inventory_data;
-    const ings = entry.ingredients_data || [];
-    const coords = await getBrowserLocation();
+  const handleRestore = async (entry) => {
+    setRestoringId(entry.id);
+    try {
+      const d    = entry.inventory_data;
+      const ings = entry.ingredients_data || [];
+      const coords = await getBrowserLocation();
 
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        name:      d.name,
-        category:  d.category,
-        branch:    d.branch,
-        brand:     d.brand,
-        stock:     d.stock,
-        min_stock: d.min_stock,
-        cost:      d.cost,
-        price:     d.price,
-        performed_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude:  coords?.latitude,
-        longitude: coords?.longitude,
-        restored:  true,
-      }),
-    });
-    const result = await res.json();
-    if (result.success) {
-      if (ings.length > 0) {
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            ingredients: ings.map(ing => ({
-              ingredient_id: ing.stock_item_id,
-              quantity:      ing.qty_required,
-              unit:          ing.unit,
-            })),
-          }),
-        });
-      }
-      await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
-      await refetch();
-      await fetchDeleteHistory();
-      await fetchActivityLog();
-      showToast("success", "Item restored", `"${d.name}" is back with ${ings.length} ingredient(s).`);
-    } else showToast("error", "Failed to restore", result.error || "Something went wrong.");
-  } catch { showToast("error", "Failed to restore", "Something went wrong. Please try again."); }
-  finally { setRestoringId(null); }
-};
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          name:      d.name,
+          category:  d.category,
+          branch:    d.branch,
+          brand:     d.brand,
+          stock:     d.stock,
+          min_stock: d.min_stock,
+          cost:      d.cost,
+          price:     d.price,
+          performed_by: userName,
+          performed_by_role: user?.role || "Unknown",
+          latitude:  coords?.latitude,
+          longitude: coords?.longitude,
+          restored:  true,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        if (ings.length > 0) {
+          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({
+              ingredients: ings.map(ing => ({
+                ingredient_id: ing.stock_item_id,
+                quantity:      ing.qty_required,
+                unit:          ing.unit,
+              })),
+            }),
+          });
+        }
+        await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
+        await refetch();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showToast("success", "Item restored", `"${d.name}" is back with ${ings.length} ingredient(s).`);
+      } else showToast("error", "Failed to restore", result.error || "Something went wrong.");
+    } catch { showToast("error", "Failed to restore", "Something went wrong. Please try again."); }
+    finally { setRestoringId(null); }
+  };
 
   const openEditModal = item => {
     setEditingItem(item);
@@ -1038,6 +1116,14 @@ const handleRestore = async (entry) => {
     });
     fetchStockItems(item.branch);
     setShowEditModal(true);
+  };
+
+  const openAddModal = () => {
+    const branch = isAdmin ? "" : userBranch;
+    setFormData({ ...emptyForm(), branch });
+    fetchStockItems(branch);
+    setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
+    setShowAddModal(true);
   };
 
   // ── Input handlers ──────────────────────────────────────────────────────────
@@ -1148,7 +1234,7 @@ const handleRestore = async (entry) => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ── Render helpers ───────────────────────────────────────────────────────────
+  // ── Render helpers for the Add/Edit form ────────────────────────────────────
   const renderIngredientPicker = () => (
     <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
       <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
@@ -1210,62 +1296,60 @@ const handleRestore = async (entry) => {
         <label style={invLabelSt}>Item Name</label>
         <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
       </div>
-      {/* Image Upload */}
-<div style={{ marginBottom:13 }}>
-  <label style={invLabelSt}>Product Image</label>
-  <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-    <div style={{ flex:1 }}>
-      <input
-        type="text"
-        placeholder="Paste image URL or upload below…"
-        value={formData.image_url || ""}
-        onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
-        style={invInputSt}
-      />
-    </div>
-    <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
-      <FileIcon size={13}/> Upload
-      <input
-        type="file"
-        accept="image/*"
-        style={{ display:"none" }}
-        onChange={async e => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const fd = new FormData();
-          fd.append("image", file);
-          try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
-              method: "POST",
-              body: fd,
-            });
-            const d = await res.json();
-            if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
-            else alert("Upload failed");
-          } catch { alert("Upload failed"); }
-        }}
-      />
-    </label>
-  </div>
+      <div style={{ marginBottom:13 }}>
+        <label style={invLabelSt}>Product Image</label>
+        <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+          <div style={{ flex:1 }}>
+            <input
+              type="text"
+              placeholder="Paste image URL or upload below…"
+              value={formData.image_url || ""}
+              onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
+              style={invInputSt}
+            />
+          </div>
+          <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
+            <FileIcon size={13}/> Upload
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display:"none" }}
+              onChange={async e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append("image", file);
+                try {
+                  const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
+                    method: "POST",
+                    body: fd,
+                  });
+                  const d = await res.json();
+                  if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
+                  else alert("Upload failed");
+                } catch { alert("Upload failed"); }
+              }}
+            />
+          </label>
+        </div>
 
-  {/* Preview */}
-  {formData.image_url && (
-    <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
-      <img
-        src={formData.image_url}
-        alt="preview"
-        style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
-        onError={e => e.target.style.display="none"}
-      />
-      <button
-        type="button"
-        onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
-        style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-        <XIcon size={9}/>
-      </button>
-    </div>
-  )}
-</div>
+        {formData.image_url && (
+          <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
+            <img
+              src={formData.image_url}
+              alt="preview"
+              style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
+              onError={e => e.target.style.display="none"}
+            />
+            <button
+              type="button"
+              onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
+              style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              <XIcon size={9}/>
+            </button>
+          </div>
+        )}
+      </div>
 
       {isAdmin && (
         <div style={{ marginBottom:13 }}>
@@ -1338,112 +1422,88 @@ const handleRestore = async (entry) => {
     </>
   );
 
-  const anyFilter = filterBrand||filterBranch||filterCategory||filterStatus||searchQuery;
-  const clearAll  = () => { setFilterBrand(null); setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+  const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  const goBackToBrands = () => {
+    setScreen("brands");
+    setFilterBrand(null);
+  };
+
+  const openBrand = brandId => {
+    setFilterBrand(brandId);
+    setScreen("inventory");
+  };
+
+  const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>;
+
+  const branchOptionsForCard = isAdmin && selectedBrandObj
+    ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
+    : [];
+
+  // ── Screen 1: Brand cards ─────────────────────────────────────────────────────
+  if (screen === "brands" && isAdmin) {
+    return (
+      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+        {fontImport}
+       
+
+        {loading && brandList.length === 0 ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading brands…</div>
+        ) : brandList.length === 0 ? (
+          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No brands found.</div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:16 }}>
+            {brandList.map(b => {
+              const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
+              const brandItems  = inventory.filter(i => branchNames.includes(i.branch));
+              return (
+                <BrandOverviewCard
+                  key={b.id}
+                  brand={b}
+                  branchCount={branchNames.length}
+                  itemCount={brandItems.length}
+                  lowCount={brandItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length}
+                  onClick={() => openBrand(b.id)}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      </div>
+    );
+  }
+
+  // ── Screen 2: Row-list card (scoped to selected brand for admins) ─────────────
   return (
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+      {fontImport}
 
-      {/* Stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
-        {[
-          { label:"Showing",    value:filteredItems.length.toLocaleString(), sub:`of ${inventory.length.toLocaleString()} total`, accent:C.green },
-          { label:"Low Stock",  value:lowCount,                              sub:"Needs reorder",      accent:C.warn },
-          { label:"Est. Value", value:fmtPeso(totalValue),                  sub:"Filtered selection", accent:C.green },
-          { label:"Categories", value:filteredCategories.length,            sub:"Product types",      accent:"#1565c0" },
-        ].map((s,i)=>(
-          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter bar */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
-            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
-            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
-          </div>
-          {isAdmin && <BrandBranchFilter brands={brandList} activeBrand={filterBrand} activeBranch={filterBranch} onChangeBrand={id=>{setFilterBrand(id);setFilterBranch(null);setFilterCategory("");}} onChangeBranch={val=>{setFilterBranch(val);setFilterCategory("");}}/>}
-          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
-            <option value="">All Categories</option>
-            {filteredCategories.map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
-          <div style={{ flex:1 }}/>
-
-          {/* ── History buttons ── */}
-          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
-            <HistoryIcon size={13}/> Delete History
-            {deleteHistory.length > 0 && (
-              <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>
-            )}
-          </button>
-          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
-            )}
-          </button>
-
-          <label style={{ ...btnSt, cursor:"pointer" }}>
-            <FileIcon size={13}/> Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-          <button onClick={()=>{
-            const branch = isAdmin ? (filterBranch||"") : userBranch;
-            setFormData({...emptyForm(), branch});
-            fetchStockItems(branch);
-            setFormBrandId("");
-            setShowAddModal(true);
-          }} style={btnPrimarySt}>
-            <PlusIcon/> Add New Item
+      {isAdmin && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
+          <button onClick={goBackToBrands} style={{ ...btnSt, gap:6 }}>
+            <ArrowLeftIcon size={13}/> All Brands
           </button>
         </div>
+      )}
 
-        {/* Active filter chips */}
-        {anyFilter && (
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-            {searchQuery    && <Chip label={`"${searchQuery}"`}                                               color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
-            {filterBrand && !filterBranch && <Chip label={brandList.find(b=>b.id===filterBrand)?.name}       color={C.greenDk} bg={C.greenLt} onRemove={()=>{setFilterBrand(null);setFilterBranch(null);}}/>}
-            {filterBranch   && <Chip label={filterBranch}                                                     color="#00695c" bg="#e0f7fa" onRemove={()=>setFilterBranch(null)}/>}
-            {filterCategory && <Chip label={filterCategory}                                                   color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
-            {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
-          </div>
-        )}
-      </div>
-
-      {/* Table card */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}><StoreIcon size={14} color="#fff"/> Menu Inventory</span>
-          <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
-        </div>
-        {loading ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
-        ) : (
-        <InventoryTable
-          items={filteredItems}
-          onEdit={openEditModal}
-          onRequestDelete={setDeleteTarget}
-          deletingId={deletingId}
-          page={page}
-          setPage={setPage}
-        />
-        )}
-      </div>
+      <MenuBrandCard
+        label={selectedBrandObj ? selectedBrandObj.name : "Menu Inventory"}
+        items={itemsForBrand}
+        branchOptions={branchOptionsForCard}
+        showBranchFilter={isAdmin}
+        onEdit={openEditModal}
+        onRequestDelete={setDeleteTarget}
+        deletingId={deletingId}
+        onQuickAdd={openAddModal}
+        onImportExcel={importExcel}
+        excelRef={excelRef}
+        onOpenDeleteHistory={() => setShowDeleteHistory(true)}
+        onOpenActivityLog={() => setShowActivityLog(true)}
+        deleteHistoryCount={deleteHistory.length}
+        activityLogCount={activityLog.length}
+      />
 
       {deleteTarget && (
         <DeleteConfirmModal
@@ -1477,7 +1537,6 @@ const handleRestore = async (entry) => {
         </div>
       )}
 
-      {/* Delete History Panel */}
       {showDeleteHistory && (
         <InventoryDeleteHistoryPanel
           history={deleteHistory}
@@ -1487,7 +1546,6 @@ const handleRestore = async (entry) => {
         />
       )}
 
-      {/* Activity Log Panel */}
       {showActivityLog && (
         <InventoryActivityLogPanel
           log={activityLog}
