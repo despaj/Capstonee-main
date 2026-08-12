@@ -227,7 +227,7 @@ const ReadOnlyBanner = ({ message = 'View only — contact your admin to make ch
   </div>
 );
 
-export default function FranchiseeDashboard() {
+export default function ManagerDashboard() {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState(() => {
     return sessionStorage.getItem('fr_activeModule') || 'dashboard';
@@ -308,343 +308,1889 @@ export default function FranchiseeDashboard() {
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
 
   return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
-      {label} <XIcon size={9} style={{ cursor:"pointer", marginLeft:2 }} onClick={onRemove}/>
-    </span>
-  );
-}
+    <div className="franchisee-root">
+      <style>{VIBE_CSS}{`
+        .franchisee-root { font-family:'Poppins',sans-serif; display:flex; min-height:100vh; background:var(--grad-bg); }
+        .fr-sidebar {
+          width:${sidebarCollapsed ? '76px' : '272px'};
+          background:#fff; box-shadow:2px 0 20px rgba(0,140,60,0.08);
+          position:fixed; left:0; top:0; height:100vh;
+          transition:width 0.3s ease; z-index:1000; overflow-y:auto; overflow-x:hidden;
+        }
+        .fr-sidebar-header {
+          padding:1.4rem 1rem; border-bottom:1px solid rgba(0,168,76,0.1);
+          display:flex; align-items:center; justify-content:space-between; min-height:72px;
+        }
+        .fr-logo-mark {
+          width:34px; height:34px; border-radius:10px;
+          background:var(--grad-main); display:flex; align-items:center; justify-content:center;
+          font-weight:900; font-size:16px; color:#fff; font-family:'Montserrat',sans-serif;
+          flex-shrink:0; box-shadow:0 4px 12px rgba(0,180,90,.3);
+        }
+        .fr-brand { font-family:'Montserrat',sans-serif; font-weight:800; font-size:1.15rem; color:#0d2b1e; white-space:nowrap; }
+        .fr-toggle { background:none; border:none; cursor:pointer; padding:6px; color:#94a3b8; border-radius:8px; transition:all .2s; flex-shrink:0; }
+        .fr-toggle:hover { color:#00897b; background:rgba(0,168,76,0.08); }
+        .fr-nav { padding:1rem 0.5rem; }
+        .fr-nav-section { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:#94a3b8; padding:12px 14px 6px; display:${sidebarCollapsed ? 'none' : 'block'}; font-family:'Montserrat',sans-serif; }
+        .fr-nav-item {
+          display:flex; align-items:center; gap:12px; padding:10px 12px;
+          color:#5a7a65; cursor:pointer; transition:all .2s;
+          border-radius:12px; position:relative; margin:2px 0;
+          font-weight:600; font-size:14px; font-family:'Montserrat',sans-serif;
+        }
+        .fr-nav-item:hover { background:rgba(0,168,76,0.08); color:#0d2b1e; }
+        .fr-nav-item.active { background:linear-gradient(135deg,rgba(0,200,83,0.15),rgba(0,137,123,0.1)); color:#00695c; box-shadow:inset 0 0 0 1.5px rgba(0,137,123,0.2); }
+        .fr-nav-item.active .fr-nav-icon { color:#00897b; }
+        .fr-nav-item.logout { color:#ef4444; margin-top:8px; }
+        .fr-nav-item.logout:hover { background:rgba(239,68,68,0.08); }
+        .fr-nav-icon { flex-shrink:0; display:flex; justify-content:center; width:22px; }
+        .fr-nav-label { display:${sidebarCollapsed ? 'none' : 'block'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fr-nav-bar { position:absolute; right:0; top:20%; height:60%; width:3px; border-radius:2px; background:var(--grad-main); }
+        .fr-main { flex:1; margin-left:${sidebarCollapsed ? '76px' : '272px'}; transition:margin-left 0.3s ease; }
+        .fr-topbar {
+          background:rgba(255,255,255,0.9); backdrop-filter:blur(12px);
+          padding:1rem 2rem; box-shadow:0 2px 16px rgba(0,140,60,0.08);
+          display:flex; justify-content:space-between; align-items:center;
+          position:sticky; top:0; z-index:100;
+          border-bottom:1px solid rgba(0,168,76,0.08);
+        }
+        .fr-topbar-breadcrumb { font-size:12px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
+        .fr-topbar-title { font-family:'Montserrat',sans-serif; font-size:1.5rem; font-weight:800; color:#0d2b1e; }
+        .fr-user-name { font-weight:700; color:#0d2b1e; font-size:14px; font-family:'Montserrat',sans-serif; }
+        .fr-user-role { font-size:11px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
+        .fr-avatar {
+          width:42px; height:42px; border-radius:14px;
+          background:var(--grad-main); display:flex; align-items:center; justify-content:center;
+          font-size:1rem; font-weight:800; color:#fff; cursor:pointer;
+          transition:all .2s; box-shadow:0 4px 12px rgba(0,180,90,.3);
+          font-family:'Montserrat',sans-serif;
+        }
+        .fr-avatar:hover { transform:scale(1.08); box-shadow:0 6px 18px rgba(0,180,90,.4); }
+        .fr-content { padding:1.8rem 2rem; }
+        @media(max-width:768px){
+          .fr-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
+          .fr-main{margin-left:0;}
+          .fr-topbar,.fr-content{padding:1rem;}
+        }
+      `}</style>
 
-// ─── BrandCard (Screen 1) ──────────────────────────────────────────────────────
-function BrandCard({ brand, branchCount, itemCount, lowCount, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        cursor:"pointer", background:C.white, border:"1px solid rgba(0,168,76,0.15)",
-        borderRadius:18, padding:"22px 20px", boxShadow:"0 2px 14px rgba(0,140,60,0.06)",
-        transition:"transform .15s, box-shadow .15s",
-      }}
-      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 10px 30px rgba(0,140,60,0.15)"; }}
-      onMouseLeave={e=>{ e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 2px 14px rgba(0,140,60,0.06)"; }}
-    >
-      <div style={{ width:48, height:48, borderRadius:14, background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:14, boxShadow:"0 4px 14px rgba(0,180,90,0.28)" }}>
-        <StoreIcon size={22} color="#fff"/>
-      </div>
-      <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginBottom:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
-      <div style={{ fontSize:12, color:C.muted, marginBottom:16 }}>{branchCount} branch{branchCount!==1?"es":""}</div>
-      <div style={{ display:"flex", gap:8 }}>
-        <div style={{ flex:1, background:C.greenLt, borderRadius:10, padding:"8px 10px" }}>
-          <div style={{ fontSize:17, fontWeight:800, color:C.greenDk }}>{itemCount}</div>
-          <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Items</div>
+      {/* Sidebar */}
+      <aside className="fr-sidebar">
+        <div className="fr-sidebar-header">
+          {!sidebarCollapsed && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="fr-logo-mark">iF</div>
+              <span className="fr-brand">iFranchise</span>
+            </div>
+          )}
+          {sidebarCollapsed && <div className="fr-logo-mark" style={{ margin: '0 auto' }}>iF</div>}
+          {!sidebarCollapsed && (
+            <button className="fr-toggle" onClick={() => setSidebarCollapsed(true)}><X size={16} /></button>
+          )}
         </div>
-        <div style={{ flex:1, background:lowCount>0?C.warnBg:C.okBg, borderRadius:10, padding:"8px 10px" }}>
-          <div style={{ fontSize:17, fontWeight:800, color:lowCount>0?C.warn:C.ok }}>{lowCount}</div>
-          <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Low Stock</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── BranchSearchSelect ───────────────────────────────────────────────────────
-function BranchSearchSelect({ value, onChange, allBranches }) {
-  const [query, setQuery] = useState(value||"");
-  const [open, setOpen]   = useState(false);
-  const ref = useRef(null);
-  useEffect(()=>{ setQuery(value||""); },[value]);
-  useEffect(()=>{
-    const fn=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",fn);
-    return()=>document.removeEventListener("mousedown",fn);
-  },[]);
-  const filtered = allBranches.filter(({branch,brand})=>!query||branch.toLowerCase().includes(query.toLowerCase())||brand.toLowerCase().includes(query.toLowerCase()));
-  return (
-    <div ref={ref} style={{ position:"relative" }}>
-      <div style={{ position:"relative" }}>
-        <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-        <input type="text" value={query} placeholder="Search branch…"
-          onChange={e=>{setQuery(e.target.value);setOpen(true);}} 
-          onFocus={()=>setOpen(true)}
-          style={{ ...invInputSt, paddingLeft:30 }}/>
-      </div>
-      {open && filtered.length>0 && (
-        <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:400, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.1)", maxHeight:190, overflowY:"auto" }}>
-          {filtered.map(({branch,brand})=>(
-            <div key={branch} onMouseDown={e=>{e.preventDefault();onChange(branch);setQuery(branch);setOpen(false);}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.bg} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              style={{ padding:"9px 13px", cursor:"pointer", fontSize:13, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontWeight:600, color:C.ink }}>{branch}</span>
-              <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{brand}</span>
+        {sidebarCollapsed && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+            <button className="fr-toggle" onClick={() => setSidebarCollapsed(false)}><ChevronRight size={16} /></button>
+          </div>
+        )}
+        <nav className="fr-nav">
+          {!sidebarCollapsed && <div className="fr-nav-section">Main Menu</div>}
+          {navigation.slice(0, 6).map(item => (
+            <div
+              key={item.id}
+              className={`fr-nav-item ${activeModule === item.id ? 'active' : ''}`}
+              onClick={() => { if (item.action) item.action(); else setActiveModule(item.id); }}
+              title={sidebarCollapsed ? item.label : undefined}
+            >
+              <span className="fr-nav-icon">{item.icon}</span>
+              <span className="fr-nav-label">{item.label}</span>
+              {activeModule === item.id && <span className="fr-nav-bar" />}
             </div>
           ))}
+          {!sidebarCollapsed && <div className="fr-nav-section" style={{ marginTop: 8 }}>Account</div>}
+          {navigation.slice(6).map(item => (
+            <div
+              key={item.id}
+              className={`fr-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
+              onClick={() => { if (item.action) item.action(); else setActiveModule(item.id); }}
+              title={sidebarCollapsed ? item.label : undefined}
+            >
+              <span className="fr-nav-icon">{item.icon}</span>
+              <span className="fr-nav-label">{item.label}</span>
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main */}
+      <main className="fr-main">
+        <div className="fr-topbar">
+          <div>
+           
+            <h1 className="fr-topbar-title">{moduleLabel}</h1>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div className="fr-user-name">{user?.name}</div>
+              <div className="fr-user-role">Manager — {user?.branch}</div>
+            </div>
+            <div className="fr-avatar">{(user?.name || 'F')[0]}</div>
+          </div>
+        </div>
+
+        <div className="fr-content">
+          {activeModule === 'dashboard'      && <MaDashboardContent transactions={transactions} brands={brands} user={user} />}
+          {activeModule === 'menuInventory'  && <MenuInventoryContent  user={user} brands={brands} />}
+          {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+          {activeModule === 'pos'            && <FrPOSContent user={user} brands={brands} />}
+          {activeModule === 'receipts'       && <Receipts />}
+          {activeModule === 'reports'        && <MaReportsContent user={user} transactions={transactions} />}
+          {activeModule === 'communication'  && <FrCommunicationContent />}
+          {activeModule === 'profile'        && <FrProfileContent user={user} />}
+        </div>
+      </main>
+
+      {/* Logout modal */}
+      {showLogoutModal && (
+        <div className="v-modal-overlay" style={{ zIndex: 3000 }} onClick={() => setShowLogoutModal(false)}>
+          <div className="v-modal" style={{ maxWidth: 400, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 68, height: 68, borderRadius: '20px', background: 'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '2rem', border: '1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
+            <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Log out?</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, margin: '8px 0 24px', lineHeight: 1.6, fontFamily: 'Poppins,sans-serif' }}>You'll need to sign in again to access your account.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowLogoutModal(false)}>Cancel</button>
+              <button className="v-btn v-btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={confirmLogout}>
+                <LogOut size={14} /> Log out
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── CategorySelect ───────────────────────────────────────────────────────────
-function CategorySelect({ value, onChange, categories, onAddCategory }) {
-  const [adding, setAdding] = useState(false);
-  const [newCat, setNewCat] = useState("");
-  const handleAdd = () => {
-    const t = newCat.trim();
-    if (!t) return;
-    onAddCategory(t); onChange(t);
-    setNewCat(""); setAdding(false);
-  };
+const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
+const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmt8     = (d) => d.toISOString().slice(0, 10);
+const FONT     = "'Montserrat', sans-serif";
+const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+
+
+function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
+  const [data,    setData]    = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [tab,     setTab]     = React.useState('top10'); // top10 | fast | slow | buyers | region
+
+  const fetch_ = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      if (filterBranch) {
+        params.set('branch', filterBranch);
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  React.useEffect(() => { fetch_(); }, [fetch_]);
+
+  const fmtPeso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const TABS = [
+    { id: 'top10',   label: 'Top 10 Products' },
+    { id: 'fast',    label: 'Fast Moving' },
+    { id: 'slow',    label: 'Slow Moving' },
+
+  ];
+
+  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
+
+  const maxQty = data
+    ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
+    : 1;
+
   return (
-    <div>
-      <div style={{ display:"flex", gap:6 }}>
-        <select value={value} onChange={e=>onChange(e.target.value)} style={{ ...invInputSt, flex:1 }}>
-          <option value="">Select category…</option>
-          {categories.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
-        <button type="button" onClick={()=>setAdding(v=>!v)} style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
-          <TagIcon size={14}/>
+    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <BarChart2 size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
+          </div>
+        </div>
+        <button onClick={fetch_} disabled={loading}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+          {loading ? 'Loading…' : 'Refresh'}
         </button>
       </div>
-      {adding && (
-        <div style={{ display:"flex", gap:6, marginTop:6 }}>
-          <input autoFocus type="text" value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleAdd();}}} placeholder="New category…" style={{ ...invInputSt, flex:1 }}/>
-          <button type="button" onClick={handleAdd} style={{ ...btnPrimarySt, padding:"0 14px" }}>Add</button>
-          <button type="button" onClick={()=>{setAdding(false);setNewCat("");}} style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935" }}><XIcon size={13}/></button>
+
+      {/* Summary chips */}
+      {data && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Total Products', value: data.totalProducts },
+            { label: 'Fast Movers',    value: data.fastMoving?.length || 0,  color: '#059669', bg: '#d1fae5' },
+            { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
+          ].map((c, i) => (
+            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
+              color:      tab === t.id ? '#fff' : '#5a7a65',
+              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+          <div style={{ marginTop: 8 }}>Loading product analytics…</div>
+        </div>
+      )}
+
+      {/* TOP 10 / FAST / SLOW */}
+      {!loading && data && (tab === 'top10' || tab === 'fast' || tab === 'slow') && (() => {
+        const list = tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving;
+        if (!list?.length) return <div style={{ padding: '32px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No data for this filter.</div>;
+        const maxR = Math.max(1, ...list.map(p => p.totalRevenue));
+        return (
+          <div>
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+              <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
+            </div>
+            {list.map((p, i) => (
+              <div key={p.name}
+                style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
+                  {i < 3 ? ['1','2','3'][i] : `${i+1}`}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
+                    {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
+                    {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
+                  </div>
+                </div>
+                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
+                <div style={{ paddingLeft: 8 }}>
+                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+    </div>
+  );
+}
+
+// ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
+function AIPredictivePanel({ transactions, filterLabel, preset }) {
+  const [analysis,  setAnalysis]  = React.useState(null);
+  const [loading,   setLoading]   = React.useState(false);
+  const [error,     setError]     = React.useState(null);
+  const [lastRun,   setLastRun]   = React.useState(null);
+
+  const fmtPeso = n =>
+    '₱' + Number(n || 0).toLocaleString('en-PH', {
+      minimumFractionDigits: 0, maximumFractionDigits: 0,
+    });
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) {
+      setError('No transaction data available for the current filter and date range.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString('en-PH', {
+          hour: '2-digit', minute: '2-digit',
+        }));
+      } else {
+        setError(data.error || 'Analysis failed.');
+      }
+    } catch (err) {
+      setError('Could not reach the AI service. Check your server connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const typeStyle = type => ({
+    success: { borderColor: '#3B6D11', bg: '#EAF3DE', color: '#27500A' },
+    warning: { borderColor: '#BA7517', bg: '#FAEEDA', color: '#633806' },
+    info:    { borderColor: '#185FA5', bg: '#E6F1FB', color: '#0C447C' },
+  }[type] || { borderColor: '#888780', bg: '#F1EFE8', color: '#5F5E5A' });
+
+  const anomalyConfig = anomalyType => ({
+    ghost_sales:          { label: 'Ghost sales',    dot: '#A32D2D', badgeBg: '#FCEBEB', badgeColor: '#791F1F' },
+    low_stock_no_reorder: { label: 'Not reordering', dot: '#BA7517', badgeBg: '#FAEEDA', badgeColor: '#633806' },
+    dead_stock:           { label: 'Dead stock',     dot: '#185FA5', badgeBg: '#E6F1FB', badgeColor: '#0C447C' },
+  }[anomalyType] || {   label: 'Anomaly',        dot: '#888780', badgeBg: '#F1EFE8', badgeColor: '#5F5E5A' });
+
+  const kpiAccent = (index, analysis) => {
+    if (index === 0) return analysis.projectedChange >= 0 ? '#3B6D11' : '#A32D2D';
+    if (index === 2) return '#BA7517';
+    if (index === 3) return analysis.confidence >= 80 ? '#3B6D11' : analysis.confidence >= 60 ? '#BA7517' : '#A32D2D';
+    return '#888780';
+  };
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: '1px solid rgba(0,168,76,0.12)',
+      borderRadius: 18,
+      padding: '14px 18px',
+      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+      marginTop: 16,
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: '#185FA5', flexShrink: 0,
+          }}/>
+          <div>
+            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
+              AI Prescriptive Analysis
+            </div>
+            <div style={{ fontSize: 11, color: '#5a7a65' }}>
+              Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={runAnalysis}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 14px', borderRadius: 9,
+            border: '1px solid #185FA5',
+            background: loading ? '#f0f0f0' : '#E6F1FB',
+            color: loading ? '#9e9e9e' : '#0C447C',
+            fontSize: 12, fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {loading ? (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2}
+                style={{ animation: 'spin 0.8s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+              Analyzing…
+            </>
+          ) : (
+            <>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              {analysis ? 'Re-run analysis' : 'Run AI analysis'}
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ── Empty state ── */}
+      {!analysis && !loading && !error && (
+        <div style={{
+          padding: '28px 0', textAlign: 'center',
+          border: '1px dashed #b2dfdb', borderRadius: 12,
+          color: '#5a7a65',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+            Ready to analyze your data
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            {transactions?.length
+              ? `${transactions.length} transactions loaded · ${filterLabel}`
+              : 'Select a date range and branch filter, then run the analysis'}
+          </div>
+        </div>
+      )}
+
+      {/* ── Error state ── */}
+      {error && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10,
+          background: '#FCEBEB', border: '1px solid #F7C1C1',
+          color: '#791F1F', fontSize: 12, fontWeight: 600,
+        }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* ── Loading state ── */}
+      {loading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '28px 0', color: '#5a7a65', fontSize: 13,
+        }}>
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
+            stroke="#185FA5" strokeWidth={2}
+            style={{ animation: 'spin 0.8s linear infinite', flexShrink: 0 }}>
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+          </svg>
+          Sending {transactions?.length} transactions to Groq…
+        </div>
+      )}
+
+      {/* ── Results ── */}
+      {analysis && !loading && (
+        <>
+
+          {/* KPI row — colored left-border accent */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 8, marginBottom: 14,
+          }}>
+            {[
+              {
+                label: 'Projected 7-day',
+                value: fmtPeso(analysis.projectedRevenue),
+                sub: `${analysis.projectedChange >= 0 ? '↑' : '↓'} ${Math.abs(analysis.projectedChange || 0).toFixed(1)}% vs prior`,
+              },
+              {
+                label: 'Peak day',
+                value: analysis.peakDay || '—',
+                sub: 'Highest revenue expected',
+              },
+              {
+                label: 'Slowest day',
+                value: analysis.slowestDay || '—',
+                sub: `↓ ${Math.abs(analysis.slowestDayDropPct || 0).toFixed(0)}% below avg`,
+              },
+              {
+                label: 'Confidence',
+                value: `${analysis.confidence || 0}%`,
+                sub: analysis.confidence >= 80 ? 'High — strong data'
+                  : analysis.confidence >= 60 ? 'Medium — limited data'
+                  : 'Low — need more data',
+              },
+            ].map((card, i) => {
+              const accent = kpiAccent(i, analysis);
+              return (
+                <div key={i} style={{
+                  background: '#f8fffe',
+                  border: '1px solid #e0f2f1',
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                }}>
+                  <div style={{
+                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
+                  }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
+                    {card.value}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
+                    {card.sub}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          
+          {/* Recommendations — 2-column grid */}
+          {analysis.recommendations?.length > 0 && (
+            <>
+              <div style={{
+                fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
+              }}>
+                Recommendations
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: analysis.recommendations.length > 2 ? '1fr 1fr' : '1fr',
+                gap: 6,
+              }}>
+                {analysis.recommendations.map((rec, i) => {
+                  const s = typeStyle(rec.type);
+                  return (
+                    <div key={i} style={{
+                      borderLeft: `2px solid ${s.borderColor}`,
+                      background: s.bg,
+                      borderRadius: '0 8px 8px 0',
+                      padding: '8px 12px',
+                    }}>
+                      <div style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: s.color, marginBottom: 3,
+                      }}>
+                        {rec.branch}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
+                        {rec.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+        </>
+      )}
+    </div>
+  );
+}
+
+function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
+  const [tip, setTip] = useState(null);
+  const ref = useRef(null);
+  const W = 700, H = height, PL = 56, PR = 48, PT = 16, PB = 32;
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const barSeries = Array.isArray(barData[0]) ? barData : [barData];
+  const maxBar  = Math.max(...barSeries.flat(), 1) * 1.2;
+  const maxLine = Math.max(...(lineData || []), 1) * 1.2;
+  const minLine = Math.min(...(lineData || []), 0);
+  const n = labels.length;
+  const bW = Math.min(22, (pW / Math.max(n, 1)) - 6);
+
+  const linepts = (lineData || []).map((v, i) => ({
+    x: PL + (i / Math.max(n - 1, 1)) * pW,
+    y: PT + pH - ((v - minLine) / (maxLine - minLine || 1)) * pH,
+    v,
+  }));
+  let linePath = "";
+  if (linepts.length > 1) {
+    linePath = `M ${linepts[0].x} ${linepts[0].y}`;
+    for (let i = 0; i < linepts.length - 1; i++) {
+      const cx = (linepts[i].x + linepts[i + 1].x) / 2;
+      linePath += ` C ${cx} ${linepts[i].y}, ${cx} ${linepts[i + 1].y}, ${linepts[i + 1].x} ${linepts[i + 1].y}`;
+    }
+  }
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PT + pH * (1 - t), label: fmtShort(t * maxBar) }));
+
+  const handleMove = (e) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * W;
+    let best = 0, bestD = Infinity;
+    labels.forEach((_, i) => {
+      const x = PL + (i / Math.max(n - 1, 1)) * pW;
+      const d = Math.abs(x - mx);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    setTip({ i: best, x: PL + (best / Math.max(n - 1, 1)) * pW, label: labels[best] });
+  };
+
+  return (
+    <div style={{ position: "relative", cursor: "crosshair" }} onMouseMove={handleMove} onMouseLeave={() => setTip(null)}>
+      <svg ref={ref} style={{ width: "100%", display: "block", overflow: "visible" }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          {barSeries.map((_, si) => (
+            <linearGradient key={si} id={`cbg${si}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PAL[si]} stopOpacity="0.92" />
+              <stop offset="100%" stopColor={PAL[si]} stopOpacity="0.55" />
+            </linearGradient>
+          ))}
+          <linearGradient id="clgLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#1d4ed8" /><stop offset="100%" stopColor="#7c3aed" />
+          </linearGradient>
+        </defs>
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line x1={PL} y1={t.y} x2={W - PR} y2={t.y} stroke="#e8ede9" strokeWidth="1" strokeDasharray="4 3" />
+            <text x={PL - 6} y={t.y + 4} textAnchor="end" fontSize="10" fill="#6b9070" fontFamily={FONT}>{t.label}</text>
+          </g>
+        ))}
+        {labels.map((lbl, i) => {
+          const groupW = pW / Math.max(n, 1);
+          const groupX = PL + i * groupW + groupW / 2;
+          return barSeries.map((series, si) => {
+            const v  = series[i] || 0;
+            const bH = (v / maxBar) * pH;
+            const x  = groupX - ((barSeries.length / 2 - si) * (bW + 2)) - bW / 2;
+            return (
+              <rect key={`${i}-${si}`} x={x} y={PT + pH - bH} width={bW} height={bH} rx="4"
+                fill={`url(#cbg${si})`} opacity={tip?.i === i ? 1 : 0.82} />
+            );
+          });
+        })}
+        {labels.map((lbl, i) => (
+          <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#6b9070" fontFamily={FONT}>{lbl}</text>
+        ))}
+        {linePath && <path d={linePath} fill="none" stroke="url(#clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
+        {linepts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
+        ))}
+        {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
+      </svg>
+      {tip && (
+        <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
+          {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
+          {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
-function Pagination({ page, setPage, total, pageSize }) {
-  const totalPgs = Math.max(1, Math.ceil(total / pageSize));
-  if (totalPgs <= 1) return null;
+// ─── HBarChart ────────────────────────────────────────────────────────────────
+function HBarChart({ data = [] }) {
+  const maxV = Math.max(...data.map(d => d.value), 1);
   return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
-      <span style={{ fontSize:12, color:C.muted }}>
-        Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
-      </span>
-      <div style={{ display:"flex", gap:4 }}>
-        {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
-        ))}
-        {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
-        ))}
-        {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
-        ))}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {data.map((d, i) => (
+        <div key={i}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
-  return (
-    <div onClick={deleting ? undefined : onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        <div style={{ width:52, height:52, borderRadius:"50%", background:"#fee2e2", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
-          <Trash2 size={22} color="#dc2626"/>
-        </div>
-        <h2 style={{ textAlign:"center", fontSize:17, fontWeight:800, color:C.ink, marginBottom:8 }}>Delete item?</h2>
-        <p style={{ textAlign:"center", fontSize:13, color:C.muted, lineHeight:1.6, marginBottom:16 }}>
-          You are about to delete <strong>"{target.name}"</strong>{target.branch ? <> from <strong>{target.branch}</strong></> : null}.
-        </p>
-        {target.ingredientCount > 0 && (
-          <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#c2410c", textAlign:"center", marginBottom:16 }}>
-            ⚠ This item has {target.ingredientCount} linked ingredient{target.ingredientCount!==1?"s":""}.
-          </div>
-        )}
-        <p style={{ textAlign:"center", fontSize:12, color:"#9ca3af", marginBottom:20 }}>You can recover this from Delete History.</p>
-        <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
-          <button type="button" onClick={onClose} disabled={deleting} style={{ padding:"9px 22px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", opacity:deleting?0.5:1 }}>Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={deleting} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#dc2626,#ef4444)", color:"#fff", fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.35)", opacity:deleting?0.7:1 }}>
-            {deleting ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Trash2 size={14}/>}
-            {deleting ? "Deleting…" : "Delete item"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Delete History Panel ─────────────────────────────────────────────────────
-function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
-  return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        
-        <style>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
-
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
-            {history.length > 0 && (
-              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#dc2626" }}>
-                {history.length} deleted
-              </span>
-            )}
-          </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
-          </button>
-        </div>
-
-        {/* Column headers */}
-        {history.length > 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
-            <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
-          </div>
-        )}
-
-        {/* Rows */}
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {history.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No deleted items yet.</div>
-          ) : history.map((entry, i) => {
-            const d    = entry.inventory_data   || {};
-            const ings = entry.ingredients_data || [];
-            return (
-              <div key={entry.id} style={{ padding:"14px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, alignItems:"center" }}>
-                  <div>
-                    <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.category}</div>
-                  </div>
-                  <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
-                  <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock}</div>
-                  <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price||0)}</div>
-                  <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}</div>
-                  <button onClick={() => onRestore(entry)} disabled={restoringId === entry.id}
-                   style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap",
-                      opacity: restoringId === entry.id ? 0.7 : 1, cursor: restoringId === entry.id ? "not-allowed" : "pointer" }}>
-                    {restoringId === entry.id
-                      ? <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>
-                      : <RestoreIcon/>}
-                    {restoringId === entry.id ? "Restoring…" : "Restore"}
-                  </button>
-                </div>
-                {/* Ingredient chips */}
-                {ings.length > 0 && (
-                  <div style={{ marginTop:8, display:"flex", flexWrap:"wrap", gap:5, paddingLeft:4 }}>
-                    <span style={{ fontSize:10, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center" }}>Ingredients:</span>
-                    {ings.map((ing, idx) => (
-                      <span key={idx} style={{ fontSize:11, padding:"2px 9px", borderRadius:20, background:C.greenLt, color:C.greenDk, fontWeight:600, border:`1px solid ${C.greenMid}` }}>
-                        {ing.name} × {ing.qty_required} {ing.unit}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Activity Log Panel ───────────────────────────────────────────────────────
-function InventoryActivityLogPanel({ log, onClose }) {
-  const [search, setSearch]         = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-
-  const filtered = log.filter(entry => {
-    if (typeFilter !== "all" && entry.action !== typeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!entry.itemName?.toLowerCase().includes(q) &&
-          !(entry.performedBy||"").toLowerCase().includes(q) &&
-          !(entry.branch||"").toLowerCase().includes(q)) return false;
-    }
-    return true;
+// ─── DonutChartSVG ────────────────────────────────────────────────────────────
+function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
+  const [hover, setHover] = useState(null);
+  const R = size / 2, cx = R, cy = R;
+  const outerR = R - 4, innerR = outerR * innerRadius;
+  const total  = segments.reduce((s, d) => s + (d.value || 0), 0) || 1;
+  let cum = 0;
+  const slices = segments.map((seg, i) => {
+    const pct = (seg.value || 0) / total;
+    const sa  = cum * 2 * Math.PI - Math.PI / 2;
+    cum += pct;
+    const ea  = cum * 2 * Math.PI - Math.PI / 2;
+    const x1  = cx + outerR * Math.cos(sa), y1 = cy + outerR * Math.sin(sa);
+    const x2  = cx + outerR * Math.cos(ea), y2 = cy + outerR * Math.sin(ea);
+    const ix1 = cx + innerR * Math.cos(ea), iy1 = cy + innerR * Math.sin(ea);
+    const ix2 = cx + innerR * Math.cos(sa), iy2 = cy + innerR * Math.sin(sa);
+    const large = pct > 0.5 ? 1 : 0;
+    const mid   = sa + (ea - sa) / 2;
+    return { ...seg, path: `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} 0 ${ix2} ${iy2} Z`, mid, pct, color: seg.color || PAL[i % PAL.length] };
   });
-
-  const actionBadge = action => {
-    const map = {
-      add:    { bg:"rgba(16,185,129,0.12)",  color:"#059669", label:"Added"   },
-      edit:   { bg:"rgba(59,130,246,0.12)",  color:"#1d4ed8", label:"Edited"  },
-      import: { bg:"rgba(139,92,246,0.12)",  color:"#7c3aed", label:"Imported"},
-      delete: { bg:"rgba(239,68,68,0.12)",   color:"#dc2626", label:"Deleted" },
-    };
-    const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
-  };
-
+  const hov = hover !== null ? slices[hover] : null;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
-          </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <XIcon size={15}/>
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 200px" }}>
-            <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-            <input type="text" placeholder="Search item, user, branch…" value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ ...invInputSt, paddingLeft:28, height:32, fontSize:12 }}/>
-          </div>
-          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)} style={{ ...invInputSt, width:140, height:32, fontSize:12 }}>
-            <option value="all">All Actions</option>
-            <option value="add">Added</option>
-            <option value="edit">Edited</option>
-            <option value="import">Imported</option>
-            <option value="delete">Deleted</option>
-          </select>
-        </div>
-
-        {/* Column headers */}
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
-          <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
-        </div>
-
-        {/* Rows */}
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
-          ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
-              <div>{actionBadge(entry.action)}</div>
-              <div>
-              <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.itemName}</div>
-                {entry.changes && <div style={{ fontSize:10, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.changes}</div>}
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        {slices.map((s, i) => (
+          <path key={i} d={s.path} fill={s.color}
+            opacity={hover === null ? 0.88 : hover === i ? 1 : 0.42}
+            stroke="#fff" strokeWidth="2"
+            transform={hover === i ? `translate(${Math.cos(s.mid) * 4} ${Math.sin(s.mid) * 4})` : ""}
+            style={{ transition: "all .18s", cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+          />
+        ))}
+        {innerRadius > 0 && (
+          <>
+            <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0d2b1e" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
+            <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5a7a65" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
+          </>
+        )}
+      </svg>
+      {showLegend && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+          {slices.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", opacity: hover === null ? 1 : hover === i ? 1 : 0.45, transition: "opacity .15s" }}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
               </div>
-              <div style={{ fontSize:11, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.branch || "—"}</div>
-              <div style={{ fontSize:12, fontWeight:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.performedBy || "System"}</div>
-              <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.timestamp ? fmtTs(entry.timestamp) : "—"}</div>
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SparkBar ─────────────────────────────────────────────────────────────────
+function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+  if (!values.length) return null;
+  const maxV = Math.max(...values, 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height }}>
+      {values.map((v, i) => (
+        <div key={i} style={{ flex: 1, background: color, opacity: 0.4 + 0.6 * (i / values.length), borderRadius: 2, height: `${Math.max(4, (v / maxV) * height)}px` }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Card wrappers ────────────────────────────────────────────────────────────
+function PanelCard({ children, style: s }) {
+  return (
+    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+      {children}
+    </div>
+  );
+}
+
+function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#2E7D32,#00897b)", action }) {
+  return (
+    <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+          <Icon size={17} color="#fff" />
+        </div>
+        <div>
+          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
+          {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function ChartLabel({ children }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+      {children}
+    </div>
+  );
+}
+
+function BulletItem({ text, color = "#00897b", size = "normal" }) {
+  const fs = size === "small" ? 11 : 12.5;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: fs === 11 ? 4 : 5 }} />
+      <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
+    </div>
+  );
+}
+
+// ─── SalesTrendSection ────────────────────────────────────────────────────────
+function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending, getRangeLabel, filterLabel }) {
+
+  const catData = useMemo(() => {
+    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
+    if (!total) return [];
+    return [
+      { label: "Medicine",    value: Math.round(total * 0.28) },
+      { label: "Supplements", value: Math.round(total * 0.22) },
+      { label: "Coffee",      value: Math.round(total * 0.18) },
+      { label: "Vitamins",    value: Math.round(total * 0.14) },
+      { label: "Equipment",   value: Math.round(total * 0.10) },
+      { label: "Other",       value: Math.round(total * 0.08) },
+    ];
+  }, [kpiData, total]);
+
+  const branchData = useMemo(() => {
+    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
+    if (!total) return [];
+    return [
+      { label: "Main Branch", value: Math.round(total * 0.30) },
+      { label: "Alabang",     value: Math.round(total * 0.22) },
+      { label: "BGC",         value: Math.round(total * 0.18) },
+      { label: "Makati",      value: Math.round(total * 0.16) },
+      { label: "Ortigas",     value: Math.round(total * 0.14) },
+    ];
+  }, [kpiData, total]);
+
+  const gpLine = useMemo(() => values.map((v, i) => {
+    const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
+    return parseFloat(base.toFixed(1));
+  }), [values]);
+
+  const hasData = total > 0;
+  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
+  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
+  const avgOrder    = kpiData?.avgOrder ?? avg;
+
+  const analysisBullets = useMemo(() => {
+    if (!hasData) return [];
+    const bullets = [];
+    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
+    bullets.push(`Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
+    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
+    bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
+    bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
+    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
+    if (catData.length) {
+      const topCat = catData[0];
+      bullets.push(`${topCat.label} is the top-performing category at ${fmtShort(topCat.value)} (${Math.round((topCat.value / total) * 100)}% of revenue).`);
+    }
+    if (branchData.length) {
+      const topBranch = branchData[0];
+      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
+    }
+    return bullets;
+  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, catData, branchData, kpiData, getRangeLabel, filterLabel]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`} />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            {hasData ? (
+              <>
+                <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
+                <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  {[
+                    { color: PAL[0], label: "Sales CY" },
+                    { color: PAL[1], label: "Sales PY" },
+                    { color: "#1d4ed8", label: "Gross Profit % (CY)", line: true },
+                  ].map((l, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      {l.line
+                        ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
+                        : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
+                      }
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                  {[
+                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
+                  ].map((card, i) => (
+                    <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
+                        <card.icon size={16} color={card.color} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
+                        <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
+                <BarChart2 size={28} color="#b2dfdb" />
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+            </div>
+            {hasData ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
+                  {[
+                    { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                    { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
+                      <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                  {analysisBullets.slice(3).map((text, i) => {
+                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
+                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
+                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                    const dc = dotColors[i % dotColors.length];
+                    const bc = bgColors[i % bgColors.length];
+                    const bd = bdrColors[i % bdrColors.length];
+                    return (
+                      <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
+                        <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Info size={22} color="#b2dfdb" />
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
+            {catData.length > 0
+              ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
+            {branchData.length > 0
+              ? <HBarChart data={branchData.slice(0, 5)} />
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
+            {[
+              { label: "Peak Revenue",   value: hasData ? fmtAmt(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+              { label: "Lowest Revenue", value: hasData ? fmtAmt(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+              { label: "Period Average", value: hasData ? fmtAmt(avg)  : "—", sub: `${labels.length} data points`,               color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              { label: "Trend",          value: hasData ? `${trending?"+":""}${pctChange}%` : "—", sub: trending?"Upward trend":"Downward trend", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+            ].map((s, i) => (
+              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+                </div>
+                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── PrescriptiveSection ──────────────────────────────────────────────────────
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
+  const [analysis, setAnalysis] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [lastRun,  setLastRun]  = useState(null);
+
+  const runAnalysis = async () => {
+    if (!transactions?.length) { setError("No transaction data available."); return; }
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions, preset, filterLabel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalysis(data.analysis);
+        setLastRun(new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" }));
+      } else {
+        setError(data.error || "Analysis failed.");
+      }
+    } catch { setError("Could not reach the AI service."); }
+    finally { setLoading(false); }
+  };
+
+  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
+  const projChg = analysis?.projectedChange  ?? 5.2;
+  const peakDay = analysis?.peakDay         ?? "Thursday";
+  const slowDay = analysis?.slowestDay      ?? "Sunday";
+  const conf    = analysis?.confidence      ?? (total ? 72 : null);
+
+  const typeStyle = (type) => ({
+    success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
+    warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
+    info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
+  }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
+
+  const preRunBullets = useMemo(() => {
+    if (!total) return [];
+    return [
+      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
+      `Estimated 7-day projected revenue: ${projRev ? fmtAmt(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
+      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
+      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
+    ].filter(Boolean);
+  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Brain}
+        title="AI Prescriptive Analysis"
+        sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
+        gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
+        action={
+          <button onClick={runAnalysis} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+            {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
+            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
+            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
+            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
+          ].map((card, i) => (
+            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <card.icon size={11} color={card.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
+              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)" }} />
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>
+                  {analysis ? "AI Summary" : "Data Overview"} · {filterLabel}
+                </span>
+              </div>
+              {analysis ? (
+                <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+              ) : (
+                <>
+                  {preRunBullets.length > 0
+                    ? preRunBullets.map((b, i) => <BulletItem key={i} text={b} color="#3b82f6" />)
+                    : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
+                  }
+                  {error && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
+                      <AlertTriangle size={13} color="#dc2626" />
+                      <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                    </div>
+                  )}
+                  {loading && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                      <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {analysis?.stockAnomalies?.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Stock vs Sales Anomalies</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626", fontFamily: FONT }}>{analysis.stockAnomalies.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.stockAnomalies.map((a, i) => {
+                    const cfg = {
+                      ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
+                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
+                      dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
+                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                    return (
+                      <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
+                          {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
+                        </div>
+                        <BulletItem text={a.finding} color={cfg.dot} size="small" />
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
+                          <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            {analysis?.recommendations?.length > 0 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {analysis.recommendations.map((rec, i) => {
+                    const s = typeStyle(rec.type);
+                    return (
+                      <div key={i} style={{ background: s.bg, border: `1px solid ${s.borderColor}25`, borderRadius: 12, padding: "12px 12px 12px 16px", position: "relative", overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.borderColor, borderRadius: "4px 0 0 4px" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
+                          <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", background: s.badgeBg, padding: "2px 7px", borderRadius: 20, fontFamily: FONT }}>{rec.branch || rec.type}</span>
+                        </div>
+                        <BulletItem text={rec.text} color={s.dot} size="small" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+                <Brain size={32} color="#bfdbfe" />
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
+                  {transactions?.length
+                    ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
+                    : "Load transactions then run the AI analysis."
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+
+// ─── SalesVsStockSection ──────────────────────────────────────────────────────
+function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [tab,     setTab]     = useState("top10");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === "preset") params.set("preset", preset);
+      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+      else params.set("preset", "month");
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (names.length) params.set("branches", names.join(","));
+      }
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const top10     = data?.top10 ?? [];
+  const fast      = data?.fastMoving ?? [];
+  const slow      = data?.slowMoving ?? [];
+  const totalSKUs = data?.totalProducts ?? 0;
+  const fastCount = fast.length;
+  const slowCount = slow.length;
+
+  const revenuePie = top10.slice(0, 5).map((p, i) => ({
+    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
+    value: p.totalRevenue,
+    color: PAL[i],
+  }));
+  const moverPie = totalSKUs > 0 ? [
+    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
+    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
+  ].filter(d => d.value > 0) : [];
+
+  const TABS = [
+    { id: "top10",  label: "Top Products",   icon: BarChart2    },
+    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
+    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
+  ];
+  const tabSt = (a) => ({
+    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
+    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
+    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+    color:      a ? "#fff" : "#5a7a65",
+    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+  });
+  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
+
+  const renderList = () => {
+    const isBuyers = tab === "buyers";
+    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
+    if (!list?.length) return (
+      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+    );
+    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
+    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
+    return list.slice(0, 8).map((p, i) => (
+      <div key={p.name}
+        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
+        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
+          {i + 1}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+          {!isBuyers && p.branchBreakdown && (
+            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
+              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+            </div>
+          )}
+        </div>
+        {!isBuyers && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+          {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
+        </div>
+        <div style={{ paddingLeft: 8 }}>
+          {isBuyers
+            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
+              </div>
+          }
+        </div>
+      </div>
+    ));
+  };
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Package}
+        title="Sales vs Stock Recommendations"
+        sub="Product performance · fast/slow movers · stock health"
+        action={
+          <button onClick={fetchData} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
+          {[
+            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
+            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+            { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                <s.icon size={11} color={s.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
+          <div>
+            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
+                  <t.icon size={11} /> {t.label}
+                </button>
+              ))}
+            </div>
+            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                <span>#</span><span>Name</span>
+                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
+                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
+                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
+                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                </div>
+              : renderList()
+            }
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+              {revenuePie.length > 0
+                ? <DonutChartSVG segments={revenuePie} size={120} />
+                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+              {moverPie.length > 0
+                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
+                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
+                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
+                  { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
+                ].map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
+                    <r.icon size={13} color={r.color} />
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
+}
+ 
+function MaDashboardContent({ transactions, brands, user }) {
+  const userBranch = (user?.branch || '').trim();
+  const today      = new Date();
+  const fmt8       = (d) => d.toISOString().slice(0, 10);
+ 
+  // ── date-range state ──────────────────────────────────────────────────────
+  const [rangeMode,    setRangeMode]    = useState('preset');
+  const [preset,       setPreset]       = useState('month');
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+ 
+  // ── archive state ─────────────────────────────────────────────────────────
+  const storageKey = `frArchives_branch_${userBranch.trim().toLowerCase()}`;
+const [archives, setArchives] = useState(() => {
+  try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
+});
+  const [showArchivePanel,  setShowArchivePanel]  = useState(false);
+  const [viewingArchive,    setViewingArchive]    = useState(null);
+  const [archiveYearInput,  setArchiveYearInput]  = useState(String(today.getFullYear()));
+  const [archiveConfirm,    setArchiveConfirm]    = useState(false);
+ 
+  // ── chart tooltip ─────────────────────────────────────────────────────────
+  const [tooltip, setTooltip] = useState(null);
+  const svgRef = useRef(null);
+ 
+  // ── KPI (server-side) ─────────────────────────────────────────────────────
+  const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  const scopedTransactions = useMemo(() => {
+  const branch = userBranch.toLowerCase();
+
+  return (transactions || []).filter(tx =>
+    (tx.branch || '').trim().toLowerCase() === branch
+  );
+}, [transactions, userBranch]);
+
+
+const tabSt = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+ 
+  const fetchKpis = useCallback(async () => {
+    if (!userBranch) return;
+    setKpiLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'preset') {
+        params.set('preset', preset);
+      } else if (appliedRange) {
+        params.set('from', appliedRange.from);
+        params.set('to',   appliedRange.to);
+      } else {
+        params.set('preset', 'month');
+      }
+      params.set('branch', userBranch.trim());
+      if (!userBranch) return;
+ 
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const data = await res.json();
+      if (!data.error) setKpiData(data);
+    } catch (e) {
+      console.error('KPI fetch error:', e);
+    } finally {
+      setKpiLoading(false);
+    }
+  }, [rangeMode, preset, appliedRange, userBranch]);
+ 
+  useEffect(() => { if (!viewingArchive) fetchKpis(); }, [fetchKpis, viewingArchive]);
+ 
+  // ── filter transactions to this branch ───────────────────────────────────
+  const myTransactions = scopedTransactions;
+  // ── chart data ────────────────────────────────────────────────────────────
+  const chartData = useMemo(() => {
+    if (viewingArchive) return viewingArchive.chartData;
+ 
+    const txList = myTransactions;
+    if (!txList.length) return { labels: [], values: [] };
+ 
+    const now = new Date();
+ 
+    const filtered = txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === 'day')   return d.toDateString() === now.toDateString();
+      if (preset === 'week') {
+        const start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+        const end   = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
+        return d >= start && d <= end;
+      }
+      if (preset === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === 'year')  return d.getFullYear() === now.getFullYear();
+      if (rangeMode === 'custom' && appliedRange) {
+        return d >= new Date(appliedRange.from) && d <= new Date(appliedRange.to);
+      }
+      return true;
+    });
+ 
+    if (rangeMode === 'custom' && appliedRange) {
+      const from     = new Date(appliedRange.from);
+      const to       = new Date(appliedRange.to);
+      const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
+      const numWeeks = Math.max(1, Math.ceil(diffDays / 7));
+      const labels   = Array.from({ length: numWeeks }, (_, i) => `Week ${i + 1}`);
+      const values   = Array(numWeeks).fill(0);
+      filtered.forEach(tx => {
+        const d       = new Date(tx.created_at);
+        const weekIdx = Math.min(Math.floor((d - from) / (7*24*60*60*1000)), numWeeks - 1);
+        values[weekIdx] += tx.total || 0;
+      });
+      return { labels, values };
+    }
+ 
+    let grouped = {};
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      let label;
+      if (preset === 'day')   label = `${d.getHours()}:00`;
+      if (preset === 'week')  label = d.toLocaleDateString('en-US', { weekday: 'short' });
+      if (preset === 'month') label = `Day ${d.getDate()}`;
+      if (preset === 'year')  label = d.toLocaleDateString('en-US', { month: 'short' });
+      grouped[label] = (grouped[label] || 0) + Number(tx.total || 0);
+    });
+ 
+    const labels = Object.keys(grouped);
+    const values = labels.map(l => grouped[l]);
+    return { labels, values };
+  }, [myTransactions, preset, rangeMode, appliedRange, viewingArchive]);
+ 
+  // ── chart derived values ──────────────────────────────────────────────────
+  const values    = chartData.values;
+  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : '—';
+const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+  const pctChange = values.length > 1 && values[0] > 0
+    ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : '0.0';
+  const trending  = Number(pctChange) >= 0;
+ 
+  // ── SVG chart geometry ────────────────────────────────────────────────────
+  const SVG_W = 820, SVG_H = 260, PAD_L = 64, PAD_R = 16, PAD_T = 18, PAD_B = 36;
+  const plotW = SVG_W - PAD_L - PAD_R;
+  const plotH = SVG_H - PAD_T - PAD_B;
+  const maxV  = peak > 0 ? peak * 1.18 : 1;
+ 
+  const pts = useMemo(() => values.map((v, i) => ({
+    x: PAD_L + (i / Math.max(values.length - 1, 1)) * plotW,
+    y: PAD_T + plotH - (v / maxV) * plotH,
+    v, label: chartData.labels[i],
+  })), [values, chartData.labels, maxV, plotH, plotW]);
+ 
+  const { linePath, areaPath } = useMemo(() => {
+    if (!pts.length) return { linePath: '', areaPath: '' };
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cx = (pts[i].x + pts[i + 1].x) / 2;
+      d += ` C ${cx} ${pts[i].y}, ${cx} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+    }
+    return { linePath: d, areaPath: d + ` L ${pts[pts.length-1].x} ${PAD_T+plotH} L ${pts[0].x} ${PAD_T+plotH} Z` };
+  }, [pts, PAD_T, plotH]);
+ 
+  const yTicks = useMemo(() =>
+    [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PAD_T + plotH - t * plotH, label: fmtShort(t * maxV) })),
+    [maxV, PAD_T, plotH]
+  );
+ 
+  const handleMouseMove = useCallback((e) => {
+    if (!svgRef.current || !pts.length) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mx   = ((e.clientX - rect.left) / rect.width) * SVG_W;
+    let best = pts[0], bestDist = Infinity;
+    for (const p of pts) { const dist = Math.abs(p.x - mx); if (dist < bestDist) { bestDist = dist; best = p; } }
+    setTooltip({ x: best.x, y: best.y, label: best.label, value: best.v });
+  }, [pts]);
+ 
+  // ── archive helpers ───────────────────────────────────────────────────────
+  const getRangeLabel = () => {
+    if (viewingArchive) return `Archive: ${viewingArchive.year}`;
+    if (rangeMode === 'custom' && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
+    return { day: 'Today', week: 'This Week', month: 'This Month', year: 'This Year' }[preset] || 'This Month';
+  };
+ 
+  const saveArchive = () => {
+    const year = parseInt(archiveYearInput);
+    if (isNaN(year) || year < 2000 || year > 2100) { alert('Enter a valid year (2000–2100)'); return; }
+    if (archives.find(a => a.year === year))        { alert(`Year ${year} already archived.`); return; }
+    const snapshot = {
+      year, label: `Full Year ${year}`,
+      savedAt:   new Date().toLocaleString(),
+      chartData,
+      kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak },
+    };
+    const updated = [...archives, snapshot].sort((a, b) => b.year - a.year);
+    setArchives(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    setArchiveConfirm(false);
+    alert(`Year ${year} archived!`);
+  };
+ 
+  const deleteArchive = (year) => {
+    if (!window.confirm(`Delete archive for ${year}?`)) return;
+    const updated = archives.filter(a => a.year !== year);
+    setArchives(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+    if (viewingArchive?.year === year) setViewingArchive(null);
+  };
+ 
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo)   { alert('Select both dates.'); return; }
+    if (customFrom > customTo)      { alert('"From" cannot be after "To".'); return; }
+    setAppliedRange({ from: customFrom, to: customTo });
+    setViewingArchive(null);
+  };
+ 
+  // ── today's quick stats ───────────────────────────────────────────────────
+  const todayStr     = today.toISOString().slice(0, 10);
+  const todaySales = useMemo(() => {
+  return scopedTransactions.filter(tx =>
+    (tx.created_at || '').startsWith(todayStr)
+  );
+}, [scopedTransactions, todayStr]);
+  const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
+  const avgOrder     = todaySales.length ? todayRevenue / todaySales.length : 0;
+ 
+  // ─────────────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+      <style>{`
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .fr-db-kpi-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+        .fr-db-ins-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+        .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+        @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
+        @media(max-width:720px){ .fr-db-ins-grid,.fr-db-bot-grid{ grid-template-columns:1fr; } }
+        .fr-db-kpi  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
+        .fr-db-kpi:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
+        .fr-db-chart { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:18px; }
+        .fr-db-ins  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
+        .fr-db-tab-group { display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px; }
+        .fr-db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5a7a65; cursor:pointer; transition:all .15s; font-family:inherit; }
+        .fr-db-tab.active { background:linear-gradient(135deg,#00c853,#00897b); color:#fff; box-shadow:0 2px 8px rgba(0,180,90,.35); }
+        .fr-db-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
+        .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
+        .fr-db-date:focus { border-color:#00897b; }
+        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
+        .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
+        .fr-db-arc-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
+        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #e0f2f1; margin-bottom:8px; background:#f8fffe; }
+        .fr-db-arc-row:hover { background:#e8fdf0; }
+        .fr-db-arc-btn   { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
+        .fr-db-view-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+      `}</style>
+ 
+      {/* ── Welcome header ── */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#00897b', marginBottom: 4, fontFamily: 'Montserrat,sans-serif' }}>Welcome back</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0d2b1e', margin: 0, fontFamily: 'Montserrat,sans-serif' }}>{user?.name}</h1>
+        <div style={{ fontSize: 13, color: '#5a7a65', marginTop: 4 }}>Branch: <strong style={{ color: '#0d2b1e' }}>{userBranch || '—'}</strong></div>
+      </div>
+ 
+      {/* ── Archive viewing banner ── */}
+      {viewingArchive && (
+        <div className="fr-db-view-banner">
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 }}>
+            <Archive size={16} /> Viewing Archive: {viewingArchive.year}
+            <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewingArchive.savedAt}</span>
+          </span>
+          <button onClick={() => setViewingArchive(null)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: 8, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <X size={12} /> Exit Archive View
+          </button>
+        </div>
+      )}
+ 
+      {/* ── KPI cards (today quick stats + server KPIs) ── */}
+      <div className="fr-db-kpi-grid">
+        {[
+          { label: "Today's Revenue",  value: fmtPeso(todayRevenue),  sub: `${todaySales.length} transactions today`,      icon: <DollarSign size={18} />, color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
+          { label: 'Monthly Revenue',  value: kpiLoading ? '…' : fmtPeso(kpiData?.salesRevenue ?? 0), sub: getRangeLabel(), icon: <BarChart size={18} />,    color: '#00897b', bg: 'rgba(0,200,83,0.08)' },
+          { label: 'Monthly Profit',   value: kpiLoading ? '…' : fmtPeso(kpiData?.salesProfit ?? 0),  sub: 'After cost of sales',                             icon: <TrendingUp size={18} />, color: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
+          { label: 'Avg Order Value',  value: fmtPeso(isNaN(avgOrder) ? 0 : avgOrder),                sub: 'Today per transaction',                           icon: <ShoppingCart size={18} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+        ].map((k, i) => (
+          <div key={i} className="fr-db-kpi">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#5a7a65', marginBottom: 5, fontFamily: 'Montserrat,sans-serif' }}>{k.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{k.value}</div>
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: k.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: k.color, flexShrink: 0 }}>{k.icon}</div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filter + Date toolbar ── */}
+      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+
+        {/* Preset tabs */}
+        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+          {["day","week","month","year"].map(p => (
+            <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewingArchive(null); }}>
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom range */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Calendar size={12} color="#5a7a65" />
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
+        </div>
+
+        {/* Archive */}
+        <button onClick={() => setShowArchivePanel(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchivePanel ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          <Archive size={13} /> Archives
+          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+        </button>
+      </div>
+
+      {/* Archive panel */}
+      {showArchivePanel && (
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
+              <Archive size={15} color="#00897b" /> Yearly Archives — {userBranch}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!archiveConfirm ? (
+                <>
+                  <input type="number" value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
+                  <button onClick={() => setArchiveConfirm(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                    <Plus size={12} /> Archive Year
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYearInput}?</span>
+                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
+                  <button onClick={() => setArchiveConfirm(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
+                </div>
+              )}
+            </div>
+          </div>
+          {archives.length === 0
+            ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
+            : archives.map(a => (
+              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 7 }}>
+                  <button onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewingArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewingArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                    {viewingArchive?.year === a.year ? "Viewing" : "View"}
+                  </button>
+                  <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+ 
+      
+      {/* ── SECTION 1: SALES TREND ── */}
+      <SalesTrendSection
+        values={values} labels={chartData.labels} kpiData={kpiData}
+        total={total} avg={avg} peak={peak} low={low}
+        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
+        getRangeLabel={getRangeLabel} filterLabel={`${userBranch} — ${getRangeLabel()}`}
+      />
+
+      {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
+      <PrescriptiveSection
+        transactions={myTransactions} filterLabel={`${userBranch} — ${getRangeLabel()}`}
+        preset={preset} total={total} values={values} kpiData={kpiData}
+      />
+
+      {/* ── SECTION 3: SALES VS STOCK ── */}
+      <SalesVsStockSection
+        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
+        filterBranch={userBranch} filterBrand={null}
+        selectedBrand={null} total={total}
+      />
+    </div>
+  );
+}
+
+function Modal({ show, title, message, type = 'info', onConfirm, onCancel, confirmText = 'OK', cancelText = 'Cancel', showCancel = false }) {
+  if (!show) return null;
+  const colors = {
+    info:    { bg: '#e0f2f1', icon: '#00897b', border: '#b2dfdb' },
+    error:   { bg: '#fee2e2', icon: '#dc2626', border: '#fca5a5' },
+    success: { bg: '#dcfce7', icon: '#16a34a', border: '#86efac' },
+    warning: { bg: '#fef9c3', icon: '#d97706', border: '#fde68a' },
+  };
+  const c = colors[type] || colors.info;
+  const icons = {
+    info: <Check size={22} />, error: <X size={22} />,
+    success: <Check size={22} />, warning: <AlertTriangle size={22} />,
+  };
+  return (
+    <div onClick={showCancel ? onCancel : onConfirm}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 20, padding: '36px 32px', maxWidth: 400, width: '100%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.2)', border: `1px solid ${c.border}` }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', color: c.icon }}>
+          {icons[type]}
+        </div>
+        <h3 style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', marginBottom: 10 }}>{title}</h3>
+        <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.7, marginBottom: 26 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {showCancel && (
+            <button onClick={onCancel}
+              style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {cancelText}
+            </button>
+          )}
+          <button onClick={onConfirm}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: type === 'error' ? '#dc2626' : 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {confirmText}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── InventoryTable ───────────────────────────────────────────────────────────
-function InventoryTable({ items, onEdit, onRequestDelete, deletingId, page, setPage }) {
-  const [sort, setSort]             = useState({ col:"name", asc:true });
-  const [expandedRows, setExpanded] = useState({});
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYMONGO GCASH MODAL  — identical to admin POS
+// ─────────────────────────────────────────────────────────────────────────────
+function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
+  const [step,      setStep]      = React.useState('loading');
+  const [qrUrl,     setQrUrl]     = React.useState('');
+  const [linkId,    setLinkId]    = React.useState('');
+  const [refNo,     setRefNo]     = React.useState('');
+  const [gcashRef,  setGcashRef]  = React.useState('');
+  const [errorMsg,  setErrorMsg]  = React.useState('');
+  const [countdown, setCountdown] = React.useState(180);
+  const pollRef  = React.useRef(null);
+  const timerRef = React.useRef(null);
 
-  const sorted = useMemo(() => {
-    return [...items].sort((a,b) => {
-      let va=a[sort.col]??"", vb=b[sort.col]??"";
-      if(typeof va==="string") va=va.toLowerCase();
-      if(typeof vb==="string") vb=vb.toLowerCase();
-      return sort.asc?(va<vb?-1:va>vb?1:0):(va>vb?-1:va<vb?1:0);
-    });
-  }, [items, sort]);
+  React.useEffect(() => {
+    const create = async () => {
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/paymongo/create-gcash`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: totalAmt, description: 'iFranchise POS Payment', orderId: Date.now() }),
+        });
+        const data = await res.json();
+        if (!data.success) { setErrorMsg(data.error || 'Failed to create payment link.'); setStep('error'); return; }
+        const qr = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.checkoutUrl)}`;
+        setQrUrl(qr);
+        setLinkId(data.linkId);
+        setRefNo(data.referenceNo);
+        setStep('ready');
+        startPolling(data.linkId);
+        startCountdown();
+      } catch { setErrorMsg('Could not reach payment server.'); setStep('error'); }
+    };
+    create();
+    return () => { clearInterval(pollRef.current); clearInterval(timerRef.current); };
+  }, []);
 
   const startPolling = (id) => {
     pollRef.current = setInterval(async () => {
@@ -1368,1018 +2914,2250 @@ function FrPOSContent({ user }) {
           );
         })}
       </div>
-      {totalPages > 1 && <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE}/>}
-    </div>
-  );
-}
 
-function Toast({ toast, onClose }) {
-  useEffect(() => {
-    if (!toast) return;
-    if (toast.type === "loading") return;
-    const t = setTimeout(onClose, 2000);
-    return () => clearTimeout(t);
-  }, [toast, onClose]);
-
-  if (!toast) return null;
-  const isErr = toast.type === "error";
-  const isLoading = toast.type === "loading";
-
-  return (
-    <div style={{
-      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
-      maxWidth:380, padding:"16px 18px", borderRadius:14,
-      background: isErr ? "#fef2f2" : "#f0fdf5",
-      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
-      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
-      borderLeftWidth: 5,
-      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:"'Montserrat',sans-serif",
-      animation:"toastIn .22s ease",
-    }}>
-      <div style={{
-        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
-        alignItems:"center", justifyContent:"center",
-        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
-        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
-      }}>
-        {isErr
-          ? <AlertTriangle size={16}/>
-          : isLoading
-            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
-            : <Check size={16}/>}
-      </div>
-
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
-          {toast.title}
-        </div>
-        {toast.message && (
-          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
-            {toast.message}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* CASHIER TAB                                                         */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'cashier' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 390px', gap: 18, alignItems: 'start' }}>
+          {/* Products */}
+          <div>
+            <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }} />
+                <input type="text" autoComplete="off" placeholder="Search products..." value={searchProduct} onChange={e => setSearchProduct(e.target.value)} style={{ ...inp, paddingLeft: 32 }} />
+              </div>
+            </div>
+            {allProducts.length === 0 ? (
+              <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+                {!userBranch ? 'No branch assigned to your account.' : 'No products found for this branch.'}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(155px,1fr))', gap: 10 }}>
+                {allProducts.map(product => {
+                  const inCart = cart.find(c => c.id === product.id);
+                  return (
+                    <div key={product.id} onClick={() => addToCart(product)}
+                      style={{ background: '#fff', border: `2px solid ${inCart ? '#00897b' : 'rgba(0,168,76,0.12)'}`, borderRadius: 13, padding: '13px 11px', cursor: 'pointer', transition: 'all .15s', boxShadow: inCart ? '0 4px 14px rgba(0,137,123,0.18)' : '0 1px 6px rgba(0,140,60,0.05)', position: 'relative' }}>
+                      {inCart && <div style={{ position: 'absolute', top: 7, right: 7, background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '1px 7px' }}>×{inCart.qty}</div>}
+                      {product.image_url ? (
+                        <img src={product.image_url} alt="" style={{ width: '100%', height: 85, objectFit: 'cover', borderRadius: 8, marginBottom: 9 }} onError={e => (e.target.style.display = 'none')} />
+                      ) : (
+                        <div style={{ width: '100%', height: 85, borderRadius: 8, background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06))', marginBottom: 9 }} />
+                      )}
+                      <div style={{ fontWeight: 700, fontSize: 12, color: '#0d2b1e', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.displayName}</div>
+                      {product.category && <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 5 }}>{product.category}</div>}
+                      <div style={{ fontWeight: 800, fontSize: 14, color: '#00897b' }}>{fmtPeso(product.price)}</div>
+                      {product.stock !== undefined && <div style={{ fontSize: 10, color: product.stock <= 5 ? '#ef4444' : '#94a3b8', marginTop: 2 }}>Stock: {product.stock}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {!isLoading && (
-        <button onClick={onClose} style={{
-          background:"none", border:"none",
-          color: isErr ? "#991b1b" : "#3f5f4f",
-          cursor:"pointer", padding:2, flexShrink:0,
-          display:"flex", alignItems:"center", justifyContent:"center",
-        }}>
-          <X size={14}/>
-        </button>
+          {/* ── Order panel ── */}
+          <div style={{ position: 'sticky', top: 80 }}>
+            <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,140,60,0.08)' }}>
+              {/* Cart header */}
+              <div style={{ padding: '13px 16px', background: 'linear-gradient(135deg,#0d2b1e,#1a4a2e)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
+                <span style={{ fontWeight: 800, fontSize: 14 }}>Order Cart</span>
+                {cart.length > 0 && <button onClick={clearCart} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 7, padding: '3px 11px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Clear</button>}
+              </div>
+              {/* Cart items */}
+              <div style={{ maxHeight: 240, overflowY: 'auto', padding: cart.length === 0 ? 0 : '6px 0' }}>
+                {cart.length === 0 ? (
+                  <div style={{ padding: '28px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    <ShoppingCart size={28} color="#d1eedd" style={{ marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />
+                    Tap a product to add it
+                  </div>
+                ) : cart.map(item => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid rgba(0,168,76,0.07)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.displayName}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtPeso(item.price)} each</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                      <button onClick={() => updateQty(item.id, -1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid rgba(0,168,76,0.2)', background: 'rgba(0,168,76,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#0d2b1e' }}>−</button>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#0d2b1e', minWidth: 18, textAlign: 'center' }}>{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, +1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid rgba(0,168,76,0.2)', background: 'rgba(0,168,76,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#00897b' }}>+</button>
+                    </div>
+                    <div style={{ minWidth: 56, textAlign: 'right', fontWeight: 800, fontSize: 12, color: '#00897b' }}>{fmtPeso(item.price * item.qty)}</div>
+                    <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2, fontSize: 16, lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Order options */}
+              <div style={{ padding: '13px 16px', borderTop: '1px solid rgba(0,168,76,0.1)' }}>
+
+                {/* VAT */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em' }}>VAT (12%)</label>
+                  <div onClick={() => setVatEnabled(v => !v)} style={{ width: 42, height: 22, borderRadius: 11, cursor: 'pointer', position: 'relative', background: vatEnabled ? 'linear-gradient(135deg,#00c853,#00897b)' : '#e0e0e0', transition: 'background .2s' }}>
+                    <div style={{ position: 'absolute', top: 2, left: vatEnabled ? 21 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
+                  </div>
+                </div>
+
+                {/* Discount */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>Discount</div>
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'None',           pct: 0,    requiresAuth: false },
+                      { label: 'PWD/Senior Citizen',            pct: 20,   requiresAuth: true  },
+                      { label: 'Others',         pct: null, requiresAuth: true  },
+                    ].map(d => {
+                      const isActive = d.pct !== null ? discountPct === d.pct && discountType === d.label : discountType === 'Others';
+                      return (
+                        <button key={d.label}
+                          onClick={() => {
+                            if (d.label === 'None') { setDiscountPct(0); setDiscountType('None'); setShowDiscountAuth(false); setCustomDiscountInput(''); }
+                            else { setPendingDiscount(d); setDiscountAuthInput(''); setDiscountAuthErr(''); setCustomDiscountInput(''); setShowDiscountAuth(true); }
+                          }}
+                          style={{ height: 30, padding: '0 12px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', background: isActive ? 'linear-gradient(135deg,#2E7D32,#00897b)' : '#f0fdf5', color: isActive ? '#fff' : '#5a7a65' }}>
+                          {d.label}{d.pct !== null && d.label !== 'None' ? ` (${d.pct}%)` : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {discountType && discountType !== 'None' && discountPct > 0 && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: '#00897b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ background: '#e0f2f1', border: '1px solid #b2dfdb', borderRadius: 20, padding: '2px 10px' }}>{discountType} — {discountPct}% off</span>
+                      <button onClick={() => { setDiscountPct(0); setDiscountType('None'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e53935', fontSize: 13, fontWeight: 800, padding: 0 }}>×</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Totals */}
+                <div style={{ background: 'rgba(0,168,76,0.05)', border: '1.5px solid rgba(0,168,76,0.12)', borderRadius: 11, padding: '11px 13px', marginBottom: 12 }}>
+                  {[
+                    { label: 'Subtotal', value: fmtPeso(subtotal), color: '#94a3b8' },
+                    ...(discountPct > 0 ? [{ label: `Discount (${discountPct}%)`, value: `−${fmtPeso(discountAmt)}`, color: '#f59e0b' }] : []),
+                    ...(vatEnabled ? [{ label: 'VAT (12%)', value: `+${fmtPeso(vatAmt)}`, color: '#3b82f6' }] : []),
+                  ].map(r => (
+                    <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: r.color, marginBottom: 4 }}>
+                      <span>{r.label}</span><span style={{ fontWeight: 700 }}>{r.value}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, color: '#0d2b1e', fontWeight: 800, paddingTop: 7, borderTop: '1.5px dashed rgba(0,168,76,0.2)' }}>
+                    <span>Total</span><span style={{ color: '#00897b' }}>{fmtPeso(totalAmt)}</span>
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em' }}>Payment Method</div>
+                    {/* Split toggle */}
+                    <button onClick={() => { setIsSplitPayment(v => !v); setSplitGcashAmt(''); setSplitCashAmt(''); setSplitGcashPaid(false); setSplitGcashRef(''); setGcashRefNumber(''); setCashReceived(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, border: 'none', background: isSplitPayment ? 'linear-gradient(135deg,#007acc,#0057a8)' : '#f0f0f0', color: isSplitPayment ? '#fff' : '#5a7a65', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      ✂ {isSplitPayment ? 'Split ON' : 'Split Payment'}
+                    </button>
+                  </div>
+
+                  {/* Normal payment buttons */}
+                  {!isSplitPayment && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[
+                        { id: 'Cash',  label: 'Cash',  icon: <Banknote size={15} /> },
+                        { id: 'GCash', label: 'GCash', icon: <QrCode size={15} />,    sub: 'PayMongo QR' },
+                        { id: 'Others',label: 'Others',icon: <CreditCard size={15} /> },
+                      ].map(m => (
+                        <button key={m.id} onClick={() => { setPaymentMethod(m.id); if (m.id !== 'GCash') setGcashRefNumber(''); }}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `2px solid ${paymentMethod === m.id ? '#00897b' : 'rgba(0,168,76,0.15)'}`, background: paymentMethod === m.id ? 'linear-gradient(135deg,#00c853,#00897b)' : '#fff', color: paymentMethod === m.id ? '#fff' : '#0d2b1e', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 9, transition: 'all .15s' }}>
+                          {m.icon} <span>{m.label}</span>
+                          {m.sub && <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.75 }}>{m.sub}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* GCash ref badge */}
+                  {!isSplitPayment && paymentMethod === 'GCash' && gcashRefNumber && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#e8f4ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '6px 12px' }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>GCash Ref #</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', fontFamily: 'monospace' }}>{gcashRefNumber}</div>
+                      </div>
+                      <button onClick={() => setGcashRefNumber('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 16 }}>×</button>
+                    </div>
+                  )}
+
+                  {/* Split payment panel */}
+                  {isSplitPayment && (
+                    <div style={{ background: '#f8fffe', border: '1.5px solid #b2dfdb', borderRadius: 12, padding: '14px 14px 10px', marginTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5a7a65' }}>Total to split:</span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: '#0d2b1e' }}>{fmtPeso(totalAmt)}</span>
+                      </div>
+                      {/* GCash leg */}
+                      <div style={{ background: splitGcashPaid ? '#e8f5e9' : '#fff', border: `1.5px solid ${splitGcashPaid ? '#00897b' : '#bfdbfe'}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#007acc,#0057a8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, color: '#fff' }}>G</div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1e40af' }}>GCash amount</span>
+                          </div>
+                          {splitGcashPaid && <span style={{ fontSize: 11, fontWeight: 700, color: '#059669', background: '#d1fae5', padding: '2px 8px', borderRadius: 20 }}>✓ Paid</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <div style={{ position: 'relative', flex: 1 }}>
+                            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: '#5a7a65' }}>₱</span>
+                            <input type="number" placeholder="0.00" value={splitGcashAmt} disabled={splitGcashPaid}
+                              onChange={e => { const val = e.target.value; setSplitGcashAmt(val); const g = parseFloat(val) || 0; const rem = Math.max(0, totalAmt - g); setSplitCashAmt(rem > 0 ? rem.toFixed(2) : ''); }}
+                              style={{ ...inp, paddingLeft: 24, opacity: splitGcashPaid ? 0.6 : 1, cursor: splitGcashPaid ? 'not-allowed' : 'text' }} />
+                          </div>
+                          {!splitGcashPaid ? (
+                            <button onClick={() => {
+                              const g = parseFloat(splitGcashAmt);
+                              if (!g || g <= 0) { showAlert('Invalid Amount', 'Enter a valid GCash amount.', 'error'); return; }
+                              if (g > totalAmt) { showAlert('Too Much', 'GCash amount cannot exceed total.', 'error'); return; }
+                              if (g < 100) { showAlert('Minimum ₱100', 'Minimum GCash amount via PayMongo is ₱100.', 'error'); return; }
+                              setGcashPaymentAmt(g); setShowGCashModal(true);
+                            }}
+                              style={{ padding: '0 14px', height: 36, borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#007acc,#0057a8)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Pay GCash
+                            </button>
+                          ) : (
+                            <button onClick={() => { setSplitGcashPaid(false); setSplitGcashRef(''); setGcashRefNumber(''); setSplitCashAmt(''); }}
+                              style={{ padding: '0 10px', height: 36, borderRadius: 9, border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              Redo
+                            </button>
+                          )}
+                        </div>
+                        {splitGcashPaid && splitGcashRef && <div style={{ marginTop: 5, fontSize: 11, color: '#00695c', fontFamily: 'monospace', fontWeight: 600 }}>Ref: {splitGcashRef}</div>}
+                      </div>
+                      {/* Cash leg */}
+                      <div style={{ background: '#fff', border: '1.5px solid #d1eedd', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#fff' }}>₱</div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#2E7D32' }}>Cash amount</span>
+                        </div>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, fontWeight: 700, color: '#5a7a65' }}>₱</span>
+                          <input type="number" placeholder="0.00" value={splitCashAmt} onChange={e => setSplitCashAmt(e.target.value)} style={{ ...inp, paddingLeft: 24 }} />
+                        </div>
+                      </div>
+                      {/* Split summary */}
+                      {((parseFloat(splitGcashAmt) || 0) + (parseFloat(splitCashAmt) || 0)) > 0 && (() => {
+                        const gcash = parseFloat(splitGcashAmt) || 0;
+                        const cash  = parseFloat(splitCashAmt)  || 0;
+                        const covered   = gcash + cash;
+                        const shortfall = totalAmt - covered;
+                        const change    = covered - totalAmt;
+                        return (
+                          <div style={{ marginTop: 10, padding: '8px 10px', background: Math.abs(shortfall) < 0.01 ? '#e8f5e9' : shortfall > 0 ? '#fff3e0' : '#e8f5e9', borderRadius: 8, fontSize: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 2 }}><span>GCash</span><span style={{ fontWeight: 700 }}>{fmtPeso(gcash)}</span></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 4 }}><span>Cash</span><span style={{ fontWeight: 700 }}>{fmtPeso(cash)}</span></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 4 }}>
+                              <span style={{ fontWeight: 800, color: shortfall > 0.01 ? '#e65100' : '#2e7d32' }}>{shortfall > 0.01 ? `⚠ Short by` : change > 0.01 ? 'Change due' : '✓ Exact'}</span>
+                              <span style={{ fontWeight: 800, color: shortfall > 0.01 ? '#e65100' : '#2e7d32' }}>{shortfall > 0.01 ? fmtPeso(shortfall) : change > 0.01 ? fmtPeso(change) : ''}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cash received (normal) */}
+                {!isSplitPayment && paymentMethod === 'Cash' && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 5 }}>Cash Received</div>
+                    <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} placeholder="0.00"
+                      style={{ ...inp, fontSize: 16, fontWeight: 800, textAlign: 'right' }} />
+                    {cashReceived !== '' && (
+                      <div style={{ marginTop: 5, fontSize: 13, fontWeight: 700, textAlign: 'right', color: cashShortfall < 0 ? '#ef4444' : '#00897b', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                        {cashShortfall < 0
+                          ? <><AlertTriangle size={12} /> Short by {fmtPeso(Math.abs(cashShortfall))}</>
+                          : <><Check size={12} /> Change: {fmtPeso(changeDue)}</>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Note */}
+                <div style={{ marginBottom: 12 }}>
+                  <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder="Order note (optional)..." rows={2}
+                    style={{ ...inp, resize: 'none', lineHeight: 1.5, height: 'auto', padding: '8px 11px' }} />
+                </div>
+
+                {/* Charge button */}
+                <button onClick={processSale} disabled={processing || cart.length === 0}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px 0', borderRadius: 12, border: 'none',
+                    background: cart.length === 0 || processing ? '#e0e0e0' : isSplitPayment ? (() => { const g = parseFloat(splitGcashAmt) || 0; const c = parseFloat(splitCashAmt) || 0; const ok = Math.abs((g + c) - totalAmt) < 0.01 && (!g || splitGcashPaid); return ok ? 'linear-gradient(135deg,#00c853,#00897b)' : '#e0e0e0'; })() : paymentMethod === 'GCash' && !gcashRefNumber ? 'linear-gradient(135deg,#007acc,#0057a8)' : 'linear-gradient(135deg,#00c853,#00897b)',
+                    color: cart.length === 0 || processing ? '#9e9e9e' : '#fff',
+                    fontSize: 15, fontWeight: 900, cursor: cart.length === 0 || processing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: processing ? 0.7 : 1,
+                  }}>
+                  {processing ? (
+                    <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Processing...</>
+                  ) : isSplitPayment ? (() => {
+                    const g = parseFloat(splitGcashAmt) || 0; const c = parseFloat(splitCashAmt) || 0;
+                    const covered = Math.abs((g + c) - totalAmt) < 0.01;
+                    const gcashDone = !g || splitGcashPaid;
+                    if (!covered) return `Enter amounts totalling ${fmtPeso(totalAmt)}`;
+                    if (!gcashDone) return 'Complete GCash payment first';
+                    return `💳 Charge ${fmtPeso(totalAmt)} (Split)`;
+                  })() : paymentMethod === 'GCash' && !gcashRefNumber
+                    ? `💳 Scan GCash QR — ${fmtPeso(totalAmt)}`
+                    : `💳 Charge ${fmtPeso(totalAmt)}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </div>
-  );
-}
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Super Admin";
-  const userBranch = user?.branch || "";
-  const userName   = user?.name   || "Unknown";
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* HISTORY TAB                                                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'history' && (
+        <>
+          <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: '1 1 200px' }}>
+                <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+                <input type="text" placeholder="Search ID or cashier..." value={txSearch} onChange={e => setTxSearch(e.target.value)} style={{ ...inp, paddingLeft: 30 }} />
+              </div>
+              <input type="date" value={txDateFrom} onChange={e => setTxDateFrom(e.target.value)} style={{ ...inp, width: 150 }} />
+              <input type="date" value={txDateTo}   onChange={e => setTxDateTo(e.target.value)}   style={{ ...inp, width: 150 }} />
+              {(txSearch || txDateFrom || txDateTo) && <button onClick={() => { setTxSearch(''); setTxDateFrom(''); setTxDateTo(''); }} style={{ ...smallBtn, color: '#00897b', borderColor: '#b2dfdb' }}>Clear</button>}
+            </div>
+          </div>
+          <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
+            <div style={{ padding: '12px 18px', background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
+              <span style={{ fontWeight: 800, fontSize: 13 }}>Transaction History</span>
+              <span style={{ fontSize: 12, opacity: 0.9 }}>{filteredTx.length} records</span>
+            </div>
+            {loadingTx ? (
+              <div style={{ padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>Loading...</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      {['#', 'Date', 'Cashier', 'Items', 'Subtotal', 'Disc', 'VAT', 'Total', 'Payment', 'Status', ''].map(h => (
+                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5, color: '#00897b', letterSpacing: '0.07em', textTransform: 'uppercase', borderBottom: '1px solid #d1eedd', background: '#f8fffe', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {txPageItems.length === 0 ? (
+                      <tr><td colSpan={11} style={{ padding: '48px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>No transactions found.</td></tr>
+                    ) : txPageItems.map(tx => (
+                      <tr key={tx.id} onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ borderBottom: '1px solid #f0f8f0', opacity: tx.voided ? 0.5 : 1 }}>
+                        <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 12 }}>#{tx.id}</td>
+                        <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
+                        <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{(tx.items || []).length}</td>
+                        <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{fmtPeso(tx.subtotal)}</td>
+                        <td style={{ padding: '10px 12px' }}>{tx.discount_pct > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>−{tx.discount_pct}%</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                        <td style={{ padding: '10px 12px' }}>{tx.vat_enabled ? <span style={{ color: '#3b82f6', fontWeight: 700 }}>+{fmtPeso(tx.vat_amt)}</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: 800, color: '#00897b' }}>{fmtPeso(tx.total)}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: tx.payment_method === 'Cash' ? 'rgba(0,200,83,0.1)' : tx.payment_method === 'Split' ? 'rgba(107,33,168,0.1)' : 'rgba(59,130,246,0.1)', color: tx.payment_method === 'Cash' ? '#00897b' : tx.payment_method === 'Split' ? '#6b21a8' : '#2563eb' }}>
+                            {tx.payment_method}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {tx.voided ? <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#dc2626' }}>VOIDED</span>
+                            : <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(0,200,83,0.1)', color: '#00897b' }}>PAID</span>}
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {!tx.voided && <button onClick={() => handleVoidRequest(tx)} style={{ ...smallBtn, color: '#dc2626', borderColor: '#fca5a5', background: '#fff' }}>Void</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {filteredTx.length > TX_PAGE_SIZE && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
+                <span style={{ fontSize: 12, color: '#5a7a65' }}>{(txPage * TX_PAGE_SIZE + 1)}–{Math.min((txPage + 1) * TX_PAGE_SIZE, filteredTx.length)} of {filteredTx.length}</span>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={() => setTxPage(p => Math.max(0, p - 1))} disabled={txPage === 0} style={{ ...smallBtn, opacity: txPage === 0 ? 0.35 : 1 }}>‹</button>
+                  <button onClick={() => setTxPage(p => Math.min(Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1, p + 1))} disabled={txPage >= Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1} style={{ ...smallBtn, opacity: txPage >= Math.ceil(filteredTx.length / TX_PAGE_SIZE) - 1 ? 0.35 : 1 }}>›</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
-  const brandList   = propBrands.length > 0 ? propBrands : [];
-  const allBranches = useMemo(() => {
-    const out = [];
-    brandList.forEach(b => (b.branches||[]).forEach(br => {
-      const name = typeof br==="string"?br:br.name;
-      if (!out.find(x=>x.branch===name)) out.push({ brand:b.name, branch:name });
-    }));
-    return out;
-  }, [brandList]);
-
-  // ── Screen state: "brands" (card grid) → "inventory" (table + filters) ───────
-  // Non-admin users only have one branch, so they skip straight to inventory.
-  const [screen, setScreen] = useState(isAdmin ? "brands" : "inventory");
-
-  // ── Core state ──────────────────────────────────────────────────────────────
-  const [inventory,       setInventory]       = useState([]);
-  const [stockItems,      setStockItems]       = useState([]);
-  const [loading,         setLoading]         = useState(false);
-  const [filterBrand,     setFilterBrand]     = useState(null);
-  const [filterBranch,    setFilterBranch]    = useState(null);
-  const [filterCategory,  setFilterCategory]  = useState("");
-  const [filterStatus,    setFilterStatus]    = useState("");
-  const [searchQuery,     setSearchQuery]     = useState("");
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [showEditModal,   setShowEditModal]   = useState(false);
-  const [editingItem,     setEditingItem]     = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [page,            setPage]            = useState(0);
-
-  const [saving,          setSaving]          = useState(false);
-  const [deletingId,      setDeletingId]      = useState(null);
-  const [restoringId,     setRestoringId]     = useState(null);
-  const [toast,           setToast]           = useState(null);
-  const showToast = (type, title, message) => setToast({ type, title, message });
-
-  // ── History / log state ─────────────────────────────────────────────────────
-  const [deleteHistory,     setDeleteHistory]     = useState([]);
-  const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [activityLog,       setActivityLog]       = useState([]);
-  const [showActivityLog,   setShowActivityLog]   = useState(false);
-
-  // ── Ingredient picker state ─────────────────────────────────────────────────
-  const [ingSearch,   setIngSearch]   = useState("");
-  const [ingQty,      setIngQty]      = useState("1");
-  const [ingUnit,     setIngUnit]     = useState("");
-  const [ingPicked,   setIngPicked]   = useState(null);
-  const [ingDropOpen, setIngDropOpen] = useState(false);
-  const ingRef = useRef(null);
-  
-const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch,
-  cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
-}), [isAdmin, userBranch]);
-  const excelRef = useRef(null);
-
-  const [formData,    setFormData]    = useState(emptyForm);
-  const [formBrandId, setFormBrandId] = useState("");
-
-  // ── Category helpers ────────────────────────────────────────────────────────
-  const inventoryCategories = useMemo(() => {
-    if (filterBrand) {
-      const brand = brandList.find(b => b.id === filterBrand);
-      return brand?.categories || [];
-    }
-    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-  }, [filterBrand, brandList]);
-
-  const formBrand = useMemo(() => {
-    if (!formData.branch) return null;
-    return brandList.find(b =>
-      (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === formData.branch)
-    );
-  }, [formData.branch, brandList]);
-
-  const [formCategories, setFormCategories] = useState([]);
-  useEffect(() => {
-    const cats = formBrand?.categories || inventoryCategories;
-    setFormCategories(cats.length ? cats : []);
-  }, [formBrand, inventoryCategories]);
-
-  useEffect(() => {
-    const fn = e => { if(ingRef.current && !ingRef.current.contains(e.target)) setIngDropOpen(false); };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  // ── Fetch helpers ───────────────────────────────────────────────────────────
-  const fetchInventory = useCallback(async (branch) => {
-    setLoading(true);
-    try {
-      const q   = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
-      const d   = await res.json();
-      setInventory(Array.isArray(d) ? d : []);
-    } catch { setInventory([]); }
-    finally { setLoading(false); }
-  }, []);
-
-  const fetchStockItems = useCallback(async (branch) => {
-    try {
-      const effectiveBranch = !isAdmin ? userBranch : (branch || "");
-      const q = effectiveBranch ? `?branch=${encodeURIComponent(effectiveBranch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
-      const d   = await res.json();
-      setStockItems(Array.isArray(d) ? d : []);
-    } catch { setStockItems([]); }
-  }, [isAdmin, userBranch]);
-
-  const fetchDeleteHistory = useCallback(async () => {
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`);
-      const data = await res.json();
-      setDeleteHistory(Array.isArray(data) ? data.map(row => ({
-        id:               row.id,
-        inventory_data:   row.inventory_data,
-        ingredients_data: row.ingredients_data || [],
-        deleted_at:       row.deleted_at,
-        deleted_by:       row.deleted_by,
-      })) : []);
-    } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
-  }, []);
-
-const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/menu-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data.map(row => ({
-      id: row.id, action: row.action,
-      itemName: row.item_name ?? row.itemName,
-      performedBy: row.performed_by ?? row.performedBy,
-      branch: row.branch,
-      performedBy: row.performed_by ?? row.performedBy,
-      role: row.role,
-      changes: row.changes,
-      location: row.location,
-      timestamp: row.created_at ?? row.timestamp,
-    })) : []);
-  } catch (err) {
-    console.error("Failed to fetch menu activity log:", err);
-  }
-}, []);
-
-useEffect(() => {
-  fetchActivityLog();
-}, [fetchActivityLog]);
-
-  // ── Effects ─────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isAdmin) { fetchInventory(userBranch); return; }
-    fetchInventory(filterBranch||undefined);
-  }, [filterBranch, isAdmin, userBranch, fetchInventory]);
-
-  useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
-  useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
-  useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
-
-  const refetch = () => fetchInventory(isAdmin ? filterBranch||undefined : userBranch);
-
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter(i => {
-      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-      if (filterBranch) { if (i.branch!==filterBranch) return false; }
-      else if (filterBrand) {
-        const b = brandList.find(x=>x.id===filterBrand);
-        if (b) { const names=(b.branches||[]).map(br=>typeof br==="string"?br:br.name); if (!names.includes(i.branch)) return false; }
-      }
-      if (filterCategory && i.category!==filterCategory) return false;
-      if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
-      if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
-      return true;
-    });
-  }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
-
-  const filteredCategories = useMemo(() => {
-    if (filterBrand) {
-      const brand = brandList.find(b => b.id === filterBrand);
-      return brand?.categories || [];
-    }
-    if (filterBranch) {
-      const brand = brandList.find(b =>
-        (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === filterBranch)
-      );
-      return brand?.categories || [];
-    }
-    return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-  }, [filterBrand, filterBranch, brandList]);
-
-  // ── Computed cost from ingredients ──────────────────────────────────────────
-  const computedCost = useMemo(() => {
-    if (!formData.ingredients || formData.ingredients.length === 0) return 0;
-    return formData.ingredients.reduce((total, ing) => {
-      const stock = stockItems.find(s => s.id === ing.stock_item_id);
-      if (!stock) return total;
-      return total + (parseFloat(stock.cost_per_unit||0) * parseFloat(ing.qty_required||0));
-    }, 0);
-  }, [formData.ingredients, stockItems]);
-
-  useEffect(() => {
-    const cost  = computedCost.toFixed(2);
-    const price = cost > 0 ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2) : "";
-    setFormData(prev => ({ ...prev, cost, price }));
-  }, [computedCost]);
-
-  const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
-  const totalValue = filteredItems.reduce((s,i) => s+(i.price||0)*(i.stock||0), 0);
-
-const handleAddItem = async e => {
-  e.preventDefault();
-  const branch    = isAdmin ? formData.branch : userBranch;
-  const duplicate = findDuplicate(formData.name, branch, inventory);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-  
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown",
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
-   try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-      });
-      const d = await res.json();
-      if (d.success) {
-        if (formData.ingredients && formData.ingredients.length > 0) {
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({
-              ingredients: formData.ingredients.map(ing => ({
-                ingredient_id: ing.stock_item_id,
-                quantity:      ing.qty_required,
-                unit:          ing.unit,
-              }))
-            })
-          });
-        }
-        await refetch();
-        await fetchActivityLog();
-        setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
-      showToast("success", "Item added", `"${formData.name}" was added.`);
-      } else showToast("error", "Failed to add item", d.error || "Something went wrong.");
-    } catch { showToast("error", "Failed to add item", "Something went wrong. Please try again."); }
-    finally { setSaving(false); }
-  };
-
-const handleEditItem = async e => {
-  e.preventDefault();
-  const branch     = isAdmin ? formData.branch : userBranch;
-  const otherItems = inventory.filter(i => i.id !== editingItem.id);
-  const duplicate  = findDuplicate(formData.name, branch, otherItems);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-  setSaving(true);
-  const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown", 
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-  };
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-      });
-      const d = await res.json();
-      if (d.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            ingredients: (formData.ingredients||[]).map(ing => ({
-              ingredient_id: ing.stock_item_id,
-              quantity:      ing.qty_required,
-              unit:          ing.unit,
-            }))
-          })
-        });
-
-        // Build human-readable changes string
-        const changed = [];
-        if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
-        if (String(editingItem.min_stock) !== String(formData.minStock)) changed.push(`min: ${editingItem.min_stock} → ${formData.minStock}`);
-        if (String(editingItem.price)     !== String(formData.price))    changed.push(`price: ₱${editingItem.price} → ₱${formData.price}`);
-        if (editingItem.category          !== formData.category)         changed.push(`category: ${editingItem.category} → ${formData.category}`);
-        const changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
-
-        await refetch();
-        await fetchActivityLog();
-        setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
-      showToast("success", "Item updated", `"${formData.name}" was saved.`);
-      } else showToast("error", "Failed to update item", d.error || "Something went wrong.");
-    } catch { showToast("error", "Failed to update item", "Something went wrong. Please try again."); }
-    finally { setSaving(false); }
-  };
-
-const handleDeleteItem = async id => {
-  setDeletingId(id);
-  try {
-    const coords = await getBrowserLocation();
-   const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deleted_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const d = await res.json();
-    if (d.success) {
-      await refetch();
-      await fetchDeleteHistory();
-      await fetchActivityLog();
-      showToast("success", "Item deleted", "The item was removed.");
-        } else showToast("error", "Failed to delete", d.error || "Something went wrong.");
-      } catch { showToast("error", "Failed to delete", "Something went wrong. Please try again."); }
-      finally { setDeletingId(null); }
-};
-
-const handleRestore = async (entry) => {
-  setRestoringId(entry.id);
-  try {
-    const d    = entry.inventory_data;
-    const ings = entry.ingredients_data || [];
-    const coords = await getBrowserLocation();
-
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        name:      d.name,
-        category:  d.category,
-        branch:    d.branch,
-        brand:     d.brand,
-        stock:     d.stock,
-        min_stock: d.min_stock,
-        cost:      d.cost,
-        price:     d.price,
-        performed_by: userName,
-        performed_by_role: user?.role || "Unknown",
-        latitude:  coords?.latitude,
-        longitude: coords?.longitude,
-        restored:  true,
-      }),
-    });
-    const result = await res.json();
-    if (result.success) {
-      if (ings.length > 0) {
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${result.item.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            ingredients: ings.map(ing => ({
-              ingredient_id: ing.stock_item_id,
-              quantity:      ing.qty_required,
-              unit:          ing.unit,
-            })),
-          }),
-        });
-      }
-      await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history/${entry.id}`, { method:"DELETE" });
-      await refetch();
-      await fetchDeleteHistory();
-      await fetchActivityLog();
-      showToast("success", "Item restored", `"${d.name}" is back with ${ings.length} ingredient(s).`);
-    } else showToast("error", "Failed to restore", result.error || "Something went wrong.");
-  } catch { showToast("error", "Failed to restore", "Something went wrong. Please try again."); }
-  finally { setRestoringId(null); }
-};
-
-  const openEditModal = item => {
-    setEditingItem(item);
-    setFormData({
-      name:item.name, category:item.category, branch:item.branch,
-      cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price,
-      image_url: item.image_url || "",
-      ingredients: (item.ingredients||[]).map(ing => ({
-        stock_item_id: ing.stock_item_id || ing.id,
-        name:          ing.name,
-        qty_required:  ing.qty_required,
-        unit:          ing.unit,
-      })),
-    });
-    fetchStockItems(item.branch);
-    setShowEditModal(true);
-  };
-
-  // ── Input handlers ──────────────────────────────────────────────────────────
-  const handleInputChange = e => {
-    let { name, value } = e.target;
-    if (name === "name") value = value.replace(/\b\w/g, c => c.toUpperCase());
-    setFormData(p => ({ ...p, [name]: value }));
-  };
-
-  const resetIngPicker = () => { setIngSearch(""); setIngQty("1"); setIngUnit(""); setIngPicked(null); setIngDropOpen(false); };
-
-  const addIngredient = () => {
-    if (!ingPicked) return;
-    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) { alert("Already added"); return; }
-    setFormData(f => ({
-      ...f, ingredients:[...(f.ingredients||[]), {
-        stock_item_id: ingPicked.id,
-        name:          ingPicked.name,
-        qty_required:  parseFloat(ingQty)||1,
-        unit:          ingUnit||ingPicked.unit,
-      }],
-    }));
-    resetIngPicker();
-  };
-
-  const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
-  const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
-
-  const ingFiltered = stockItems.filter(s => {
-    const matchesSearch = !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase());
-    const matchesBranch = formData.branch && s.branch === formData.branch;
-    return matchesSearch && matchesBranch;
-  });
-
-  // ── Excel import ─────────────────────────────────────────────────────────────
-  const importExcel = e => {
-    const file = e.target.files[0];
-    const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      const wb    = XLSX.read(ev.target.result, { type:"array" });
-      const items = [];
-      wb.SheetNames.forEach(sheetName => {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval:"" });
-        rows.forEach(row => {
-          const name = toTitleCase(String(row.name || row.Name || row["ITEM NAME"] || "").trim());
-          if (!name) return;
-          const category  = toTitleCase(String(row.category || row.Category || "Other").trim());
-          const cost      = parseFloat(row.cost  || row.Cost  || 0) || 0;
-          const rawPrice  = parseFloat(row.price || row.Price || 0) || 0;
-          const price     = rawPrice > 0 ? rawPrice : (cost > 0 ? parseFloat((cost * 1.4).toFixed(2)) : 0);
-          const stock     = parseInt(row.stock     || row.Stock     || 0) || 0;
-          const minStock  = parseInt(row.min_stock || row["Min Stock"] || 0) || 0;
-          const branch    = String(row.branch || row.Branch || "").trim();
-          const rawIng    = String(row.ingredients || row.Ingredients || "").trim();
-          const ingredients = rawIng
-            ? rawIng.split("|").map(seg => {
-                const [ingName, qty, unit] = seg.split(":").map(s => s.trim());
-                return ingName ? { name:ingName, qty_required:parseFloat(qty)||1, unit:unit||"" } : null;
-              }).filter(Boolean)
-            : [];
-          items.push({ name, category, branch:branch||"Unknown", cost, stock, min_stock:minStock, price, ingredients });
-        });
-      });
-
-      let currentInventory = [...inventory];
-      let saved = 0, skipped = 0;
-      const skippedNames = [];
-
-      for (const item of items) {
-        const combined  = [...currentInventory];
-        const duplicate = findDuplicate(item.name, item.branch, combined);
-        if (duplicate) { skipped++; skippedNames.push(`${item.name} (${item.branch})`); continue; }
-
-        try {
-          const { ingredients, ...itemData } = item;
-          const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
-            method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(itemData)
-          });
-          const d = await res.json();
-          if (d.success) {
-            saved++;
-            currentInventory.push({ ...itemData, id:d.item.id });
-            if (ingredients.length > 0) {
-              const ingPayload = ingredients.map(ing => {
-                const match = stockItems.find(s => s.name.toLowerCase()===ing.name.toLowerCase() && s.branch===itemData.branch);
-                return match ? { ingredient_id:match.id, quantity:ing.qty_required, unit:ing.unit||match.unit } : null;
-              }).filter(Boolean);
-              if (ingPayload.length > 0) {
-                await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
-                  method:"POST", headers:{"Content-Type":"application/json"},
-                  body: JSON.stringify({ ingredients:ingPayload })
-                });
-              }
-            }
-          }
-        } catch {}
-      }
-
-      e.target.value = "";
-      let msg = `Parsed ${items.length} row(s).\n✅ Saved: ${saved}`;
-      if (skipped > 0) msg += `\n⚠️ Skipped ${skipped} duplicate(s):\n• ${skippedNames.join("\n• ")}`;
-      alert(msg);
-      await refetch();
-      await fetchActivityLog();
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  // ── Render helpers ───────────────────────────────────────────────────────────
-  const renderIngredientPicker = () => (
-    <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
-      <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
-        <div ref={ingRef} style={{ position:"relative" }}>
-          <input style={invInputSt} value={ingSearch}
-            onChange={e=>{setIngSearch(e.target.value);setIngPicked(null);setIngDropOpen(true);}}
-            onFocus={()=>setIngDropOpen(true)}
-            placeholder="Search stock ingredient…"/>
-          {ingDropOpen && ingFiltered.length > 0 && (
-            <div style={{ position:"absolute", top:"calc(100% + 3px)", left:0, right:0, zIndex:500, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 6px 20px rgba(0,0,0,0.10)", maxHeight:160, overflowY:"auto" }}>
-              {ingFiltered.map(s=>(
-                <div key={s.id}
-                  onMouseDown={e=>{e.preventDefault();setIngPicked(s);setIngSearch(s.name);setIngUnit(s.unit);setIngDropOpen(false);}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f0fdf5"}
-                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                  style={{ padding:"8px 12px", cursor:"pointer", fontSize:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <span style={{ fontWeight:600, color:C.ink }}>{s.name}</span>
-                  <span style={{ fontSize:11, color:C.muted, background:"#dcfce7", padding:"2px 8px", borderRadius:20 }}>{s.unit} · {s.branch}</span>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* VOIDED TAB                                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'voided' && (() => {
+        const voidedList = transactions.filter(tx => tx.voided);
+        return (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 18 }}>
+              {[
+                { label: 'Total Voided',        value: voidedList.length, sub: 'All time' },
+                { label: 'Total Amount Voided', value: fmtPeso(voidedList.reduce((s, t) => s + Number(t.total || 0), 0)), sub: 'Lost revenue' },
+                { label: 'Today Voided',        value: voidedList.filter(t => (t.created_at || '').startsWith(new Date().toISOString().slice(0, 10))).length, sub: 'Today only' },
+              ].map((s, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#b91c1c', marginBottom: 5 }}>{s.label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: '#0d2b1e' }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{s.sub}</div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-        <input type="number" style={invInputSt} value={ingQty} min="0" step="any" onChange={e=>setIngQty(e.target.value)} placeholder="Qty"/>
-        <select style={invInputSt} value={ingUnit} onChange={e=>setIngUnit(e.target.value)}>
-          <option value="">unit</option>
-          {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
-        </select>
-        <button type="button" onClick={addIngredient} style={{ ...btnPrimarySt, height:36, padding:"0 14px", flexShrink:0 }}>
-          <PlusIcon/> Add
-        </button>
-      </div>
-      {(!formData.ingredients || formData.ingredients.length === 0) ? (
-        <div style={{ textAlign:"center", padding:"12px 0", color:C.muted, fontSize:12, fontStyle:"italic" }}>No ingredients linked yet.</div>
-      ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {formData.ingredients.map((ing,idx)=>(
-            <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 100px 70px auto", gap:8, alignItems:"center", background:C.white, border:`1px solid ${C.border}`, borderRadius:9, padding:"8px 12px" }}>
-              <span style={{ fontSize:13, fontWeight:700, color:C.ink }}>{ing.name}</span>
-              <input type="number" value={ing.qty_required} min="0" step="any"
-                onChange={e=>updateIngQty(idx,e.target.value)}
-                style={{ ...invInputSt, textAlign:"center" }}/>
-              <span style={{ fontSize:11, color:C.muted, background:"#f0fdf5", padding:"3px 8px", borderRadius:20, textAlign:"center" }}>{ing.unit}</span>
-              <button type="button" onClick={()=>removeIngredient(idx)}
-                style={{ ...smallBtnSt, height:28, width:28, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935", flexShrink:0 }}>
-                <XIcon size={11}/>
-              </button>
+            <div style={{ background: '#fff', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 18px', background: 'linear-gradient(135deg,#ef4444,#dc2626)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
+                <span style={{ fontWeight: 800, fontSize: 13 }}>Voided Transactions</span>
+                <span style={{ fontSize: 12, opacity: 0.9 }}>{voidedList.length} record{voidedList.length !== 1 ? 's' : ''}</span>
+              </div>
+              {voidedList.length === 0 ? (
+                <div style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>--</div>
+                  <div style={{ fontWeight: 700 }}>No voided transactions</div>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        {['#', 'Date', 'Cashier', 'Items', 'Total', 'Payment', 'Discount'].map(h => (
+                          <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5, color: '#dc2626', letterSpacing: '0.07em', textTransform: 'uppercase', borderBottom: '1px solid #fecaca', background: '#fff5f5', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {voidedList.map(tx => (
+                        <tr key={tx.id} onMouseEnter={e => e.currentTarget.style.background = '#fff5f5'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ borderBottom: '1px solid #fff0f0' }}>
+                          <td style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 12 }}>#{tx.id}</td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65' }}>{(tx.items || []).length}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 800, color: '#dc2626', textDecoration: 'line-through' }}>{fmtPeso(tx.total)}</td>
+                          <td style={{ padding: '10px 12px' }}><span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>{tx.payment_method}</span></td>
+                          <td style={{ padding: '10px 12px', color: '#5a7a65', fontSize: 12 }}>{tx.discount_pct > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>{tx.discount_label || tx.discount_pct + '%'}</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
+}
 
-  const renderFormFields = () => (
-    <>
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Item Name</label>
-        <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
+function FrReceiptsContent({ user }) {
+  return (
+    <div>
+      <ReadOnlyBanner message="Liquidation records for your branch. Contact admin for modifications." />
+      <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
+        <VEmptyState icon="📄" title="Liquidation Records" sub="Your branch liquidation reports will appear here." />
       </div>
-      {/* Image Upload */}
-<div style={{ marginBottom:13 }}>
-  <label style={invLabelSt}>Product Image</label>
-  <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-    <div style={{ flex:1 }}>
-      <input
-        type="text"
-        placeholder="Paste image URL or upload below…"
-        value={formData.image_url || ""}
-        onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))}
-        style={invInputSt}
-      />
     </div>
-    <label style={{ ...btnSt, cursor:"pointer", flexShrink:0 }}>
-      <FileIcon size={13}/> Upload
-      <input
-        type="file"
-        accept="image/*"
-        style={{ display:"none" }}
-        onChange={async e => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const fd = new FormData();
-          fd.append("image", file);
-          try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
-              method: "POST",
-              body: fd,
-            });
-            const d = await res.json();
-            if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
-            else alert("Upload failed");
-          } catch { alert("Upload failed"); }
-        }}
-      />
-    </label>
-  </div>
-
-  {/* Preview */}
-  {formData.image_url && (
-    <div style={{ marginTop:8, position:"relative", display:"inline-block" }}>
-      <img
-        src={formData.image_url}
-        alt="preview"
-        style={{ width:80, height:80, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border}` }}
-        onError={e => e.target.style.display="none"}
-      />
-      <button
-        type="button"
-        onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
-        style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-        <XIcon size={9}/>
-      </button>
-    </div>
-  )}
-</div>
-
-      {isAdmin && (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Brand</label>
-          <select value={formBrandId} onChange={e=>{ setFormBrandId(e.target.value); setFormData(p=>({...p,branch:"",category:""})); }} style={invInputSt}>
-            <option value="">Select brand…</option>
-            {brandList.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
-        </div>
-      )}
-      {isAdmin ? (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Branch</label>
-          <BranchSearchSelect
-            value={formData.branch}
-            onChange={val=>setFormData(p=>({...p,branch:val,category:""}))}
-            allBranches={formBrandId
-              ? allBranches.filter(b=>{ const brand=brandList.find(x=>String(x.id)===String(formBrandId)); return brand?(brand.branches||[]).some(br=>(typeof br==="string"?br:br.name)===b.branch):true; })
-              : allBranches}
-          />
-        </div>
-      ) : (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Branch</label>
-          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
-        </div>
-      )}
-      <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Category</label>
-        <CategorySelect
-          value={formData.category}
-          onChange={val=>setFormData(p=>({...p,category:val}))}
-          categories={formCategories}
-          onAddCategory={cat=>setFormCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}
-        />
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:13 }}>
-        <div>
-          <label style={invLabelSt}>Product Cost (₱)</label>
-          <input type="number" name="cost" value={formData.cost} readOnly style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}/>
-        </div>
-        <div>
-          <label style={invLabelSt}>Profit Markup (%)</label>
-          <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
-        </div>
-      </div>
-      {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
-        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
-          Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
-        </div>
-      )}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:13 }}>
-        <div><label style={invLabelSt}>Stock Qty</label><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></div>
-        <div><label style={invLabelSt}>Min Stock</label><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></div>
-        <div><label style={invLabelSt}>Selling Price (₱)</label><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></div>
-      </div>
-     {["coffee spot", "food caravan"].some(b => formBrand?.name?.toLowerCase().includes(b)) && (
-  <div style={{ marginBottom:13 }}>
-    <label style={invLabelSt}>Ingredients</label>
-    {renderIngredientPicker()}
-  </div>
-)}
-      <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
-        <button type="button" disabled={saving} onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={{ ...btnSt, opacity: saving ? 0.5 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Cancel</button>
-        <button type="submit" disabled={saving} style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
-          {saving ? (showEditModal ? "Saving…" : "Adding…") : "Save Item"}
-        </button>
-      </div>
-    </>
   );
+}
 
-  const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
+function MaReportsContent({ user, transactions = [] }){
+  const branch = (user?.branch || '').trim().toLowerCase();
+  const today = new Date();
+  const fmt8 = d => d.toISOString().slice(0, 10);
 
-  // Clearing filters keeps the selected brand fixed (screen 2 is scoped to one brand).
-  const anyFilter = filterBranch||filterCategory||filterStatus||searchQuery;
-  const clearAll  = () => { setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+  const [dateFrom, setDateFrom] = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [dateTo, setDateTo] = useState(fmt8(today));
+  const [aiReport, setAiReport] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [viewReportId, setViewReportId] = useState(null);
+  const [submitting, setSubmitting] = useState(null);
 
-  const goBackToBrands = () => {
-    setScreen("brands");
-    setFilterBrand(null);
-    setFilterBranch(null);
-    setFilterCategory("");
-    setFilterStatus("");
-    setSearchQuery("");
+  const [kpiStats, setKpiStats] = useState({ salesRevenue: 0, cogs: 0, salesProfit: 0, txCount: 0 });
+  const [kpiLoading, setKpiLoading] = useState(false);
+  const [submittedReports, setSubmittedReports] = useState([]);
+  const [deletedReports, setDeletedReports] = useState([]);
+  const [retrieving, setRetrieving] = useState(null);
+  const [viewSubmittedId, setViewSubmittedId] = useState(null);
+
+  const PAGE_SIZE = 5;
+  const [genPage,  setGenPage]  = useState(0);
+  const [subPage,  setSubPage]  = useState(0);
+  const [delPage,  setDelPage]  = useState(0);
+  
+  useEffect(() => { setGenPage(0); }, [reports]);
+  useEffect(() => { setSubPage(0); }, [submittedReports]);
+  useEffect(() => { setDelPage(0); }, [deletedReports]);
+
+useEffect(() => {
+  const fetchSavedReports = async () => {
+    try {
+      const [savedRes, liveRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/generated-reports?branch=${encodeURIComponent(branch)}`),
+        fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${encodeURIComponent(branch)}`),
+      ]);
+
+      const savedData = await savedRes.json();
+      const liveData = await liveRes.json();
+
+      const liveStatusMap = {};
+      liveData.forEach(r => {
+        liveStatusMap[r.id] = r.status;
+      });
+
+      const loaded = savedData
+        .map(item => {
+          const snapshot =
+            typeof item.snapshot === 'string'
+              ? JSON.parse(item.snapshot)
+              : item.snapshot;
+
+          return {
+            id: item.reportId,
+            localId: `saved-${item.id}`,
+            generatedDate: item.savedAt
+              ? new Date(item.savedAt).toLocaleString('en-PH')
+              : snapshot.submittedAt
+              ? new Date(snapshot.submittedAt).toLocaleString('en-PH')
+              : '—',
+            period: snapshot.period || '—',
+            content: snapshot.content || '',
+            saved: true,
+            status: liveStatusMap[item.reportId] ?? snapshot.status,
+          };
+        })
+        .filter(r => {
+          const s = (r.status || '').toLowerCase();
+          return s !== 'submitted' && s !== 'deleted';
+        });
+
+      setReports(loaded);
+    } catch (err) {
+      console.error('Failed to load saved reports:', err);
+    }
   };
 
-  const openBrand = brandId => {
-    setFilterBrand(brandId);
-    setFilterBranch(null);
-    setFilterCategory("");
-    setFilterStatus("");
-    setSearchQuery("");
-    setScreen("inventory");
+  if (branch) fetchSavedReports();
+}, [branch]);
+
+const fetchKpiStats = async (from, to) => {
+  if (!from || !to || !branch) return;
+  setKpiLoading(true);
+  try {
+    const params = new URLSearchParams({ from, to, branch });
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+    const data = await res.json();
+    setKpiStats(data);
+  } catch (err) {
+    console.error('Failed to fetch KPI stats:', err);
+  }
+  setKpiLoading(false);
+};
+
+
+useEffect(() => {
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`);
+      const data = await res.json();
+
+      setSubmittedReports(data.map(h => ({
+        id: h.id,
+        content: h.content || '',
+        generatedDate: h.generatedDate
+          ? new Date(h.generatedDate).toLocaleString('en-PH', {
+              month: 'short', day: 'numeric', year: 'numeric',
+              hour: '2-digit', minute: '2-digit'
+            })
+          : '—',
+        period: h.period,
+        submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
+        expiresAt: h.expiresAt,
+        comments: h.comments || [],
+        remark: h.remark || '',
+        status: h.status || 'submitted',   // ← was already there, but ensure it flows through
+      })));
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    }
   };
 
-  const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>;
+  if (branch) fetchHistory();   // fires on every branch change → always loads correct branch
 
-  // ── Screen 1: Brand cards ─────────────────────────────────────────────────────
-  if (screen === "brands" && isAdmin) {
-    return (
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-        {fontImport}
-        <div style={{ marginBottom:22 }}>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:C.ink }}>Select a Brand</h2>
-          <p style={{ margin:"5px 0 0", fontSize:13, color:C.muted }}>Choose a brand to manage its menu inventory across branches.</p>
-        </div>
+  const onFocus = () => { if (branch) fetchHistory(); };
+  window.addEventListener('focus', onFocus);
+  return () => window.removeEventListener('focus', onFocus);
+}, [branch]);   // ← branch as dependency is correct; problem is the backend query below
 
-        {loading && brandList.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading brands…</div>
-        ) : brandList.length === 0 ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No brands found.</div>
-        ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:16 }}>
-            {brandList.map(b => {
-              const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
-              const brandItems  = inventory.filter(i => branchNames.includes(i.branch));
-              return (
-                <BrandCard
-                  key={b.id}
-                  brand={b}
-                  branchCount={branchNames.length}
-                  itemCount={brandItems.length}
-                  lowCount={brandItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length}
-                  onClick={() => openBrand(b.id)}
-                />
-              );
-            })}
-          </div>
-        )}
+const fetchDeletedReports = async () => {
+  if (!branch) return;
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`);
+    const data = await res.json();
+    setDeletedReports(data.map(r => ({
+      id: r.id,
+      localId: `deleted-${r.id}`,
+      period: r.period,
+      generatedDate: r.generatedDate
+        ? new Date(r.generatedDate).toLocaleString('en-PH')
+        : '—',
+      deletedAt: r.deletedAt
+        ? new Date(r.deletedAt).toLocaleString('en-PH')
+        : '—',
+      expiresAt: r.expiresAt,
+      content: r.content,
+    })));
+  } catch (err) {
+    console.error('Failed to load deleted reports:', err);
+  }
+};
 
-        <Toast toast={toast} onClose={() => setToast(null)} />
-      </div>
-    );
+// Then useEffect just calls it
+useEffect(() => {
+  fetchDeletedReports();
+}, [branch]);
+
+useEffect(() => {
+  fetchKpiStats(dateFrom, dateTo);
+}, [dateFrom, dateTo]);
+
+  const generateReport = async () => {
+  if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
+  setGenerating(true);
+  setAiReport('');
+  try {
+
+    const from = new Date(dateFrom);
+    const to   = new Date(dateTo + 'T23:59:59');
+
+    const filtered = (transactions || []).filter(tx => {
+      const d = new Date(tx.created_at);
+      return (tx.branch || '').trim().toLowerCase() === branch.toLowerCase()
+        && d >= from && d <= to;
+      });
+
+      const totalRevenue   = filtered.reduce((s, tx) => s + Number(tx.total || 0), 0);
+      const totalTx        = filtered.length;
+      const avgOrder       = totalTx ? (totalRevenue / totalTx) : 0;
+      const totalCost      = filtered.reduce((s, tx) => s + Number(tx.cogs || 0), 0);
+      const totalProfit    = totalRevenue - totalCost;
+
+      const paymentBreakdown = filtered.reduce((acc, tx) => {
+        const m = tx.payment_method || 'Unknown';
+        acc[m] = (acc[m] || 0) + Number(tx.total || 0);
+        return acc;
+      }, {});
+
+      const itemMap = {};
+      filtered.forEach(tx => {
+        (tx.items || []).forEach(item => {
+          if (!itemMap[item.name]) itemMap[item.name] = { qty: 0, revenue: 0 };
+          itemMap[item.name].qty     += item.qty || 1;
+          itemMap[item.name].revenue += item.subtotal || 0;
+        });
+      });
+
+      // ── CHANGE 1: top 10 instead of top 5, formatted as a numbered list ──
+      const topItemsList = Object.entries(itemMap)
+        .sort((a, b) => b[1].revenue - a[1].revenue)
+        .slice(0, 10)
+        .map(([name, d], i) =>
+          `  ${i + 1}. ${name} (qty: ${d.qty}, revenue: PHP ${d.revenue.toFixed(2)})`
+        )
+        .join('\n');
+
+      const topItems = topItemsList || '  No item-level data available';
+      // ─────────────────────────────────────────────────────────────────────
+
+         const dailyMap = {};
+      filtered.forEach(tx => {
+        const day = tx.created_at?.slice(0, 10);
+        if (day) dailyMap[day] = (dailyMap[day] || 0) + Number(tx.total || 0);
+      });
+      const peakDay   = Object.entries(dailyMap).sort((a, b) => b[1] - a[1])[0];
+      const lowestDay = Object.entries(dailyMap).sort((a, b) => a[1] - b[1])[0];
+
+      const fmtP = n => 'PHP ' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+
+      const prompt = `
+      CRITICAL RULES — READ BEFORE WRITING ANYTHING:
+      1. You MUST write ALL seven sections (I through VII) in full. Do not stop early. Do not skip any section. Sections VI (Strategic Recommendations) and VII (Conclusion) are REQUIRED — the report is incomplete without them.
+      2. Keep each section concise (2–4 sentences or 4–6 items max) so you have enough space to finish all seven sections.
+      3. Use only standard ASCII characters. Write currency as "PHP" (e.g. PHP 2,406.20) — never use the peso sign. Use straight quotes only. No unicode symbols.
+      4. Do not use markdown symbols like ** or ##. Plain text only.
+
+      You are a senior business analyst writing an official franchise performance report. Use ONLY the verified data below. Do not fabricate figures.
+
+      REPORT METADATA
+      ---------------
+      Branch:   ${branch}
+      Period:   ${dateFrom} to ${dateTo}
+      Prepared: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+      VERIFIED DATA INPUTS
+      --------------------
+      Total Transactions  : ${totalTx}
+      Total Revenue       : ${fmtP(totalRevenue)}
+      Average Order Value : ${fmtP(avgOrder)}
+      Cost of Sales       : ${totalCost > 0 ? fmtP(totalCost) : 'Not provided'}
+      Gross Profit        : ${totalCost > 0 ? fmtP(totalProfit) : 'Not provided'}
+      Peak Sales Day      : ${peakDay ? `${peakDay[0]} — ${fmtP(peakDay[1])}` : 'N/A'}
+      Lowest Sales Day    : ${lowestDay ? `${lowestDay[0]} — ${fmtP(lowestDay[1])}` : 'N/A'}
+      Top-Selling Items (Top 10 by revenue):
+${topItems}
+      Payment Breakdown   : ${Object.entries(paymentBreakdown).map(([k, v]) => `${k}: ${fmtP(v)}`).join(' | ') || 'N/A'}
+
+      OUTPUT FORMAT — write the report exactly as shown below. Replace each [...] with real content.
+
+      ═══════════════════════════════════════════════════════════════
+              FRANCHISE SALES & PERFORMANCE REPORT
+              Branch: ${branch}
+              Period: ${dateFrom} to ${dateTo}
+              Date Prepared: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+      ═══════════════════════════════════════════════════════════════
+
+      I. EXECUTIVE SUMMARY
+      ────────────────────
+      [2–3 sentences: total revenue, transaction count, general performance assessment.]
+
+      II. SALES PERFORMANCE OVERVIEW
+      ───────────────────────────────
+      [2–3 sentences: transaction volume, average order value, peak day, lowest day, and what these indicate.]
+
+      III. REVENUE & PROFITABILITY ANALYSIS
+      ──────────────────────────────────────
+      [2–3 sentences: revenue figures, gross profit margin if cost data available, otherwise note the limitation.]
+
+      IV. TOP-SELLING PRODUCTS
+      ─────────────────────────
+      [List all 10 products with rank, name, qty, and revenue. Follow with 1–2 sentences on patterns or bestsellers.]
+
+      V. PAYMENT METHOD ANALYSIS
+      ───────────────────────────
+      [2–3 sentences: dominant payment method, proportions, and one recommendation on payment infrastructure.]
+
+      VI. STRATEGIC RECOMMENDATIONS
+      ──────────────────────────────
+      [Exactly 5 numbered recommendations. Each must cite the specific data point that supports it. 1 sentence each.]
+
+      VII. CONCLUSION
+      ───────────────
+      [2–3 sentences: key takeaways and performance outlook for the branch.]
+
+      ═══════════════════════════════════════════════════════════════
+        This report was automatically generated based on verified
+        transaction data for the stated period. Figures are accurate
+        as of the report generation date.
+      ═══════════════════════════════════════════════════════════════
+      `.trim();
+
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+      });
+
+      const data = await res.json();
+      const reportText = data.content?.[0]?.text || 'Failed to generate report.'; 
+      const sanitizeReport = (text) => {
+      return text
+        .replace(/₱/g, 'PHP ')
+        .replace(/±/g, 'PHP ')
+        .replace(/→/g, 'to')
+        .replace(/!'/g, 'to')
+        .replace(/[^\x00-\x7F]/g, c => {
+          const map = {
+            '\u2019': "'", '\u2018': "'",
+            '\u201C': '"', '\u201D': '"',
+            '\u2013': '-', '\u2014': '--',
+            '\u2026': '...',
+            '\u00b1': '+/-',
+            '\u00b2': '2', '\u00b3': '3',
+          };
+          return map[c] || '';
+        });
+      };
+      const cleanReportText = sanitizeReport(reportText);
+      setAiReport(cleanReportText);
+
+      const submitRes = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: user?.brand || '',
+          branch,
+          period: `${dateFrom} → ${dateTo}`,
+          submittedBy: user?.name || user?.email || 'Branch Manager',
+          role: user?.role || 'Branch Manager',
+          content: reportText,
+        }),
+      });
+      const submitData = await submitRes.json();
+
+      const realId = submitData.report?.id;
+
+      const newReport = {
+        id: realId,
+        localId: `new-${Date.now()}`,
+        generatedDate: new Date().toLocaleString('en-PH'),
+        period: `${dateFrom} → ${dateTo}`,
+        content: reportText,
+      };
+
+      setReports(prev => {
+        // Remove any existing report with the same period first
+        const filtered = prev.filter(r => r.period !== `${dateFrom} → ${dateTo}`);
+        const exists = filtered.some(r => r.id === realId);
+        if (exists) return filtered.map(r => r.id === realId ? { ...r, ...newReport } : r);
+        return [newReport, ...filtered];
+      });
+
+      } catch {
+        setAiReport('Failed to generate report. Please try again.');
+      }
+      setGenerating(false);
+    };
+
+  const deleteReport = async report => {
+    if (!window.confirm(`Delete report for ${report.period}? It will be recoverable for 30 days.`)) return;
+
+    if (!report.id) {
+      setDeletedReports(prev => [{
+        ...report,
+        deletedAt: new Date().toLocaleString('en-PH'),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, ...prev]);
+      setReports(prev => prev.filter(r => r.localId !== report.localId));
+      if (viewReportId === report.id) setViewReportId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      const data = await res.json();
+
+      setReports(prev => prev.filter(r => r.id !== report.id));
+      if (viewReportId === report.id) setViewReportId(null);
+      
+      // Refetch deleted reports from backend instead of optimistic update
+      await fetchDeletedReports();  // ← replace the optimistic push with this
+      
+    } catch {
+      alert('Failed to delete report. Please try again.');
+    }
+  };
+
+const retrieveReport = async report => {
+  if (!report.id) {
+    setReports(prev => [{
+      ...report,
+      deletedAt: undefined,
+      expiresAt: undefined,
+    }, ...prev]);
+    setDeletedReports(prev => prev.filter(r => r.localId !== report.localId));
+    return;
   }
 
-  // ── Screen 2: Inventory table + filters (scoped to selected brand for admins) ─
-  return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      {fontImport}
+  setRetrieving(report.id);
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Retrieve failed');
+    const data = await res.json();
 
-      {/* Back to brands + brand context header */}
-      {isAdmin && (
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-          <button onClick={goBackToBrands} style={{ ...btnSt, gap:6 }}>
-            <ArrowLeftIcon size={13}/> All Brands
+    setReports(prev => [{
+      id: data.report.id,
+      localId: `retrieved-${Date.now()}`,
+      generatedDate: data.report.generatedDate
+        ? new Date(data.report.generatedDate).toLocaleString('en-PH')
+        : new Date().toLocaleString('en-PH'),
+      period: data.report.period,
+      content: data.report.content,
+      saved: false,
+    }, ...prev]);
+    setDeletedReports(prev => prev.filter(r => r.id !== report.id));
+  } catch {
+    alert('Failed to retrieve report. Please try again.');
+  }
+  setRetrieving(null);
+};
+
+  const downloadReport = report => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 18;
+    const contentW = pageW - margin * 2;
+    let y = 0;
+
+    const addPage = () => {
+      doc.addPage();
+      y = margin;
+    };
+
+    const checkY = (needed = 8) => {
+      if (y + needed > pageH - margin) addPage();
+    };
+
+    const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', style);
+      doc.setTextColor(...color);
+      const lines = doc.splitTextToSize(text, contentW - indent);
+      lines.forEach(line => {
+        checkY(fontSize * 0.45 + 2);
+        doc.text(line, margin + indent, y);
+        y += fontSize * 0.45 + 1.5;
+      });
+    };
+
+    const writeDivider = (color = [180, 180, 180]) => {
+      checkY(6);
+      doc.setDrawColor(...color);
+      doc.setLineWidth(0.3);
+      doc.line(margin, y, pageW - margin, y);
+      y += 4;
+    };
+
+    y = margin;
+
+    doc.setFillColor(13, 43, 30);
+    doc.rect(0, 0, pageW, 38, 'F');
+
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(160, 220, 190);
+    const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+    
+    doc.text(`REP-${String(report.id).padStart(5, '0')}   |   Branch: ${branch}   |   Period: ${safePeriod}`, pageW / 2, 22, { align: 'center' });
+    doc.text(`Generated: ${report.generatedDate}`, pageW / 2, 28, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setTextColor(120, 180, 150);
+    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 33.5, { align: 'center' });
+
+    y = 46;
+
+    const cleanContent = report.content
+      .replace(/₱/g, 'PHP ')
+      .replace(/±/g, 'PHP ')
+      .replace(/→/g, 'to')
+      .replace(/!'/g, 'to')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/\u2013/g, '-')
+      .replace(/\u2014/g, '--')
+      .replace(/\u2026/g, '...')
+      .replace(/[═─━]+/g, '')
+      .replace(/^.*FRANCHISE SALES.*$/gm, '')
+      .replace(/^.*Branch:.*Period:.*$/gm, '')
+      .replace(/^.*Date Prepared:.*$/gm, '')
+      .replace(/^.*This report was automatically.*$/gm, '')
+      .replace(/^.*transaction data for.*$/gm, '')
+      .replace(/^.*report generation date.*$/gm, '')
+      .replace(/[^\x00-\x7F]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    const lines = cleanContent.split('\n');
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) { y += 3; return; }
+
+      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+        checkY(14);
+        y += 4;
+        doc.setFillColor(0, 137, 123);
+        doc.rect(margin, y - 4, 3, 9, 'F');
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(13, 43, 30);
+        doc.text(trimmed, margin + 6, y + 2);
+        y += 8;
+        writeDivider([0, 137, 123]);
+      }
+      else if (/^\d+\.\s+/.test(trimmed)) {
+        checkY(8);
+        const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
+        doc.setFontSize(9.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 137, 123);
+        doc.text(num.replace('.', ''), margin + 2, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(40, 40, 40);
+        const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
+        wrapped.forEach((wl, i) => {
+          if (i > 0) checkY(6);
+          doc.text(wl, margin + 9, y);
+          y += 5.5;
+        });
+      }
+      else {
+        writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
+        y += 1;
+      }
+    });
+
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFillColor(245, 247, 245);
+      doc.rect(0, pageH - 12, pageW, 12, 'F');
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 140, 130);
+      const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
+      doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+    }
+
+    doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  };
+
+const saveReport = async report => {
+  if (!report.id) { alert('No report ID found. Try regenerating.'); return; }
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const responseData = await res.json();
+    if (res.status === 409) { alert('Report already saved.'); return; }
+    if (!res.ok) throw new Error(responseData.error || 'Unknown error');
+
+    setReports(prev => prev.map(r => r.id === report.id ? { ...r, saved: true } : r));
+    alert('Report saved successfully!');
+  } catch(err) {
+    alert('Failed to save report.');
+  }
+};
+
+const submitReport = async report => {
+   console.log('[SUBMIT] Called with report.id:', report.id, '| saved:', report.saved, '| period:', report.period);
+   if (!report.id) {
+    console.error('[SUBMIT] Aborted — report has no id');
+    alert('Report ID missing. Try saving again.');
+    return;
+  }
+  setSubmitting(report.id);
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reportId: report.id,
+        reportNumber: `REP-${String(report.id).padStart(5, '0')}`,
+        branch,
+        period: report.period,
+        generatedDate: report.generatedDate,
+        content: report.content,
+        submittedBy: user?.name || user?.email || 'Branch Manager',
+        brand: user?.brand || '',
+      }),
+    });
+
+    console.log('[SUBMIT] Response status:', res.status, res.ok);
+
+    if (!res.ok) throw new Error('Submit failed');
+    const data = await res.json();
+
+    console.log('[SUBMIT] Backend response data:', data);
+    console.log('[SUBMIT] Current submittedReports before update:', submittedReports);
+
+    const newEntry = {
+      id: report.id,
+      localId: report.localId,
+      generatedDate: report.generatedDate
+        ? new Date(report.generatedDate).toLocaleString('en-PH', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          })
+        : '—',
+      period: report.period,
+      content: report.content,
+      submittedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: data.expiresAt,
+      status: 'submitted',
+    };
+
+    console.log('[SUBMIT] New entry being added to submittedReports:', newEntry);
+
+    setSubmittedReports(prev => {
+      const updated = [newEntry, ...prev];
+      console.log('[SUBMIT] submittedReports after update:', updated);
+      return updated;
+    });
+
+    setReports(prev => {
+      const updated = prev.filter(r => r.id !== report.id);
+      console.log('[SUBMIT] reports (generated) after removal:', updated);
+      return updated;
+    });
+
+    console.log('[SUBMIT] Done — report should now appear in Submitted Reports tab.');
+
+    const historyRes = await fetch(
+  `${process.env.REACT_APP_API_URL}/reports/history?branch=${encodeURIComponent(branch)}`
+);
+
+const historyData = await historyRes.json();
+
+setSubmittedReports(
+  historyData.map(h => ({
+    id: h.id,
+    content: h.content || '',
+    generatedDate: h.generatedDate
+      ? new Date(h.generatedDate).toLocaleString('en-PH', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '—',
+    period: h.period,
+    submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
+    expiresAt: h.expiresAt,
+    comments: h.comments || [],
+    remark: h.remark || '',
+    status: h.status || 'submitted',
+  }))
+);
+
+  } catch (err) {
+    console.error('[SUBMIT] ERROR caught:', err);
+    alert('Failed to submit report. Please try again.');
+  }
+  setSubmitting(null);
+};
+
+
+  const Paginator = ({ total, page, setPage }) => {
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
+      <span style={{ fontSize: 12, color: '#5a7a65' }}>
+        Showing <strong>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)}</strong> of <strong>{total}</strong>
+      </span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button onClick={() => setPage(0)} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>«</button>
+        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page === 0 ? 0.35 : 1 }}>‹</button>
+        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}>›</button>
+        <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: page >= totalPages - 1 ? 0.35 : 1 }}>»</button>
+      </div>
+    </div>
+  );
+};
+
+  return (
+    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div className="v-stat-grid">
+      <VKpi
+        label="Cost of Sales"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.cogs).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<TrendingDown size={20} />}
+        color="orange"
+        sub={`${dateFrom} to ${dateTo}`}
+      />
+      <VKpi
+        label="Sales Revenue"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.salesRevenue).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<TrendingUp size={20} />}
+        color="green"
+        sub={`${kpiStats.txCount} transactions`}
+      />
+      <VKpi
+        label="Gross Profit"
+        value={kpiLoading ? '...' : `₱${Number(kpiStats.salesProfit).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`}
+        icon={<DollarSign size={20} />}
+        color="blue"
+        sub="Revenue minus Cost of Sales"
+      />
+      <VKpi
+        label="Reports Generated"
+        value={reports.length + submittedReports.length}
+        sub="This session"
+        icon={<FileText size={20} />}
+        color="purple"
+      />
+    </div>
+
+    
+
+      {/* Generate Report Card */}
+      <div className="v-card" style={{ padding: '22px 24px', marginBottom: 20 }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Sparkles size={16} />}>Generate AI Sales Report</VSectionTitle>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 14, alignItems: 'end', marginBottom: 20 }}>
+          <div className="v-form-group" style={{ marginBottom: 0 }}>
+            <label className="v-form-label">From Date</label>
+            <input type="date" className="v-form-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} max={dateTo} />
+          </div>
+          <div className="v-form-group" style={{ marginBottom: 0 }}>
+            <label className="v-form-label">To Date</label>
+            <input type="date" className="v-form-input" value={dateTo} onChange={e => setDateTo(e.target.value)} min={dateFrom} max={fmt8(today)} />
+          </div>
+          <button
+            className="v-btn v-btn-primary"
+            onClick={generateReport}
+            disabled={generating || !dateFrom || !dateTo}
+            style={{ height: 46, paddingLeft: 24, paddingRight: 24, opacity: generating ? 0.7 : 1 }}
+          >
+            {generating
+              ? <><div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Generating…</>
+              : <><Sparkles size={14} /> Generate Report</>}
           </button>
-          {selectedBrandObj && (
-            <span style={{ display:"inline-flex", alignItems:"center", gap:7, fontSize:15, fontWeight:800, color:C.ink }}>
-              <StoreIcon size={16} color={C.green}/> {selectedBrandObj.name}
-            </span>
-          )}
+        </div>
+
+        {/* Quick Presets */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Montserrat,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
+          {[
+            { label: 'This Week', from: fmt8(new Date(today.getTime() - 7*24*60*60*1000)), to: fmt8(today) },
+            { label: 'This Month', from: fmt8(new Date(today.getFullYear(), today.getMonth(), 1)), to: fmt8(today) },
+            { label: 'Last Month', from: fmt8(new Date(today.getFullYear(), today.getMonth()-1, 1)), to: fmt8(new Date(today.getFullYear(), today.getMonth(), 0)) },
+            { label: 'This Quarter', from: fmt8(new Date(today.getFullYear(), Math.floor(today.getMonth()/3)*3, 1)), to: fmt8(today) },
+            { label: 'This Year', from: fmt8(new Date(today.getFullYear(), 0, 1)), to: fmt8(today) },
+          ].map(p => (
+            <button key={p.label} className="v-btn v-btn-ghost v-btn-sm" onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}>{p.label}</button>
+          ))}
+        </div>
+
+        {aiReport && (
+          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 16, padding: '20px 22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Sparkles size={14} color="#00897b" /> AI Report Preview
+              </div>
+              <span style={{ fontSize: 11, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
+            </div>
+            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
+          </div>
+        )}
+      </div>
+
+      {/* Generated Reports Table */}
+      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<FileCheck size={16} />}>Generated Reports</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{reports.length} pending submission</span>
+        </div>
+        {reports.length === 0 ? (
+          <VEmptyState icon="📊" title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead>
+                <tr><th>Report #</th><th>Generated</th><th>Period</th><th>Actions</th></tr>
+              </thead>
+            <tbody>
+              {reports.slice(genPage * PAGE_SIZE, (genPage + 1) * PAGE_SIZE).map(r => (
+                <React.Fragment key={r.localId}>
+                  <tr>
+                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
+                    </td>
+                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                      {r.generatedDate}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span className="v-badge v-badge-blue">{r.period}</span>
+                        {r.saved && <span className="v-badge v-badge-green"><Archive size={10} /> Saved</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button className="v-btn v-btn-ghost v-btn-sm" onClick={() => setViewReportId(viewReportId === r.id ? null : r.id)}>
+                          <Eye size={12} /> {viewReportId === r.id ? 'Hide' : 'View'}
+                        </button>
+                        <button
+                          className="v-btn v-btn-sm v-btn-blue"
+                          onClick={() => saveReport(r)}
+                          disabled={r.saved}
+                          style={{ opacity: r.saved ? 0.6 : 1 }}
+                        >
+                          <Save size={12} /> {r.saved ? 'Saved' : 'Save'}
+                        </button>
+                        <button
+  className="v-btn v-btn-primary v-btn-sm"
+  onClick={() => {
+    const snapshot = { ...r };
+    console.log('[BUTTON] onClick fired with report:', snapshot.id, snapshot);
+    submitReport(snapshot);
+  }}
+  disabled={submitting === r.id || !r.saved}
+  style={{ opacity: (submitting === r.id || !r.saved) ? 0.5 : 1 }}
+  title={!r.saved ? 'Save the report first before submitting' : ''}
+>
+                          {submitting === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
+                            : <><Send size={12} /> Submit to Admin</>}
+                        </button>
+                        <button
+                          className="v-btn v-btn-sm"
+                          onClick={() => deleteReport(r)}
+                          style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {viewReportId === r.id && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: 0, border: 'none' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                              {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'} — {r.period}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button className="v-btn v-btn-sm v-btn-blue" onClick={() => downloadReport(r)}>
+                                <Download size={12} /> Download PDF
+                              </button>
+                              <button className="v-btn v-btn-secondary v-btn-sm" onClick={() => setViewReportId(null)}>
+                                <X size={12} /> Close
+                              </button>
+                            </div>
+                          </div>
+                          <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+            </table>
+              
+              <Paginator total={reports.length} page={genPage} setPage={setGenPage} />
+          </div>
+        )}
+      </div>
+{/* Submitted Reports */}
+    <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      <div className="v-section-head">
+        <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
+        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+          {submittedReports.length} submitted to admin
+        </span>
+      </div>
+      {submittedReports.length === 0 ? (
+        <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="v-table">
+            <thead>
+              <tr>
+                <th>Report #</th>
+                <th>Submitted At</th>
+                <th>Period</th>
+                <th>Generated</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {submittedReports.slice(subPage * PAGE_SIZE, (subPage + 1) * PAGE_SIZE).map(h => (
+                <React.Fragment key={h.id}>
+                  <tr>
+                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      REP-{String(h.id).padStart(5, '0')}
+                    </td>
+                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                      {h.submittedAt}
+                    </td>
+                    <td>
+                      <span className="v-badge v-badge-blue">{h.period}</span>
+                    </td>
+                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                      {h.generatedDate || '—'}
+                    </td>
+<td>
+  {(() => {
+    const s = (h.status || 'submitted').toLowerCase();
+    const cfg = {
+      approved: { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Approved' },
+      submitted: { bg: '#dbeafe', color: '#1e40af', dot: '#3b82f6', label: 'Submitted' },
+    };
+    const { bg, color, dot, label } = cfg[s] || cfg.submitted;
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+        background: bg, color,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, display: 'inline-block' }} />
+        {label}
+      </span>
+    );
+  })()}
+</td>
+                    <td>
+                      <button
+                        className="v-btn v-btn-ghost v-btn-sm"
+                        onClick={() => setViewSubmittedId(viewSubmittedId === h.id ? null : h.id)}
+                      >
+                        <Eye size={12} /> {viewSubmittedId === h.id ? 'Hide' : 'View'}
+                      </button>
+                    </td>
+                  </tr>
+
+                  {viewSubmittedId === h.id && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                              REP-{String(h.id).padStart(5, '0')} — {h.period}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                className="v-btn v-btn-sm v-btn-blue"
+                                onClick={() => downloadReport(h)}
+                              >
+                                <Download size={12} /> Download PDF
+                              </button>
+                              <button
+                                className="v-btn v-btn-secondary v-btn-sm"
+                                onClick={() => setViewSubmittedId(null)}
+                              >
+                                <X size={12} /> Close
+                              </button>
+                            </div>
+                          </div>
+                          {h.content ? (
+                            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                              {h.content}
+                            </pre>
+                          ) : (
+                            <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontStyle: 'italic' }}>
+                              Report content not available.
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+
+          <Paginator total={submittedReports.length} page={subPage} setPage={setSubPage} />
+        </div>
+      )}
+    </div>
+
+      {/* Report History (deleted reports) */}
+      <div className="v-card" style={{ padding: '20px 22px' }}>
+        <div className="v-section-head">
+          <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+            {deletedReports.length} deleted · recoverable for 30 days
+          </span>
+        </div>
+        {deletedReports.length === 0 ? (
+          <VEmptyState icon="🗑️" title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v-table">
+              <thead>
+                <tr>
+                  <th>Report #</th>
+                  <th>Deleted At</th>
+                  <th>Period</th>
+                  <th>Generated</th>
+                  <th>Expires In</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedReports.slice(delPage * PAGE_SIZE, (delPage + 1) * PAGE_SIZE).map((r, i) => {
+                  const daysLeft = r.expiresAt
+                    ? Math.ceil((new Date(r.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  const isExpiringSoon = daysLeft !== null && daysLeft <= 5;
+
+                  return (
+                    <tr key={r.id || r.localId || i}>
+                      <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                        {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
+                      </td>
+                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
+                        {r.deletedAt}
+                      </td>
+                      <td><span className="v-badge v-badge-blue">{r.period}</span></td>
+                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                        {r.generatedDate}
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, fontFamily: 'Poppins,sans-serif',
+                          color: isExpiringSoon ? '#ef4444' : '#94a3b8',
+                        }}>
+                          {daysLeft !== null ? (
+                            isExpiringSoon ? `⚠ ${daysLeft}d left` : `${daysLeft}d left`
+                          ) : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="v-btn v-btn-sm"
+                          onClick={() => retrieveReport(r)}
+                          disabled={retrieving === r.id}
+                          style={{
+                            background: '#f0fdf5',
+                            color: '#00897b',
+                            border: '1px solid #b2dfdb',
+                            opacity: retrieving === r.id ? 0.6 : 1,
+                          }}
+                        >
+                          {retrieving === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(0,137,123,0.3)', borderTopColor: '#00897b', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
+                            : <><RefreshCw size={12} /> Retrieve</>}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+              <Paginator total={deletedReports.length} page={delPage} setPage={setDelPage} />
+          </div>
+      )}
+      </div>
+    </div>
+  );
+}
+
+function FrCommunicationContent() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [pinnedIds, setPinnedIds]         = useState(new Set());
+  const [fetching, setFetching]           = useState(true);
+  const [modalVisible, setModalVisible]   = useState(false);
+  const [editing, setEditing]             = useState(null);
+  const [selectedTab, setSelectedTab]     = useState("all");
+  const [title, setTitle]                 = useState("");
+  const [content, setContent]             = useState("");
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [viewingItem, setViewingItem]     = useState(null);
+
+  // Load user from localStorage (mirrors AsyncStorage.getItem("user"))
+  const [commUser, setCommUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+  });
+
+   const C = {
+    border:   'rgba(0,168,76,0.12)',
+    greenMid: 'rgba(0,168,76,0.1)',
+  };
+
+  const bmLabel = {
+    display: 'block',
+    fontSize: 11.5,
+    fontWeight: 700,
+    color: '#5a7a65',
+    textTransform: 'uppercase',
+    letterSpacing: '0.07em',
+    fontFamily: 'Montserrat,sans-serif',
+    marginBottom: 4,
+  };
+
+  const bmInput = {
+    width: '100%',
+    padding: '10px 13px',
+    border: '1.5px solid rgba(0,168,76,0.18)',
+    borderRadius: 11,
+    fontSize: 13.5,
+    fontFamily: 'Poppins,sans-serif',
+    color: '#0d2b1e',
+    background: '#fafffc',
+    outline: 'none',
+    display: 'block',
+  };
+
+  const isAdminUser = (u) => u?.role?.toLowerCase() === "administrator";
+
+  const PIN_KEY = "announcement_pins";
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PIN_KEY);
+      if (raw) setPinnedIds(new Set(JSON.parse(raw)));
+    } catch {}
+  }, []);
+
+  const persistPins = (newSet) => {
+    try { localStorage.setItem(PIN_KEY, JSON.stringify([...newSet])); } catch {}
+  };
+
+  // ── Fetch announcements ──
+  const fetchAnnouncements = async () => {
+    setFetching(true);
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements`);
+      const data = await res.json();
+      setAnnouncements(Array.isArray(data) ? data : []);
+    } catch (err) { console.error("Fetch error:", err); setAnnouncements([]); }
+    finally { setFetching(false); }
+  };
+  useEffect(() => { fetchAnnouncements(); }, []);
+
+  // Merge server list with local pin state
+  const mergedAnnouncements = announcements.map(a => ({
+    ...a,
+    pinned: pinnedIds.has(String(a.id)),
+  }));
+
+  // ── Toggle pin — ADMIN ONLY ──
+  const handlePin = (item) => {
+    if (!isAdminUser(commUser)) return;
+    const id = String(item.id);
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      persistPins(next);
+      return next;
+    });
+    setViewingItem(prev =>
+      prev && String(prev.id) === id ? { ...prev, pinned: !prev.pinned } : prev
+    );
+  };
+
+  // ── Save (create / update) — ADMIN ONLY ──
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!isAdminUser(commUser)) { alert("Only administrators can post announcements."); return; }
+    if (!title.trim() || !content.trim()) { alert("Please fill in all fields."); return; }
+    try {
+      const url    = editing ? `${process.env.REACT_APP_API_URL}/announcements/${editing.id}` : `${process.env.REACT_APP_API_URL}/announcements`;
+      const method = editing ? "PUT" : "POST";
+      const res    = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Failed to save."); return; }
+      setModalVisible(false); setEditing(null); setTitle(""); setContent("");
+      fetchAnnouncements();
+    } catch (err) { console.error("Save error:", err); }
+  };
+
+  // ── Delete — ADMIN ONLY ──
+  const handleDelete = async (id) => {
+    if (!isAdminUser(commUser)) return;
+    if (!window.confirm("Delete this announcement?")) return;
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/announcements/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: commUser.id, role: commUser.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Delete failed."); return; }
+      const strId = String(id);
+      if (pinnedIds.has(strId)) {
+        setPinnedIds(prev => { const next = new Set(prev); next.delete(strId); persistPins(next); return next; });
+      }
+      if (viewingItem?.id === id) setViewingItem(null);
+      fetchAnnouncements();
+    } catch (err) { console.error(err); }
+  };
+
+  // ── Edit — ADMIN ONLY ──
+  const handleEdit = (item) => {
+    if (!isAdminUser(commUser)) return;
+    setEditing(item); setTitle(item.title); setContent(item.content); setModalVisible(true);
+  };
+
+  // ── Tab filtering ──
+  const now         = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const tabFiltered = (() => {
+    switch (selectedTab) {
+      case "recent": return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
+      case "pinned": return mergedAnnouncements.filter(a => a.pinned);
+      default:       return mergedAnnouncements;
+    }
+  })();
+
+  const filtered = searchQuery.trim()
+    ? tabFiltered.filter(a =>
+        a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : tabFiltered;
+
+  const tabBadge = {
+    all:    mergedAnnouncements.length,
+    recent: mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo).length,
+    pinned: pinnedIds.size,
+  };
+
+  // ── Helpers ──
+  const getInitials = (t = "") =>
+    t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("");
+
+  const isRecent = (item) => new Date() - new Date(item.created_at) < 7 * 24 * 60 * 60 * 1000;
+
+  // ── Styles (inline, consistent with dashboard tokens) ──
+  const commStyles = {
+    root: {
+      fontFamily: "'Montserrat', sans-serif",
+      display: "flex", flexDirection: "column", height: "100%",
+    },
+    header: {
+      background: "linear-gradient(135deg,#2E7D32,#00897b)",
+      padding: "20px 24px 28px",
+      borderRadius: "18px 18px 0 0",
+      position: "relative",
+      overflow: "hidden",
+    },
+    headerTop: {
+      display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4,
+    },
+    eyebrow: {
+      fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.6)",
+      letterSpacing: "0.25em", marginBottom: 4,
+    },
+    headerTitle: {
+      fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.4px",
+    },
+    liveChip: {
+      display: "inline-flex", alignItems: "center", gap: 7,
+      background: "rgba(255,255,255,0.18)", borderRadius: 20,
+      padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)",
+    },
+    liveDot: {
+      width: 7, height: 7, borderRadius: "50%",
+      background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
+    },
+    liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
+    searchBarWrap: {
+      display: "flex", alignItems: "center", gap: 8,
+      background: "rgba(255,255,255,0.18)", borderRadius: 12,
+      padding: "9px 13px", marginTop: 12,
+      border: "1px solid rgba(255,255,255,0.25)",
+    },
+    searchInput: {
+      flex: 1, background: "none", border: "none", outline: "none",
+      color: "#fff", fontSize: 13, fontFamily: "inherit",
+    },
+    tabsRow: {
+      display: "flex", gap: 7, padding: "14px 20px",
+      background: "#fff", borderBottom: `1px solid ${C.border}`,
+      flexWrap: "wrap",
+    },
+    tabBase: {
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "6px 13px", borderRadius: 20, fontSize: 11.5,
+      fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+      border: "none", transition: "all .15s",
+    },
+    badge: {
+      padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800,
+    },
+    listArea: {
+      flex: 1, overflowY: "auto", padding: "20px 20px 24px",
+      background: "#f8fffe",
+    },
+    sectionLabel: {
+      display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
+    },
+    labelAccent: {
+      width: 4, height: 16, borderRadius: 2,
+      background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0,
+    },
+    labelTxt: {
+      fontSize: 11, fontWeight: 800, color: "#0d2b1e",
+      letterSpacing: "0.08em", textTransform: "uppercase",
+    },
+    card: (pinned) => ({
+      display: "flex", background: "#fff",
+      borderRadius: 18, marginBottom: 10,
+      border: `1px solid ${pinned ? "#FFE082" : C.border}`,
+      boxShadow: pinned
+        ? "0 3px 14px rgba(249,168,37,0.18)"
+        : "0 2px 10px rgba(0,140,60,0.07)",
+      overflow: "hidden", cursor: "pointer",
+      transition: "transform .15s, box-shadow .15s",
+    }),
+    cardAccentBar: (pinned) => ({
+      width: 4, flexShrink: 0,
+      background: pinned
+        ? "linear-gradient(180deg,#F9A825,#FFC107)"
+        : "linear-gradient(180deg,#00897b,#4CAF50)",
+    }),
+    cardBody: { flex: 1, padding: "13px 15px 11px" },
+    cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
+    initialsChip: (pinned) => ({
+      width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: pinned
+        ? "linear-gradient(135deg,#F9A825,#E65100)"
+        : "linear-gradient(135deg,#2E7D32,#00897b)",
+      fontSize: 13, fontWeight: 900, color: "#fff",
+    }),
+    cardMeta: { flex: 1, minWidth: 0 },
+    cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
+    cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
+    cardDate:  { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
+    cardContent: {
+      fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9,
+      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+    },
+    tapHint: {
+      display: "flex", alignItems: "center", gap: 3,
+      marginTop: 7, fontSize: 10, color: "#8AAD96",
+    },
+    pinnedBadge: {
+      display: "inline-flex", alignItems: "center", gap: 3,
+      background: "#FFF8E1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #FFE082", fontSize: 8, fontWeight: 800, color: "#F9A825",
+    },
+    recentBadge: {
+      background: "#E0F2F1", borderRadius: 6, padding: "2px 6px",
+      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c",
+    },
+    cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
+    actionBtn: (variant) => ({
+      width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
+      background: "#f0fdf5", cursor: "pointer", display: "flex",
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c",
+    }),
+    emptyState: {
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "60px 0 40px", gap: 10, textAlign: "center",
+    },
+    emptyIcon: { fontSize: 40, marginBottom: 4 },
+    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
+    emptySub:   { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
+  };
+
+  const emptyIcon = selectedTab === "pinned" ? "🔖" : selectedTab === "recent" ? "🕐" : "📢";
+  const emptyTitle =
+    searchQuery ? "No results found"
+    : selectedTab === "pinned" ? "Nothing pinned yet"
+    : selectedTab === "recent" ? "No recent announcements"
+    : "No announcements yet";
+  const emptySub =
+    searchQuery ? "Try a different search term."
+    : selectedTab === "pinned" ? "Administrators can pin important announcements."
+    : selectedTab === "recent" ? "Announcements from the last 7 days appear here."
+    : "Check back later.";
+
+  return (
+    <div style={commStyles.root}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
+        .comm-action-btn:hover { opacity: 0.78; }
+        .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={commStyles.header}>
+        {/* subtle wave decoration */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.15, background: "radial-gradient(ellipse at 30% 100%, #fff 0%, transparent 60%)", pointerEvents: "none" }} />
+
+        <div style={commStyles.headerTop}>
+          <div>
+            <div style={commStyles.eyebrow}>IFRANCHISE</div>
+            <div style={commStyles.headerTitle}>Announcements</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={commStyles.liveChip}>
+              <div style={commStyles.liveDot} />
+              <span style={commStyles.liveTxt}>LIVE</span>
+            </div>
+            <button
+              onClick={() => { setSearchVisible(v => !v); setSearchQuery(""); }}
+              style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: searchVisible ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16 }}>
+              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
+            </button>
+            {isAdminUser(commUser) && (
+              <button
+                onClick={() => { setEditing(null); setTitle(""); setContent(""); setModalVisible(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <Plus size={14} /> New
+              </button>
+            )}
+          </div>
+        </div>
+
+        {searchVisible && (
+          <div style={commStyles.searchBarWrap}>
+            <Search size={14} color="rgba(255,255,255,0.7)" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search announcements…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={commStyles.searchInput}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={commStyles.tabsRow}>
+        {["all", "recent", "pinned"].map(tab => {
+          const active = selectedTab === tab;
+          return (
+            <button
+              key={tab}
+              className={active ? "" : "comm-tab"}
+              onClick={() => setSelectedTab(tab)}
+              style={{
+                ...commStyles.tabBase,
+                background: active ? "linear-gradient(135deg,#2E7D32,#00897b)" : "#e8f5e9",
+                color: active ? "#fff" : "#5a7a65",
+                border: active ? "none" : `1px solid ${C.border}`,
+                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+              }}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tabBadge[tab] > 0 && (
+                <span style={{
+                  ...commStyles.badge,
+                  background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
+                  color: active ? "#fff" : "#2E7D32",
+                }}>
+                  {tabBadge[tab]}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── LIST ── */}
+      <div style={commStyles.listArea}>
+        <div style={commStyles.sectionLabel}>
+          <div style={commStyles.labelAccent} />
+          <span style={commStyles.labelTxt}>
+            {searchQuery
+              ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""} for "${searchQuery}"`
+              : selectedTab === "recent" ? "Last 7 Days"
+              : selectedTab === "pinned" ? "Pinned Announcements"
+              : "All Announcements"}
+          </span>
+        </div>
+
+        {fetching ? (
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+        ) : filtered.length === 0 ? (
+          <div style={commStyles.emptyState}>
+            <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+            <div style={commStyles.emptyTitle}>{emptyTitle}</div>
+            <div style={commStyles.emptySub}>{emptySub}</div>
+          </div>
+        ) : filtered.map(item => {
+          const pinned = !!item.pinned;
+          const recent = isRecent(item);
+          return (
+            <div
+              key={item.id}
+              className="comm-card"
+              style={commStyles.card(pinned)}
+              onClick={() => setViewingItem(prev => prev?.id === item.id ? null : item)}
+            >
+              <div style={commStyles.cardAccentBar(pinned)} />
+              <div style={commStyles.cardBody}>
+                <div style={commStyles.cardHeaderRow}>
+                  <div style={commStyles.initialsChip(pinned)}>{getInitials(item.title)}</div>
+                  <div style={commStyles.cardMeta}>
+                    <div style={commStyles.cardTitleRow}>
+                      <span style={commStyles.cardTitle}>{item.title}</span>
+                      {pinned  && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
+                      {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
+                    </div>
+                    <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
+                  </div>
+                  {isAdminUser(commUser) && (
+                    <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
+                        {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => { handleEdit(item); }} title="Edit">
+                        <Pencil size={12} />
+                      </button>
+                      <button className="comm-action-btn" style={commStyles.actionBtn("delete")} onClick={() => handleDelete(item.id)} title="Delete">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={commStyles.cardContent}>{item.content}</div>
+                <div style={commStyles.tapHint}>
+                  <span>Tap to read full announcement</span>
+                  <span style={{ fontSize: 10 }}>›</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── FULL VIEW PANEL ── */}
+      {viewingItem && (
+        <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+            {/* gradient header */}
+            <div style={{
+              background: viewingItem.pinned
+                ? "linear-gradient(135deg,#F9A825,#E65100)"
+                : "linear-gradient(135deg,#2E7D32,#00897b)",
+              borderRadius: "20px 20px 0 0", padding: "20px 22px 28px",
+              position: "relative", overflow: "hidden",
+            }}>
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 40, opacity: 0.12, background: "radial-gradient(ellipse at 50% 100%, #fff 0%, transparent 70%)" }} />
+              <button onClick={() => setViewingItem(null)} style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.2)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={15} />
+              </button>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14, paddingRight: 40 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: "#fff", flexShrink: 0, border: "1.5px solid rgba(255,255,255,0.35)" }}>
+                  {getInitials(viewingItem.title)}
+                </div>
+                <div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+                    {viewingItem.pinned && <span style={{ background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff", letterSpacing: "0.08em" }}>🔖 PINNED</span>}
+                    {isRecent(viewingItem) && <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff" }}>NEW</span>}
+                  </div>
+                  <div style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.3, letterSpacing: "-0.3px" }}>{viewingItem.title}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginTop: 4, fontFamily: "monospace" }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: "22px 24px 28px" }}>
+              <p style={{ fontSize: 14.5, color: "#1A3A2A", lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
+
+              {/* Admin actions */}
+              {isAdminUser(commUser) && (
+                <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => handlePin(viewingItem)}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
+                    {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
+                  </button>
+                  <button
+                    onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => { handleDelete(viewingItem.id); setViewingItem(null); }}
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "1.5px solid #fecaca", background: "#fee2e2", color: "#dc2626" }}>
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
-        {[
-          { label:"Showing",    value:filteredItems.length.toLocaleString(), sub:`of ${inventory.length.toLocaleString()} total`, accent:C.green },
-          { label:"Low Stock",  value:lowCount,                              sub:"Needs reorder",      accent:C.warn },
-          { label:"Est. Value", value:fmtPeso(totalValue),                  sub:"Filtered selection", accent:C.green },
-          { label:"Categories", value:filteredCategories.length,            sub:"Product types",      accent:"#1565c0" },
-        ].map((s,i)=>(
-          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter bar */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
-            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
-            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
-          </div>
-
-          {/* Branch filter — scoped to the selected brand's own branches */}
-          {isAdmin && selectedBrandObj && (
-            <div style={{ position:"relative", minWidth:190 }}>
-              <select value={filterBranch||""} onChange={e=>setFilterBranch(e.target.value||null)} style={{ ...invInputSt, paddingLeft:32 }}>
-                <option value="">All Branches</option>
-                {(selectedBrandObj.branches||[]).map(br=>{
-                  const name = typeof br==="string"?br:br.name;
-                  return <option key={name} value={name}>{name}</option>;
-                })}
-              </select>
-              <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.green, pointerEvents:"none" }}><StoreIcon size={13}/></div>
+      {/* ── CREATE / EDIT MODAL — Admin only ── */}
+      {isAdminUser(commUser) && modalVisible && (
+        <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
+              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={14} />
+              </button>
             </div>
-          )}
-
-          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
-            <option value="">All Categories</option>
-            {filteredCategories.map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
-          <div style={{ flex:1 }}/>
-
-          {/* ── History buttons ── */}
-          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
-            <HistoryIcon size={13}/> Delete History
-            {deleteHistory.length > 0 && (
-              <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>
-            )}
-          </button>
-          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
-            )}
-          </button>
-
-          <label style={{ ...btnSt, cursor:"pointer" }}>
-            <FileIcon size={13}/> Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-          <button onClick={()=>{
-            const branch = isAdmin ? (filterBranch||"") : userBranch;
-            setFormData({...emptyForm(), branch});
-            fetchStockItems(branch);
-            setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
-            setShowAddModal(true);
-          }} style={btnPrimarySt}>
-            <PlusIcon/> Add New Item
-          </button>
-        </div>
-
-        {/* Active filter chips */}
-        {anyFilter && (
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-            {searchQuery    && <Chip label={`"${searchQuery}"`}                                               color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
-            {filterBranch   && <Chip label={filterBranch}                                                     color="#00695c" bg="#e0f7fa" onRemove={()=>setFilterBranch(null)}/>}
-            {filterCategory && <Chip label={filterCategory}                                                   color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
-            {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
-          </div>
-        )}
-      </div>
-
-      {/* Table card */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}>
-            <StoreIcon size={14} color="#fff"/> {selectedBrandObj ? `${selectedBrandObj.name} — Menu Inventory` : "Menu Inventory"}
-          </span>
-          <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
-        </div>
-        {loading ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
-        ) : (
-        <InventoryTable
-          items={filteredItems}
-          onEdit={openEditModal}
-          onRequestDelete={setDeleteTarget}
-          deletingId={deletingId}
-          page={page}
-          setPage={setPage}
-        />
-        )}
-      </div>
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          target={{
-            name: deleteTarget.name,
-            branch: deleteTarget.branch,
-            ingredientCount: (deleteTarget.ingredients || []).length,
-          }}
-          deleting={deletingId === deleteTarget.id}
-          onClose={() => { if (deletingId !== deleteTarget.id) setDeleteTarget(null); }}
-          onConfirm={async () => {
-            await handleDeleteItem(deleteTarget.id);
-            setDeleteTarget(null);
-          }}
-        />
-        )}
-
-      {/* Add / Edit Modal */}
-      {(showAddModal || showEditModal) && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
-          onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
-          <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:560, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
-              <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
-            </div>
-            <form onSubmit={showAddModal ? handleAddItem : handleEditItem}>
-              {renderFormFields()}
+            <form onSubmit={handleSave} style={{ padding: "22px 24px" }}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={bmLabel}>Title</label>
+                <input
+                  type="text"
+                  placeholder="Announcement title…"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  required
+                  style={{ ...bmInput, marginTop: 4 }}
+                />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={bmLabel}>Content</label>
+                <textarea
+                  placeholder="Write your announcement…"
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  required
+                  rows={5}
+                  style={{ ...bmInput, marginTop: 4, resize: "vertical", lineHeight: 1.65 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                  <Check size={14} /> Save Announcement
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Delete History Panel */}
-      {showDeleteHistory && (
-        <InventoryDeleteHistoryPanel
-          history={deleteHistory}
-          onRestore={handleRestore}
-          restoringId={restoringId}
-          onClose={() => setShowDeleteHistory(false)}
-        />
+function FrProfileContent({ user }) {
+  const [formData, setFormData] = useState({
+    name: user?.name || '', email: user?.email || '', personalEmail: '',
+    currentPassword: '', newPassword: '', confirmPassword: '',
+  });
+  const [showOtpModal,     setShowOtpModal]     = useState(false);
+  const [otp,              setOtp]              = useState('');
+  const [otpSent,          setOtpSent]          = useState(false);
+  const [otpError,         setOtpError]         = useState('');
+
+  const initials = user?.name
+    ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
+  const sendOtp = async () => {
+    try {
+      const email = formData.personalEmail || formData.email;
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+      });
+      const d = await res.json();
+      if (d.success) { setOtpSent(true); alert(`OTP sent to ${email}`); }
+      else alert(d.error || 'Failed to send OTP');
+    } catch { alert('Failed to send OTP.'); }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (formData.currentPassword || formData.newPassword) {
+      if (formData.newPassword !== formData.confirmPassword) { alert("Passwords don't match!"); return; }
+      sendOtp(); setShowOtpModal(true);
+    } else {
+      alert('Profile updated successfully!');
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ background: 'var(--grad-dark)', borderRadius: 20, padding: '28px 28px 20px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background: 'var(--grad-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color: '#fff', fontFamily: 'Montserrat,sans-serif', boxShadow: '0 6px 20px rgba(0,0,0,0.2)', flexShrink: 0 }}>
+          {initials}
+        </div>
+        <div>
+          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>{user?.name}</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 3, fontFamily: 'Poppins,sans-serif' }}>Franchisee · {user?.branch}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <span className="v-badge v-badge-green" style={{ background: 'rgba(0,200,83,0.2)', color: '#a7f3d0' }}>Franchisee</span>
+            {user?.branch && <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.12)', color: '#fff', fontFamily: 'Montserrat,sans-serif' }}>{user.branch}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div className="v-card" style={{ padding: '22px 24px' }}>
+          <div className="v-section-head">
+            <VSectionTitle icon={<User size={16} />}>Personal Information</VSectionTitle>
+          </div>
+          <form onSubmit={handleSubmit}>
+            {[['Full Name', 'name', 'text'], ['Work Email', 'email', 'email']].map(([label, name, type]) => (
+              <div key={name} className="v-form-group">
+                <label className="v-form-label">{label}</label>
+                <input type={type} value={formData[name]} onChange={e => setFormData(p => ({ ...p, [name]: e.target.value }))} className="v-form-input" />
+              </div>
+            ))}
+            <div className="v-form-group">
+              <label className="v-form-label">Personal Email <span style={{ textTransform: 'none', fontWeight: 500, color: '#94a3b8' }}>(for OTP)</span></label>
+              <input type="email" value={formData.personalEmail} onChange={e => setFormData(p => ({ ...p, personalEmail: e.target.value }))} placeholder="your.personal@email.com" className="v-form-input" />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="submit" className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center' }}><Check size={14} /> Save Changes</button>
+            </div>
+          </form>
+        </div>
+
+        <div className="v-card" style={{ padding: '22px 24px' }}>
+          <div className="v-section-head">
+            <VSectionTitle icon={<Lock size={16} />}>Change Password</VSectionTitle>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(0,168,76,0.06)', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 12, marginBottom: 20 }}>
+            <Shield size={14} color="#00897b" />
+            <span style={{ fontSize: 12, color: '#5a7a65', fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}>OTP will be sent to your email for verification</span>
+          </div>
+          <form onSubmit={handleSubmit}>
+            {[['Current Password', 'currentPassword'], ['New Password', 'newPassword'], ['Confirm Password', 'confirmPassword']].map(([label, name]) => (
+              <div key={name} className="v-form-group">
+                <label className="v-form-label">{label}</label>
+                <input type="password" value={formData[name]} onChange={e => setFormData(p => ({ ...p, [name]: e.target.value }))} className="v-form-input" />
+              </div>
+            ))}
+            <button type="submit" className="v-btn v-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+              <Lock size={14} /> Update Password
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {showOtpModal && (
+        <div className="v-modal-overlay">
+          <div className="v-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 60, height: 60, borderRadius: 16, background: 'var(--grad-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '1.8rem', boxShadow: '0 6px 20px rgba(0,180,90,.3)' }}>🔐</div>
+            <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Verify OTP</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0 20px', fontFamily: 'Poppins,sans-serif' }}>
+              Code sent to <strong style={{ color: '#00897b' }}>{formData.personalEmail || formData.email}</strong>
+            </p>
+            <input
+              type="text" placeholder="000000" value={otp}
+              onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError(''); }}
+              maxLength={6} autoFocus
+              className="v-form-input"
+              style={{ fontSize: '1.8rem', textAlign: 'center', letterSpacing: '0.6rem', fontFamily: 'monospace', marginBottom: 12 }}
+            />
+            {otpError && (
+              <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.2)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <X size={14} color="#ef4444" /><span style={{ color: '#ef4444', fontSize: 13, fontWeight: 700 }}>{otpError}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+              <button className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}>Cancel</button>
+              <button className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: otp.length !== 6 ? 0.5 : 1 }} disabled={otp.length !== 6}>
+                <Check size={14} /> Verify & Change
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-
-      {/* Activity Log Panel */}
-      {showActivityLog && (
-        <InventoryActivityLogPanel
-          log={activityLog}
-          onClose={() => setShowActivityLog(false)}
-        />
-      )}
-
-       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

@@ -45,7 +45,12 @@ const DEFAULT_PROFIT_MARGIN = 40;
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const PAGE_SIZE = 20;
 const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
+const FONT     = "'Montserrat', sans-serif";
+
+const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
+const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
 
 // ─── Fuzzy duplicate detection ────────────────────────────────────────────────
 const normalizeName = str => {
@@ -108,11 +113,7 @@ function Chip({ label, color, bg, onRemove }) {
   );
 }
 
-<<<<<<< Updated upstream
-// ─── BranchSearchSelect (used in Add/Edit form) ────────────────────────────────
-=======
 // ─── BranchSearchSelect ───────────────────────────────────────────────────────
->>>>>>> Stashed changes
 function BranchSearchSelect({ value, onChange, allBranches }) {
   const [query, setQuery] = useState(value||"");
   const [open, setOpen]   = useState(false);
@@ -414,8 +415,87 @@ function InventoryActivityLogPanel({ log, onClose }) {
   );
 }
 
-<<<<<<< Updated upstream
-=======
+function LogPagination({ page, totalPages, onChange }) {
+  if (totalPages <= 1) return null;
+  const pageBtn = (active, disabled) => ({
+    minWidth: 32, height: 32, padding: '0 8px', borderRadius: 9,
+    border: `1px solid ${active ? 'transparent' : C.border}`,
+    background: active ? 'linear-gradient(135deg,#00c853,#00897b)' : C.white,
+    color: active ? '#fff' : disabled ? '#cbd5c9' : C.ink,
+    fontSize: 12.5, fontWeight: active ? 800 : 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: active ? '0 3px 10px rgba(0,180,90,0.28)' : 'none',
+    transition: 'transform .12s ease, box-shadow .12s ease, background .12s ease',
+  });
+  const pages = Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - page) <= 2 || i === 0 || i === totalPages - 1);
+  const withGaps = [];
+  pages.forEach((p, idx) => {
+    if (idx > 0 && p - pages[idx - 1] > 1) withGaps.push('gap');
+    withGaps.push(p);
+  });
+  return (
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        style={pageBtn(false, page === 0)}
+        onMouseEnter={e => { if (page !== 0) e.currentTarget.style.background = C.greenLt; }}
+        onMouseLeave={e => { if (page !== 0) e.currentTarget.style.background = C.white; }}
+      >
+        ‹
+      </button>
+      {withGaps.map((p, i) =>
+        p === 'gap' ? (
+          <span key={`gap-${i}`} style={{ width: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>···</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            style={pageBtn(p === page, false)}
+            onMouseEnter={e => { if (p !== page) e.currentTarget.style.background = C.greenLt; }}
+            onMouseLeave={e => { if (p !== page) e.currentTarget.style.background = C.white; }}
+          >
+            {p + 1}
+          </button>
+        )
+      )}
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        style={pageBtn(false, page >= totalPages - 1)}
+        onMouseEnter={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.greenLt; }}
+        onMouseLeave={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.white; }}
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+function Pagination({ page, setPage, total, pageSize }) {
+  const totalPgs = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPgs <= 1) return null;
+  return (
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+      <span style={{ fontSize:12, color:C.muted }}>
+        Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
+      </span>
+      <div style={{ display:"flex", gap:4 }}>
+        {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+        ))}
+        {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
+          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+        ))}
+        {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── InventoryTable ───────────────────────────────────────────────────────────
 // Self-contained pagination/sorting — each brand card gets its own instance,
 // so paging one brand never affects another. Resets to page 0 whenever the
@@ -552,7 +632,6 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
->>>>>>> Stashed changes
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
@@ -913,10 +992,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
-<<<<<<< Updated upstream
-  // ── Screen state: "brands" (card grid) → "inventory" (row-list card) ──────
-  const [screen, setScreen] = useState(isAdmin ? "brands" : "inventory");
-=======
   // map branch name -> brand name, used to group inventory rows by brand
   const branchToBrand = useMemo(() => {
     const map = {};
@@ -926,19 +1001,11 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     }));
     return map;
   }, [brandList]);
->>>>>>> Stashed changes
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
-<<<<<<< Updated upstream
-  const [filterBrand,     setFilterBrand]     = useState(null);
-  const [showAddModal,    setShowAddModal]    = useState(false);
-  const [showEditModal,   setShowEditModal]   = useState(false);
-  const [editingItem,     setEditingItem]     = useState(null);
-  const [deleteTarget,    setDeleteTarget]    = useState(null);
-=======
   const [filterBrandName, setFilterBrandName] = useState("");   // "" = show every brand card
   const [filterCategory,  setFilterCategory]  = useState("");
   const [filterStatus,    setFilterStatus]    = useState("");
@@ -948,7 +1015,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
->>>>>>> Stashed changes
+  const [activeScreen, setActiveScreen] = useState(isAdmin ? "brands" : "inventory");
+  const [filterBrand, setFilterBrand]   = useState(null);
 
   const [saving,          setSaving]          = useState(false);
   const [deletingId,      setDeletingId]      = useState(null);
@@ -1069,19 +1137,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
 
-<<<<<<< Updated upstream
-  const refetch = () => fetchInventory(!isAdmin ? userBranch : undefined);
-
-  // items scoped to the currently selected brand (admin) or the user's own branch (non-admin)
-  const itemsForBrand = useMemo(() => {
-    if (!isAdmin) return inventory;
-    if (!filterBrand) return inventory;
-    const b = brandList.find(x => x.id === filterBrand);
-    if (!b) return inventory;
-    const names = (b.branches || []).map(br => typeof br === "string" ? br : br.name);
-    return inventory.filter(i => names.includes(i.branch));
-  }, [inventory, isAdmin, filterBrand, brandList]);
-=======
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
   // Search / category / status filters only — brand & branch narrowing happens
@@ -1119,7 +1174,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     if (filterBrandName) names = names.filter(n => n === filterBrandName);
     return names.map(name => ({ name, items: map[name] }));
   }, [filteredItems, branchToBrand, brandList, filterBrandName]);
->>>>>>> Stashed changes
 
   // ── Computed cost from ingredients ──────────────────────────────────────────
   const computedCost = useMemo(() => {
@@ -1137,26 +1191,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     setFormData(prev => ({ ...prev, cost, price }));
   }, [computedCost]);
 
-<<<<<<< Updated upstream
-  const handleAddItem = async e => {
-    e.preventDefault();
-    const branch    = isAdmin ? formData.branch : userBranch;
-    const duplicate = findDuplicate(formData.name, branch, inventory);
-    if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-
-    setSaving(true);
-    const coords = await getBrowserLocation();
-    const payload = {
-      ...formData,
-      branch,
-      min_stock: formData.minStock,
-      performed_by: userName,
-      performed_by_role: user?.role || "Unknown",
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-    };
-    try {
-=======
 const handleAddItem = async e => {
   e.preventDefault();
   const branch    = isAdmin ? formData.branch : userBranch;
@@ -1175,7 +1209,6 @@ const handleAddItem = async e => {
     longitude: coords?.longitude,
   };
    try {
->>>>>>> Stashed changes
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
@@ -1648,22 +1681,19 @@ const handleAddItem = async e => {
     </>
   );
 
-<<<<<<< Updated upstream
   const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
-=======
   const anyFilter = filterBrandName||filterCategory||filterStatus||searchQuery;
   const clearAll  = () => { setFilterBrandName(""); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
->>>>>>> Stashed changes
 
-  const goBackToBrands = () => {
-    setScreen("brands");
-    setFilterBrand(null);
-  };
+const goBackToBrands = () => {
+  setActiveScreen("brands");
+  setFilterBrand(null);
+};
 
-  const openBrand = brandId => {
-    setFilterBrand(brandId);
-    setScreen("inventory");
-  };
+const openBrand = brandId => {
+  setFilterBrand(brandId);
+  setActiveScreen("inventory");
+};
 
   const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>;
 
@@ -1672,7 +1702,7 @@ const handleAddItem = async e => {
     : [];
 
   // ── Screen 1: Brand cards ─────────────────────────────────────────────────────
-  if (screen === "brands" && isAdmin) {
+  if (activeScreen === "brands" && isAdmin) {
     return (
       <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
         {fontImport}
@@ -1711,12 +1741,6 @@ const handleAddItem = async e => {
     <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
       {fontImport}
 
-<<<<<<< Updated upstream
-      {isAdmin && (
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-          <button onClick={goBackToBrands} style={{ ...btnSt, gap:6 }}>
-            <ArrowLeftIcon size={13}/> All Brands
-=======
       {/* Filter bar */}
       <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -1768,29 +1792,9 @@ const handleAddItem = async e => {
             setShowAddModal(true);
           }} style={btnPrimarySt}>
             <PlusIcon/> Add New Item
->>>>>>> Stashed changes
           </button>
         </div>
-      )}
 
-<<<<<<< Updated upstream
-      <MenuBrandCard
-        label={selectedBrandObj ? selectedBrandObj.name : "Menu Inventory"}
-        items={itemsForBrand}
-        branchOptions={branchOptionsForCard}
-        showBranchFilter={isAdmin}
-        onEdit={openEditModal}
-        onRequestDelete={setDeleteTarget}
-        deletingId={deletingId}
-        onQuickAdd={openAddModal}
-        onImportExcel={importExcel}
-        excelRef={excelRef}
-        onOpenDeleteHistory={() => setShowDeleteHistory(true)}
-        onOpenActivityLog={() => setShowActivityLog(true)}
-        deleteHistoryCount={deleteHistory.length}
-        activityLogCount={activityLog.length}
-      />
-=======
         {/* Active filter chips */}
         {anyFilter && (
           <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
@@ -1856,7 +1860,6 @@ const handleAddItem = async e => {
           </div>
         );
       })}
->>>>>>> Stashed changes
 
       {deleteTarget && (
         <DeleteConfirmModal

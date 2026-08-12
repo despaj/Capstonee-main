@@ -4246,8 +4246,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     if (filterShop !== "all" && item.shop !== filterShop) return false;
     return true;
   });
-  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
-}, [stockItems]);
 
   // Clear out any selected keys that no longer exist in the current item set
   // (e.g. a product was removed from Stock Inventory).
@@ -4460,7 +4458,7 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
               style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
               ✕
             </button>
-          </div>                {/* ← added: this closes the "has photo" branch's wrapper div */}
+          </div> 
         ) : (
           <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
             <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
