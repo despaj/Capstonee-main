@@ -3243,14 +3243,12 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     });
   };
 
-  /* ── printing ── */
   const triggerPrint = (ordersToPrint) => {
     if (!ordersToPrint || ordersToPrint.length === 0) return;
     setPrintQueue(ordersToPrint);
     setTimeout(() => { window.print(); setPrintQueue([]); }, 80);
   };
 
-  /* ── activity log ── */
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${apiUrl}/orders-activity-log`);
@@ -3607,25 +3605,126 @@ function generateTempPassword(length = 10) {
   return password.sort(() => Math.random() - 0.5).join("");
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Delete confirmation modal (ported from ApplicationsContent)
+// ─────────────────────────────────────────────────────────────────────────
+function FAApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
+  if (!app) return null;
+  return (
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete application?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 16 }}>
+          You are about to delete the application from <strong>"{app.name}"</strong>{app.email ? ` (${app.email})` : ""}.
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              opacity: deleting ? 0.5 : 1,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            {deleting ? <RefreshCw size={14} style={{ animation: "spin 0.8s linear infinite" }} /> : <Trash2 size={14} />}
+            {deleting ? "Deleting…" : "Delete Application"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Main content
+// ─────────────────────────────────────────────────────────────────────────
 function FAApplicationsContent({ user, applications: initialApps }) {
-  const [applications, setApplications] = useState(initialApps || []);
-  const [viewApp,      setViewApp]      = useState(null);
-  const [accountApp,   setAccountApp]   = useState(null);
-  const [alertModal, setAlertModal] = useState(null);
-  
-  const showAlert = (message, type = "info") =>
-  setAlertModal({ message, type });
+  const [activityLog,   setActivityLog]   = useState([]);
+  const [applications,  setApplications]  = useState(initialApps || []);
+  const [viewApp,       setViewApp]       = useState(null);
+  const [accountApp,    setAccountApp]    = useState(null);
+  const [alertModal,    setAlertModal]    = useState(null);
+  const [restoringId,   setRestoringId]   = useState(null);
+
+  const showAlert = (title, message, type = "info") =>
+    setAlertModal({ title, message, type });
 
   const [menuApp, setMenuApp] = useState(null);
   const [appDeleteHistory,     setAppDeleteHistory]     = useState([]);
   const [showAppDeleteHistory, setShowAppDeleteHistory] = useState(false);
-  const [role, setRole] = useState("franchisee"); 
+  const [role, setRole] = useState("franchisee");
 
   const [filterStatus,    setFilterStatus]    = useState("all");
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting,     setDeleting]     = useState(false);
   const [processingId, setProcessingId] = useState(null);
+
+  const handleDelete = (id) => {
+    const app = applications.find(a => a.id === id);
+    if (app) setDeleteTarget(app);
+  };
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id: row.id, action: row.action,
+        ingredientName: row.ingredient_name ?? row.ingredientName,
+        branch: row.branch,
+        performedBy: row.performed_by ?? row.performedBy,
+        role: row.role,
+        changes: row.changes,
+        timestamp: row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch applications activity log:", err); }
+  }, []);
 
   const fetchApplications = async () => {
     try {
@@ -3638,25 +3737,25 @@ function FAApplicationsContent({ user, applications: initialApps }) {
   };
 
   const getBrowserLocation = () => {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
-  });
-};
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
 
   const filteredApps = applications.filter(app => {
-  const q = searchQuery.toLowerCase();
-  if (q && !app.name?.toLowerCase().includes(q) &&
-           !app.email?.toLowerCase().includes(q) &&
-           !app.phone?.toLowerCase().includes(q)) return false;
-  if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
-  if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
-  return true;
-});
+    const q = searchQuery.toLowerCase();
+    if (q && !app.name?.toLowerCase().includes(q) &&
+             !app.email?.toLowerCase().includes(q) &&
+             !app.phone?.toLowerCase().includes(q)) return false;
+    if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
+    if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
+    return true;
+  });
 
   const fetchAppDeleteHistory = async () => {
     try {
@@ -3678,141 +3777,159 @@ function FAApplicationsContent({ user, applications: initialApps }) {
   useEffect(() => {
     fetchApplications();
     fetchAppDeleteHistory();
+    fetchActivityLog();
   }, []);
 
-const handleApprove = async (id) => {
-  if (processingId) return;
-  setProcessingId(id);
-  try {
-    const coords = await getBrowserLocation();
-    await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        status: "approved",
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
-    setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
-  } finally {
-    setProcessingId(null);
-  }
-};
+  useEffect(() => {
+    if (!alertModal) return;
+    const timer = setTimeout(() => {
+      setAlertModal(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [alertModal]);
 
-const handleReject = async (id) => {
-  if (processingId) return;
-  setProcessingId(id);
-  try {
-    const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
-      method:  "PUT",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        status: "rejected",
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || "Failed to reject application."); return; }
-
-    const app = applications.find(a => a.id === id);
-    if (app?.email) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ to: app.email, name: app.name }),
-      });
-    }
-
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
-    setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
-  } finally {
-    setProcessingId(null);
-  }
-};
-
-const handleDelete = async (id) => {
-  if (!window.confirm("Delete this application?")) return;
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deleted_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setApplications(prev => prev.filter(a => a.id !== id));
-      await fetchAppDeleteHistory();
-    } else {
-      alert(data.error || "Failed to delete application.");
-    }
-  } catch {
-    alert("Failed to delete application.");
-  }
-};
-
-  const handleRestoreApplication = async (entry) => {
+  const handleApprove = async (id) => {
+    if (processingId) return;
+    setProcessingId(id);
+    setAlertModal({ title: "Approving application…", type: "loading" });
     try {
-      const d = entry.data; // raw DB row — snake_case keys
-
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
-        method:  "POST",
+      const coords = await getBrowserLocation();
+      await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name:             d.name,
-          email:            d.email,
-          phone:            d.phone,
-          franchise:        d.franchise,
-          paymentMode:      d.payment_mode,
-          dob:              d.dob,
-          civilStatus:      d.civil_status,
-          gender:           d.gender,
-          nationality:      d.nationality,
-          address:          d.address,
-          dependents:       d.dependents,
-          spouseName:       d.spouse_name,
-          spouseOccupation: d.spouse_occupation,
-          employmentType:   d.employment_type,
-          yearsEmployer:    d.years_employer,
-          income:           d.income,
-          employerName:     d.employer_name,
-          businessAddress:  d.business_address,
-          position:         d.position,
-          businessNature:   d.business_nature,
-          signature:        d.signature,
-          dateSigned:       d.date_signed,
+          status: "approved",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "approved" } : a));
+      setMenuApp(prev => prev?.id === id ? { ...prev, status: "approved" } : prev);
+      await fetchActivityLog();
+      setAlertModal({ title: "Application approved", type: "success" });
+    } catch {
+      setAlertModal({ title: "Failed to approve", message: "Please try again.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (processingId) return;
+    setProcessingId(id);
+    setAlertModal({ title: "Rejecting application…", type: "loading" });
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "rejected",
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAlertModal({ title: "Failed to reject", message: data.error || "Please try again.", type: "error" }); return; }
+
+      const app = applications.find(a => a.id === id);
+      if (app?.email) {
+        await fetch(`${process.env.REACT_APP_API_URL}/send-rejection`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: app.email, name: app.name }),
+        });
+      }
+
+      setApplications(prev => prev.map(a => a.id === id ? { ...a, status: "rejected" } : a));
+      setMenuApp(prev => prev?.id === id ? { ...prev, status: "rejected" } : prev);
+      await fetchActivityLog();
+      setAlertModal({ title: "Application rejected", type: "success" });
+    } catch {
+      setAlertModal({ title: "Failed to reject", message: "Please try again.", type: "error" });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const confirmDeleteApplication = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setAlertModal({ title: "Deleting application…", type: "loading" });
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setApplications(prev => prev.filter(a => a.id !== deleteTarget.id));
+        await fetchAppDeleteHistory();
+        await fetchActivityLog();
+        setAlertModal({ title: `"${deleteTarget.name}" deleted`, type: "success" });
+      } else {
+        setAlertModal({ title: "Failed to delete", message: data.error || "Please try again.", type: "error" });
+      }
+    } catch {
+      setAlertModal({ title: "Failed to delete", message: "Please try again.", type: "error" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRestoreApplication = async (entry) => {
+    setRestoringId(entry.id);
+    setAlertModal({ title: "Restoring application…", type: "loading" });
+    try {
+      const d = entry.data; // raw DB row — snake_case keys
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: d.name, email: d.email, phone: d.phone, franchise: d.franchise,
+          paymentMode: d.payment_mode, dob: d.dob, civilStatus: d.civil_status,
+          gender: d.gender, nationality: d.nationality, address: d.address,
+          dependents: d.dependents, spouseName: d.spouse_name, spouseOccupation: d.spouse_occupation,
+          employmentType: d.employment_type, yearsEmployer: d.years_employer, income: d.income,
+          employerName: d.employer_name, businessAddress: d.business_address,
+          position: d.position, businessNature: d.business_nature,
+          signature: d.signature, dateSigned: d.date_signed,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+          restored: true,
         }),
       });
       const result = await res.json();
 
       if (result.success) {
-        // Remove from delete history
-        await fetch(
-          `${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`,
-          { method: "DELETE" }
-        );
+        await fetch(`${process.env.REACT_APP_API_URL}/application-delete-history/${entry.id}`, { method: "DELETE" });
         await fetchAppDeleteHistory();
         await fetchApplications();
-        alert(`"${d.name}" has been restored.`);
+        await fetchActivityLog();
+        setAlertModal({ title: `"${d.name}" restored`, type: "success" });
       } else {
-        alert(result.error || "Failed to restore.");
+        setAlertModal({ title: "Failed to restore", message: result.error || "Please try again.", type: "error" });
       }
     } catch (err) {
       console.error("Restore error:", err);
-      alert("Failed to restore application.");
+      setAlertModal({ title: "Failed to restore", message: "Please try again.", type: "error" });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -3934,15 +4051,27 @@ const handleDelete = async (id) => {
 
                   <button
                     onClick={() => handleRestoreApplication(entry)}
+                    disabled={restoringId !== null}
                     style={{
                       display: "flex", alignItems: "center", gap: 5,
                       padding: "7px 14px", borderRadius: 9,
-                      border: "1.5px solid #00897b", background: "#e0f2f1",
+                      border: "1.5px solid #00897b",
+                      background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
                       color: "#00695c", fontSize: 12, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                      cursor: restoringId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit", whiteSpace: "nowrap",
+                      opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
                     }}
                   >
-                    <RotateCcw size={12} /> Restore
+                    {restoringId === entry.id ? (
+                      <>
+                        <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw size={12} /> Restore
+                      </>
+                    )}
                   </button>
                 </div>
               );
@@ -3956,13 +4085,19 @@ const handleDelete = async (id) => {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Delete History Modal (rendered at root level, NOT inside table) */}
+      {/* ── Delete History Modal (root level, NOT inside table) */}
       <DeleteHistoryModal />
 
+      {/* ── Delete confirmation modal ── */}
+      <FAApplicationConfirmModal
+        app={deleteTarget}
+        deleting={deleting}
+        onConfirm={confirmDeleteApplication}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
+
       {/* ── View Application Modal ── */}
-      {viewApp && ( 
-         <>
-    {console.log("viewApp:", JSON.stringify(viewApp, null, 2))}
+      {viewApp && (
         <div onClick={() => setViewApp(null)} style={{
           position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -3996,11 +4131,11 @@ const handleDelete = async (id) => {
               <StatusBadge status={viewApp.status} />
               <span style={{ fontSize: 12, color: "#5a7a65" }}>
                 Date Applied: <strong>
-                  {viewApp.date 
-                    ? new Date(viewApp.date).toLocaleDateString("en-PH", { 
+                  {viewApp.date
+                    ? new Date(viewApp.date).toLocaleDateString("en-PH", {
                         year: "numeric", month: "short", day: "numeric",
                         timeZone: "Asia/Manila"
-                      }) 
+                      })
                     : "—"}
                 </strong>
               </span>
@@ -4039,181 +4174,178 @@ const handleDelete = async (id) => {
                 </div>
               );
 
-             const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : null;
+              const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : null;
 
               return (
                 <>
-{viewApp.franchise === "iPharma Mart" ? (
-  // ── iPharma-specific view ──
-  <>
-    <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
-      <Field label="Email Address"      value={viewApp.email} />
-      <Field label="Phone Number"       value={viewApp.phone} />
-      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
-    </Section>
+                  {viewApp.franchise === "iPharma Mart" ? (
+                    // ── iPharma-specific view ──
+                    <>
+                      <Section title="Basic Information">
+                        <Field label="Full Name"          value={viewApp.name}              full />
+                        <Field label="Email Address"      value={viewApp.email} />
+                        <Field label="Phone Number"       value={viewApp.phone} />
+                        <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+                      </Section>
 
-    <Section title="Personal Information">
-      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
-      <Field label="Marital Status"     value={viewApp.maritalStatus || viewApp.civil_status} />
-      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
-      <Field label="TIN"                value={viewApp.tin} />
-      <Field label="ID Type Used"       value={viewApp.idType} />
-      <Field label="Address"            value={viewApp.address}           full />
-    </Section>
+                      <Section title="Personal Information">
+                        <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+                        <Field label="Marital Status"     value={viewApp.maritalStatus || viewApp.civil_status} />
+                        <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+                        <Field label="TIN"                value={viewApp.tin} />
+                        <Field label="ID Type Used"       value={viewApp.idType} />
+                        <Field label="Address"            value={viewApp.address}           full />
+                      </Section>
 
-    {(viewApp.spouseName || viewApp.spouseOccupation) && (
-      <Section title="Spouse Information">
-        <Field label="Spouse Name"       value={viewApp.spouseName} />
-        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
-        <Field label="Spouse Date of Birth" value={fmtDate(viewApp.spouseDob)} />
-      </Section>
-    )}
+                      {(viewApp.spouseName || viewApp.spouseOccupation) && (
+                        <Section title="Spouse Information">
+                          <Field label="Spouse Name"       value={viewApp.spouseName} />
+                          <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+                          <Field label="Spouse Date of Birth" value={fmtDate(viewApp.spouseDob)} />
+                        </Section>
+                      )}
 
-    {viewApp.education?.length > 0 && (
-      <Section title="Educational Background">
-        {viewApp.education.map((e, i) => (
-          <React.Fragment key={i}>
-            <Field label={`Degree #${i+1}`}  value={e.degree} />
-            <Field label="School"            value={e.school} />
-            <Field label="Course"            value={e.course} />
-            <Field label="Year Graduated"    value={e.yearGrad?.toString()} />
-          </React.Fragment>
-        ))}
-      </Section>
-    )}
+                      {viewApp.education?.length > 0 && (
+                        <Section title="Educational Background">
+                          {viewApp.education.map((e, i) => (
+                            <React.Fragment key={i}>
+                              <Field label={`Degree #${i+1}`}  value={e.degree} />
+                              <Field label="School"            value={e.school} />
+                              <Field label="Course"            value={e.course} />
+                              <Field label="Year Graduated"    value={e.yearGrad?.toString()} />
+                            </React.Fragment>
+                          ))}
+                        </Section>
+                      )}
 
-    <Section title="Business Interest">
-      <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
-      <Field label="Equity Owned (%)"       value={viewApp.equity} />
-      <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
-      <Field label="Source of Funds"        value={viewApp.fundSource} />
-      <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
-      <Field label="Preferred Location"     value={viewApp.location}       full />
-    </Section>
+                      <Section title="Business Interest">
+                        <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
+                        <Field label="Equity Owned (%)"       value={viewApp.equity} />
+                        <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
+                        <Field label="Source of Funds"        value={viewApp.fundSource} />
+                        <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
+                        <Field label="Preferred Location"     value={viewApp.location}       full />
+                      </Section>
 
-    <Section title="Declaration">
-      <Field label="Family Dependence"      value={viewApp.familyDepend}   full />
-      <Field label="Market Area"            value={viewApp.marketArea}     full />
-      <Field label="Target Start Date"      value={fmtDate(viewApp.startDate)} />
-    </Section>
-  </>
-) : (
-  // ── Regular franchise view (existing fields) ──
-  <>
-    <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
-      <Field label="Email Address"      value={viewApp.email} />
-      <Field label="Phone Number"       value={viewApp.phone} />
-      <Field label="Franchise Interest" value={viewApp.franchise} />
-      <Field label="Payment Mode"       value={viewApp.paymentMode} />
-      <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
-    </Section>
+                      <Section title="Declaration">
+                        <Field label="Family Dependence"      value={viewApp.familyDepend}   full />
+                        <Field label="Market Area"            value={viewApp.marketArea}     full />
+                        <Field label="Target Start Date"      value={fmtDate(viewApp.startDate)} />
+                      </Section>
+                    </>
+                  ) : (
+                    // ── Regular franchise view (existing fields) ──
+                    <>
+                      <Section title="Basic Information">
+                        <Field label="Full Name"          value={viewApp.name}              full />
+                        <Field label="Email Address"      value={viewApp.email} />
+                        <Field label="Phone Number"       value={viewApp.phone} />
+                        <Field label="Franchise Interest" value={viewApp.franchise} />
+                        <Field label="Payment Mode"       value={viewApp.paymentMode} />
+                        <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
+                      </Section>
 
-    <Section title="Personal Information">
-      <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
-      <Field label="Civil Status"       value={viewApp.civilStatus} />
-      <Field label="Gender"             value={viewApp.gender} />
-      <Field label="Nationality"        value={viewApp.nationality} />
-      <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
-      <Field label="ID Type Used"       value={viewApp.idType} />
-      <Field label="Address"            value={viewApp.address}           full />
-    </Section>
+                      <Section title="Personal Information">
+                        <Field label="Date of Birth"      value={fmtDate(viewApp.dob)} />
+                        <Field label="Civil Status"       value={viewApp.civilStatus} />
+                        <Field label="Gender"             value={viewApp.gender} />
+                        <Field label="Nationality"        value={viewApp.nationality} />
+                        <Field label="No. of Dependents"  value={viewApp.dependents?.toString()} />
+                        <Field label="ID Type Used"       value={viewApp.idType} />
+                        <Field label="Address"            value={viewApp.address}           full />
+                      </Section>
 
-    {(viewApp.spouseName || viewApp.spouseOccupation) && (
-      <Section title="Spouse Information">
-        <Field label="Spouse Name"       value={viewApp.spouseName} />
-        <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
-      </Section>
-    )}
+                      {(viewApp.spouseName || viewApp.spouseOccupation) && (
+                        <Section title="Spouse Information">
+                          <Field label="Spouse Name"       value={viewApp.spouseName} />
+                          <Field label="Spouse Occupation" value={viewApp.spouseOccupation} />
+                        </Section>
+                      )}
 
-    <Section title="Employment Information">
-      <Field label="Employment Type"    value={viewApp.employmentType} />
-      <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
-      <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
-      <Field label="Position"           value={viewApp.position} />
-      <Field label="Company Name"       value={viewApp.employerName}      full />
-      <Field label="Business Address"   value={viewApp.businessAddress}   full />
-      <Field label="Nature of Business" value={viewApp.businessNature} />
-    </Section>
-  </>
-)}
-                  
-                    <div style={{ marginBottom: 20 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 800, color: "#00897b",
-                letterSpacing: "0.1em", textTransform: "uppercase",
-                marginBottom: 10, paddingBottom: 6,
-                borderBottom: "1.5px solid #e0f2f1",
-              }}>Required Documents</div>
+                      <Section title="Employment Information">
+                        <Field label="Employment Type"    value={viewApp.employmentType} />
+                        <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
+                        <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
+                        <Field label="Position"           value={viewApp.position} />
+                        <Field label="Company Name"       value={viewApp.employerName}      full />
+                        <Field label="Business Address"   value={viewApp.businessAddress}   full />
+                        <Field label="Nature of Business" value={viewApp.businessNature} />
+                      </Section>
+                    </>
+                  )}
 
-              {/* Letter of Intent */}
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Letter of Intent (PDF)</div>
-                {viewApp.letterOfIntent ? (
-                   <button
-                      onClick={() => {
-                        let base64 = viewApp.letterOfIntent;
-                        
-                        // Strip the data URL prefix if present
-                        if (base64.includes(",")) {
-                          base64 = base64.split(",")[1];
-                        }
-                        
-                        const byteCharacters = atob(base64);
-                        const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: "application/pdf" });
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, "_blank");
-                      }}
-                       style={{
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 800, color: "#00897b",
+                      letterSpacing: "0.1em", textTransform: "uppercase",
+                      marginBottom: 10, paddingBottom: 6,
+                      borderBottom: "1.5px solid #e0f2f1",
+                    }}>Required Documents</div>
+
+                    {/* Letter of Intent */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Letter of Intent (PDF)</div>
+                      {viewApp.letterOfIntent ? (
+                        <button
+                          onClick={() => {
+                            let base64 = viewApp.letterOfIntent;
+                            if (base64.includes(",")) {
+                              base64 = base64.split(",")[1];
+                            }
+                            const byteCharacters = atob(base64);
+                            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: "application/pdf" });
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, "_blank");
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "10px 14px", borderRadius: 8,
+                            border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+                            color: "#00695c", fontSize: 13, fontWeight: 700,
+                            cursor: "pointer", fontFamily: "inherit", width: "fit-content",
+                          }}
+                        >
+                          <FileText size={15} /> View Letter of Intent
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                          No Letter of Intent uploaded
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ID Attachment */}
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
+                      {viewApp.idImage ? (
+                        <img
+                          src={viewApp.idImage}
+                          alt="Government ID"
+                          style={{
+                            maxWidth: "100%", maxHeight: 200,
+                            borderRadius: 10, border: "1.5px solid #b2dfdb",
+                            objectFit: "contain", background: "#f8fffe",
+                          }}
+                        />
+                      ) : viewApp.idType ? (
+                        <div style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "10px 14px", borderRadius: 8,
-                          border: "1.5px solid #b2dfdb", background: "#e0f2f1",
-                          color: "#00695c", fontSize: 13, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit", width: "fit-content",
-                        }}
-                    >
-                    <FileText size={15} /> View Letter of Intent
-                      </button>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
-                    No Letter of Intent uploaded
+                          border: "1.5px solid #a5d6a7", background: "#e8f5e9",
+                          fontSize: 13, fontWeight: 600, color: "#1b5e20",
+                        }}>
+                          <CheckCircle2 size={15} color="#2E7D32" />
+                          ID Verified — {viewApp.idType}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
+                          No ID attached
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* ID Attachment */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>ID Attachment</div>
-                {viewApp.idImage ? (
-                  <img
-                    src={viewApp.idImage}
-                    alt="Government ID"
-                    style={{
-                      maxWidth: "100%", maxHeight: 200,
-                      borderRadius: 10, border: "1.5px solid #b2dfdb",
-                      objectFit: "contain", background: "#f8fffe",
-                    }}
-                  />
-                ) : viewApp.idType ? (
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "10px 14px", borderRadius: 8,
-                    border: "1.5px solid #a5d6a7", background: "#e8f5e9",
-                    fontSize: 13, fontWeight: 600, color: "#1b5e20",
-                  }}>
-                    <CheckCircle2 size={15} color="#2E7D32" />
-                    ID Verified — {viewApp.idType}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: "#9ca3af", fontStyle: "italic", padding: "7px 10px", background: "#f8fffe", borderRadius: 8, border: "1px solid #e0f2f1" }}>
-                    No ID attached
-                  </div>
-                )}
-              </div>
-            </div>
                 </>
               );
             })()}
@@ -4230,23 +4362,16 @@ const handleDelete = async (id) => {
             </div>
           </div>
         </div>
-         </>
       )}
 
-      {alertModal && (
-  <AlertModal
-    open={!!alertModal}
-    type={alertModal.type}
-    message={alertModal.message}
-    onClose={() => setAlertModal(null)}
-  />
-)}
+      {/* ── Toast (replaces AlertModal) ── */}
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
 
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
           defaultRole="franchisee"
-          roles={['Franchisee']}    
+          roles={['Franchisee']}
           onClose={() => setAccountApp(null)}
           onAlert={(message, type) => setAlertModal({ message, type })}
         />
@@ -4288,7 +4413,7 @@ const handleDelete = async (id) => {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
-                onClick={() => { setViewApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setViewApp(menuApp); setMenuApp(null); showAlert("Viewing application", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11,
@@ -4300,7 +4425,7 @@ const handleDelete = async (id) => {
                 <Eye size={15} /> View Application Details
               </button>
               <button
-                onClick={() => { setAccountApp(menuApp); setMenuApp(null); }}
+                onClick={() => { setAccountApp(menuApp); setMenuApp(null); showAlert("Opening account creation", null, "success"); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -4314,7 +4439,7 @@ const handleDelete = async (id) => {
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "approved"}
+                disabled={menuApp.status === "approved" || processingId !== null}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
@@ -4331,30 +4456,29 @@ const handleDelete = async (id) => {
                 <Check size={15} />
                 {menuApp.status === "approved" ? "Already Approved" : "Approve Application"}
               </button>
-            <button
+              <button
                 onClick={() => { handleReject(menuApp.id); setMenuApp(null); }}
-                disabled={menuApp.status === "rejected"}
+                disabled={menuApp.status === "rejected" || processingId !== null}
                 style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "12px 16px", borderRadius: 11, border: "none",
-                    background: menuApp.status === "rejected"
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "12px 16px", borderRadius: 11, border: "none",
+                  background: menuApp.status === "rejected"
                     ? "#e0e0e0"
                     : "linear-gradient(135deg,#ef4444,#dc2626)",
-                    color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
-                    fontSize: 13, fontWeight: 700,
-                    cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    opacity: menuApp.status === "rejected" ? 0.6 : 1,
+                  color: menuApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: menuApp.status === "rejected" ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: menuApp.status === "rejected" ? 0.6 : 1,
                 }}
-                >
+              >
                 <X size={15} />
                 {menuApp.status === "rejected" ? "Already Rejected" : "Reject Application"}
-                </button>
-
-                            </div>
-                        </div>
-                        </div>
-                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main content ── */}
       <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
@@ -4440,7 +4564,7 @@ const handleDelete = async (id) => {
               </button>
             )}
 
-            {/* Result count pushed right */}
+            {/* Result count */}
             <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
               {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
             </span>
@@ -4478,7 +4602,7 @@ const handleDelete = async (id) => {
                 Export CSV
               </button>
 
-              {/* Delete History button — fixed: moved outside table markup */}
+              {/* Delete History button */}
               <button
                 onClick={() => setShowAppDeleteHistory(true)}
                 style={{
@@ -4503,7 +4627,6 @@ const handleDelete = async (id) => {
               </button>
             </div>
           </div>
-          
 
           {/* Table */}
           <div style={{ overflowX: "auto" }}>
@@ -4559,7 +4682,7 @@ const handleDelete = async (id) => {
                       {app.franchise}
                     </td>
                     <td style={{ padding: "12px 14px", color: "#5a7a65", fontSize: 12 }}>
-                       {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
+                      {app.date ? new Date(app.date).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "—"}
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <StatusBadge status={app.status} />
@@ -4605,12 +4728,13 @@ const handleDelete = async (id) => {
   );
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert }) {
+function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
   const [sending, setSending] = useState(false);
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [branches, setBranches] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState(roles?.[0] || 'Franchisee');
 
   useEffect(() => {
     fetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
@@ -4627,7 +4751,7 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
     e.preventDefault();
     const form = e.target;
     const name = form.fullName.value, email = form.email.value, phone = form.phone.value;
-    const role = 'Franchisee';
+    const role = selectedRole;
     const branch = form.branch.value;
     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
     const brand = selectedBrand?.name || '';
@@ -4638,15 +4762,15 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
       });
-      if (!res.ok) { const err = await res.json(); 
-        
+      if (!res.ok) {
+        const err = await res.json();
         if (err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
           onAlert(`An account with the email "${email}" already exists. Please use a different email or check existing accounts.`, 'error');
-          } else {
-            onAlert(err.error || 'Failed to create account.', 'error');
-          }
-          return;
+        } else {
+          onAlert(err.error || 'Failed to create account.', 'error');
         }
+        return;
+      }
 
       await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4675,7 +4799,22 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
           ))}
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Role</label>
-            <input value="Franchisee" disabled style={{ ...bmInput, marginTop: 4, background: '#f5f5f5', cursor: 'not-allowed', opacity: 0.7 }} />
+            {roles && roles.length > 1 ? (
+              <select
+                value={selectedRole}
+                onChange={e => setSelectedRole(e.target.value)}
+                required
+                style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}
+              >
+                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            ) : (
+              <input
+                value={selectedRole}
+                disabled
+                style={{ ...bmInput, marginTop: 4, background: '#f5f5f5', cursor: 'not-allowed', opacity: 0.7 }}
+              />
+            )}
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Brand</label>
@@ -4693,9 +4832,12 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button type="submit" disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: sending ? 0.7 : 1 }}>
-              {sending ? 'Creating…' : '✉ Create & Send'}
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button type="submit" disabled={sending}
+              style={{ display:'flex', alignItems:'center', gap:6, flex: 1, justifyContent:'center', padding:'10px 0', borderRadius:10, border:'none', background:'linear-gradient(135deg,#2E7D32,#00897b)', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'inherit', boxShadow:'0 2px 10px rgba(0,180,90,0.35)',
+               opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+              {sending ? "Creating…" : "✉ Create & Send"}
             </button>
           </div>
         </form>
@@ -4704,11 +4846,6 @@ function CreateAccountModal({ applicant, onClose, onAlert }) {
   );
 }
 
-
-
-// ═════════════════════════════════════════════════════════════════════════════
-// MODULE 4 — ANNOUNCEMENTS (re-exported from AdminDashboard logic)
-// ═════════════════════════════════════════════════════════════════════════════
 function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [announcements, setAnnouncements] = useState([]);
   const [pinnedIds, setPinnedIds] = useState(new Set());
@@ -4724,11 +4861,9 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const [deleteHistory, setDeleteHistory] = useState([]);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  // ── Activity log state (ported from ApplicationsContent) ────────────────
   const [activityLog, setActivityLog] = useState([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
 
-  // ── Toast + loading states ──────────────────────────────────────────────
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -4741,7 +4876,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const PIN_KEY = 'fa_announcement_pins';
 
-  // ── Activity log fetch (mirrors ApplicationsContent's fetchActivityLog) ─
   const fetchActivityLog = useCallback(async () => {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/announcements-activity-log`);
@@ -4759,7 +4893,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
     } catch (err) { console.error("Failed to fetch announcements activity log:", err); }
   }, []);
 
-  // ── Geolocation helper (mirrors ApplicationsContent's getBrowserLocation)
   const getBrowserLocation = () => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) { resolve(null); return; }
@@ -4928,82 +5061,10 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const isDeletingConfirmTarget = confirmModal && deletingId === confirmModal.itemId;
 
-  // ── Activity Log Modal (mirrors the delete-history modal pattern) ───────
-  const ActivityLogModal = () => {
-    if (!showActivityLog) return null;
-    return (
-      <div
-        onClick={() => setShowActivityLog(false)}
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 2000, padding: 20, backdropFilter: 'blur(4px)',
-        }}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            background: '#fff', borderRadius: 20, padding: '28px 32px',
-            width: '100%', maxWidth: 680, maxHeight: '80vh',
-            display: 'flex', flexDirection: 'column',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-            border: '1px solid rgba(0,168,76,0.15)',
-            fontFamily: 'Montserrat, sans-serif',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Activity Log</h2>
-              {activityLog.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#e0f2f1', color: '#00695c' }}>
-                  {activityLog.length} entries
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => setShowActivityLog(false)}
-              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X size={15} />
-            </button>
-          </div>
-
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {activityLog.length === 0 ? (
-              <div style={{ padding: '40px 0', textAlign: 'center', color: '#9ca3af', fontSize: 13, fontStyle: 'italic' }}>
-                No activity recorded yet.
-              </div>
-            ) : activityLog.map((entry, i) => (
-              <div
-                key={entry.id ?? i}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i < activityLog.length - 1 ? '1px solid #f0f8f0' : 'none' }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e' }}>
-                    {entry.action?.toUpperCase()} · {entry.itemName || '—'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#5a7a65', marginTop: 2 }}>
-                    {entry.performedBy || 'Unknown'} ({entry.role || 'Unknown'}){entry.branch ? ` · ${entry.branch}` : ''}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                    {entry.timestamp ? fmt(entry.timestamp) : '—'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
       {/* Toast */}
       <Toast toast={toast} onClose={closeToast} />
-
-      {/* Activity Log Modal */}
-      <ActivityLogModal />
 
       {/* Confirm modal */}
       {confirmModal && (
@@ -5038,17 +5099,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#d4df33', boxShadow: '0 0 0 3px rgba(212,223,51,0.3)' }} />
             <span style={{ fontSize: 9, fontWeight: 800, color: '#d4df33', letterSpacing: '0.15em' }}>LIVE</span>
           </div>
-          <button
-            onClick={() => setShowActivityLog(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.10)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            <History size={14} /> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background: 'rgba(255,255,255,0.28)', color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 20 }}>
-                {activityLog.length}
-              </span>
-            )}
-          </button>
           <button onClick={() => { setEditing(null); setTitle(''); setContent(''); setImageUrl(''); setImageError(false); setModalVisible(true); }}
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Plus size={14} /> New

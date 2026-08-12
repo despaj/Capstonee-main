@@ -17,7 +17,7 @@ import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
-  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch, DoorOpen, Logout,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon, HistoryIcon,
@@ -344,8 +344,9 @@ export default function AdminDashboard() {
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
-  const confirmLogout = async () => {
-    try {
+const confirmLogout = async () => {
+  setIsLoggingOut(true);
+  try {
       const stored = localStorage.getItem("user") || sessionStorage.getItem("user");
       const userId = stored ? JSON.parse(stored)?.id : null;
       await fetch(`${process.env.REACT_APP_API_URL}/logout`, {
@@ -362,6 +363,7 @@ export default function AdminDashboard() {
       sessionStorage.removeItem("user");
       sessionStorage.removeItem("tempUser");
       sessionStorage.removeItem("fr_activeModule");
+      setIsLoggingOut(false);
       setShowLogoutModal(false);
       window.location.href = "/admin-login";
     }
@@ -582,6 +584,8 @@ useEffect(() => {
   const handleViewApplication = (applicant) => { setSelectedApplicant(applicant); setShowViewApplicationModal(true); };
 
   const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
+
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   return (
     <div className="admin-dashboard-root">
@@ -826,21 +830,35 @@ useEffect(() => {
       {showLogoutModal && (
         <div
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, backdropFilter:'blur(4px)' }}
-          onClick={() => setShowLogoutModal(false)}
+          onClick={() => { if (!isLoggingOut) setShowLogoutModal(false); }}
         >
           <div
             style={{ background:C.white, borderRadius:22, padding:'32px 36px', maxWidth:400, width:'90%', textAlign:'center', boxShadow:'0 24px 80px rgba(0,0,0,0.25)', border:'1px solid rgba(0,168,76,0.15)', animation:'slideUp .25s ease' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:'2rem', border:'1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
+            <div style={{ width:68, height:68, borderRadius:20, background:'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', border:'1.5px solid rgba(239,68,68,0.15)' }}>
+              <LogOut size={28} color="#dc2626" strokeWidth={1.75} />
+            </div>
             <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:20, fontWeight:800, color:'#0d2b1e', marginBottom:8 }}>Log out?</h2>
             <p style={{ color:'#94a3b8', fontSize:13, marginBottom:28, lineHeight:1.6, fontFamily:'Poppins,sans-serif' }}>
               You'll need to sign in again to access your account.
             </p>
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setShowLogoutModal(false)} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Montserrat,sans-serif' }}>Cancel</button>
-              <button onClick={confirmLogout} style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
-                <LogOut size={14} /> Log out
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                disabled={isLoggingOut}
+                style={{ flex:1, padding:'11px 0', borderRadius:12, border:'1.5px solid #b2dfdb', background:'#f0fdf5', color:'#5a7a65', fontSize:13, fontWeight:700, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', opacity: isLoggingOut ? 0.5 : 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                disabled={isLoggingOut}
+                style={{ flex:1, padding:'11px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#ef4444,#dc2626)', color:'#fff', fontSize:13, fontWeight:800, cursor: isLoggingOut ? 'not-allowed' : 'pointer', fontFamily:'Montserrat,sans-serif', boxShadow:'0 4px 14px rgba(239,68,68,.25)', display:'flex', alignItems:'center', justifyContent:'center', gap:7, opacity: isLoggingOut ? 0.85 : 1 }}
+              >
+                {isLoggingOut
+                  ? <><RefreshCw size={14} style={{ animation:'spin .8s linear infinite' }} /> Logging out…</>
+                  : <><LogOut size={14} /> Log out</>}
               </button>
             </div>
           </div>
@@ -3923,6 +3941,35 @@ function Field({ label, error, children }) {
   );
 }
 
+function UnlistBlockedModal({ item, onClose, onHideInstead }) {
+  if (!item) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1150, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
+      <div onClick={(e) => e.stopPropagation()} className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 420, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+        <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fff3e0", color: "#e65100", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+            <AlertIcon />
+          </div>
+          <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Can't Unlist This Item</div>
+          <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+            <strong style={{ color: C.ink }}>{item.name}</strong> is linked to past orders and can't be removed from the Mobile Shop. Hide it instead — that keeps order history intact while taking it off the customer-facing shop.
+          </div>
+        </div>
+        <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
+          <button onClick={onClose} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            Close
+          </button>
+          <button onClick={() => onHideInstead(item)} className="msc-btn"
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(0,180,90,0.3)" }}>
+            Hide Instead
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 const normalize = (str) => (str || "").trim().toLowerCase();
 const MARKUP = 1.10; // shop price = stock cost + 10%
@@ -4295,26 +4342,40 @@ const bulkUnlistItems = async (candidateItems) => {
   });
 };
 
-  const deleteItem = async (item) => {
-    if (!item.id) { setConfirmDeleteItem(null); return; }
-    setDeleteLoading(true);
-    const coords = await getBrowserLocation();
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deleted_by: user?.name || "System",   performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-      });
-      setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
-    } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
-    } finally {
-      setDeleteLoading(false);
-      setConfirmDeleteItem(null);
-      fetchShopItems();
-      fetchActivityLog();
+const deleteItem = async (item) => {
+  if (!item.id) { setConfirmDeleteItem(null); return; }
+  setDeleteLoading(true);
+  const coords = await getBrowserLocation();
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        setConfirmDeleteItem(null);
+        setBlockedUnlistItem(item);
+      } else {
+        setToast({ type: "error", title: "Failed to Unlist", message: data.error || "An unexpected error occurred." });
+        setConfirmDeleteItem(null);
+      }
+      return;
     }
-  };
+
+    setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
+    setConfirmDeleteItem(null);
+  } catch {
+    setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
+    setConfirmDeleteItem(null);
+  } finally {
+    setDeleteLoading(false);
+    fetchShopItems();
+    fetchActivityLog();
+  }
+};
 
   const toggleVisibility = async (item) => {
     if (!item.id) return; // nothing to toggle until it's listed
@@ -4330,6 +4391,14 @@ const bulkUnlistItems = async (candidateItems) => {
     } catch {
       setToast({ type: "error", title: "Connection Error", message: "Failed to update visibility." });
     }
+  };
+
+  const [blockedUnlistItem, setBlockedUnlistItem] = useState(null);
+
+  const forceHide = async (item) => {
+    if (!item.id || item.is_visible === false) { setBlockedUnlistItem(null); return; }
+    await toggleVisibility(item);
+    setBlockedUnlistItem(null);
   };
 
   const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
@@ -4657,6 +4726,11 @@ const bulkUnlistItems = async (candidateItems) => {
           </div>
         )}
       </div>
+       <UnlistBlockedModal
+        item={blockedUnlistItem}
+        onClose={() => setBlockedUnlistItem(null)}
+        onHideInstead={forceHide}
+      />
     </div>
   );
 }
@@ -5704,10 +5778,6 @@ const handleRestoreApplication = async (entry) => {
               <option value="iFuel">iFuel</option>
             </select>
 
-              <span style={{ marginLeft:"auto", fontSize:12, color:"#5a7a65", fontWeight:600 }}>
-                {filteredApps.length} of {applications.length} application{applications.length !== 1 ? "s" : ""}
-              </span>
-
             {/* Clear */}
             {(searchQuery || filterStatus !== "all" || filterFranchise !== "all") && (
               <button
@@ -6000,9 +6070,7 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
 
 const REPORT_STATUS = {
   pending:   { label:"Pending",      bg:"#faeeda", color:"#633806", dot:"#BA7517" },
-  submitted: { label:"Under Review", bg:"#e3edfb", color:"#1e40af", dot:"#3b6dde" },
   approved:  { label:"Acknowledged",     bg:"#eaf3de", color:"#27500a", dot:"#3B6D11" },
-  returned:  { label:"Returned",     bg:"#fde8e8", color:"#7f1d1d", dot:"#dc2626" },
 };
 
 const API = process.env.REACT_APP_API_URL || "";

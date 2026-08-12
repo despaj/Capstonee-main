@@ -942,7 +942,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onManageBatches, onQuickAdd, onReceiveStock, expanded=false, initialBranchFilter="", initialStatusFilter="" }) {
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onManageBatches, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false }) {
   const [search, setSearch]     = useState("");
   const [branchF, setBranchF]   = useState(initialBranchFilter);
   const [unitF, setUnitF]       = useState("");
@@ -975,18 +975,18 @@ const branchOptions = useMemo(() => {
     .sort((a, b) => a.name.localeCompare(b.name));
 }, [brandItems, search, branchF, unitF, statusF]);
 
-  useEffect(() => {
-    if (initialBranchFilter) {
-      setBranchF(initialBranchFilter);
-      didSetDefaultBranch.current = true;
-      return;
-    }
-    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
-      const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
-      if (headOffice) setBranchF(headOffice);
-      didSetDefaultBranch.current = true;
-    }
-  }, [initialBranchFilter, branchOptions]);
+useEffect(() => {
+  if (initialBranchFilter) {
+    setBranchF(initialBranchFilter);
+    didSetDefaultBranch.current = true;
+    return;
+  }
+  if (!didSetDefaultBranch.current && branchOptions.length > 0) {
+    const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
+    if (headOffice) setBranchF(headOffice);
+    didSetDefaultBranch.current = true;
+  }
+}, [initialBranchFilter, branchOptions]);
 
   useEffect(() => {
     setStatusF(initialStatusFilter);
@@ -1021,16 +1021,25 @@ const branchOptions = useMemo(() => {
   const lowCount = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
   const listMaxHeight = expanded ? 700 : 480;
 
-  return (
-    <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)", display:"flex", flexDirection:"column" }}>
-      {/* header */}
-      <div style={{ padding: expanded ? "16px 22px" : "12px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
-        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <StoreIcon size={expanded?17:14} color="#fff"/>
-          <span style={{ fontWeight:800, fontSize:expanded?17:14 }}>{brandDef.label}</span>
-        </span>
-        <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
-          <span style={{ opacity:0.92 }}>{brandItems.length} item{brandItems.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+return (
+  <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)", display:"flex", flexDirection:"column" }}>
+  {/* header */}
+  <div style={{ padding: expanded ? "16px 22px" : "12px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
+    <span style={{ display:"flex", alignItems:"center", gap:10 }}>
+      {onBack ? (
+        <button onClick={onBack} title="Back to all brands"
+          style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.22)", color:"#fff", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
+          <ArrowLeftIcon size={16} strokeWidth={2.5}/>
+        </button>
+      ) : (
+        <StoreIcon size={expanded?17:14} color="#fff"/>
+      )}
+      <span style={{ fontWeight:800, fontSize:expanded?17:14 }}>{brandDef.label}</span>
+    </span>
+    <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
+      <span style={{ opacity:0.92 }}>{brandItems.length} item{brandItems.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+      {!readOnly && (
+        <>
           <button onClick={() => onReceiveStock(brandDef, selected)} title="Receive stock for this brand"
             style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 11px", borderRadius:7, border:"1px solid rgba(255,255,255,0.55)", background:"rgba(255,255,255,0.16)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
             <PlusIcon size={11}/> Receive Stock
@@ -1039,8 +1048,10 @@ const branchOptions = useMemo(() => {
             style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"1px solid rgba(255,255,255,0.5)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
             <PlusIcon size={12}/> Add Item
           </button>
-        </span>
-      </div>
+        </>
+      )}
+    </span>
+  </div>
 
       {/* filter row (brand filter intentionally omitted — this card IS the brand filter) */}
       <div style={{ padding: expanded ? "12px 18px" : "10px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fafffe" }}>
@@ -1083,8 +1094,12 @@ const branchOptions = useMemo(() => {
                   <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
                 </div>
                 <div style={{ display:"flex", gap:6, marginTop:7 }}>
-                  <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
-                  <button onClick={e=>{ e.stopPropagation(); onDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
+                  {!readOnly && (
+                    <>
+                      <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
+                      <button onClick={e=>{ e.stopPropagation(); onDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -1100,12 +1115,6 @@ const branchOptions = useMemo(() => {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   RECEIVE STOCK MODAL — matches the "Receive Stock" mock: pick a product,
-   log a new batch with full timestamp, auto-queued by FIFO/FEFO rules.
-   Expiry date must be at least MIN_SHELF_LIFE_DAYS (1 month) after the
-   date received — anything shorter is rejected.
-───────────────────────────────────────────────────────────────────────── */
 function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userName, userRole, onClose, onDone, showUiModal, setToast }) {
   const nowLocal = () => {
     const d = new Date();
@@ -1319,39 +1328,34 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
             </div>
           </div>
 
-          <div>
+<div>
   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-    <label style={{ ...invLabelSt, marginBottom:0 }}>Expiry Date {!noExpiry && "*"}</label>
-    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
-      <input
-        type="checkbox"
-        checked={noExpiry}
-        onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setF("exp_date", ""); }}
-      />
-      No expiry date
-    </label>
+    <label style={{ ...invLabelSt, marginBottom:0 }}>Expiry Date *</label>
+    {!pharma && (
+      <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
+        <input
+          type="checkbox"
+          checked={noExpiry}
+          onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setF("exp_date", ""); }}
+        />
+        No expiry date
+      </label>
+    )}
   </div>
   <input
     type="date"
     style={{ ...invInputSt, opacity: noExpiry ? 0.5 : 1 }}
     value={form.exp_date}
     min={minExpiryDateStr}
-    required={!noExpiry}
+    required
     disabled={noExpiry}
     onChange={e=>setF("exp_date", e.target.value)}
   />
-  {!noExpiry && (
-    <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
-      {pharma
-        ? <>Medicine requires at least <strong style={{ color:C.ink }}>3 years</strong> of shelf life from the date received</>
-        : <>Must be at least 1 month after the date received</>} (earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>).
-    </div>
-  )}
-  {noExpiry && pharma && (
-    <div style={{ fontSize:11, color:C.warn, marginTop:5, fontWeight:600 }}>
-      ⚠ iPharma items are expected to carry expiry dates for compliance. Only use this for genuinely non-expiring stock.
-    </div>
-  )}
+  <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
+    {pharma
+      ? <>Medicine requires at least <strong style={{ color:C.ink }}>3 years</strong> of shelf life from the date received</>
+      : <>Must be at least 1 month after the date received</>} (earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>).
+  </div>
 </div>
 
           {pharma && (
@@ -1678,7 +1682,7 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
   );
 }
 
-function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, userRole, showUiModal, setToast }) {
+function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, userRole, showUiModal, setToast, readOnly=false }) {
   const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
   const [editingBatch, setEditingBatch] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -1941,14 +1945,18 @@ const restoreBatch = async (entry) => {
                   {batch.notes && <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{batch.notes}</div>}
                 </div>
                 <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                  <button onClick={()=>setEditingBatch(batch)} title="Edit batch" className="edit-btn"
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, height:30, padding:"0 12px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", color:"#00897b", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
-                    <EditIcon size={12}/> Edit
-                  </button>
-                  <button onClick={()=>requestDeleteBatch(batch)} title="Delete batch" className="del-btn"
-                    style={{ display:"inline-flex", alignItems:"center", gap:5, height:30, padding:"0 12px", borderRadius:8, border:"1px solid #ffcdd2", background:"#fff", color:"#e53935", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
-                    <TrashIcon size={12}/> Delete
-                  </button>
+                  {!readOnly && (
+                    <>
+                      <button onClick={()=>setEditingBatch(batch)} title="Edit batch" className="edit-btn"
+                        style={{ display:"inline-flex", alignItems:"center", gap:5, height:30, padding:"0 12px", borderRadius:8, border:"1px solid #d1eedd", background:"#fff", color:"#00897b", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+                        <EditIcon size={12}/> Edit
+                      </button>
+                      <button onClick={()=>requestDeleteBatch(batch)} title="Delete batch" className="del-btn"
+                        style={{ display:"inline-flex", alignItems:"center", gap:5, height:30, padding:"0 12px", borderRadius:8, border:"1px solid #ffcdd2", background:"#fff", color:"#e53935", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+                        <TrashIcon size={12}/> Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -1987,7 +1995,8 @@ const restoreBatch = async (entry) => {
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [], initialFocus = null }) {
-  const isAdmin = user?.role === "Super Admin" || user?.role === "Franchisee Operations Admin";
+  const isAdmin = user?.role === "Super Admin" || user?.role === "Sales Admin" || "Franchisee Operations Admin";
+  const isReadOnly = user?.role === "Franchisee Operations Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
 
@@ -2487,22 +2496,6 @@ const openEdit = async item => {
         </div>
       ) : (
         <>
-          {/* navbar (back button + breadcrumb) — only shown once a brand is selected */}
-          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18, flexWrap:"wrap" }}>
-            <button onClick={() => setActiveBrandKey(null)}
-              style={{ ...smallBtnSt, height:34, padding:"0 13px", border:`1px solid ${C.border}`, color:C.greenDk, background:C.white }}>
-              <ArrowLeftIcon size={13}/> Back
-            </button>
-            <div>
-              <h1 style={{ margin:0, fontSize:20, fontWeight:800, color:C.ink }}>
-                Stock Inventory
-              </h1>
-              <div style={{ fontSize:12, color:C.muted, marginTop:2, fontWeight:600 }}>
-                Stock Inventory / {activeBrandDef.label}
-              </div>
-            </div>
-          </div>
-
           <BrandCard
             key={activeBrandDef.key}
             brandDef={activeBrandDef}
@@ -2519,9 +2512,11 @@ const openEdit = async item => {
               setShowModal(true);
             }}
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
+            onBack={() => setActiveBrandKey(null)}
             initialBranchFilter={initialFocus?.branch || ""}   // ← new
             initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
             expanded
+            readOnly={isReadOnly} 
           />
         </>
       )}
@@ -2532,7 +2527,7 @@ const openEdit = async item => {
           onClick={e=>{ if(e.target===e.currentTarget) closeModal(); }}>
           <div style={{ background:C.white, borderRadius:18, padding:"26px 26px 20px", width:540, maxWidth:"95vw", maxHeight:"93vh", overflowY:"auto", boxShadow:"0 12px 48px rgba(0,0,0,0.16)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{editing ? "Edit Ingredient" : "Add Stock Ingredient"}</h2>
+              <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{editing ? "Edit Stock" : "Add Stock"}</h2>
               <button onClick={closeModal} style={{ background:"none", border:"none", color:C.muted, padding:4 }}><XIcon size={18}/></button>
             </div>
             <form onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
@@ -2679,7 +2674,7 @@ const openEdit = async item => {
                 <button type="button" onClick={closeModal} style={btnSt}>Cancel</button>
                 <button type="submit" disabled={savingItem}
                   style={{ ...btnPrimarySt, opacity: savingItem ? 0.6 : 1, cursor: savingItem ? "not-allowed" : "pointer" }}>
-                  {savingItem ? "Saving…" : "Save Ingredient"}
+                  {savingItem ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>
@@ -2714,6 +2709,7 @@ const openEdit = async item => {
           userRole={user?.role}
           showUiModal={showUiModal}
           setToast={setToast}
+          readOnly={isReadOnly} 
           onRefresh={() => {
             setBatchLoading(true);
             fetch(`${process.env.REACT_APP_API_URL}/ingredient-batches?ingredient_id=${activeBatchIngredient.id}`)

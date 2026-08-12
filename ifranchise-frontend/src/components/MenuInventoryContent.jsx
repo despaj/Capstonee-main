@@ -647,7 +647,7 @@ function Toast({ toast, onClose }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
-  const isAdmin    = user?.role === "Super Admin";
+  const isAdmin    = user?.role === "Super Admin" || user?.role === "Sales Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
 
