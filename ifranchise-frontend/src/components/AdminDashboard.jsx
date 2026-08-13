@@ -2315,6 +2315,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const closeInfo = () => setInfoModal(null);
 
   const [toast, setToast] = useState(null);
+  const hasActiveFilters = !!(filterBrand || filterBranch || (rangeMode === "custom" && appliedRange) || viewArchive);
 
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
 
@@ -2466,6 +2467,17 @@ const deleteArchive = (year) => {
       closeInfo();
     },
   });
+};
+
+const clearAllFilters = () => {
+  setFilterBrand(null);
+  setFilterBranch(null);
+  setRangeMode("preset");
+  setPreset("month");
+  setAppliedRange(null);
+  setCustomFrom(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  setCustomTo(fmt8(today));
+  setViewArchive(null);
 };
 
 const applyCustomRange = async () => {
@@ -2676,7 +2688,6 @@ const applyCustomRange = async () => {
                 <Store size={10} /> {filterBranch} <X size={9} />
               </span>
             )}
-            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
           </>
         )}
 
@@ -2719,6 +2730,20 @@ const applyCustomRange = async () => {
             </>
           ) : "Apply"}
         </button>
+        {hasActiveFilters && (
+        <button
+          onClick={clearAllFilters}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "7px 14px", borderRadius: 9,
+            border: "1px solid #fecaca", background: "#fff",
+            color: "#ef4444", fontSize: 12, fontWeight: 700,
+            cursor: "pointer", fontFamily: FONT,
+          }}
+        >
+          <X size={12} /> Clear All Filters
+        </button>
+        )}
          </div>
 
         {/* Archive */}

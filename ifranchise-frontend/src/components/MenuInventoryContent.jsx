@@ -827,7 +827,82 @@ function ItemDetailModal({ item, onClose, onEdit, onRequestDelete, deletingId })
   );
 }
 
-// ─── MenuBrandCard — the main card, now a simple row/table list ───────────────
+function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
+  const [search, setSearch]   = useState("");
+  const [statusF, setStatusF] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items
+      .filter(i => {
+        if (q && !i.name.toLowerCase().includes(q)) return false;
+        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
+        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        return true;
+      })
+      .sort((a,b) => a.name.localeCompare(b.name));
+  }, [items, search, statusF]);
+
+  useEffect(() => {
+    if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
+  }, [items, selectedId]);
+
+  const selected = items.find(i => i.id === selectedId) || null;
+
+  return (
+    <div>
+      {/* filter row */}
+      <div style={{ padding:"10px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", background:"#fafffe" }}>
+        <div style={{ position:"relative", flex:"1 1 180px", minWidth:140 }}>
+          <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item…" style={{ ...invInputSt, height:32, fontSize:12, paddingLeft:28 }}/>
+        </div>
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:32, fontSize:12, width:120 }}>
+          <option value="">All Status</option>
+          <option value="low">Low Stock</option>
+          <option value="ok">In Stock</option>
+        </select>
+      </div>
+
+      {/* two-column: names left, ingredients right */}
+      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", minHeight:420, maxHeight:560 }}>
+        <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:560 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
+          ) : filtered.map(item => {
+            const low = Number(item.stock) <= Number(item.min_stock);
+            const active = item.id === selectedId;
+            return (
+              <div key={item.id} onClick={() => setSelectedId(item.id)}
+                style={{ padding:"11px 16px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
+                  <span style={{ fontSize:13, fontWeight:active?800:600, color:active?C.greenDk:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+                  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
+                </div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", justifyContent:"space-between", gap:6 }}>
+                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
+                  <span style={{ fontWeight:700, color:C.greenDk, flexShrink:0 }}>{fmtPeso(item.price)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ padding:20, overflowY:"auto", maxHeight:560 }}>
+          {selected ? (
+            <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center" }}>
+              <div>Select an item on the left<br/>to view its ingredients.</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MenuBrandCard({
   label, items, branchOptions, showBranchFilter,
   onEdit, onRequestDelete, deletingId, onQuickAdd,
@@ -1688,10 +1763,13 @@ const handleAddItem = async e => {
 const goBackToBrands = () => {
   setActiveScreen("brands");
   setFilterBrand(null);
+  setFilterBrandName("");   // ← clear the brand-name filter too
 };
 
 const openBrand = brandId => {
+  const brandObj = brandList.find(b => b.id === brandId);
   setFilterBrand(brandId);
+  setFilterBrandName(brandObj ? brandObj.name : "");   // ← this is what brandGroups actually filters on
   setActiveScreen("inventory");
 };
 
@@ -1851,7 +1929,7 @@ const openBrand = brandId => {
                 </div>
               )}
             </div>
-            <InventoryTable
+            <MenuBrandListCard
               items={displayItems}
               onEdit={openEditModal}
               onRequestDelete={setDeleteTarget}

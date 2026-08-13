@@ -720,7 +720,7 @@ function ActivityLogPanel({ log, onClose }) {
    Simple white rows, divided by a thin bottom line (green for the next-out
    batch, gray for the rest) instead of colored backgrounds.
 ───────────────────────────────────────────────────────────────────────── */
-function FifoQueue({ product, batches, loading, onManageBatches }) {
+function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, readOnly=false }) {
   if (!product) {
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center", padding:20 }}>
@@ -743,12 +743,7 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
           <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
             {totalStock} {product.unit} · {sorted.length} active batch{sorted.length===1?"":"es"} · min {product.min_stock}
           </div>
-        </div>
-        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-          <button onClick={onManageBatches} style={{ ...smallBtnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, background:C.greenLt }}>
-            Manage
-          </button>
-        </div>
+        </div>  
       </div>
 
       <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", borderRadius:8,
@@ -777,7 +772,7 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
             <div key={b.id} style={{
               background:C.white,
               borderBottom: isLast ? "none" : `1px solid ${isFirst ? C.greenMid : C.border}`,
-              padding:"12px 4px",
+              padding:"7px 4px",
             }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6, gap:8, flexWrap:"wrap" }}>
                 <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
@@ -830,6 +825,19 @@ function FifoQueue({ product, batches, loading, onManageBatches }) {
               )}
 
               {b.notes && <div style={{ fontSize:10.5, color:C.muted, marginTop:6, fontStyle:"italic" }}>{b.notes}</div>}
+
+              {!readOnly && (
+                <div style={{ display:"flex", gap:6, marginTop:10 }}>
+                  <button onClick={() => onEditBatch(b)} className="edit-btn"
+                    style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, padding:"3px 8px", fontSize:10 }}>
+                    <EditIcon size={9}/> Edit
+                  </button>
+                  <button onClick={() => onDeleteBatch(b)} className="del-btn"
+                    style={{ ...smallBtnSt, border:"1px solid #fecaca", color:"#e53935", padding:"3px 8px", fontSize:10 }}>
+                    <TrashIcon size={9}/> Delete
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
@@ -942,13 +950,18 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onManageBatches, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false }) {
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged }) {
   const [search, setSearch]     = useState("");
   const [branchF, setBranchF]   = useState(initialBranchFilter);
   const [unitF, setUnitF]       = useState("");
   const [statusF, setStatusF]   = useState(initialStatusFilter);
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches]       = useState([]);
+
+  const [editingBatch, setEditingBatch]           = useState(null);
+  const [savingBatch, setSavingBatch]             = useState(false);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null); 
+  const [deletingBatch, setDeletingBatch]         = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
   const didSetDefaultBranch = useRef(false); // ← new
 
@@ -1006,6 +1019,93 @@ useEffect(() => {
       .then(d => { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); })
       .catch(() => { setBatchLoading(false); });
   }, [selectedId, apiUrl]);
+
+  const syncIngredientStock = async (ingredient) => {
+  try {
+    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+    const freshBatches = await res.json();
+    const totalStock = Array.isArray(freshBatches) ? freshBatches.reduce((s,b)=>s+Number(b.stock||0),0) : 0;
+    await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ ...ingredient, stock: totalStock }),
+    });
+  } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
+};
+
+const validateBatchForm = (form, ingredient) => {
+  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const errors = [];
+  if (!isPositiveOrZeroNumber(form.stock)) errors.push("Count must be a valid number of 0 or more.");
+  if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
+  if (form.exp_date && !isValidDateStr(form.exp_date)) errors.push("Expiry date is not a valid date.");
+  if (form.supply_date && !isValidDateStr(form.supply_date)) errors.push("Supply date is not a valid date.");
+  if (form.mfg_date && form.exp_date && new Date(form.mfg_date) > new Date(form.exp_date)) errors.push("Manufacture date cannot be after the expiry date.");
+  if (form.supply_date && form.mfg_date && new Date(form.supply_date) < new Date(form.mfg_date)) errors.push("Supply date cannot be before the manufacture date.");
+  if (form.supply_date && form.exp_date && new Date(form.supply_date) > new Date(form.exp_date)) errors.push("Supply date cannot be after the expiry date.");
+  if (form.exp_date && isValidDateStr(form.exp_date)) {
+    if (computeExpiryStatus(form.exp_date, ingredient.brand) === "expired") {
+      errors.push(pharma ? "Expiry date does not meet iPharma's 3-year shelf life requirement." : "This expiry date is already in the past.");
+    }
+  }
+  if (pharma && form.exp_date && form.supply_date) {
+    const minExp = new Date(form.supply_date);
+    minExp.setDate(minExp.getDate() + Math.ceil(THREE_YEARS_MS / 86400000));
+    if (new Date(form.exp_date) < minExp) errors.push("Expiry date must be at least 3 years after the supply date (FDA shelf life requirement for medicine).");
+  }
+  if (pharma && form.controlled_substance && !form.lot_number) errors.push("LOT Number is required for controlled substances.");
+  return errors;
+};
+
+const saveBatch = async (form) => {
+  const { batch, ingredient } = editingBatch;
+  const errors = validateBatchForm(form, ingredient);
+  if (errors.length > 0) {
+    showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
+    return;
+  }
+  setSavingBatch(true);
+  const coords = await getBrowserLocation();
+  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const industryFields = {
+    ...(pharma ? { lot_number:form.lot_number, ndc_code:form.ndc_code, dosage_form:form.dosage_form, strength:form.strength, storage_requirement:form.storage_requirement, controlled_substance:!!form.controlled_substance } : {}),
+    ...(isFuelBrand(ingredient.brand) ? { tank_id:form.tank_id, grade:form.grade, octane_rating:form.octane_rating, delivery_temp:form.delivery_temp, truck_id:form.truck_id, volume_correction:form.volume_correction } : {}),
+  };
+  try {
+    await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ ...form, ...industryFields, performed_by:userName, performed_by_role:userRole||"Unknown", latitude:coords?.latitude, longitude:coords?.longitude }),
+    });
+    await syncIngredientStock(ingredient);
+    setEditingBatch(null);
+    refreshBatches();
+    onItemsChanged?.();
+    setToast({ type:"success", title:"Batch Updated", message:"The batch has been updated successfully." });
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to save the batch." });
+  } finally { setSavingBatch(false); }
+};
+
+const confirmDeleteBatch = async () => {
+  if (!deleteConfirmBatch) return;
+  const { batch, ingredient } = deleteConfirmBatch;
+  setDeletingBatch(true);
+  try {
+    await fetch(`${apiUrl}/ingredient-batch-delete-history`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ batch_data:batch, ingredient_id:ingredient.id, ingredient_name:ingredient.name, deleted_by:userName }),
+    });
+    await fetch(`${apiUrl}/ingredient-batches/${batch.id}`, { method:"DELETE" });
+    await syncIngredientStock(ingredient);
+    refreshBatches();
+    onItemsChanged?.();
+    setToast({ type:"success", title:"Batch Deleted", message:`Batch ${batch.batch_number || ""} has been deleted.` });
+  } catch {
+    setToast({ type:"error", title:"Connection Error", message:"Failed to delete the batch." });
+  } finally {
+    setDeletingBatch(false);
+    setDeleteConfirmBatch(null);
+  }
+};
 
   useEffect(() => {
     if (!selectedId) { setBatches([]); return; }
@@ -1107,10 +1207,32 @@ return (
         </div>
 
         <div style={{ padding: expanded ? 20 : 14, overflowY:"auto", maxHeight:listMaxHeight, minHeight:0 }}>
-          <FifoQueue product={selected} batches={batches} loading={batchLoading}
-            onManageBatches={() => onManageBatches(selected)}/>
+          <FifoQueue
+            product={selected} batches={batches} loading={batchLoading} readOnly={readOnly}
+            onEditBatch={(b) => setEditingBatch({ batch:b, ingredient:selected })}
+            onDeleteBatch={(b) => setDeleteConfirmBatch({ batch:b, ingredient:selected })}
+          />
         </div>
       </div>
+       {editingBatch && (
+      <BatchEditModal
+        ingredient={editingBatch.ingredient}
+        batch={editingBatch.batch}
+        saving={savingBatch}
+        onClose={() => setEditingBatch(null)}
+        onSave={saveBatch}
+      />
+    )}
+
+    {deleteConfirmBatch && (
+      <BatchDeleteConfirmModal
+        batch={deleteConfirmBatch.batch}
+        ingredient={deleteConfirmBatch.ingredient}
+        deleting={deletingBatch}
+        onConfirm={confirmDeleteBatch}
+        onCancel={() => { if (!deletingBatch) setDeleteConfirmBatch(null); }}
+      />
+    )}
     </div>
   );
 }
@@ -2517,6 +2639,11 @@ const openEdit = async item => {
             initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
             expanded
             readOnly={isReadOnly} 
+            userName={userName}
+            userRole={user?.role}
+            showUiModal={showUiModal}
+            setToast={setToast}
+            onItemsChanged={() => { fetchItems(); fetchActivityLog(); }}
           />
         </>
       )}
