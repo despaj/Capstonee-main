@@ -987,10 +987,9 @@ export function POSContent({ user }) {
                   <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>Discount</div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                     {[
-                      { label: 'None',           pct: 0,    requiresAuth: false },
-                      { label: 'PWD',            pct: 20,   requiresAuth: true  },
-                      { label: 'Senior Citizen', pct: 20,   requiresAuth: true  },
-                      { label: 'Others',         pct: null, requiresAuth: true  },
+                     { label: 'None',        pct: 0,    requiresAuth: false },
+{ label: 'PWD/Senior',   pct: 20,   requiresAuth: true  },
+{ label: 'Others',      pct: null, requiresAuth: true  },
                     ].map(d => {
                       const isActive = d.pct !== null ? discountPct === d.pct && discountType === d.label : discountType === 'Others';
                       return (
