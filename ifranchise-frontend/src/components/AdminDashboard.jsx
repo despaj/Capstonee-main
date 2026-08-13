@@ -1394,7 +1394,6 @@ const fmt8     = (d) => d.toISOString().slice(0, 10);
 const FONT     = "'Montserrat', sans-serif";
 const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
 
-// ─── ComboChart ───────────────────────────────────────────────────────────────
 function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
   const [tip, setTip] = useState(null);
   const ref = useRef(null);
@@ -1488,7 +1487,6 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
   );
 }
 
-// ─── HBarChart ────────────────────────────────────────────────────────────────
 function HBarChart({ data = [] }) {
   const maxV = Math.max(...data.map(d => d.value), 1);
   return (
@@ -1508,7 +1506,6 @@ function HBarChart({ data = [] }) {
   );
 }
 
-// ─── DonutChartSVG ────────────────────────────────────────────────────────────
 function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
   const [hover, setHover] = useState(null);
   const R = size / 2, cx = R, cy = R;
@@ -1566,7 +1563,6 @@ function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLab
   );
 }
 
-// ─── SparkBar ─────────────────────────────────────────────────────────────────
 function SparkBar({ values = [], color = "#00c853", height = 30 }) {
   if (!values.length) return null;
   const maxV = Math.max(...values, 1);
@@ -1579,7 +1575,6 @@ function SparkBar({ values = [], color = "#00c853", height = 30 }) {
   );
 }
 
-// ─── Card wrappers ────────────────────────────────────────────────────────────
 function PanelCard({ children, style: s }) {
   return (
     <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
@@ -1818,9 +1813,6 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
     </PanelCard>
   );
 }
-
-// ─── PrescriptiveSection ──────────────────────────────────────────────────────
-
 
 function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
   const [analysis, setAnalysis] = useState(null);
@@ -2246,7 +2238,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     </PanelCard>
   );
 }
-// ─── SalesVsStockSection ──────────────────────────────────────────────────────
+
 function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2985,7 +2977,7 @@ const applyCustomRange = () => {
   );
 }
 
-// ── DeleteConfirmModal ────────────────────────────────────────────────────────
+//NO USE YET
 function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
   const isBrand = target.type === "brand";
   return (
@@ -3016,7 +3008,9 @@ function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
   );
 } 
 
-function DeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
+//BRANDS BRANCH
+
+function BrandDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
@@ -3072,7 +3066,6 @@ function DeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   );
 }
 
-// ── BrandFormFields ───────────────────────────────────────────────────────────
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
@@ -3122,7 +3115,6 @@ function BrandFormFields({ form, setForm }) {
   );
 }
 
-// ── BranchFormFields ──────────────────────────────────────────────────────────
 function BranchFormFields({ form, setForm, brands }) {
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
   const inputSt = { width: "100%", padding: "9px 12px", borderRadius: 10, border: "1.5px solid #b2dfdb", fontSize: 13, color: "#0d2b1e", background: "#f0fdf5", fontFamily: "inherit", outline: "none", marginTop: 4, boxSizing: "border-box" };
@@ -3156,6 +3148,7 @@ function BranchFormFields({ form, setForm, brands }) {
     </div>
   );
 }
+
 function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
   if (!target) return null;
   const isBrand = target.type === "brand";
@@ -3254,7 +3247,6 @@ function BmModal({ title, onClose, onSubmit, saving = false, children }) {
     </div>
   );
 }
-
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -3764,7 +3756,7 @@ const handleRestore = async (entry) => {
       />
 
       {showHistory && (
-        <DeleteHistoryPanel
+        <BrandDeleteHistoryPanel
           history={deletedHistory}
           onRestore={handleRestore}
           restoringId={restoringId}
@@ -4954,6 +4946,55 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   });
 };
 
+const handleExportCSV = () => {
+  if (filteredApps.length === 0) {
+    setAlertModal({ title: "No applications to export", type: "error" });
+    return;
+  }
+
+  const headers = [
+    "Applicant Name", "Email", "Phone", "Franchise Interest",
+    "Date Applied", "Status", "Payment Mode", "Civil Status",
+    "Gender", "Nationality", "Address", "Employment Type",
+    "Monthly Income", "Employer Name",
+  ];
+
+  const escapeCSV = (val) => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const fmtDate = (d) =>
+    d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "";
+
+  const rows = filteredApps.map(app => [
+    app.name, app.email, app.phone, app.franchise,
+    fmtDate(app.date), app.status, app.paymentMode, app.civilStatus,
+    app.gender, app.nationality, app.address, app.employmentType,
+    app.income, app.employerName,
+  ].map(escapeCSV).join(","));
+
+  const csvContent = [headers.map(escapeCSV).join(","), ...rows].join("\n");
+
+  // Add BOM so Excel opens UTF-8 (₱ sign, etc.) correctly
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const today = new Date().toISOString().split("T")[0];
+  link.setAttribute("download", `applications_${today}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  setAlertModal({ title: `Exported ${filteredApps.length} application${filteredApps.length !== 1 ? "s" : ""}`, type: "success" });
+};
+
   const filteredApps = applications.filter(app => {
   const q = searchQuery.toLowerCase();
   if (q && !app.name?.toLowerCase().includes(q) &&
@@ -4963,6 +5004,227 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
   return true;
 });
+
+const handlePrintApplication = (app) => {
+  if (!app) return;
+  const fmt = (d) => d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "";
+  const printWindow = window.open('', '_blank', 'width=800,height=1000');
+  if (!printWindow) return;
+
+  const line = (val) => val || "";
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Application - ${app.name || ""}</title>
+        <style>
+          @page { margin: 24px; }
+          body {
+            font-family: Arial, sans-serif;
+            padding: 24px;
+            color: #111;
+            font-size: 12px;
+          }
+          .sheet {
+            border: 2px solid #000;
+            padding: 20px 24px;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 14px;
+          }
+          .header .company {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+          }
+          .header .tagline {
+            font-size: 9px;
+            color: #555;
+            letter-spacing: 0.1em;
+          }
+          .header .addr {
+            font-size: 9px;
+            color: #333;
+            margin-top: 2px;
+          }
+          .top-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 14px 0 10px;
+          }
+          .fill {
+            border-bottom: 1px solid #000;
+            display: inline-block;
+            min-width: 160px;
+            padding: 0 4px;
+            font-weight: 600;
+          }
+          .section-bar {
+            background: #000;
+            color: #fff;
+            text-align: center;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            padding: 4px 0;
+            font-size: 11px;
+            margin: 14px 0 10px;
+          }
+          .row {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+          }
+          .field {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+          }
+          .label {
+            white-space: nowrap;
+          }
+          .checkbox-row {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+          }
+          .box {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid #000;
+            margin-right: 4px;
+            vertical-align: middle;
+          }
+          .full-line {
+            border-bottom: 1px solid #000;
+            flex: 1;
+            padding: 0 4px;
+            font-weight: 600;
+          }
+          .declaration {
+            font-size: 10px;
+            line-height: 1.5;
+            margin-top: 16px;
+            text-align: justify;
+          }
+          .sign-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 50px;
+          }
+          .sign-block {
+            width: 45%;
+            text-align: center;
+          }
+          .sign-line {
+            border-top: 1px solid #000;
+            padding-top: 4px;
+            font-size: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="sheet">
+          <div class="header">
+            <div class="company">iFRANCHISE</div>
+            <div class="tagline">BUSINESS SERVICES CORP.</div>
+            <div class="addr">Unit 206 Blk 113 Building, #53 Connecticut Street, Greenhills, San Juan City</div>
+          </div>
+
+          <div class="top-row">
+            <div class="field"><span class="label">DATE:</span><span class="fill">${fmt(app.date)}</span></div>
+            <div class="field"><span class="label">MODE OF PAYMENT:</span><span class="fill">${line(app.paymentMode)}</span></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;">
+            <span class="label">CHOSEN CONCEPT:</span><span class="full-line">${line(app.franchise)}</span>
+          </div>
+
+          <div class="section-bar">APPLICANT INFORMATION</div>
+
+          <div class="field" style="margin-bottom:6px;">
+            <span class="label">Franchise App's Name:</span><span class="full-line">${line(app.name)}</span>
+          </div>
+          <div class="row">
+            <div class="field"><span class="label">Date of Birth:</span><span class="fill">${fmt(app.dob)}</span></div>
+          </div>
+
+          <div class="checkbox-row">
+            <span class="label">Civil Status:</span>
+            <span><span class="box">${app.civilStatus === "Married" ? "✓" : ""}</span>Married</span>
+            <span><span class="box">${app.civilStatus === "Single" ? "✓" : ""}</span>Single</span>
+            <span><span class="box">${app.civilStatus === "Widowed" ? "✓" : ""}</span>Widowed</span>
+            <span><span class="box">${app.civilStatus === "Separated" ? "✓" : ""}</span>Separated</span>
+            <span class="field"><span class="label">No. of Dependents:</span><span class="fill">${line(app.dependents)}</span></span>
+          </div>
+
+          <div class="checkbox-row">
+            <span class="label">Nationality:</span>
+            <span><span class="box">${app.nationality === "Filipino" ? "✓" : ""}</span>Filipino</span>
+            <span><span class="box">${app.nationality && app.nationality !== "Filipino" ? "✓" : ""}</span>Others: ${app.nationality && app.nationality !== "Filipino" ? line(app.nationality) : ""}</span>
+            <span class="field"><span class="label">Gender:</span><span class="fill">${line(app.gender)}</span></span>
+          </div>
+
+          <div class="field" style="margin-bottom:6px;">
+            <span class="label">Present Address:</span><span class="full-line">${line(app.address)}</span>
+          </div>
+
+          <div class="row">
+            <div class="field"><span class="label">Telephone No. / Mobile:</span><span class="fill">${line(app.phone)}</span></div>
+          </div>
+          <div class="field" style="margin-bottom:10px;">
+            <span class="label">Email Address:</span><span class="full-line">${line(app.email)}</span>
+          </div>
+
+          <div class="section-bar">EMPLOYMENT</div>
+
+          <div class="checkbox-row">
+            <span class="label">EMPLOYMENT:</span>
+            <span><span class="box">${app.employmentType === "Private Sector" ? "✓" : ""}</span>Private Sector</span>
+            <span><span class="box">${app.employmentType === "Government" ? "✓" : ""}</span>Government</span>
+            <span><span class="box">${app.employmentType === "Self Employed" ? "✓" : ""}</span>Self Employed</span>
+            <span class="field"><span class="label">Years w/ Present Employer/Business:</span><span class="fill">${line(app.yearsEmployer)}</span></span>
+          </div>
+
+          <div class="row">
+            <div class="field"><span class="label">Employer/Business:</span><span class="fill">${line(app.employerName)}</span></div>
+            <div class="field"><span class="label">Position:</span><span class="fill">${line(app.position)}</span></div>
+          </div>
+
+          <div class="field" style="margin-bottom:10px;">
+            <span class="label">Business Address:</span><span class="full-line">${line(app.businessAddress)}</span>
+          </div>
+
+          <div class="row">
+            <div class="field"><span class="label">Nature of Business:</span><span class="fill">${line(app.businessNature)}</span></div>
+            <div class="field"><span class="label">Monthly Income:</span><span class="fill">${app.income ? "₱" + Number(app.income).toLocaleString() : ""}</span></div>
+          </div>
+
+          <div class="declaration">
+            I/We certify that all the above information are true and correct to the best of my/our knowledge. I/We authorize you to verify and investigate
+            the above information from whatever sources you may consider appropriate. In addition, I/We hereby expressly and unconditionally
+            authorize iFRANCHISE BUSINESS SERVICES CORP. to disclose to any iFRANCHISE subsidiary, affiliate and accredited financing company
+            any information regarding me/us. Lastly, We/I hereby acknowledge that the Operation Guidelines and Franchise Agreement has been discussed to me/us.
+          </div>
+
+          <div class="sign-row">
+            <div class="sign-block">
+              <div class="sign-line">Signature of Applicant</div>
+            </div>
+            <div class="sign-block">
+              <div class="sign-line">${fmt(app.dateSigned) || "Date"}</div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 300);
+};
 
   const fetchAppDeleteHistory = async () => {
     try {
@@ -5323,48 +5585,60 @@ const handleRestoreApplication = async (entry) => {
           display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 2000, padding: 20,
         }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: C.white, borderRadius: 20, padding: "28px 32px",
-            width: "100%", maxWidth: 680,
-            boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-            border: "1px solid rgba(0,168,76,0.15)",
-            maxHeight: "90vh", overflowY: "auto",
-            fontFamily: "Montserrat, sans-serif",
-          }}>
-            {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontFamily: "Montserrat,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
-                Application Details
-              </h2>
-              <button onClick={() => setViewApp(null)} style={{
-                width: 32, height: 32, borderRadius: "50%",
-                border: "1px solid #b2dfdb", background: "#e0f2f1",
-                cursor: "pointer", color: "#00695c",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <X size={15} />
+        <div onClick={e => e.stopPropagation()} style={{
+          background: C.white, borderRadius: 20,
+          padding: "59px 47px 40px",   // ← more top padding so header clears the X
+          width: "100%", maxWidth: 680,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          maxHeight: "90vh", overflowY: "auto",
+          fontFamily: "Montserrat, sans-serif",
+          position: "relative",
+        }}>
+        <button onClick={() => setViewApp(null)} style={{
+          position: "absolute", top: 14, right: 14,
+          width: 32, height: 32, borderRadius: "50%",
+          border: "1px solid #b2dfdb", background: "#e0f2f1",
+          cursor: "pointer", color: "#00695c",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1,
+        }}>
+          <X size={15} />
+        </button>
+
+  {/* Header row: title + Print/Create Account, on its own line below the X */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+            <h2 style={{ fontFamily: "Montserrat,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              Application Details
+            </h2>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => handlePrintApplication(viewApp)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 9,
+                  border: "1.5px solid #b2dfdb", background: "#f0fdf5",
+                  color: "#5a7a65", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Printer size={13} /> Print
+              </button>
+              <button
+                onClick={() => setAccountApp(viewApp)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 9, border: "none",
+                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                  color: "#fff", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                  boxShadow: "0 2px 10px rgba(0,180,90,0.28)",
+                }}
+              >
+                <UserPlus size={13} /> Create Account
               </button>
             </div>
-
-            {/* Status + Meta */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: "#f0fdf5", borderRadius: 10, border: "1px solid #b2dfdb", flexWrap: "wrap" }}>
-              <StatusBadge status={viewApp.status} />
-              <span style={{ fontSize: 12, color: "#5a7a65" }}>
-                Date Applied: <strong>
-                  {viewApp.date 
-                    ? new Date(viewApp.date).toLocaleDateString("en-PH", { 
-                        year: "numeric", month: "short", day: "numeric",
-                        timeZone: "Asia/Manila"
-                      }) 
-                    : "—"}
-                </strong>
-              </span>
-              {viewApp.idType && (
-                <span style={{ fontSize: 12, color: "#5a7a65", marginLeft: "auto" }}>
-                  ID Used: <strong>{viewApp.idType}</strong>
-                </span>
-              )}
-            </div>
+          </div>
 
             {/* Section Helper */}
             {(() => {
@@ -5572,14 +5846,39 @@ const handleRestoreApplication = async (entry) => {
               );
             })()}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-              <button onClick={() => setViewApp(null)} style={{
-                padding: "9px 22px", borderRadius: 10,
-                border: "1px solid #b2dfdb", background: "#f0fdf5",
-                color: "#5a7a65", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
-                Close
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
+              <button
+                onClick={async () => { await handleReject(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "rejected" } : prev); }}
+                disabled={viewApp.status === "rejected" || processingId !== null}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "10px 22px", borderRadius: 10, border: "none",
+                  background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                  color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: viewApp.status === "rejected" ? 0.6 : 1,
+                }}
+              >
+                <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
+              </button>
+              <button
+                onClick={async () => { await handleApprove(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "approved" } : prev); }}
+                disabled={viewApp.status === "approved" || processingId !== null}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "10px 22px", borderRadius: 10, border: "none",
+                  background: viewApp.status === "approved" ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                  color: viewApp.status === "approved" ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: (viewApp.status === "approved" || processingId !== null) ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: viewApp.status === "approved" ? "none" : "0 2px 10px rgba(0,180,90,0.3)",
+                  opacity: viewApp.status === "approved" ? 0.6 : 1,
+                }}
+              >
+                <Check size={14} /> {viewApp.status === "approved" ? "Already Approved" : "Approve"}
               </button>
             </div>
           </div>
@@ -5810,18 +6109,21 @@ const handleRestoreApplication = async (entry) => {
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <span style={{ fontWeight: 800, fontSize: 15, color: "#fff" }}>
-              Applications List
+              Applicants
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               {/* Export CSV */}
-              <button style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "7px 16px", borderRadius: 9,
-                border: "1.5px solid rgba(255,255,255,0.4)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff", fontSize: 12, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
+              <button
+                onClick={handleExportCSV}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", borderRadius: 9,
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
                 Export CSV
               </button>
 
@@ -5914,18 +6216,18 @@ const handleRestoreApplication = async (entry) => {
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 6 }}>
                         {/* Actions menu */}
-                        <button
-                          onClick={() => setMenuApp(app)}
-                          style={{
-                            ...smallBtnSt,
-                            border: "1.5px solid #b2dfdb",
-                            background: "#e0f2f1", color: "#00695c",
-                            height: 28, padding: "0 12px",
-                          }}
-                          title="Actions"
-                        >
-                          <Pencil size={11} />
-                        </button>
+<button
+  onClick={() => setViewApp(app)}
+  style={{
+    ...smallBtnSt,
+    border: "1.5px solid #b2dfdb",
+    background: "#e0f2f1", color: "#00695c",
+    height: 28, padding: "0 12px",
+  }}
+  title="View"
+>
+  <Eye size={11} />
+</button>
                         {/* Delete */}
                        <button
                           onClick={() => handleDelete(app.id)}
