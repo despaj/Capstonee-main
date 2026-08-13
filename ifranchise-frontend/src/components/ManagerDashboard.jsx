@@ -8,7 +8,7 @@ import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
   DollarSign, Grid3X3, ChevronDown, Plus, Pencil, Trash2, X, Check,
-  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch,
+  Building2, Store, TrendingDown, TrendingUp, Layers, GitBranch, EyeOff,
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
@@ -155,7 +155,6 @@ const generateReceiptNo = () => 'OR-' + Date.now().toString().slice(-8);
 const generateTxnId     = () => 'TXN-' + Math.random().toString(36).toUpperCase().slice(2, 10);
 
 const VAT_RATE        = 0.12;
-const MANAGER_PASSWORD = 'Admin123';
 
 const UNITS = ['pcs','kg','g','liters','ml','tbsp','tsp','cups','bottles','packs','bags','boxes','cans'];
 
@@ -2525,53 +2524,6 @@ function ReceiptModal({ show, receipt, onClose, onNewSale }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VOID MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-function VoidModal({ show, tx, onClose, onConfirm }) {
-  const [pw,  setPw]  = useState('');
-  const [err, setErr] = useState('');
-
-  const handleConfirm = () => {
-    if (!pw) { setErr('Please enter the manager password.'); return; }
-    if (pw !== MANAGER_PASSWORD) { setErr('Incorrect manager password.'); return; }
-    onConfirm(tx); setPw(''); setErr('');
-  };
-  const handleClose = () => { setPw(''); setErr(''); onClose(); };
-  if (!show) return null;
-
-  return (
-    <div onClick={handleClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: 20 }}>
-      <div onClick={e => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-        <div style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#fff' }}>Void Transaction</div>
-          <button onClick={handleClose} style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
-        </div>
-        <div style={{ padding: 24 }}>
-          {tx && (
-            <div style={{ padding: '12px 14px', background: '#fff3e0', borderRadius: 10, border: '1px solid #ffcc80', marginBottom: 18, fontSize: 13 }}>
-              <div style={{ fontWeight: 700, color: '#0d2b1e' }}>#{tx.id} — {fmtPeso(tx.total)}</div>
-              <div style={{ color: '#5a7a65', fontSize: 12, marginTop: 2 }}>This action cannot be undone.</div>
-            </div>
-          )}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Manager Password</label>
-            <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(''); }} onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }} placeholder="Enter manager password to authorize"
-              style={{ width: '100%', padding: '10px 13px', borderRadius: 10, border: `1.5px solid ${err ? '#fca5a5' : '#b2dfdb'}`, background: '#f0fdf5', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
-            {err && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 5, fontWeight: 600 }}>{err}</div>}
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={handleClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-            <button onClick={handleConfirm} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Void Transaction</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FrPOSContent({ user }) {
   const userBranch = (user?.branch || '').trim();
 
@@ -2636,16 +2588,25 @@ function FrPOSContent({ user }) {
     } catch { setMenuItems([]); }
   }, [userBranch]);
 
-  const fetchTransactions = useCallback(async () => {
-    if (!userBranch) return;
-    setLoadingTx(true);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`);
-      const d   = await res.json();
-      setTransactions(Array.isArray(d) ? d : []);
-    } catch { setTransactions([]); }
-    finally { setLoadingTx(false); }
-  }, [userBranch]);
+const fetchTransactions = useCallback(async () => {
+  if (!userBranch) return;
+  setLoadingTx(true);
+  try {
+    const [activeRes, voidedRes] = await Promise.all([
+      fetch(`${process.env.REACT_APP_API_URL}/transactions?branch=${encodeURIComponent(userBranch)}`),
+      fetch(`${process.env.REACT_APP_API_URL}/transactions/voided?branch=${encodeURIComponent(userBranch)}`),
+    ]);
+    const active = await activeRes.json();
+    const voided = await voidedRes.json();
+    const merged = [...(Array.isArray(active) ? active : []), ...(Array.isArray(voided) ? voided : [])]
+      .map(tx => ({ ...tx, voided: !!tx.is_voided }));
+    setTransactions(merged);
+  } catch {
+    setTransactions([]);
+  } finally {
+    setLoadingTx(false);
+  }
+}, [userBranch]);
 
   useEffect(() => { fetchProducts(); },     [fetchProducts]);
   useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
@@ -2678,30 +2639,42 @@ function FrPOSContent({ user }) {
     setDiscountAuthInput(''); setCustomDiscountInput('');
   };
 
-  // ── Discount auth ─────────────────────────────────────────────────────────
-  const confirmDiscountAuth = () => {
-    if (discountAuthInput !== MANAGER_PASSWORD) {
-      setDiscountAuthErr('Incorrect manager password.');
+const confirmDiscountAuth = async () => {
+  setDiscountAuthErr('');
+  if (pendingDiscount.label === 'Others') {
+    const pct = parseFloat(customDiscountInput);
+    if (!pct || pct <= 0 || pct > 100) {
+      setDiscountAuthErr('Enter a valid discount % (1–100).');
       return;
     }
-    if (pendingDiscount.label === 'Others') {
-      const pct = parseFloat(customDiscountInput);
-      if (!pct || pct <= 0 || pct > 100) {
-        setDiscountAuthErr('Enter a valid discount % (1–100).');
-        return;
-      }
-      setDiscountPct(pct);
-      setDiscountType('Others');
-    } else {
-      setDiscountPct(pendingDiscount.pct);
-      setDiscountType(pendingDiscount.label);
+  }
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-manager-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch: userBranch, password: discountAuthInput }),
+    });
+    const data = await res.json();
+    if (!data.valid) {
+      setDiscountAuthErr(data.error || 'Incorrect manager password.');
+      return;
     }
-    setShowDiscountAuth(false);
-    setDiscountAuthInput('');
-    setDiscountAuthErr('');
-    setCustomDiscountInput('');
-    setPendingDiscount(null);
-  };
+  } catch {
+    setDiscountAuthErr('Could not verify password. Check your connection.');
+    return;
+  }
+  if (pendingDiscount.label === 'Others') {
+    setDiscountPct(parseFloat(customDiscountInput));
+    setDiscountType('Others');
+  } else {
+    setDiscountPct(pendingDiscount.pct);
+    setDiscountType(pendingDiscount.label);
+  }
+  setShowDiscountAuth(false);
+  setDiscountAuthInput('');
+  setCustomDiscountInput('');
+  setPendingDiscount(null);
+};
 
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal    = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);
@@ -2786,15 +2759,19 @@ function FrPOSContent({ user }) {
 
   // ── Void ──────────────────────────────────────────────────────────────────
   const handleVoidRequest = (tx) => { setVoidTarget(tx); setShowVoidModal(true); };
-  const handleVoidConfirm = async (tx) => {
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${tx.id}/void`, { method: 'PUT' });
-      const d   = await res.json();
-      setShowVoidModal(false); setVoidTarget(null);
-      if (d.success) { showAlert('Voided', 'Transaction has been voided successfully.', 'success'); fetchTransactions(); }
-      else showAlert('Void Failed', d.error || 'Could not void this transaction.', 'error');
-    } catch { setShowVoidModal(false); showAlert('Connection Error', 'Failed to void transaction.', 'error'); }
-  };
+const handleVoidConfirm = async (tx) => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/transactions/${tx.id}/void`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voided_by: user?.name || 'Manager', reason: 'Manager authorized void' }),
+    });
+    const d = await res.json();
+    setShowVoidModal(false); setVoidTarget(null);
+    if (d.success) { showAlert('Voided', 'Transaction has been voided successfully.', 'success'); fetchTransactions(); }
+    else showAlert('Void Failed', d.error || 'Could not void this transaction.', 'error');
+  } catch { setShowVoidModal(false); showAlert('Connection Error', 'Failed to void transaction.', 'error'); }
+};
 
   // ── Filtered transactions ─────────────────────────────────────────────────
   const filteredTx = useMemo(() => {
@@ -2829,7 +2806,7 @@ function FrPOSContent({ user }) {
         onConfirm={closeModal} onCancel={closeModal} />
       <ReceiptModal show={showReceiptModal} receipt={lastReceipt}
         onClose={() => setShowReceiptModal(false)} onNewSale={() => setShowReceiptModal(false)} />
-      <VoidModal show={showVoidModal} tx={voidTarget}
+      <VoidModal show={showVoidModal} tx={voidTarget} branch={userBranch}
         onClose={() => { setShowVoidModal(false); setVoidTarget(null); }}
         onConfirm={handleVoidConfirm} />
       {showGCashModal && (
@@ -3346,6 +3323,115 @@ function FrPOSContent({ user }) {
           </>
         );
       })()}
+    </div>
+  );
+}
+
+function VoidModal({ show, tx, branch, onClose, onConfirm }) {
+  const [pw,        setPw]        = useState('');
+  const [err,       setErr]       = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [showPw,    setShowPw]    = useState(false);
+
+  const handleConfirm = async () => {
+    if (!pw) { setErr('Please enter the manager password.'); return; }
+    setVerifying(true);
+    setErr('');
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-manager-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch, password: pw }),
+      });
+      const data = await res.json();
+      if (!data.valid) {
+        setErr(data.error || 'Incorrect manager password.');
+        setVerifying(false);
+        return;
+      }
+      onConfirm(tx);
+      setPw('');
+      setErr('');
+    } catch {
+      setErr('Could not verify password. Check your connection.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleClose = () => { setPw(''); setErr(''); setShowPw(false); onClose(); };
+  if (!show) return null;
+
+  return (
+    <div className="v-modal-overlay" onClick={handleClose}>
+      <div className="v-modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <h2 className="v-modal-title">Void Transaction</h2>
+        {tx && (
+          <p style={{ color: '#5a7a65', fontSize: 13, marginBottom: 16 }}>
+            Void transaction <strong>#{tx.id}</strong> — {tx.cashier} — ₱{Number(tx.total).toFixed(2)}?
+          </p>
+        )}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Manager Password</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={pw}
+              disabled={verifying}
+              onChange={e => { setPw(e.target.value); setErr(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
+              placeholder="Enter manager password to authorize"
+              style={{
+                width: '100%', padding: '10px 40px 10px 13px', borderRadius: 10,
+                border: `1.5px solid ${err ? '#fca5a5' : '#b2dfdb'}`,
+                background: verifying ? '#f3f4f6' : '#f0fdf5',
+                fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                opacity: verifying ? 0.7 : 1, cursor: verifying ? 'not-allowed' : 'text',
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              tabIndex={-1}
+              style={{
+                position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                color: '#5a7a65', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          {err && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 5, fontWeight: 600 }}>{err}</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={handleClose}
+            disabled={verifying}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: verifying ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: verifying ? 0.6 : 1 }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={verifying}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+              background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: verifying ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', opacity: verifying ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            }}
+          >
+            {verifying ? (
+              <>
+                <div style={{ width: 13, height: 13, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
+                Verifying...
+              </>
+            ) : 'Void Transaction'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

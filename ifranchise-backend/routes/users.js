@@ -346,7 +346,7 @@ router.post("/verify-manager-password", async (req, res) => {
     const result = await pool.query(
       `SELECT password
        FROM users
-       WHERE branch = $1
+       WHERE TRIM(LOWER(branch)) = TRIM(LOWER($1))
        AND role = $2`,
       [branch, "Manager"]
     );
@@ -359,19 +359,10 @@ router.post("/verify-manager-password", async (req, res) => {
     }
 
     for (const row of result.rows) {
-      if (!row.password) {
-        continue;
-      }
+      if (!row.password) continue;
 
-      const match = await bcrypt.compare(
-        password,
-        row.password
-      );
-
-      if (match) {
-        return res.json({
-          valid: true,
-        });
+      if (row.password === password) {
+        return res.json({ valid: true });
       }
     }
 
@@ -380,11 +371,7 @@ router.post("/verify-manager-password", async (req, res) => {
       error: "Incorrect manager password",
     });
   } catch (err) {
-    console.error(
-      "POST /verify-manager-password error:",
-      err
-    );
-
+    console.error("POST /verify-manager-password error:", err);
     res.status(500).json({
       valid: false,
       error: "Failed to verify password",

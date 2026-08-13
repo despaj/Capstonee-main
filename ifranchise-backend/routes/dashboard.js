@@ -8,26 +8,36 @@ router.get("/dashboard/stats", async (req, res) => {
     const params = [], conditions = [];
     let paramIdx = 1;
 
+    let fromDate, toDate;
     if (from && to) {
-      conditions.push(`created_at>=$${paramIdx} AND created_at<=$${paramIdx+1}::date+interval '1 day'`);
+      fromDate = from;
+      toDate = to;
+      conditions.push(`created_at>=($${paramIdx}::date AT TIME ZONE 'Asia/Manila') AND created_at<(($${paramIdx+1}::date + interval '1 day') AT TIME ZONE 'Asia/Manila')`);
       params.push(from, to); paramIdx += 2;
     } else {
-      const presetMap = { day: `created_at>=CURRENT_DATE`, week: `created_at>=date_trunc('week',CURRENT_DATE)`, month: `created_at>=date_trunc('month',CURRENT_DATE)`, year: `created_at>=date_trunc('year',CURRENT_DATE)` };
+      const presetMap = {
+        day:   `created_at>=CURRENT_DATE`,
+        week:  `created_at>=date_trunc('week',CURRENT_DATE)`,
+        month: `created_at>=date_trunc('month',CURRENT_DATE)`,
+        year:  `created_at>=date_trunc('year',CURRENT_DATE)`,
+      };
       conditions.push(presetMap[preset] || presetMap["month"]);
     }
 
     if (branch) { conditions.push(`branch=$${paramIdx}`); params.push(branch); paramIdx++; }
-else if (branches) {
-  const list = branches.split(",").map(b => b.trim()).filter(Boolean);
-  if (list.length > 0) {
-    conditions.push(`branch IN (${list.map((_,i) => `$${paramIdx+i}`).join(",")})`);
-    params.push(...list); paramIdx += list.length;
-  }
-}
-conditions.push(`(is_voided=false OR is_voided IS NULL)`); // ← add this
+    else if (branches) {
+      const list = branches.split(",").map(b => b.trim()).filter(Boolean);
+      if (list.length > 0) {
+        conditions.push(`branch IN (${list.map((_, i) => `$${paramIdx+i}`).join(",")})`);
+        params.push(...list); paramIdx += list.length;
+      }
+    }
+    conditions.push(`(is_voided=false OR is_voided IS NULL)`);
 
-const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const result = await pool.query(
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // ── Core KPIs ──
+    const statsResult = await pool.query(
       `SELECT COALESCE(SUM(total),0) AS "salesRevenue", COALESCE(SUM(total),0) AS "totalSales",
        COALESCE(SUM(cogs),0) AS "cogs", COALESCE(SUM(total)-SUM(cogs),0) AS "salesProfit",
        COUNT(*) AS "txCount",
@@ -35,8 +45,124 @@ const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
        FROM transactions ${whereClause}`,
       params
     );
+    const row = statsResult.rows[0];
 
-    const row = result.rows[0];
+    // ── Branch breakdown (top 5 by revenue) — direct, transactions.branch is real ──
+    const branchResult = await pool.query(
+      `SELECT branch AS label, COALESCE(SUM(total),0) AS value
+       FROM transactions ${whereClause}
+       GROUP BY branch ORDER BY value DESC LIMIT 5`,
+      params
+    );
+
+    const branchBreakdown = branchResult.rows.map(r => ({ label: r.label, value: parseFloat(r.value) }));
+
+    // ── Category breakdown — unnest items jsonb, join to inventory.category ──
+    const categoryResult = await pool.query(
+      `SELECT inv.category AS label,
+              COALESCE(SUM((elem->>'price')::numeric * (elem->>'qty')::numeric),0) AS value
+       FROM transactions t,
+            jsonb_array_elements(t.items) AS elem
+       JOIN inventory inv ON inv.id = (elem->>'id')::integer
+       ${whereClause.replace(/created_at/g, "t.created_at").replace(/branch=/g, "t.branch=").replace(/branch IN/g, "t.branch IN").replace(/is_voided/g, "t.is_voided")}
+       GROUP BY inv.category
+       ORDER BY value DESC`,
+      params
+    );
+    const categoryBreakdown = categoryResult.rows
+      .filter(r => r.label)
+      .map(r => ({ label: r.label, value: parseFloat(r.value) }));
+
+    // ── Brand breakdown — transactions.branch (name) → branches.name → brands ──
+    const brandResult = await pool.query(
+      `SELECT b.name AS label, COALESCE(SUM(t.total),0) AS value
+       FROM transactions t
+       JOIN branches br ON br.name = t.branch
+       JOIN brands b ON b.id = br.brand_id
+       ${whereClause.replace(/created_at/g, "t.created_at").replace(/branch=/g, "t.branch=").replace(/branch IN/g, "t.branch IN").replace(/is_voided/g, "t.is_voided")}
+       GROUP BY b.name
+       ORDER BY value DESC`,
+      params
+    );
+    const brandBreakdown = brandResult.rows.map(r => ({ label: r.label, value: parseFloat(r.value) }));
+    let bucketExpr, orderExpr;
+    // ── Bucket expression matching frontend's chartData grouping ──
+    if (from && to) {
+      // custom range: week-of-range buckets, matching frontend's `W1, W2...` logic
+      bucketExpr = `'W' || (FLOOR(EXTRACT(EPOCH FROM (created_at - $${paramIdx})) / (7*86400)) + 1)::int`;
+      params.push(from); paramIdx++;
+      orderExpr = `MIN(created_at)`;
+    } else if (preset === "day") {
+      bucketExpr = `EXTRACT(HOUR FROM created_at)::text || ':00'`;
+      orderExpr = `MIN(EXTRACT(HOUR FROM created_at))`;
+    } else if (preset === "week") {
+      bucketExpr = `TO_CHAR(created_at, 'Dy')`;
+      orderExpr = `MIN(EXTRACT(DOW FROM created_at))`;
+    } else if (preset === "year") {
+      bucketExpr = `TO_CHAR(created_at, 'Mon')`;
+      orderExpr = `MIN(EXTRACT(MONTH FROM created_at))`;
+    } else {
+      // month (default)
+      bucketExpr = `'D' || EXTRACT(DAY FROM created_at)::int`;
+      orderExpr = `MIN(EXTRACT(DAY FROM created_at))`;
+    }
+
+     const revenueResult = await pool.query(
+      `SELECT ${bucketExpr} AS label, COALESCE(SUM(total),0) AS value, ${orderExpr} AS ord
+      FROM transactions ${whereClause}
+      GROUP BY label
+      ORDER BY ord`,
+      params
+    );
+    const revenueLabels = revenueResult.rows.map(r => r.label);
+    const revenueSeries  = revenueResult.rows.map(r => parseFloat(r.value));
+
+    // ── GP% series for the current period, bucketed the same way as the frontend chart ──
+    const gpResult = await pool.query(
+      `SELECT ${bucketExpr} AS label,
+              CASE WHEN SUM(total)>0 THEN ROUND((SUM(total-cogs)/SUM(total))*100, 1) ELSE 0 END AS gp,
+              ${orderExpr} AS ord
+       FROM transactions ${whereClause}
+       GROUP BY label
+       ORDER BY ord`,
+      params
+    );
+    const gpSeries = gpResult.rows.map(r => parseFloat(r.gp));
+
+    // ── Prior-year values — same bucket logic, dates shifted back 1 year ──
+    let pyConditions = [...conditions];
+    let pyParams = [...params];
+    // Rebuild date condition shifted by 1 year (keep branch/voided conditions as-is)
+    let pyFromExpr, pyToExpr;
+    if (from && to) {
+      pyFromExpr = `($1::date - interval '1 year')`;
+      pyToExpr   = `($2::date - interval '1 year' + interval '1 day')`;
+    }
+    const pyWhereClause = (from && to)
+      ? `WHERE created_at>=${pyFromExpr} AND created_at<${pyToExpr}` +
+        (conditions.length > 1 ? ` AND ${conditions.slice(1).join(" AND ")}` : "")
+      : whereClause.replace(
+          /CURRENT_DATE|date_trunc\('(\w+)',CURRENT_DATE\)/g,
+          (m, unit) => unit
+            ? `date_trunc('${unit}', CURRENT_DATE - interval '1 year')`
+            : `(CURRENT_DATE - interval '1 year')`
+        );
+
+    let priorYearValues = [];
+    try {
+      const pyResult = await pool.query(
+        `SELECT ${bucketExpr} AS label, COALESCE(SUM(total),0) AS value, ${orderExpr} AS ord
+         FROM transactions ${pyWhereClause}
+         GROUP BY label
+         ORDER BY ord`,
+        params // date params unchanged since we shift inline in SQL, not via bound params
+      );
+      priorYearValues = pyResult.rows.map(r => parseFloat(r.value));
+    } catch (pyErr) {
+      console.error("Prior year query failed, falling back to empty:", pyErr.message);
+      priorYearValues = [];
+    }
+
     res.json({
       salesRevenue: parseFloat(row.salesRevenue),
       totalSales:   parseFloat(row.totalSales),
@@ -44,8 +170,17 @@ const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
       salesProfit:  parseFloat(row.salesProfit),
       txCount:      parseInt(row.txCount),
       avgOrder:     parseFloat(row.avgOrder),
+      branchBreakdown,
+      categoryBreakdown,
+      brandBreakdown,
+      revenueResult,
+      revenueLabels,
+      revenueSeries,
+      gpSeries,
+      priorYearValues,
     });
   } catch (err) {
+    console.error("GET /dashboard/stats error:", err);
     res.status(500).json({ error: "Failed to fetch dashboard stats" });
   }
 });
@@ -57,7 +192,7 @@ router.get("/dashboard/product-analytics", async (req, res) => {
     let paramIdx = 1;
 
     if (from && to) {
-      conditions.push(`created_at>=$${paramIdx} AND created_at<=$${paramIdx+1}::date+interval '1 day'`);
+      conditions.push(`created_at>=($${paramIdx}::date AT TIME ZONE 'Asia/Manila') AND created_at<(($${paramIdx+1}::date + interval '1 day') AT TIME ZONE 'Asia/Manila')`);
       params.push(from, to); paramIdx += 2;
     } else {
       const presetMap = { day:`created_at>=CURRENT_DATE`, week:`created_at>=date_trunc('week',CURRENT_DATE)`, month:`created_at>=date_trunc('month',CURRENT_DATE)`, year:`created_at>=date_trunc('year',CURRENT_DATE)` };
