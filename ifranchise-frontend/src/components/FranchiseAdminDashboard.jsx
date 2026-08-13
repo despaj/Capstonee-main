@@ -3678,9 +3678,6 @@ function FAApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Main content
-// ─────────────────────────────────────────────────────────────────────────
 function FAApplicationsContent({ user, applications: initialApps }) {
   const [activityLog,   setActivityLog]   = useState([]);
   const [applications,  setApplications]  = useState(initialApps || []);
@@ -3932,6 +3929,55 @@ function FAApplicationsContent({ user, applications: initialApps }) {
       setRestoringId(null);
     }
   };
+
+  const handleExportCSV = () => {
+  if (filteredApps.length === 0) {
+    setAlertModal({ title: "No applications to export", type: "error" });
+    return;
+  }
+
+  const headers = [
+    "Applicant Name", "Email", "Phone", "Franchise Interest",
+    "Date Applied", "Status", "Payment Mode", "Civil Status",
+    "Gender", "Nationality", "Address", "Employment Type",
+    "Monthly Income", "Employer Name",
+  ];
+
+  const escapeCSV = (val) => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const fmtDate = (d) =>
+    d ? new Date(d).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Manila" }) : "";
+
+  const rows = filteredApps.map(app => [
+    app.name, app.email, app.phone, app.franchise,
+    fmtDate(app.date), app.status, app.paymentMode, app.civilStatus,
+    app.gender, app.nationality, app.address, app.employmentType,
+    app.income, app.employerName,
+  ].map(escapeCSV).join(","));
+
+  const csvContent = [headers.map(escapeCSV).join(","), ...rows].join("\n");
+
+  // Add BOM so Excel opens UTF-8 (₱ sign, etc.) correctly
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const today = new Date().toISOString().split("T")[0];
+  link.setAttribute("download", `applications_${today}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  setAlertModal({ title: `Exported ${filteredApps.length} application${filteredApps.length !== 1 ? "s" : ""}`, type: "success" });
+};
 
   // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
@@ -4591,14 +4637,17 @@ function FAApplicationsContent({ user, applications: initialApps }) {
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               {/* Export CSV */}
-              <button style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "7px 16px", borderRadius: 9,
-                border: "1.5px solid rgba(255,255,255,0.4)",
-                background: "rgba(255,255,255,0.12)",
-                color: "#fff", fontSize: 12, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
+              <button
+                onClick={handleExportCSV}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", borderRadius: 9,
+                  border: "1.5px solid rgba(255,255,255,0.4)",
+                  background: "rgba(255,255,255,0.12)",
+                  color: "#fff", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
                 Export CSV
               </button>
 
@@ -5244,9 +5293,6 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   );
 }
 
-
-// ══════════════ BRAND BRANCH ═════════════════════════════════
-
 function BrandFormFields({ form, setForm }) {
   const [catInput, setCatInput] = useState("");
   const f = (field) => ({ value: form[field], onChange: (e) => setForm((p) => ({ ...p, [field]: e.target.value })) });
@@ -5531,6 +5577,138 @@ function Toast({ toast, onClose }) {
   );
 }
 
+function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
+  if (!target) return null;
+  const isBrand = target.type === "brand";
+
+  return (
+    <div
+      onClick={deleting ? undefined : onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 2000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 20, padding: "28px 32px",
+          width: "100%", maxWidth: 420,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+          border: "1px solid rgba(0,168,76,0.15)",
+          fontFamily: "Montserrat, sans-serif",
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: "50%", background: "#fee2e2",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          <Trash2 size={22} color="#dc2626" />
+        </div>
+        <h2 style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: "#0d2b1e", marginBottom: 8 }}>
+          Delete {isBrand ? "brand" : "branch"}?
+        </h2>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#5a7a65", lineHeight: 1.6, marginBottom: 6 }}>
+          You are about to delete <strong>"{target.name}"</strong>
+          {!isBrand && target.brandName ? ` under ${target.brandName}` : ""}.
+        </p>
+        {isBrand && target.branchCount > 0 && (
+          <p style={{ textAlign: "center", fontSize: 12.5, color: "#dc2626", fontWeight: 600, lineHeight: 1.6, marginBottom: 6 }}>
+            This will also remove {target.branchCount} associated branch{target.branchCount === 1 ? "" : "es"}.
+          </p>
+        )}
+        <p style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginBottom: 20 }}>
+          You can recover this from Delete History.
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          <button
+            type="button" onClick={onClose} disabled={deleting}
+            style={{
+              padding: "9px 22px", borderRadius: 10, border: "1px solid #b2dfdb",
+              background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button" onClick={onConfirm} disabled={deleting}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#dc2626,#ef4444)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: deleting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 10px rgba(220,38,38,0.35)",
+              opacity: deleting ? 0.7 : 1,
+            }}
+          >
+            <Trash2 size={14} /> {deleting ? "Deleting…" : `Delete ${isBrand ? "Brand" : "Branch"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrandDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
+  const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>Delete History</h2>
+            {history.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#dc2626" }}>{history.length} deleted</span>}
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {history.length === 0 ? (
+            <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af", fontSize: 13, fontStyle: "italic" }}>No deleted items yet.</div>
+          ) : history.map((entry, i) => (
+            <div key={entry.id ?? i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < history.length - 1 ? "1px solid #f0f8f0" : "none" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", background: entry.type === "brand" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)", color: entry.type === "brand" ? "#2563eb" : "#059669" }}>
+                {entry.type === "brand" ? "Brand" : "Branch"}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.name}</div>
+                <div style={{ fontSize: 11, color: "#5a7a65", marginTop: 2 }}>{fmt(entry.deletedAt)}{entry.type === "brand" && entry.data?.branches?.length > 0 ? ` · ${entry.data.branches.length} ${entry.data.branches.length === 1 ? "branch" : "branches"} included` : ""}{entry.type === "branch" && entry.brandName ? ` · ${entry.brandName}` : ""}</div>
+              </div>
+              <button
+                onClick={() => onRestore(entry)}
+                disabled={restoringId !== null}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "7px 14px", borderRadius: 9,
+                  border: "1.5px solid #00897b",
+                  background: restoringId === entry.id ? "#f0fdf5" : "#e0f2f1",
+                  color: "#00695c", fontSize: 12, fontWeight: 700,
+                  cursor: restoringId !== null ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0,
+                  opacity: restoringId !== null ? (restoringId === entry.id ? 0.7 : 0.4) : 1,
+                }}
+              >
+                {restoringId === entry.id ? (
+                  <>
+                    <RotateCcw size={12} style={{ animation: "spin 1s linear infinite" }} /> Restoring…
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={12} /> Restore
+                  </>
+                )}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -5543,50 +5721,65 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
   const [showEditBranchModal, setShowEditBranchModal] = useState(false);
   const [selectedBrand,       setSelectedBrand]       = useState(null);
   const [selectedBranch,      setSelectedBranch]      = useState(null);
-
-  // ── Delete modal & history ──────────────────────────────────────────────
-  const [deleteTarget,   setDeleteTarget]   = useState(null);  // { type, id, name, branchCount?, brandName? }
-  const [deletedHistory, setDeletedHistory] = useState([]);
-
-  const [activityLog,     setActivityLog]     = useState([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
-  const [toast, setToast] = useState(null);
-
-const [savingBrand, setSavingBrand]       = useState(false);
-const [deletingBrand, setDeletingBrand]   = useState(false);
-const [savingBranch, setSavingBranch]     = useState(false);
-const [deletingBranch, setDeletingBranch] = useState(false);
-const [restoringId, setRestoringId]       = useState(null);
-
-const showLoading = (title) => setToast({ type: "loading", title });
-const showSuccess  = (title, message) => setToast({ type: "success", title, message });
-const showError    = (title, message) => setToast({ type: "error", title, message });
-const closeToast   = () => setToast(null);
-
-const fetchDeleteHistory = async () => {
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
-    const data = await res.json();
-    const normalized = Array.isArray(data) ? data.map(entry => ({
-      ...entry,
-      brandName: entry.brand_name ?? null,
-      deletedAt: entry.deleted_at ?? null,
-      data: typeof entry.data === 'string' 
-        ? JSON.parse(entry.data) 
-        : (entry.data ?? {}),
-    })) : [];
-    setDeletedHistory(normalized);
-  } catch (err) { 
-    console.error(err); 
-  }
-};
-  const [showHistory,    setShowHistory]    = useState(false);
-
+  const [deleteTarget,        setDeleteTarget]        = useState(null);
+  const [deleting,            setDeleting]            = useState(false);
+  const [deletedHistory,      setDeletedHistory]      = useState([]);
+  const [showHistory,         setShowHistory]         = useState(false);
+  const [restoringId,         setRestoringId]         = useState(null);
+  const [alertModal,          setAlertModal]          = useState(null);
   const emptyBrand  = { name: "", categories: [], contact_email: "", contact_phone: "", description: "" };
   const emptyBranch = { name: "", brand_id: "", region: "", manager: "", contact: "", address: "", concept: "" };
-
   const [brandForm,  setBrandForm]  = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
+
+  const [activityLog, setActivityLog] = useState([]);
+
+  const showAlert   = (message, type = "info") => setAlertModal({ title: message, type });
+  const showLoading = (title) => setAlertModal({ type: "loading", title });
+  const showSuccess = (title, message) => setAlertModal({ type: "success", title, message });
+  const showError   = (title, message) => setAlertModal({ type: "error", title, message });
+
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  const fetchActivityLog = useCallback(async () => {
+    try {
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
+      const data = await res.json();
+      setActivityLog(Array.isArray(data) ? data.map(row => ({
+        id:          row.id,
+        action:      row.action,
+        itemName:    row.item_name ?? row.itemName,
+        branch:      row.branch,
+        performedBy: row.performed_by ?? row.performedBy,
+        role:        row.role,
+        changes:     row.changes,
+        timestamp:   row.created_at ?? row.timestamp,
+      })) : []);
+    } catch (err) { console.error("Failed to fetch brands activity log:", err); }
+  }, []);
+
+  const fetchDeleteHistory = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`);
+      const data = await res.json();
+      const normalized = Array.isArray(data) ? data.map(entry => ({
+        ...entry,
+        brandName: entry.brand_name ?? null,
+        deletedAt: entry.deleted_at ?? null,
+        data: typeof entry.data === 'string' ? JSON.parse(entry.data) : (entry.data ?? {}),
+      })) : [];
+      setDeletedHistory(normalized);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -5594,279 +5787,31 @@ const fetchDeleteHistory = async () => {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-
-          const sorted = [...list].sort((a, b) => {
-      if (a.name === "Head Office") return -1;
-      if (b.name === "Head Office") return 1;
-      return 0;
-    });
-
+      const sorted = [...list].sort((a, b) => {
+        if (a.name === "Head Office") return -1;
+        if (b.name === "Head Office") return 1;
+        return 0;
+      });
       setBrands(sorted);
       onBrandsChange?.(sorted);
-    } catch (err) {
-      console.error("Failed to fetch brands:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Failed to fetch brands:", err); }
+    finally { setLoading(false); }
   };
-
-  const getBrowserLocation = () => {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
-  });
-};
-
-  const fetchActivityLog = useCallback(async () => {
-  try {
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands-activity-log`);
-    const data = await res.json();
-    setActivityLog(Array.isArray(data) ? data.map(row => ({
-      id:          row.id,
-      action:      row.action,
-      itemName:    row.item_name ?? row.itemName,
-      branch:      row.branch,
-      performedBy: row.performed_by ?? row.performedBy,
-      role:        row.role,
-      changes:     row.changes,
-      timestamp:   row.created_at ?? row.timestamp,
-    })) : []);
-  } catch (err) { console.error("Failed to fetch brands activity log:", err); }
-}, []);
-
 
   useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
-const handleAddBrand = async (e) => {
-  e.preventDefault();
-  const duplicate = brands.some(
-    (b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase()
-  );
-  if (duplicate) { showError("Duplicate brand", `"${brandForm.name}" already exists.`); return; }
-  setSavingBrand(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...brandForm,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetchBrands(); await fetchActivityLog();
-      setShowAddBrandModal(false); setBrandForm(emptyBrand);
-      showSuccess("Brand added", `"${brandForm.name}" was created.`);
-    } else {
-      showError("Failed to add brand", data.error);
-    }
-  } catch {
-    showError("Failed to add brand", "Something went wrong. Please try again.");
-  } finally {
-    setSavingBrand(false);
-  }
-};
-
-const handleEditBrand = async (e) => {
-  e.preventDefault();
-  setSavingBrand(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...brandForm,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetchBrands(); await fetchActivityLog();
-      setShowAddBrandModal(false); setBrandForm(emptyBrand);
-      showSuccess("Brand updated", `"${brandForm.name}" was saved.`);
-    } else {
-      showError("Failed to update brand", data.error);
-    }
-  } catch {
-    showError("Failed to update brand", "Something went wrong. Please try again.");
-  } finally {
-    setSavingBrand(false);
-  }
-};
-
-const handleDeleteBrand = async () => {
-  const { id, name } = deleteTarget;
-  const brand = brands.find((b) => b.id === id);
-  const brandToSave = {
-    name: brand.name,
-    categories: brand.categories || [],
-    contact_email: brand.contact_email || null,
-    contact_phone: brand.contact_phone || null,
-    description: brand.description || null,
-    branches: (brand.branches || []).map(br => ({
-      name: br.name,
-      region: br.region || null,
-      manager: br.manager || null,
-      contact: br.contact || null,
-      address: br.address || null,
-      concept: br.concept || null,
-    })),
-  };
-
-  setDeletingBrand(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'brand', name, brand_name: null, data: brandToSave,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
-      setDeleteTarget(null);
-      showSuccess("Brand deleted", `"${name}" was removed.`);
-    } else {
-      showError("Failed to delete brand", data.error);
-    }
-  } catch {
-    showError("Failed to delete brand", "Something went wrong. Please try again.");
-  } finally {
-    setDeletingBrand(false);
-  }
-};
-
-const handleAddBranch = async (e) => {
-  e.preventDefault();
-  const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
-  const duplicate   = parentBrand?.branches?.some(
-    (br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase()
-  );
-  if (duplicate) { showError("Duplicate branch", `"${branchForm.name}" already exists under this brand.`); return; }
-  setSavingBranch(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...branchForm,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      await fetchBrands(); await fetchActivityLog();
-      setShowAddBranchModal(false); setBranchForm(emptyBranch);
-      showSuccess("Branch added", `"${branchForm.name}" was created.`);
-    } else {
-      showError("Failed to add branch", data.error);
-    }
-  } catch {
-    showError("Failed to add branch", "Something went wrong. Please try again.");
-  } finally {
-    setSavingBranch(false);
-  }
-};
-
-const handleEditBranch = async (e) => {
-  e.preventDefault();
-  setSavingBranch(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res  = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...branchForm,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const text = await res.text();
-    const data = JSON.parse(text);
-    if (data.success) {
-      await fetchBrands(); await fetchActivityLog();
-      setShowEditBranchModal(false); setSelectedBranch(null);
-      showSuccess("Branch updated", `"${branchForm.name}" was saved.`);
-    } else {
-      showError("Failed to update branch", data.error);
-    }
-  } catch {
-    showError("Failed to update branch", "Something went wrong. Please try again.");
-  } finally {
-    setSavingBranch(false);
-  }
-};
-
-const handleDeleteBranch = async () => {
-  const { id, name, brandName } = deleteTarget;
-  const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
-  setDeletingBranch(true);
-  try {
-    const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (data.success) {
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'branch', name, brand_name: brandName, data: branch,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
-      setDeleteTarget(null);
-      showSuccess("Branch deleted", `"${name}" was removed.`);
-    } else {
-      showError("Failed to delete branch", data.error);
-    }
-  } catch {
-    showError("Failed to delete branch", "Something went wrong. Please try again.");
-  } finally {
-    setRestoringId(null);
-  }
-};
-
-const handleRestore = async (entry) => {
-  showLoading(entry.type === "brand" ? "Restoring brand…" : "Restoring branch…");
-  try {
-    const coords = await getBrowserLocation();
-
-    if (entry.type === "brand") {
-      const { branches, ...brandFields } = entry.data;
-      const branchList = Array.isArray(branches) ? branches : [];
-
+  const handleAddBrand = async (e) => {
+    e.preventDefault();
+    const duplicate = brands.some((b) => b.name.trim().toLowerCase() === brandForm.name.trim().toLowerCase());
+    if (duplicate) { showError("Duplicate brand", `A brand named "${brandForm.name}" already exists.`); return; }
+    showLoading("Adding brand…");
+    try {
+      const coords = await getBrowserLocation();
       const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...brandFields,
+          ...brandForm,
           performed_by: user?.name || "System",
           role: user?.role || "Unknown",
           latitude: coords?.latitude,
@@ -5874,16 +5819,240 @@ const handleRestore = async (entry) => {
         }),
       });
       const data = await res.json();
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowAddBrandModal(false);
+        setBrandForm(emptyBrand);
+        showSuccess("Brand added", `"${brandForm.name}" has been added.`);
+      } else showError("Failed to add brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to add brand", "Something went wrong. Please try again."); }
+  };
 
-      if (!data.success) {
-        showError("Failed to restore brand", data.error);
-        return;
-      }
+  const handleEditBrand = async (e) => {
+    e.preventDefault();
+    showLoading("Updating brand…");
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${selectedBrand.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...brandForm,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowEditBrandModal(false);
+        setSelectedBrand(null);
+        showSuccess("Brand updated", `"${brandForm.name}" has been updated.`);
+      } else showError("Failed to update brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to update brand", "Something went wrong. Please try again."); }
+  };
 
-      const newBrandId = data.id;
-      for (const br of branchList) {
-        const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
-        const brRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+  const handleDeleteBrand = async () => {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    const brand = brands.find((b) => b.id === id);
+    const brandToSave = {
+      name: brand.name,
+      categories: brand.categories || [],
+      contact_email: brand.contact_email || null,
+      contact_phone: brand.contact_phone || null,
+      description: brand.description || null,
+      branches: (brand.branches || []).map(br => ({
+        name: br.name, region: br.region || null, manager: br.manager || null,
+        contact: br.contact || null, address: br.address || null, concept: br.concept || null,
+      })),
+    };
+    setDeleting(true);
+    showLoading("Deleting brand…");
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/brands/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'brand', name, brand_name: null, data: brandToSave }),
+        });
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showSuccess("Brand deleted", `"${name}" has been deleted.`);
+      } else showError("Failed to delete brand", data.error || "Something went wrong.");
+    } catch { showError("Failed to delete brand", "Something went wrong. Please try again."); }
+    finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleAddBranch = async (e) => {
+    e.preventDefault();
+    const parentBrand = brands.find((b) => String(b.id) === String(branchForm.brand_id));
+    const duplicate = parentBrand?.branches?.some((br) => br.name.trim().toLowerCase() === branchForm.name.trim().toLowerCase());
+    if (duplicate) { showError("Duplicate branch", `A branch named "${branchForm.name}" already exists under this brand.`); return; }
+    showLoading("Adding branch…");
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...branchForm,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowAddBranchModal(false);
+        setBranchForm(emptyBranch);
+        showSuccess("Branch added", `"${branchForm.name}" has been added.`);
+      } else showError("Failed to add branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to add branch", "Something went wrong. Please try again."); }
+  };
+
+  const handleEditBranch = async (e) => {
+    e.preventDefault();
+    showLoading("Updating branch…");
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${selectedBranch.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...branchForm,
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (data.success) {
+        await fetchBrands();
+        await fetchActivityLog();
+        setShowEditBranchModal(false);
+        setSelectedBranch(null);
+        showSuccess("Branch updated", `"${branchForm.name}" has been updated.`);
+      } else showError("Failed to update branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to update branch", "Something went wrong. Please try again."); }
+  };
+
+  const handleDeleteBranch = async () => {
+    if (!deleteTarget) return;
+    const { id, name, brandName } = deleteTarget;
+    const branch = brands.flatMap((b) => b.branches || []).find((br) => br.id === id);
+    setDeleting(true);
+    showLoading("Deleting branch…");
+    try {
+      const coords = await getBrowserLocation();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_by: user?.name || "System",
+          role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'branch', name, brand_name: brandName, data: branch }),
+        });
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showSuccess("Branch deleted", `"${name}" has been deleted.`);
+      } else showError("Failed to delete branch", data.error || "Something went wrong.");
+    } catch { showError("Failed to delete branch", "Something went wrong. Please try again."); }
+    finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRestore = async (entry) => {
+    setRestoringId(entry.id);
+    showLoading(entry.type === "brand" ? "Restoring brand…" : "Restoring branch…");
+    try {
+      const coords = await getBrowserLocation();
+      if (entry.type === "brand") {
+        const { branches, ...brandFields } = entry.data;
+        const branchList = Array.isArray(branches) ? branches : [];
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/brands`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...brandFields,
+            performed_by: user?.name || "System",
+            role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+            restored: true,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) { showError("Failed to restore brand", data.error || "Something went wrong."); return; }
+        const newBrandId = data.brand?.id;
+        for (const br of branchList) {
+          const { id: _ignore, brand_id: _ignore2, ...branchFields } = br;
+          await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: branchFields.name,
+              region: branchFields.region || null,
+              manager: branchFields.manager || null,
+              contact: branchFields.contact || null,
+              address: branchFields.address || null,
+              concept: branchFields.concept || null,
+              brand_id: newBrandId,
+              performed_by: user?.name || "System",
+              role: user?.role || "Unknown",
+              latitude: coords?.latitude,
+              longitude: coords?.longitude,
+              restored: true,
+            }),
+          });
+        }
+        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+        await fetchBrands();
+        await fetchDeleteHistory();
+        await fetchActivityLog();
+        showSuccess("Brand restored", `"${brandFields.name}" has been restored.`);
+      } else {
+        const parentBrand = brands.find((b) => b.name === entry.brandName);
+        if (!parentBrand) { showError("Cannot restore branch", `Parent brand "${entry.brandName || 'unknown'}" was not found.`); return; }
+        const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -5893,133 +6062,62 @@ const handleRestore = async (entry) => {
             contact: branchFields.contact || null,
             address: branchFields.address || null,
             concept: branchFields.concept || null,
-            brand_id: newBrandId,
+            brand_id: parentBrand.id,
             performed_by: user?.name || "System",
             role: user?.role || "Unknown",
             latitude: coords?.latitude,
             longitude: coords?.longitude,
+            restored: true,
           }),
         });
-        const brData = await brRes.json();
-        if (!brData.success) {
-          console.error("Failed to restore branch:", branchFields.name, brData.error);
-        }
+        const data = await res.json();
+        if (data.success) {
+          await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
+          await fetchBrands();
+          await fetchDeleteHistory();
+          await fetchActivityLog();
+          showSuccess("Branch restored", `"${branchFields.name}" has been restored.`);
+        } else showError("Failed to restore branch", data.error || "Something went wrong.");
       }
-
-      await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
-      await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
-      showSuccess("Brand restored", `"${brandFields.name}" and its branches are back.`);
-
-    } else {
-      const parentBrand = brands.find((b) => b.name === entry.brandName);
-      if (!parentBrand) {
-        showError(
-          "Cannot restore branch",
-          `Parent brand "${entry.brandName || 'unknown'}" not found. Restore the brand first if it was also deleted.`
-        );
-        return;
-      }
-
-      const { id: _id, brand_id: _bid, ...branchFields } = entry.data;
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: branchFields.name,
-          region: branchFields.region || null,
-          manager: branchFields.manager || null,
-          contact: branchFields.contact || null,
-          address: branchFields.address || null,
-          concept: branchFields.concept || null,
-          brand_id: parentBrand.id,
-          performed_by: user?.name || "System",
-          role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/brand-delete-history/${entry.id}`, { method: 'DELETE' });
-        await fetchBrands(); await fetchDeleteHistory(); await fetchActivityLog();
-        showSuccess("Branch restored", `"${branchFields.name}" is back.`);
-      } else {
-        showError("Failed to restore branch", data.error);
-      }
+    } catch (err) {
+      console.error("Restore error:", err);
+      showError("Failed to restore", err.message || "Something went wrong. Please try again.");
+    } finally {
+      setRestoringId(null);
     }
-  } catch (err) {
-    console.error("Restore error:", err);
-    showError("Restore failed", err.message);
-  }
-};
+  };
 
   const totalBranches = brands.reduce((s, b) => s + (b.branches?.length || 0), 0);
-  const allRegions    = [
-    ...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean)),
-  ];
-
-  const filteredBrands = brands
-    .map((brand) => ({
+  const allRegions    = [...new Set(brands.flatMap((b) => b.branches?.map((br) => br.region) || []).filter(Boolean))];
+  const filteredBrands = brands.map((brand) => {
+    const brandNameMatches = searchQuery && brand.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return {
       ...brand,
-      branches: (brand.branches || []).filter(
-        (br) =>
-          (!searchQuery ||
-            br.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
-          (filterRegion === "all" || br.region === filterRegion)
+      branches: (brand.branches || []).filter((br) =>
+        (!searchQuery || brandNameMatches || br.name.toLowerCase().includes(searchQuery.toLowerCase()) || (br.manager || "").toLowerCase().includes(searchQuery.toLowerCase())) &&
+        (filterRegion === "all" || br.region === filterRegion)
       ),
-    }))
-    .filter((brand) => {
-      if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
-      if (filterRegion !== "all" && brand.branches.length === 0) return false;
-      if (searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
-      return true;
-    });
-
-  // ── Sub-components ─────────────────────────────────────────────────────
-  const ConceptBadge = ({ concept }) => {
-    const styles = {
-      "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" },
-      "Kiosk":      { bg: "rgba(59,130,246,0.1)", color: "#2563eb" },
     };
+  }).filter((brand) => {
+    if (filterBrand !== "all" && String(brand.id) !== String(filterBrand)) return false;
+    if (filterRegion === "all" && searchQuery && !brand.name.toLowerCase().includes(searchQuery.toLowerCase()) && brand.branches.length === 0) return false;
+    if (filterRegion !== "all" && brand.branches.length === 0) return false;
+    return true;
+  });
+
+  const ConceptBadge = ({ concept }) => {
+    const styles = { "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" }, "Kiosk": { bg: "rgba(59,130,246,0.1)", color: "#2563eb" } };
     const s = styles[concept] || { bg: "rgba(156,163,175,0.1)", color: "#6b7280" };
-    return (
-      <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-        {concept || "—"}
-      </span>
-    );
+    return <span style={{ background: s.bg, color: s.color, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>{concept || "—"}</span>;
   };
 
-  // ── Shared table styles ────────────────────────────────────────────────
-  const thSt = {
-    padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5,
-    color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase",
-    borderBottom: "2px solid #d1eedd", background: "#f8fffe",
-    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  };
-  const tdSt = {
-    padding: "11px 12px", borderBottom: "1px solid #f0f8f0",
-    verticalAlign: "middle", overflow: "hidden",
-  };
+  const thSt = { padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: "2px solid #d1eedd", background: "#f8fffe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+  const tdSt = { padding: "11px 12px", borderBottom: "1px solid #f0f8f0", verticalAlign: "middle", overflow: "hidden" };
 
-  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      <style>{`
-        .bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; }
-        .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
-        .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
-        .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; }
-        .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; }
-        .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; }
-        .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); }
-        .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; }
-        .bm-branch-tr:hover td { background:#f6fef8 !important; }
-        .bm-branch-tr:last-child td { border-bottom:none !important; }
-      `}</style>
-
+      <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
       <div className="bm-root">
-        {/* ── Stat cards ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
           {[
             { label: "Total Brands",   value: brands.length, icon: <Globe size={20} color="#065f46" />, bg: "linear-gradient(135deg,#d1fae5,#6ee7b7)", sub: "Registered brands" },
@@ -6038,73 +6136,40 @@ const handleRestore = async (entry) => {
           ))}
         </div>
 
-        {/* ── Toolbar ── */}
         <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.13)", borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
-
-            {/* Search */}
             <div style={{ position:"relative" }}>
               <Search size={14} color="#5a7a65" style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)" }}/>
-              <input
-                type="text"
-                placeholder="Search brands or branches..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="bm-input"
-                style={{ paddingLeft:32, width:260 }}
-              />
+              <input type="text" placeholder="Search brands or branches..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bm-input" style={{ paddingLeft:32, width:260 }}/>
             </div>
-
-            {/* Brand filter */}
             <select value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="bm-select" style={{ width:180 }}>
               <option value="all">All Brands</option>
               {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
-
-            {/* Region filter */}
             <select value={filterRegion} onChange={e => setFilterRegion(e.target.value)} className="bm-select" style={{ width:180 }}>
               <option value="all">All Regions</option>
               {allRegions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-
-            {/* Right-side actions */}
             <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-              <button
-                onClick={() => setShowHistory(true)}
-                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-              >
-                <History size={14}/>
-                Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
+              <button onClick={() => setShowHistory(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #dc2626", background:"#fff", color:"#dc2626", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                <History size={14}/> Delete History{deletedHistory.length > 0 ? ` (${deletedHistory.length})` : ""}
               </button>
-
-              <button
-                onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }}
-                style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
-              >
+              <button onClick={() => { setBranchForm(emptyBranch); setShowAddBranchModal(true); }} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, border:"1.5px solid #00897b", background:"#fff", color:"#00897b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 <Plus size={14}/> Add Branch
               </button>
             </div>
-
           </div>
         </div>
 
-        {/* ── Brand list ── */}
         {loading ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
-            Loading brands & branches...
-          </div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>Loading brands & branches...</div>
         ) : filteredBrands.length === 0 ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>
-            No brands found. Add your first brand above.
-          </div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 14, fontWeight: 600 }}>No brands found. Add your first brand above.</div>
         ) : filteredBrands.map((brand) => (
           <div key={brand.id} className="bm-brand-card">
-            {/* Brand header */}
             <div className="bm-brand-header">
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Globe size={20} color="#fff" />
-                </div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}><Globe size={20} color="#fff" /></div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 16 }}>{brand.name}</div>
                   <div style={{ fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
@@ -6114,60 +6179,18 @@ const handleRestore = async (entry) => {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>
-                  {brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}
-                </span>
-                <button
-                  onClick={() => {
-                    setSelectedBrand(brand);
-                    setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description });
-                    setShowEditBrandModal(true);
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  <Edit2 size={12} /> Edit Brand
-                </button>
-                <button
-                  onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })}
-                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  <Trash2 size={12} /> Delete
-                </button>
+                <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>{brand.branches?.length || 0} {brand.branches?.length === 1 ? "branch" : "branches"}</span>
+                <button onClick={() => { setSelectedBrand(brand); setBrandForm({ name: brand.name, categories: brand.categories || [], contact_email: brand.contact_email, contact_phone: brand.contact_phone, description: brand.description }); setShowEditBrandModal(true); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Edit2 size={12} /> Edit Brand</button>
+                <button onClick={() => setDeleteTarget({ type: "brand", id: brand.id, name: brand.name, branchCount: brand.branches?.length || 0 })} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 14px", borderRadius: 8, border: "1.5px solid rgba(255,150,150,0.5)", background: "rgba(255,80,80,0.15)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Trash2 size={12} /> Delete</button>
               </div>
             </div>
-
-            {/* Branches table */}
             <div style={{ width: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
-                <colgroup>
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "11%" }} />
-                  <col style={{ width: "16%" }} />
-                  <col style={{ width: "13%" }} />
-                  <col style={{ width: "22%" }} />
-                  <col style={{ width: "10%" }} />
-                  <col style={{ width: "8%" }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    {["Branch Name", "Region", "Manager", "Contact", "Address", "Concept", "Actions"].map((h) => (
-                      <th key={h} style={thSt}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <colgroup><col style={{ width: "20%" }} /><col style={{ width: "11%" }} /><col style={{ width: "16%" }} /><col style={{ width: "13%" }} /><col style={{ width: "22%" }} /><col style={{ width: "10%" }} /><col style={{ width: "8%" }} /></colgroup>
+                <thead><tr>{["Branch Name","Region","Manager","Contact","Address","Concept","Actions"].map((h) => <th key={h} style={thSt}>{h}</th>)}</tr></thead>
                 <tbody>
                   {(!brand.branches || brand.branches.length === 0) ? (
-                    <tr>
-                      <td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>
-                        No branches yet.{" "}
-                        <span
-                          style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
-                          onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}
-                        >
-                          Add the first branch
-                        </span>
-                      </td>
-                    </tr>
+                    <tr><td colSpan={7} style={{ padding: "24px 20px", color: "#5a7a65", fontSize: 13, fontStyle: "italic", textAlign: "center", borderBottom: "none" }}>No branches yet.{" "}<span style={{ color: "#00897b", cursor: "pointer", textDecoration: "underline", fontWeight: 700 }} onClick={() => { setBranchForm({ ...emptyBranch, brand_id: brand.id }); setShowAddBranchModal(true); }}>Add the first branch</span></td></tr>
                   ) : brand.branches.map((branch) => (
                     <tr key={branch.id} className="bm-branch-tr">
                       <td style={{ ...tdSt, fontWeight: 700, color: "#0d2b1e", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.name}</td>
@@ -6175,33 +6198,11 @@ const handleRestore = async (entry) => {
                       <td style={{ ...tdSt, color: "#0d2b1e", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.manager || "—"}</td>
                       <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.contact || "—"}</td>
                       <td style={{ ...tdSt, color: "#5a7a65", fontSize: 12, whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{branch.address || "—"}</td>
-                      <td style={tdSt}>
-                        {brand.name === "Coffee Spot"
-                          ? <ConceptBadge concept={branch.concept} />
-                          : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}
-                      </td>
+                      <td style={tdSt}>{brand.name === "Coffee Spot" ? <ConceptBadge concept={branch.concept} /> : <span style={{ color: "#9ca3af", fontSize: 12 }}>—</span>}</td>
                       <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                          {/* Edit */}
-                          <button
-                            title="Edit branch"
-                            onClick={() => {
-                              setSelectedBranch(branch);
-                              setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" });
-                              setShowEditBranchModal(true);
-                            }}
-                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          {/* Delete */}
-                          <button
-                            title="Delete branch"
-                            onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })}
-                            style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <button title="Edit branch" onClick={() => { setSelectedBranch(branch); setBranchForm({ name: branch.name, brand_id: brand.id, region: branch.region, manager: branch.manager, contact: branch.contact, address: branch.address, concept: branch.concept || "" }); setShowEditBranchModal(true); }} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #b2dfdb", background: "#e0f2f1", color: "#00695c", cursor: "pointer", flexShrink: 0 }}><Pencil size={13} /></button>
+                          <button title="Delete branch" onClick={() => setDeleteTarget({ type: "branch", id: branch.id, name: branch.name, brandName: brand.name })} style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer", flexShrink: 0 }}><Trash2 size={13} /></button>
                         </div>
                       </td>
                     </tr>
@@ -6209,41 +6210,38 @@ const handleRestore = async (entry) => {
                 </tbody>
               </table>
             </div>
-            <Toast toast={toast} onClose={closeToast} />
           </div>
         ))}
       </div>
 
-      {/* ── Modals ── */}
-      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}  submitting={savingBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand} submitting={savingBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
-      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch} submitting={savingBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
-      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch} submitting={savingBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showAddBrandModal   && <BmModal title="Add New Brand"  onClose={() => setShowAddBrandModal(false)}  onSubmit={handleAddBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showEditBrandModal  && <BmModal title="Edit Brand"     onClose={() => { setShowEditBrandModal(false); setSelectedBrand(null); }} onSubmit={handleEditBrand}><BrandFormFields  form={brandForm}  setForm={setBrandForm} /></BmModal>}
+      {showAddBranchModal  && <BmModal title="Add New Branch" onClose={() => setShowAddBranchModal(false)} onSubmit={handleAddBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
+      {showEditBranchModal && <BmModal title="Edit Branch"    onClose={() => { setShowEditBranchModal(false); setSelectedBranch(null); }} onSubmit={handleEditBranch}><BranchFormFields form={branchForm} setForm={setBranchForm} brands={brands} /></BmModal>}
 
-      {deleteTarget && (
-        <DeleteConfirmModal
-          target={deleteTarget}
-          onConfirm={deleteTarget.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
-          onClose={() => setDeleteTarget(null)}
-          deleting={deleteTarget.type === "brand" ? deletingBrand : deletingBranch}
-        />
-      )}  
+      <BrandDeleteConfirmModal
+        target={deleteTarget}
+        deleting={deleting}
+        onConfirm={deleteTarget?.type === "brand" ? handleDeleteBrand : handleDeleteBranch}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
 
       {showHistory && (
-        <DeleteHistoryPanel
+        <BrandDeleteHistoryPanel
           history={deletedHistory}
           onRestore={handleRestore}
+          restoringId={restoringId}
           onClose={() => setShowHistory(false)}
         />
       )}
+
+      <Toast toast={alertModal} onClose={() => setAlertModal(null)} />
     </div>
   );
 }
 
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MODULE 6 — PROFILE (identical logic to admin's ProfileContent)
-// ═════════════════════════════════════════════════════════════════════════════
+
 function FAProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({ name: user?.name || '', email: user?.email || '', personalEmail: '', role: user?.role || '', currentPassword: '', newPassword: '', confirmPassword: '' });

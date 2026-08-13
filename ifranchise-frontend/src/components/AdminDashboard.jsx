@@ -3412,6 +3412,7 @@ function BmModal({ title, onClose, onSubmit, saving = false, children }) {
     </div>
   );
 }
+
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -4180,23 +4181,6 @@ const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(i
 const placeholderImageFor = (name) =>
   `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
 
-/* ─────────────────────────────────────────────────────────────────────────
-   MAIN COMPONENT
-
-   Mobile Shop no longer maintains its own independent product list.
-   Every product shown here is derived 1:1 from Stock Inventory
-   (the `/ingredients` endpoint). If a product exists in Stock Inventory,
-   it appears here (optionally "listed" with a photo). If it's
-   removed from Stock Inventory, it disappears from Mobile Shop too.
-   There is no manual "Add Item" and no "Import Excel" — listing a
-   product simply means editing it here to set its photo, or using the
-   bulk "List Items" / "List All Items" actions to list several products
-   at once (photos can be added afterwards via Edit). Price is never
-   entered manually: it's always the product's live Stock Inventory cost
-   plus a fixed 10% markup. Live stock counts (from Stock Inventory's
-   FIFO/FEFO batches) are intentionally not shown here — that detail
-   belongs to Stock Inventory.
-───────────────────────────────────────────────────────────────────────── */
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4215,6 +4199,8 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const [bulkListing,     setBulkListing]     = useState(false);
 
   const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
+
+  const [togglingId, setTogglingId] = useState(null);
 
   const editImageRef = useRef(null);
 
@@ -4266,13 +4252,10 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     fetchActivityLog();
   }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
-  // Pull the live unit cost from Stock Inventory. The shop price is always
-  // derived from this — never entered by hand — so it stays in sync
-  // automatically whenever cost changes upstream.
   const getCostFor = useCallback((brandName, itemName) => {
     const b = normalize(brandName), n = normalize(itemName);
     const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? Number(match.cost || 0) : 0;
+    return match ? Number(match.cost_per_unit || 0) : 0;
   }, [stockItems]);
 
   // Every unique (brand, product name) combination that exists in Stock
@@ -4287,18 +4270,19 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [stockItems]);
 
-  // Merge each Stock Inventory product with its Mobile Shop listing
-  // override (if one has been set up). Products with no override yet
-  // are still shown, marked as "Not Listed", so staff can list them.
-  // Price is always computed live from cost — it's never stored as a
-  // free-standing editable number. Stock is intentionally not exposed
-  // here — it lives in Stock Inventory's FIFO/FEFO queues.
+  const getUnitFor = useCallback((brandName, itemName) => {
+    const b = normalize(brandName), n = normalize(itemName);
+    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
+    return match ? (match.unit || "") : "";
+  }, [stockItems]);
+
   const items = useMemo(() => {
     return uniqueStockProducts.map((sp) => {
       const match = shopItems.find(
         (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
       );
       const liveCost = getCostFor(sp.brand, sp.name);
+      const liveUnit = getUnitFor(sp.brand, sp.name);
       return {
         id: match ? match.id : null,
         name: sp.name,
@@ -4306,13 +4290,13 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         shop: match ? match.shop : sp.brand,
         cost: liveCost,
         price: computePrice(liveCost),
-        unit: match ? match.unit : "",
+        unit: liveUnit,
         image_url: match ? match.image_url : "",
         is_visible: match ? !!match.is_visible : false,
         listed: !!match,
       };
     });
-  }, [uniqueStockProducts, shopItems, getCostFor]);
+ }, [uniqueStockProducts, shopItems, getCostFor, getUnitFor]);
 
   const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
 
@@ -4398,15 +4382,18 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setEditLoading(true);
     const coords = await getBrowserLocation();
     const liveCost = getCostFor(editingItem.brand, editingItem.name);
+    const liveUnit = getUnitFor(editingItem.brand, editingItem.name);
     const payload = {
       name: editingItem.name,
       price: computePrice(liveCost),
       unit: editingItem.unit || "",
+      unit: liveUnit,
       image_url: editingItem.image_url,
       shop: editingItem.brand,
       brand: editingItem.brand,
       is_visible: editingItem.is_visible !== false,
       performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown", 
       latitude: coords?.latitude,
       longitude: coords?.longitude,
     };
@@ -4455,6 +4442,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         brand: it.brand,
         is_visible: true,
         performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown", 
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       };
@@ -4484,7 +4472,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
     } catch {
@@ -4498,13 +4486,13 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   };
 
   const toggleVisibility = async (item) => {
-    if (!item.id) return; // nothing to toggle until it's listed
+    if (!item.id) return;
     const coords = await getBrowserLocation();
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       fetchShopItems();
       fetchActivityLog();
@@ -4592,10 +4580,10 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
               <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ padding: "22px 24px" }}>
-              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 14 }}>ℹ️</span>
-                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
-              </div>
+            <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 14 }}>ℹ️</span>
+              <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, unit, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+            </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
                 <Field label="Brand">
                   <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
@@ -4611,9 +4599,8 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
                     </span>
                   </div>
                 </Field>
-                <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
+                <Field label="Unit">
+                  <div style={readOnlyFieldStyle}>{editingItem.unit || "—"}</div>
                 </Field>
                 <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
                 </div>
@@ -7789,11 +7776,6 @@ try {
   });
   const data = await response.json();
   if (data.success) {
-    await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_data: targetUser }),
-    });
     await fetchDeleteHistory();
     await fetchUsers();
     await fetchActivityLog();
