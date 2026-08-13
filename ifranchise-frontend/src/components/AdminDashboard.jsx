@@ -880,17 +880,6 @@ useEffect(() => {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   ACTIVITY LOG — REDESIGNED SECTION
-   Replace, in your original file, EVERYTHING from:
-     const PAGE_SIZE = 20;
-   down through the end of:
-     function ActivityLogContent({ user }) { ... }
-   with the code below. It reuses C, FONT, and all the icon imports you
-   already have at the top of your file (Activity, Clock, User, Search,
-   Download, FileText, RefreshCw, X, etc.) — nothing else needs to change.
-   ────────────────────────────────────────────────────────────────────── */
-
 const PAGE_SIZE = 20;
 
 const ACTION_META = {
@@ -1030,345 +1019,6 @@ function LogPagination({ page, totalPages, onChange }) {
   );
 }
 
-function ActivityLogContent({ user }) {
-  const [allLogs,     setAllLogs]     = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [page,        setPage]        = useState(0);
-
-  const [search,   setSearch]   = useState('');
-  const [fModule,  setFModule]  = useState('');
-  const [fAction,  setFAction]  = useState('');
-  const [fUser,    setFUser]    = useState('');
-  const [fBranch,  setFBranch]  = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
-
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const endpoints = [
-        'menu-activity-log', 'stockInv-activity-log', 'shop-activity-log',
-        'orders-activity-log', 'users-activity-log', 'applications-activity-log',
-        'reports-activity-log', 'announcements-activity-log', 'brands-activity-log',
-      ];
-      const results = await Promise.all(
-        endpoints.map(url =>
-          fetch(`${process.env.REACT_APP_API_URL}/${url}`)
-            .then(r => r.json())
-            .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
-              id:          row.id,
-              module:      row.module || 'General',
-              action:      (row.action || 'update').toLowerCase(),
-              user_name:   row.performed_by || 'Admin',
-              role:        row.role || 'Unknown',
-              description: row.item_name || row.action || '—',
-              branch:      row.branch || '—',
-              device:      row.device || '—',
-              location:    row.location || '—',
-              changes:     row.changes || null,
-              created_at:  row.created_at,
-              meta:        {},
-            })))
-            .catch(() => [])
-        )
-      );
-      const merged = results.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setAllLogs(merged);
-    } catch (err) {
-      console.error('Failed to load activity logs:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadLogs(); }, [loadLogs]);
-
-  const uniqueUsers    = useMemo(() => [...new Set(allLogs.map(l => l.user_name))].sort(), [allLogs]);
-  const uniqueBranches = useMemo(() => [...new Set(allLogs.map(l => l.branch).filter(Boolean))].sort(), [allLogs]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return allLogs.filter(l => {
-      if (q && !l.description.toLowerCase().includes(q) && !l.user_name.toLowerCase().includes(q) && !l.module.toLowerCase().includes(q) && !l.action.toLowerCase().includes(q)) return false;
-      if (fModule  && l.module    !== fModule)  return false;
-      if (fAction  && l.action    !== fAction)  return false;
-      if (fUser    && l.user_name !== fUser)    return false;
-      if (fBranch  && l.branch    !== fBranch)  return false;
-      if (dateFrom && new Date(l.created_at) < new Date(dateFrom)) return false;
-      if (dateTo) {
-        const t = new Date(dateTo);
-        t.setHours(23, 59, 59);
-        if (new Date(l.created_at) > t) return false;
-      }
-      return true;
-    });
-  }, [allLogs, search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems  = useMemo(() => {
-    const p = Math.min(page, totalPages - 1);
-    return filtered.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
-  }, [filtered, page, totalPages]);
-
-  const todayStr   = new Date().toISOString().slice(0, 10);
-  const todayCount = allLogs.filter(l => l.created_at.startsWith(todayStr)).length;
-  const userCount  = new Set(allLogs.map(l => l.user_name)).size;
-
-  const hasFilters = search || fModule || fAction || fUser || fBranch || dateFrom || dateTo;
-
-  const clearAll = () => {
-    setSearch(''); setFModule(''); setFAction('');
-    setFUser(''); setFBranch(''); setDateFrom(''); setDateTo('');
-    setPage(0);
-  };
-
-  useEffect(() => { setPage(0); }, [search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
-
-  const exportCSV = () => {
-    const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'];
-    const rows   = filtered.map(l => [
-      `#LOG-${String(l.id).padStart(5, '0')}`,
-      fmtFull(l.created_at),
-      l.user_name, l.role, l.module, l.action, l.description,
-      l.branch || '', l.location || '', l.device,
-    ]);
-    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const a   = document.createElement('a');
-    a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-  };
-
-  const exportPDF = () => {
-    const doc   = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    let y       = 18;
-    doc.setFillColor(13, 43, 30);
-    doc.rect(0, 0, pageW, 28, 'F');
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text('ACTIVITY AUDIT LOG', pageW / 2, 12, { align: 'center' });
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(160, 220, 190);
-    doc.text(`Generated ${fmtFull(new Date().toISOString())} · ${filtered.length} events`, pageW / 2, 22, { align: 'center' });
-    y = 36;
-    filtered.slice(0, 200).forEach((l) => {
-      if (y > 270) { doc.addPage(); y = 18; }
-      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-      doc.text(`#LOG-${String(l.id).padStart(5, '0')} · ${l.action.toUpperCase()} · ${l.module}`, 14, y);
-      y += 5;
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-      doc.text(`${l.description}`, 14, y);
-      y += 4;
-      doc.setTextColor(140, 140, 140);
-      doc.text(`${fmtFull(l.created_at)}  ·  ${l.user_name}  ·  ${l.branch || ''}  ·  ${l.location || ''}  ·  ${l.device}`, 14, y);
-      y += 7;
-      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
-      doc.line(14, y - 2, pageW - 14, y - 2);
-    });
-    const total = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= total; i++) {
-      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
-      doc.text(`Page ${i} of ${total}  ·  iFranchise Admin Audit Log`, pageW / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
-    }
-    doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
-
-  const selSt = {
-    height: 36, padding: '0 30px 0 11px', borderRadius: 9,
-    border: `1px solid ${C.border}`, background: C.bg,
-    fontSize: 12.5, color: C.ink, fontFamily: FONT,
-    outline: 'none', appearance: 'none', cursor: 'pointer',
-    transition: 'border-color .15s ease, box-shadow .15s ease',
-  };
-
-  // sticky header cell style — this is what keeps the column labels pinned
-  // to the top of the scrollable card body ("Event ID / Timestamp / User..." row).
-  // Given its own tinted background + shadow so it reads as a distinct bar,
-  // not just text floating over the same white as the rows.
-  const stickyTh = {
-    position: 'sticky', top: 0, zIndex: 5,
-    padding: '13px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
-    color: '#00695c', letterSpacing: '0.08em', textTransform: 'uppercase',
-    background: 'linear-gradient(180deg,#eafaf3,#ddf5e9)',
-    borderBottom: '2px solid #a7ddc4',
-    boxShadow: '0 3px 8px rgba(0,140,60,0.08)',
-    whiteSpace: 'nowrap',
-  };
-  const stickyTheadRow = {
-    boxShadow: '0 2px 0 rgba(0,140,60,0.05)',
-  };
-
-  const td = (i) => ({
-    padding: '11px 12px', borderBottom: '1px solid #f0f8f0',
-    background: i % 2 === 0 ? C.white : '#fafffe',
-    fontSize: 12.5, verticalAlign: 'middle', color: C.ink,
-    transition: 'background .12s ease',
-  });
-
-  return (
-    <div style={{ fontFamily: FONT }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        .al-row-hover:hover td { background: #f0fdf5 !important; }
-        .al-select:focus, .al-input:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.1); }
-        .al-toolbar-btn { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
-        .al-toolbar-btn:hover { filter: brightness(0.97); transform: translateY(-1px); }
-        .al-toolbar-btn:active { transform: translateY(0); }
-      `}</style>
-
-      {/* ── Stats ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 22 }}>
-        <StatCard label="Total Events" value={allLogs.length} sub="All time"      color={C.ink}   icon={Activity} />
-        <StatCard label="Today"        value={todayCount}     sub="Last 24 hours" color={C.green} icon={Clock}    />
-        <StatCard label="Active Users" value={userCount}      sub="Unique actors" color="#1565c0" icon={User}     />
-      </div>
-
-      {/* ── Toolbar ── */}
-      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.13)', borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: '1 1 220px' }}>
-            <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search events, users, modules…"
-              className="al-input"
-              style={{ ...selSt, paddingLeft: 30, width: '100%', appearance: 'auto' }}
-            />
-          </div>
-
-          <select className="al-select" value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
-            <option value="">All modules</option>
-            {MODULES.map(m => <option key={m}>{m}</option>)}
-          </select>
-
-          <select className="al-select" value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
-            <option value="">All actions</option>
-            {Object.keys(ACTION_META).map(a => <option key={a} value={a}>{ACTION_META[a].label}</option>)}
-          </select>
-
-          <select className="al-select" value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
-            <option value="">All users</option>
-            {uniqueUsers.map(u => <option key={u}>{u}</option>)}
-          </select>
-
-          <select className="al-select" value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
-            <option value="">All branches</option>
-            {uniqueBranches.map(b => <option key={b}>{b}</option>)}
-          </select>
-
-          <input type="date" className="al-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
-          <input type="date" className="al-input" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
-
-          {hasFilters && (
-            <button className="al-toolbar-btn" onClick={clearAll} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <X size={12} /> Clear
-            </button>
-          )}
-
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button className="al-toolbar-btn" onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Download size={12} /> CSV
-            </button>
-            <button className="al-toolbar-btn" onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(0,180,90,0.28)' }}>
-              <FileText size={12} /> PDF
-            </button>
-            <button className="al-toolbar-btn" onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} /> Refresh
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Log panel ── */}
-      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
-
-        {/* Panel header */}
-        <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '13px 20px' }}>
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
-            {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
-          </div>
-        </div>
-
-        {/* Scrollable body — the <thead> below is sticky, so the column
-            labels (Event ID / Timestamp / User / Module / Action /
-            Description / Branch / Location / Device) stay pinned at the
-            top of the card while the rows scroll underneath them. */}
-        <div style={{ maxHeight: 600, overflowY: 'auto' }}>
-          {loading ? (
-            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 14 }}>
-              <RefreshCw size={24} color={C.green} style={{ animation: 'spin 0.8s linear infinite', marginBottom: 10 }} />
-              <div>Loading audit log…</div>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
-              No events match your filters.
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
-                <thead>
-                  <tr style={stickyTheadRow}>
-                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map((h, i, arr) => (
-                      <th
-                        key={h}
-                        style={{
-                          ...stickyTh,
-                          borderRight: i < arr.length - 1 ? '1px solid rgba(0,140,60,0.1)' : 'none',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map((log, i) => (
-                    <tr key={log.id} className="al-row-hover" style={{ animation: 'rowIn .22s ease both', animationDelay: `${Math.min(i, 12) * 15}ms` }}>
-                      <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>#LOG-{String(log.id).padStart(5, '0')}</td>
-                      <td style={{ ...td(i), fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFull(log.created_at)}</td>
-                      <td style={{ ...td(i), fontWeight: 700 }}>
-                        <div>{log.user_name}</div>
-                        <div style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>{log.role}</div>
-                      </td>
-                      <td style={td(i)}>
-                        <span style={{ background: C.greenLt, color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{log.module}</span>
-                      </td>
-                      <td style={td(i)}><ActionBadge action={log.action} /></td>
-                      <td style={{ ...td(i), maxWidth: 260 }}>
-                        <div>{log.description}</div>
-                        {log.meta?.field && (
-                          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                            {log.meta.field}: <span style={{ color: '#c62828' }}>{log.meta.old}</span> → <span style={{ color: '#2e7d32' }}>{log.meta.new}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.branch || '—'}</td>
-                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.location || '—'}</td>
-                      <td style={{ ...td(i), fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{log.device}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Pagination */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: `1px solid ${C.border}` }}>
-          <span style={{ fontSize: 12, color: C.muted }}>
-            Showing{' '}
-            <strong style={{ color: C.ink }}>{Math.min(page * PAGE_SIZE + 1, filtered.length)}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)}</strong>
-            {' '}of{' '}
-            <strong style={{ color: C.ink }}>{filtered.length}</strong>
-          </span>
-          <LogPagination page={Math.min(page, totalPages - 1)} totalPages={totalPages} onChange={setPage} />
-        </div>
-      </div>
-    </div>
-  );
-}
 // ─── Dashboard-specific constants ────────────────────────────────────────────
 const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
@@ -1601,8 +1251,6 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
   );
 }
 
-// ─── SalesTrendSection ────────────────────────────────────────────────────────
-// ─── SalesTrendSection ────────────────────────────────────────────────────────
 function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
@@ -1659,10 +1307,22 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
     ];
   }, [kpiData, total]);
 
-  const gpLine = useMemo(() => values.map((v, i) => {
-    const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
-    return parseFloat(base.toFixed(1));
-  }), [values]);
+  const gpLine = useMemo(() => {
+    if (kpiData?.gpSeries?.length === values.length) return kpiData.gpSeries;
+    // Fallback estimate — only used when backend hasn't supplied real GP% data
+    return values.map((v, i) => {
+      const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
+      return parseFloat(base.toFixed(1));
+    });
+  }, [kpiData, values]);
+
+  const priorYearValues = useMemo(() => {
+    if (kpiData?.priorYearValues?.length === values.length) return kpiData.priorYearValues;
+    return values.map(v => v * 0.72);
+  }, [kpiData, values]);
+
+  const isGpEstimated  = !(kpiData?.gpSeries?.length === values.length);
+  const isPyEstimated  = !(kpiData?.priorYearValues?.length === values.length);
 
   const hasData = total > 0;
   const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
@@ -1774,15 +1434,15 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
       <div ref={panelRef} style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
             {hasData ? (
               <>
-                <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
+                <ComboChart barData={[values, priorYearValues]} lineData={gpLine} labels={labels} height={220} />
                 <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
                   {[
                     { color: PAL[0], label: "Sales CY" },
-                    { color: PAL[1], label: "Sales PY" },
-                    { color: "#1d4ed8", label: "Gross Profit % (CY)", line: true },
+                    { color: PAL[1], label: isPyEstimated ? "Sales PY (est.)" : "Sales PY" },
+                    { color: "#1d4ed8", label: isGpEstimated ? "Gross Profit % (est.)" : "Gross Profit % (CY)", line: true },
                   ].map((l, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {l.line
@@ -2648,6 +2308,8 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
 
+  const [applyingRange, setApplyingRange] = useState(false);
+
   const [infoModal, setInfoModal] = useState(null);
   const showInfo = (opts) => setInfoModal(opts);
   const closeInfo = () => setInfoModal(null);
@@ -2700,43 +2362,79 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
     return { day: "Today", week: "This Week", month: "This Month", year: "This Year" }[preset] || "This Month";
   };
 
-  const chartData = useMemo(() => {
-    if (viewArchive) return viewArchive.chartData;
-    let txList = transactions;
-    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
-    else if (filterBrand && selectedBrand) {
-      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-      txList = transactions.filter(tx => bn.includes(tx.branch));
-    }
-    if (!txList.length) return { labels: [], values: [] };
-    const now = new Date();
-    const filtered = txList.filter(tx => {
-      const d = new Date(tx.created_at);
-      if (preset === "day")   return d.toDateString() === now.toDateString();
-      if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
-      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (preset === "year")  return d.getFullYear() === now.getFullYear();
-      if (rangeMode === "custom" && appliedRange) { const f = new Date(appliedRange.from); const t = new Date(appliedRange.to); return d >= f && d <= t; }
-      return true;
-    });
-    let grouped = {};
-    if (preset === "day")   filtered.forEach(tx => { const h = new Date(tx.created_at).getHours(); const l = `${h}:00`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "week")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{weekday:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "month") filtered.forEach(tx => { const l = `D${new Date(tx.created_at).getDate()}`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "year")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{month:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (rangeMode === "custom" && appliedRange) {
-      const from = new Date(appliedRange.from), to = new Date(appliedRange.to);
-      const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
-      const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
-      const values = Array(nw).fill(0);
-      filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
-      return { labels, values };
-    }
-    const labels = Object.keys(grouped);
-    return { labels, values: labels.map(l => grouped[l]) };
-  }, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
+const chartData = useMemo(() => {
+  if (viewArchive) return viewArchive.chartData;
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+  if (!txList.length) return { labels: [], values: [] };
+  const now = new Date();
+  const isCustom = rangeMode === "custom" && appliedRange;
 
-  const values    = chartData.values;
+const filtered = txList.filter(tx => {
+  const d = new Date(tx.created_at);
+  if (isCustom) {
+    const f = new Date(appliedRange.from + "T00:00:00");
+    const t = new Date(appliedRange.to + "T23:59:59.999");
+    return d >= f && d <= t;
+  }
+  if (preset === "day")   return d.toDateString() === now.toDateString();
+  if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+  if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  if (preset === "year")  return d.getFullYear() === now.getFullYear();
+  return true;
+});
+
+if (isCustom) {
+  const from = new Date(appliedRange.from + "T00:00:00");
+  const to = new Date(appliedRange.to + "T23:59:59.999");
+  const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
+  const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
+  const values = Array(nw).fill(0);
+  filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
+  return { labels, values };
+}
+
+  let grouped = {};
+  if (preset === "day")   filtered.forEach(tx => { const h = new Date(tx.created_at).getHours(); const l = `${h}:00`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+  else if (preset === "week")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{weekday:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+  else if (preset === "month") filtered.forEach(tx => { const l = `D${new Date(tx.created_at).getDate()}`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+  else if (preset === "year")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{month:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+
+  const labels = Object.keys(grouped);
+  return { labels, values: labels.map(l => grouped[l]) };
+}, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
+
+const filteredTransactions = useMemo(() => {
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+
+  const isCustom = rangeMode === "custom" && appliedRange;
+  const now = new Date();
+  return txList.filter(tx => {
+    const d = new Date(tx.created_at);
+    if (isCustom) {
+      const from = new Date(appliedRange.from + "T00:00:00");
+      const to = new Date(appliedRange.to + "T23:59:59.999");
+      return d >= from && d <= to;
+    }
+    if (preset === "day")   return d.toDateString() === now.toDateString();
+    if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+    if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (preset === "year")  return d.getFullYear() === now.getFullYear();
+    return true;
+  });
+}, [transactions, filterBranch, filterBrand, selectedBrand, rangeMode, appliedRange, preset]);
+
+  const values = kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values;
+  const chartLabels = kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels;  
   const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
   const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
   const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
@@ -2769,7 +2467,8 @@ const deleteArchive = (year) => {
     },
   });
 };
-const applyCustomRange = () => {
+
+const applyCustomRange = async () => {
   if (!customFrom || !customTo) { showInfo({ type: "warning", title: "Missing Dates", message: "Please select both a start and end date." }); return; }
   if (customFrom > customTo) { showInfo({ type: "warning", title: "Invalid Range", message: "\"From\" cannot be after \"To\"." }); return; }
 
@@ -2780,16 +2479,15 @@ const applyCustomRange = () => {
     txList = transactions.filter(tx => bn.includes(tx.branch));
   }
 
-  const from = new Date(customFrom);
-  const to   = new Date(customTo);
-  to.setHours(23, 59, 59, 999);
+  const from = new Date(customFrom + "T00:00:00");
+  const to = new Date(customTo + "T23:59:59.999");
 
   const hasData = txList.some(tx => {
     const d = new Date(tx.created_at);
     return d >= from && d <= to;
   });
 
- if (!hasData) {
+  if (!hasData) {
     showInfo({
       type: "error",
       title: "No Data Found",
@@ -2797,9 +2495,37 @@ const applyCustomRange = () => {
     });
     return;
   }
-  setAppliedRange({ from: customFrom, to: customTo });
-  setViewArchive(null);
-  setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
+
+  setApplyingRange(true);
+  try {
+    setRangeMode("custom");
+    setAppliedRange({ from: customFrom, to: customTo });
+    setViewArchive(null);
+
+    // Fetch KPIs for this exact range right now, so the button reflects real completion
+    setKpiLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("from", customFrom);
+      params.set("to", customTo);
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (bn.length) params.set("branches", bn.join(","));
+      }
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const d = await res.json();
+      if (!d.error) setKpiData(d);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setKpiLoading(false);
+    }
+
+    setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
+  } finally {
+    setApplyingRange(false);
+  }
 };
 
   const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
@@ -2971,8 +2697,29 @@ const applyCustomRange = () => {
           <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
           <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
           <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
-        </div>
+         <button
+          onClick={applyCustomRange}
+          disabled={applyingRange}
+          style={{
+            padding: "6px 13px", borderRadius: 8, border: "none",
+            background: "linear-gradient(135deg,#00c853,#00897b)",
+            color: "#fff", fontSize: 11, fontWeight: 700,
+            cursor: applyingRange ? "not-allowed" : "pointer",
+            fontFamily: FONT, opacity: applyingRange ? 0.7 : 1,
+            display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          {applyingRange ? (
+            <>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
+                <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+                <path d="M21 12a9 9 0 0 0-9-9" />
+              </svg>
+              Applying…
+            </>
+          ) : "Apply"}
+        </button>
+         </div>
 
         {/* Archive */}
         <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
@@ -3034,9 +2781,9 @@ const applyCustomRange = () => {
         filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList}
       /> 
 
-      {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
       <PrescriptiveSection
-        transactions={transactions} filterLabel={filterLabel}
+        transactions={filteredTransactions}
+        filterLabel={filterLabel}
         preset={preset} total={total} values={values} kpiData={kpiData}
       />
 
@@ -3051,6 +2798,346 @@ const applyCustomRange = () => {
 
       <Toast toast={toast} onClose={() => setToast(null)} />
         
+    </div>
+  );
+}
+
+function ActivityLogContent({ user }) {
+  const [allLogs,     setAllLogs]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [page,        setPage]        = useState(0);
+
+  const [search,   setSearch]   = useState('');
+  const [fModule,  setFModule]  = useState('');
+  const [fAction,  setFAction]  = useState('');
+  const [fUser,    setFUser]    = useState('');
+  const [fBranch,  setFBranch]  = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo,   setDateTo]   = useState('');
+
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const endpoints = [
+        'menu-activity-log', 'stockInv-activity-log', 'shop-activity-log',
+        'orders-activity-log', 'users-activity-log', 'applications-activity-log',
+        'reports-activity-log', 'announcements-activity-log', 'brands-activity-log',
+      ];
+      const results = await Promise.all(
+        endpoints.map(url =>
+          fetch(`${process.env.REACT_APP_API_URL}/${url}`)
+            .then(r => r.json())
+            .then(rows => (Array.isArray(rows) ? rows : []).map(row => ({
+              id:          row.id,
+              module:      row.module || 'General',
+              action:      (row.action || 'update').toLowerCase(),
+              user_name:   row.performed_by || 'Admin',
+              role:        row.role || 'Unknown',
+              description: row.item_name || row.action || '—',
+              branch:      row.branch || '—',
+              device:      row.device || '—',
+              location:    row.location || '—',
+              changes:     row.changes || null,
+              created_at:  row.created_at,
+              meta:        {},
+            })))
+            .catch(() => [])
+        )
+      );
+      const merged = results.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setAllLogs(merged);
+    } catch (err) {
+      console.error('Failed to load activity logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadLogs(); }, [loadLogs]);
+
+  const uniqueUsers    = useMemo(() => [...new Set(allLogs.map(l => l.user_name))].sort(), [allLogs]);
+  const uniqueBranches = useMemo(() => [...new Set(allLogs.map(l => l.branch).filter(Boolean))].sort(), [allLogs]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return allLogs.filter(l => {
+      if (q && !l.description.toLowerCase().includes(q) && !l.user_name.toLowerCase().includes(q) && !l.module.toLowerCase().includes(q) && !l.action.toLowerCase().includes(q)) return false;
+      if (fModule  && l.module    !== fModule)  return false;
+      if (fAction  && l.action    !== fAction)  return false;
+      if (fUser    && l.user_name !== fUser)    return false;
+      if (fBranch  && l.branch    !== fBranch)  return false;
+      if (dateFrom && new Date(l.created_at) < new Date(dateFrom)) return false;
+      if (dateTo) {
+        const t = new Date(dateTo);
+        t.setHours(23, 59, 59);
+        if (new Date(l.created_at) > t) return false;
+      }
+      return true;
+    });
+  }, [allLogs, search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems  = useMemo(() => {
+    const p = Math.min(page, totalPages - 1);
+    return filtered.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
+  }, [filtered, page, totalPages]);
+
+  const todayStr   = new Date().toISOString().slice(0, 10);
+  const todayCount = allLogs.filter(l => l.created_at.startsWith(todayStr)).length;
+  const userCount  = new Set(allLogs.map(l => l.user_name)).size;
+
+  const hasFilters = search || fModule || fAction || fUser || fBranch || dateFrom || dateTo;
+
+  const clearAll = () => {
+    setSearch(''); setFModule(''); setFAction('');
+    setFUser(''); setFBranch(''); setDateFrom(''); setDateTo('');
+    setPage(0);
+  };
+
+  useEffect(() => { setPage(0); }, [search, fModule, fAction, fUser, fBranch, dateFrom, dateTo]);
+
+  const exportCSV = () => {
+    const header = ['Event ID', 'Timestamp', 'User', 'Role', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'];
+    const rows   = filtered.map(l => [
+      `#LOG-${String(l.id).padStart(5, '0')}`,
+      fmtFull(l.created_at),
+      l.user_name, l.role, l.module, l.action, l.description,
+      l.branch || '', l.location || '', l.device,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a   = document.createElement('a');
+    a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const exportPDF = () => {
+    const doc   = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    let y       = 18;
+    doc.setFillColor(13, 43, 30);
+    doc.rect(0, 0, pageW, 28, 'F');
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+    doc.text('ACTIVITY AUDIT LOG', pageW / 2, 12, { align: 'center' });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(160, 220, 190);
+    doc.text(`Generated ${fmtFull(new Date().toISOString())} · ${filtered.length} events`, pageW / 2, 22, { align: 'center' });
+    y = 36;
+    filtered.slice(0, 200).forEach((l) => {
+      if (y > 270) { doc.addPage(); y = 18; }
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+      doc.text(`#LOG-${String(l.id).padStart(5, '0')} · ${l.action.toUpperCase()} · ${l.module}`, 14, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+      doc.text(`${l.description}`, 14, y);
+      y += 4;
+      doc.setTextColor(140, 140, 140);
+      doc.text(`${fmtFull(l.created_at)}  ·  ${l.user_name}  ·  ${l.branch || ''}  ·  ${l.location || ''}  ·  ${l.device}`, 14, y);
+      y += 7;
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.2);
+      doc.line(14, y - 2, pageW - 14, y - 2);
+    });
+    const total = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
+      doc.setPage(i); doc.setFontSize(7); doc.setTextColor(160, 160, 160);
+      doc.text(`Page ${i} of ${total}  ·  iFranchise Admin Audit Log`, pageW / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+    }
+    doc.save(`audit_log_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const selSt = {
+    height: 36, padding: '0 30px 0 11px', borderRadius: 9,
+    border: `1px solid ${C.border}`, background: C.bg,
+    fontSize: 12.5, color: C.ink, fontFamily: FONT,
+    outline: 'none', appearance: 'none', cursor: 'pointer',
+    transition: 'border-color .15s ease, box-shadow .15s ease',
+  };
+
+  // sticky header cell style — this is what keeps the column labels pinned
+  // to the top of the scrollable card body ("Event ID / Timestamp / User..." row).
+  // Given its own tinted background + shadow so it reads as a distinct bar,
+  // not just text floating over the same white as the rows.
+  const stickyTh = {
+    position: 'sticky', top: 0, zIndex: 5,
+    padding: '13px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
+    color: '#00695c', letterSpacing: '0.08em', textTransform: 'uppercase',
+    background: 'linear-gradient(180deg,#eafaf3,#ddf5e9)',
+    borderBottom: '2px solid #a7ddc4',
+    boxShadow: '0 3px 8px rgba(0,140,60,0.08)',
+    whiteSpace: 'nowrap',
+  };
+  const stickyTheadRow = {
+    boxShadow: '0 2px 0 rgba(0,140,60,0.05)',
+  };
+
+  const td = (i) => ({
+    padding: '11px 12px', borderBottom: '1px solid #f0f8f0',
+    background: i % 2 === 0 ? C.white : '#fafffe',
+    fontSize: 12.5, verticalAlign: 'middle', color: C.ink,
+    transition: 'background .12s ease',
+  });
+
+  return (
+    <div style={{ fontFamily: FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .al-row-hover:hover td { background: #f0fdf5 !important; }
+        .al-select:focus, .al-input:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.1); }
+        .al-toolbar-btn { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+        .al-toolbar-btn:hover { filter: brightness(0.97); transform: translateY(-1px); }
+        .al-toolbar-btn:active { transform: translateY(0); }
+      `}</style>
+
+      {/* ── Stats ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 22 }}>
+        <StatCard label="Total Events" value={allLogs.length} sub="All time"      color={C.ink}   icon={Activity} />
+        <StatCard label="Today"        value={todayCount}     sub="Last 24 hours" color={C.green} icon={Clock}    />
+        <StatCard label="Active Users" value={userCount}      sub="Unique actors" color="#1565c0" icon={User}     />
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.13)', borderRadius: 16, padding: '14px 18px', marginBottom: 18, boxShadow: '0 1px 8px rgba(0,140,60,0.05)' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: '1 1 220px' }}>
+            <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search events, users, modules…"
+              className="al-input"
+              style={{ ...selSt, paddingLeft: 30, width: '100%', appearance: 'auto' }}
+            />
+          </div>
+
+          <select className="al-select" value={fModule} onChange={e => setFModule(e.target.value)} style={{ ...selSt, minWidth: 160 }}>
+            <option value="">All modules</option>
+            {MODULES.map(m => <option key={m}>{m}</option>)}
+          </select>
+
+          <select className="al-select" value={fAction} onChange={e => setFAction(e.target.value)} style={{ ...selSt, minWidth: 130 }}>
+            <option value="">All actions</option>
+            {Object.keys(ACTION_META).map(a => <option key={a} value={a}>{ACTION_META[a].label}</option>)}
+          </select>
+
+          <select className="al-select" value={fUser} onChange={e => setFUser(e.target.value)} style={{ ...selSt, minWidth: 150 }}>
+            <option value="">All users</option>
+            {uniqueUsers.map(u => <option key={u}>{u}</option>)}
+          </select>
+
+          <select className="al-select" value={fBranch} onChange={e => setFBranch(e.target.value)} style={{ ...selSt, minWidth: 140 }}>
+            <option value="">All branches</option>
+            {uniqueBranches.map(b => <option key={b}>{b}</option>)}
+          </select>
+
+          <input type="date" className="al-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selSt, width: 145, appearance: 'auto' }} />
+          <input type="date" className="al-input" value={dateTo}   onChange={e => setDateTo(e.target.value)}   style={{ ...selSt, width: 145, appearance: 'auto' }} />
+
+          {hasFilters && (
+            <button className="al-toolbar-btn" onClick={clearAll} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <X size={12} /> Clear
+            </button>
+          )}
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="al-toolbar-btn" onClick={exportCSV} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Download size={12} /> CSV
+            </button>
+            <button className="al-toolbar-btn" onClick={exportPDF} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#00c853,#00897b)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 10px rgba(0,180,90,0.28)' }}>
+              <FileText size={12} /> PDF
+            </button>
+            <button className="al-toolbar-btn" onClick={loadLogs} style={{ height: 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} /> Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Log panel ── */}
+      <div style={{ background: C.white, border: '1px solid rgba(0,168,76,0.12)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,140,60,0.07)' }}>
+
+        {/* Panel header */}
+        <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '13px 20px' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>Audit Log</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
+            {filtered.length} event{filtered.length !== 1 ? 's' : ''} · page {Math.min(page + 1, totalPages)} of {totalPages}
+          </div>
+        </div>
+
+        {/* Scrollable body — the <thead> below is sticky, so the column
+            labels (Event ID / Timestamp / User / Module / Action /
+            Description / Branch / Location / Device) stay pinned at the
+            top of the card while the rows scroll underneath them. */}
+        <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 14 }}>
+              <RefreshCw size={24} color={C.green} style={{ animation: 'spin 0.8s linear infinite', marginBottom: 10 }} />
+              <div>Loading audit log…</div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '48px 0', textAlign: 'center', color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
+              No events match your filters.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
+                <thead>
+                  <tr style={stickyTheadRow}>
+                    {['Event ID', 'Timestamp', 'User', 'Module', 'Action', 'Description', 'Branch', 'Location', 'Device'].map((h, i, arr) => (
+                      <th
+                        key={h}
+                        style={{
+                          ...stickyTh,
+                          borderRight: i < arr.length - 1 ? '1px solid rgba(0,140,60,0.1)' : 'none',
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageItems.map((log, i) => (
+                    <tr key={log.id} className="al-row-hover" style={{ animation: 'rowIn .22s ease both', animationDelay: `${Math.min(i, 12) * 15}ms` }}>
+                      <td style={{ ...td(i), fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>#LOG-{String(log.id).padStart(5, '0')}</td>
+                      <td style={{ ...td(i), fontSize: 11, whiteSpace: 'nowrap' }}>{fmtFull(log.created_at)}</td>
+                      <td style={{ ...td(i), fontWeight: 700 }}>
+                        <div>{log.user_name}</div>
+                        <div style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>{log.role}</div>
+                      </td>
+                      <td style={td(i)}>
+                        <span style={{ background: C.greenLt, color: C.greenDk, padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{log.module}</span>
+                      </td>
+                      <td style={td(i)}><ActionBadge action={log.action} /></td>
+                      <td style={{ ...td(i), maxWidth: 260 }}>
+                        <div>{log.description}</div>
+                        {log.meta?.field && (
+                          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                            {log.meta.field}: <span style={{ color: '#c62828' }}>{log.meta.old}</span> → <span style={{ color: '#2e7d32' }}>{log.meta.new}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.branch || '—'}</td>
+                      <td style={{ ...td(i), fontSize: 12, color: C.muted }}>{log.location || '—'}</td>
+                      <td style={{ ...td(i), fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{log.device}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Pagination */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: `1px solid ${C.border}` }}>
+          <span style={{ fontSize: 12, color: C.muted }}>
+            Showing{' '}
+            <strong style={{ color: C.ink }}>{Math.min(page * PAGE_SIZE + 1, filtered.length)}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)}</strong>
+            {' '}of{' '}
+            <strong style={{ color: C.ink }}>{filtered.length}</strong>
+          </span>
+          <LogPagination page={Math.min(page, totalPages - 1)} totalPages={totalPages} onChange={setPage} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -8822,7 +8909,7 @@ function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
     if (toast.type === "loading") return;
-    const t = setTimeout(onClose, 2000);
+    const t = setTimeout(onClose, 4000);
     return () => clearTimeout(t);
   }, [toast, onClose]);
 
