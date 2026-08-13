@@ -152,11 +152,11 @@ const OtpEntryBlock = ({ otpArr, setOtpArr, refs, isLocked, lockRemaining, error
     <div style={{ padding: "2rem", textAlign: "center" }}>
       <h2>Unknown Role: {userRole}</h2>
       <p>Your role is not recognized in the system.</p>
-      <p style={{ color: "#888", fontSize: 13 }}>
+      <p style={{ color: "var(--muted)", fontSize: 13 }}>
         Redirecting to login in {secondsLeft}s...
       </p>
       <button
-        style={{ padding: "10px 20px", background: "#2E7D32", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginTop: "1rem" }}
+        style={{ padding: "10px 22px", background: "var(--green-900)", color: "white", border: "none", borderRadius: "999px", cursor: "pointer", marginTop: "1rem", fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
         onClick={onBackToLogin}
       >
         ← Back to Login Now
@@ -891,6 +891,9 @@ const resetPassword = async () => {
 
   return (
     <div className="page">
+      <div className="field-dot" />
+      <div className="blob blob-a" />
+      <div className="blob blob-b" />
 
         {loading === "sms" && (
         <>
@@ -901,25 +904,27 @@ const resetPassword = async () => {
             }
           `}</style>
           <div style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
+            position: "fixed", inset: 0, background: "rgba(18,36,27,0.55)",
+            zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(6px)"
           }}>
             <div style={{
-              background: "#fff", borderRadius: 20, padding: "40px 48px",
+              background: "var(--white)", borderRadius: 24, padding: "40px 48px",
               display: "flex", flexDirection: "column", alignItems: "center",
-              gap: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", minWidth: 260,
+              gap: 16, boxShadow: "0 24px 80px var(--shadow-strong)", minWidth: 260,
+              border: "1px solid var(--line)"
             }}>
               <div style={{
                 width: 56, height: 56,
-                border: "5px solid #c8e6c9",
-                borderTop: "5px solid #2E7D32",
+                border: "5px solid var(--pale)",
+                borderTop: "5px solid var(--green-900)",
                 borderRadius: "50%",
                 animation: "spin 0.9s linear infinite",
               }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#2E7D32" }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "var(--green-900)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Sending SMS OTP...
               </p>
-              <p style={{ margin: 0, fontSize: 12, color: "#888" }}>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Please wait a moment
               </p>
             </div>
@@ -945,9 +950,10 @@ const resetPassword = async () => {
         {/* ── LOGIN ── */}
         {step === "login" && (
           <>
-            <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
              <button type="button" className="back-btn" onClick={() => navigate("/")}>← Back</button>
-            <h2 style={{ fontSize: "23px", color: "#0a8d1c", fontFamily: "Montserrat", fontWeight: 700, marginTop: 20 }}>LOGIN</h2>
+            <span className="eyebrow">Welcome, Partner!</span>
+            <h2 style={{ marginTop: 8 }}>LOGIN</h2>
             <p className="login-subtext">Enter your credentials below</p>
             {authError && <p className="error general">{authError}</p>}
             <div className="input-container">
@@ -979,15 +985,8 @@ const resetPassword = async () => {
         {/* ── LOGIN OTP ── */} 
       {step === "otp" && (
         <>
-          <h2
-            style={{
-              fontSize: "23px",
-              color: "#0a8d1c",
-              fontFamily: "Montserrat",
-              fontWeight: 700,
-              marginTop: 20,
-            }}
-          >
+          <span className="eyebrow">Verification</span>
+          <h2 style={{ marginTop: 8 }}>
             Verify OTP
           </h2>
 
@@ -995,12 +994,12 @@ const resetPassword = async () => {
             {otpMethod === "email" ? (
               <>
                 A 6-digit code was sent to:{" "}
-                <strong style={{ color: "#2E7D32" }}>{otpEmail}</strong>
+                <strong style={{ color: "var(--green-900)" }}>{otpEmail}</strong>
               </>
             ) : (
               <>
                 A 6-digit SMS OTP was sent to:{" "}
-                <strong style={{ color: "#2E7D32" }}>
+                <strong style={{ color: "var(--green-900)" }}>
                   {maskedOtpPhone || "your registered mobile number"}
                 </strong>
               </>
@@ -1036,12 +1035,12 @@ const resetPassword = async () => {
 
               trustDeviceCheckbox={
                 <div style={{ textAlign:"left", marginBottom:12 }}>
-                  <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"#555", cursor:"pointer" }}>
+                  <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:"var(--muted)", cursor:"pointer" }}>
                     <input
                       type="checkbox"
                       checked={trustDevice}
                       onChange={(e) => setTrustDevice(e.target.checked)}
-                      style={{ accentColor:"#2E7D32", width:15, height:15, flexShrink:0 }}
+                      style={{ accentColor:"var(--green-900)", width:15, height:15, flexShrink:0 }}
                     />
                     Don't ask again on this device for 30 days
                   </label>
@@ -1077,7 +1076,7 @@ const resetPassword = async () => {
         {step === "forgotPassword" && (
           <>
             <ForgotStepBar />
-            <h2 style={{ fontSize: "21px", color: "#0a8d1c", fontFamily: "Montserrat", fontWeight: 700, marginTop: 12 }}>Reset Password</h2>
+            <h2 style={{ fontSize: "21px", marginTop: 12 }}>Reset Password</h2>
             <p className="step-subtitle">Choose how you would like to receive your OTP.</p>
 
             {forgotOtpIsLocked && (
@@ -1115,7 +1114,7 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2>Verify OTP</h2>
-            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "#2E7D32" }}>{forgotEmail}</strong></p>
+            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "var(--green-900)" }}>{forgotEmail}</strong></p>
             <OtpEntryBlock
               otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
               isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
@@ -1141,7 +1140,7 @@ const resetPassword = async () => {
           <>
             <ForgotStepBar />
             <h2>Verify OTP</h2>
-            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "#2E7D32" }}>{maskedPhone}</strong></p>
+            <p className="step-subtitle">A 6-digit code was sent to: <strong style={{ color: "var(--green-900)" }}>{maskedPhone}</strong></p>
             <OtpEntryBlock
               otpArr={forgotOtp} setOtpArr={setForgotOtp} refs={forgotOtpRefs}
               isLocked={forgotOtpIsLocked} lockRemaining={forgotOtpLockRemaining}
@@ -1224,10 +1223,10 @@ const resetPassword = async () => {
 
         {step === "resetDone" && (
           <div className="done-wrap">
-            <div className="done-icon"><CheckCircle size={60} color="#2E7D32" /></div>
+            <div className="done-icon"><CheckCircle size={60} color="var(--green-900)" /></div>
             <h2>Password Reset!</h2>
             <p className="step-subtitle">Your password has been updated. You can now log in with your new password.</p>
-            <p style={{ color: "#888", fontSize: 15, marginTop: -8 }}>
+            <p style={{ color: "var(--muted)", fontSize: 15, marginTop: -8 }}>
               Redirecting to login in {resetDoneCountdown}s...
             </p>
           </div>
@@ -1240,31 +1239,106 @@ const resetPassword = async () => {
 }
 
 const styles = (bgImage) => `
-* { box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-.splash { min-height:100vh; display:flex; justify-content:center; align-items:center; background-image: linear-gradient(rgba(255,255,255,0.78), rgba(211,255,201,0.78)), url(${bgImage}); background-size:cover; }
-.splash-logo { width:300px; animation: zoom 3s ease forwards; }
+* { box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
+
+:root {
+  --cream: #F6F7F1;
+  --white: #FFFFFF;
+  --ink: #12241B;
+  --muted: #5C6B60;
+  --green-900: #3b791e;
+  --green-700: #438f1a;
+  --green-600: #509820;
+  --green-500: #3f811e;
+  --lime: #bdd43c;
+  --lime-ink: #24310C;
+  --line: #E1E6D8;
+  --pale: #E7EFDA;
+  --shadow: rgba(50, 109, 32, 0.12);
+  --shadow-strong: rgba(14, 59, 34, 0.24);
+}
+
+.splash {
+  min-height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center;
+  background-image: linear-gradient(rgba(246,247,241,0.85), rgba(189,212,60,0.16)), url(${bgImage});
+  background-size:cover; position:relative; overflow:hidden;
+}
+.splash-logo { width:300px; animation: zoom 3s ease forwards; position:relative; z-index:1; }
 @keyframes zoom { from { transform: scale(.3); opacity:0 } to { transform: scale(1); opacity:1 } }
 
-.page { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:40px 20px 20px; background-image: linear-gradient(rgba(255,255,255,0.78), rgba(211,255,201,0.78)), url(${bgImage}); background-size:cover; }
+.page {
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  padding:40px 20px 20px;
 
-.card { background:rgba(255,255,255,0.96); width:100%; max-width:400px; padding:36px 30px 30px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.1); text-align:center; position:relative; }
-.logo { width:200px; height:auto; margin-top:100px; margin-bottom:20px; }
+  background-image:
+    linear-gradient(
+      rgba(246,247,241,0.85),
+      rgba(189,212,60,0.16)
+    ),
+    url(${bgImage});
 
-h2 { margin:12px 0 4px; color:#1a1a1a; font-size:22px; }
-p { color:#555; font-size:13px; margin-bottom:16px; }
-.step-subtitle { color:#555; font-size:13px; margin-bottom:24px; margin-top:2px; }
-.login-subtext { font-size:13px; color:#666; margin-bottom:18px; margin-top:0; }
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+
+  position:relative;
+  overflow:hidden;
+}
+.field-dot {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--line) 1.4px, transparent 1.4px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.blob { position:absolute; border-radius:50%; filter:blur(80px); opacity:0.45; pointer-events:none; z-index:0; }
+.blob-a { width:420px; height:420px; background:var(--lime); opacity:0.18; top:-160px; right:-140px; }
+.blob-b { width:360px; height:360px; background:var(--green-600); opacity:0.14; bottom:-160px; left:-140px; }
+
+.card {
+  background:var(--white);
+  width:100%; max-width:400px;
+  padding:36px 30px 30px;
+  border-radius:28px;
+  border:1px solid var(--line);
+  box-shadow:0 24px 60px var(--shadow);
+  text-align:center;
+  position:relative;
+  z-index:1;
+}
+.logo { width:200px; height:auto; margin-top:100px; margin-bottom:20px; position:relative; z-index:1; }
+
+.eyebrow {
+  display:inline-flex; align-items:center; gap:0.5rem;
+  font-size:0.72rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--green-700); margin-bottom:0.2rem;
+}
+
+h2 { margin:12px 0 4px; color:var(--green-900); font-size:22px; font-weight:800; letter-spacing:-0.01em; }
+p { color:var(--muted); font-size:13px; margin-bottom:16px; }
+.step-subtitle { color:var(--muted); font-size:13px; margin-bottom:24px; margin-top:2px; }
+.login-subtext { font-size:13px; color:var(--muted); margin-bottom:18px; margin-top:0; }
 
 .input-container { margin-bottom:18px; position:relative; width:100%; text-align:left; }
 input[type="text"], input[type="email"], input[type="password"], 
 
 input:not([type]) {
-  width:100%; padding:13px 14px; border-radius:12px; border:1.5px solid #c8e6c9; outline:none;
-  font-size:14px; background:#fafafa; transition: border-color 0.2s;
+  width:100%; padding:13px 14px; border-radius:14px; border:1.5px solid var(--line); outline:none;
+  font-size:14px; background:var(--cream); transition: border-color 0.2s, background 0.2s;
+  color:var(--ink);
 }
-input:focus { border-color:#2E7D32; background:#fff; }
-input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
+input:focus { border-color:var(--green-600); background:var(--white); }
+input:disabled { background:#f0f1ec; color:#888; cursor:not-allowed; }
 
 .password-wrap { position:relative; display:flex; align-items:center; }
 .password-wrap input.password-input { width:100%; padding-right:42px; }
@@ -1276,61 +1350,67 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .password-input::-webkit-credentials-auto-fill-button {
   display: none !important;
 }
-.eye-btn { position:absolute; right:12px; background:none; border:none; cursor:pointer; font-size:16px; padding:0; line-height:1; color:#777; display:flex; align-items:center; }
+.eye-btn { position:absolute; right:12px; background:none; border:none; cursor:pointer; font-size:16px; padding:0; line-height:1; color:var(--muted); display:flex; align-items:center; }
 .field-error { color:#d32f2f; font-size:11px; margin-top:4px; display:block; }
 
-.btn { width:100%; padding:14px; border-radius:12px; border:none; background:linear-gradient(90deg,#368f3b,#218428); color:white; font-weight:bold; cursor:pointer; font-size:14px; letter-spacing:0.5px; transition:background 0.2s; }
-.btn:hover:not(:disabled) { background:linear-gradient(90deg,#246627,#2a7e30); }
-.btn.yellow { background:linear-gradient(90deg,#368f3b,#218428); margin-top:8px; }
-.btn.yellow:hover:not(:disabled) { background:linear-gradient(90deg,#0a4e0e,#2a7e30); }
+.btn {
+  width:100%; padding:14px; border-radius:999px; border:none;
+  background:var(--green-900); color:white; font-weight:700; cursor:pointer; font-size:14px;
+  letter-spacing:0.3px; transition:background 0.25s, box-shadow 0.25s, transform 0.15s;
+  box-shadow:0 10px 24px var(--shadow);
+}
+.btn:hover:not(:disabled) { background:var(--green-700); box-shadow:0 14px 30px var(--shadow-strong); }
+.btn:active:not(:disabled) { transform:scale(0.98); }
+.btn.yellow { background:var(--green-900); margin-top:8px; }
+.btn.yellow:hover:not(:disabled) { background:var(--green-700); }
 .btn-disabled { opacity:0.55; cursor:not-allowed !important; }
 
 /* ── Method choice buttons ── */
 .method-btn {
-  width:100%; padding:14px 16px; border-radius:12px;
-  border:1.5px solid #c8e6c9; background:#fafafa;
+  width:100%; padding:14px 16px; border-radius:16px;
+  border:1.5px solid var(--line); background:var(--cream);
   cursor:pointer; text-align:left; transition:border-color 0.2s, background 0.2s;
   display:block;
 }
-.method-btn:hover:not(:disabled) { border-color:#2E7D32; background:#f0fdf4; }
+.method-btn:hover:not(:disabled) { border-color:var(--green-600); background:var(--pale); }
 .method-btn:disabled { opacity:0.5; cursor:not-allowed; }
-.method-btn-title { font-size:14px; font-weight:700; color:#1a1a1a; margin-bottom:3px; }
-.method-btn-sub { font-size:12px; color:#666; letter-spacing:1.5px; }
+.method-btn-title { font-size:14px; font-weight:700; color:var(--ink); margin-bottom:3px; }
+.method-btn-sub { font-size:12px; color:var(--muted); letter-spacing:1px; }
 
-.forgot-link { background:none; border:none; color:#2E7D32; text-decoration:underline; font-size:12px; cursor:pointer; margin-top:6px; display:block; text-align:right; width:100%; }
-.forgot-link:hover { color:#1B5E20; }
+.forgot-link { background:none; border:none; color:var(--green-700); text-decoration:underline; font-size:12px; cursor:pointer; margin-top:6px; display:block; text-align:right; width:100%; }
+.forgot-link:hover { color:var(--green-900); }
 
-.link-resend { background:none; border:none; color:#2E7D32; text-decoration:underline; font-size:12px; margin-top:12px; cursor:pointer; display:block; transition:color 0.2s; }
-.link-resend:hover:not(:disabled) { color:#1b5e20; }
+.link-resend { background:none; border:none; color:var(--green-700); text-decoration:underline; font-size:12px; margin-top:12px; cursor:pointer; display:block; transition:color 0.2s; }
+.link-resend:hover:not(:disabled) { color:var(--green-900); }
 .link-resend:disabled { color:#999; cursor:not-allowed; text-decoration:none; }
 
-.error.general { color:#d32f2f; font-size:12px; margin-bottom:14px; padding:10px 12px; background:#ffebee; border-radius:10px; text-align:center; line-height:1.5; }
+.error.general { color:#d32f2f; font-size:12px; margin-bottom:14px; padding:10px 12px; background:#fdecea; border-radius:12px; text-align:center; line-height:1.5; border:1px solid #f5c6c2; }
 .locked-banner { border-left:3px solid #d32f2f; }
 
-.back-btn { position:absolute; top:15px; left:15px; background:none; border:none; color:#2E7D32; font-weight:bold; cursor:pointer; font-size:13px; }
+.back-btn { position:absolute; top:15px; left:15px; background:none; border:none; color:var(--green-900); font-weight:700; cursor:pointer; font-size:13px; }
 .back-btn:hover { text-decoration:underline; }
 
 .remember-wrap { display:flex; justify-content:flex-start; margin-bottom:16px; margin-top:-6px; }
 .remember-label { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
-.remember-checkbox { width:16px; height:16px; accent-color:#2E7D32; cursor:pointer; }
-.remember-text { font-size:12px; color:#555; }
+.remember-checkbox { width:16px; height:16px; accent-color:var(--green-900); cursor:pointer; }
+.remember-text { font-size:12px; color:var(--muted); }
 
 /* ── Step Progress ── */
 .step-progress { display:flex; align-items:center; justify-content:center; margin:8px 0 22px; gap:0; }
 .step-item { display:flex; flex-direction:column; align-items:center; gap:5px; }
-.step-circle { width:26px; height:26px; border-radius:50%; background:#e0e0e0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; transition:background 0.3s; }
-.step-active { background:#2E7D32 !important; }
-.step-done { background:#66bb6a !important; }
+.step-circle { width:26px; height:26px; border-radius:50%; background:var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; transition:background 0.3s; }
+.step-active { background:var(--green-900) !important; }
+.step-done { background:var(--green-600) !important; }
 .step-label { font-size:9px; color:#aaa; font-weight:600; letter-spacing:0.3px; }
-.step-label-active { color:#2E7D32; }
-.step-line { width:24px; height:2px; background:#e0e0e0; margin:0 3px; margin-bottom:18px; transition:background 0.3s; }
-.step-line-active { background:#66bb6a; }
+.step-label-active { color:var(--green-900); }
+.step-line { width:24px; height:2px; background:var(--line); margin:0 3px; margin-bottom:18px; transition:background 0.3s; }
+.step-line-active { background:var(--green-600); }
 
 /* ── OTP Boxes ── */
 .otp-box-wrap { display:flex; gap:10px; justify-content:center; margin-bottom:18px; margin-top:6px; }
-.otp-box { width:46px !important; height:52px; text-align:center; font-size:22px; font-weight:700; border:2px solid #c8e6c9; border-radius:12px; background:#fafafa; outline:none; transition:border-color 0.2s, background 0.2s; color:#2E7D32; padding:0 !important; caret-color:#2E7D32; }
-.otp-box:focus { border-color:#2E7D32; background:#f0fdf4; }
-.otp-box:not(:placeholder-shown) { border-color:#43a047; }
+.otp-box { width:46px !important; height:52px; text-align:center; font-size:22px; font-weight:700; border:2px solid var(--line); border-radius:14px; background:var(--cream); outline:none; transition:border-color 0.2s, background 0.2s; color:var(--green-900); padding:0 !important; caret-color:var(--green-900); }
+.otp-box:focus { border-color:var(--green-600); background:var(--pale); }
+.otp-box:not(:placeholder-shown) { border-color:var(--green-600); }
 .otp-box-locked { opacity:0.45; pointer-events:none; }
 
 .switch-method-link {
@@ -1343,14 +1423,14 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   margin-top: 10px;
   margin-bottom:18px;
   border:none;
-  border-radius:12px;
-  background:#f0fdf4;
-  color:#2E7D32;
+  border-radius:14px;
+  background:var(--pale);
+  color:var(--green-900);
   font-weight:700;
   font-size:13px;
   cursor:pointer;
   transition:all .2s ease;
-  border:1px solid #369533;
+  border:1px solid var(--green-600);
 }
 .switch-method-link:hover{
   background:#dcfce7;
@@ -1365,10 +1445,10 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .otp-attempts-left { font-size:12px; color:#e65100; margin:-10px 0 12px; font-weight:600; text-align:center; }
 
 /* ── Password Checklist ── */
-.pw-checklist { margin-top:8px; font-size:12px; padding:10px 12px; background:#f8fdf5; border-radius:8px; border:1px solid #c8e6c9; text-align:left; }
-.pw-checklist-title { margin-bottom:6px; font-weight:700; color:#333; }
+.pw-checklist { margin-top:8px; font-size:12px; padding:10px 12px; background:var(--cream); border-radius:12px; border:1px solid var(--line); text-align:left; }
+.pw-checklist-title { margin-bottom:6px; font-weight:700; color:var(--ink); }
 .pw-check-row { margin-bottom:3px; }
-.pw-check-pass { color:#2E7D32; }
+.pw-check-pass { color:var(--green-900); }
 .pw-check-fail { color:#d32f2f; }
 
 .use-sms-btn{
@@ -1381,14 +1461,14 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   margin-top: 10px;
   margin-bottom:18px;
   border:none;
-  border-radius:12px;
-  background:#f0fdf4;
-  color:#2E7D32;
+  border-radius:14px;
+  background:var(--pale);
+  color:var(--green-900);
   font-weight:700;
   font-size:13px;
   cursor:pointer;
   transition:all .2s ease;
-  border:1px solid #369533;
+  border:1px solid var(--green-600);
 }
 
 /* ── SMS Loading Overlay ── */
@@ -1396,7 +1476,7 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   position: absolute;
   inset: 0;
   background: rgba(255,255,255,0.92);
-  border-radius: 20px;
+  border-radius: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1413,21 +1493,21 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
 .sms-loading-text {
   font-size: 15px;
   font-weight: 700;
-  color: #2E7D32;
+  color: var(--green-900);
   margin: 0;
 }
 
 .sms-loading-sub {
   font-size: 12px;
-  color: #888;
+  color: var(--muted);
   margin: 0;
 }
 
 .sms-spinner-large {
   width: 48px;
   height: 48px;
-  border: 5px solid #c8e6c9;
-  border-top: 5px solid #2E7D32;
+  border: 5px solid var(--pale);
+  border-top: 5px solid var(--green-900);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
@@ -1437,7 +1517,7 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255,255,255,0.4);
-  border-top: 2px solid #2E7D32;
+  border-top: 2px solid var(--green-900);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
@@ -1463,7 +1543,7 @@ input:disabled { background:#f5f5f5; color:#888; cursor:not-allowed; }
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #2E7D32;
+  color: var(--green-900);
   margin: -8px 0 16px;
 }
 

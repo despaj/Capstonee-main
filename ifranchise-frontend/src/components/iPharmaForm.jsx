@@ -9,6 +9,25 @@ import {
 import logo from "../assets/ipharma.png";
 import welcome from "../assets/welcomepage.png";
 
+// ─── DESIGN TOKENS (matches ApplyFranchise.jsx palette) ──────────────────────
+const COLOR = {
+  cream: "#F6F7F1",
+  white: "#FFFFFF",
+  ink: "#376621",
+  muted: "#5C6B60",
+  green900: "#559f33",
+  green700: "#75d83f",
+  green600: "#2E8B4F",
+  green500: "#3FA85E",
+  lime: "#D8F24C",
+  limeInk: "#376621",
+  line: "#E1E6D8",
+  tintGreen: "rgba(29, 188, 58, 0.07)",
+  tintLime: "rgba(216,242,76,0.16)",
+  shadow: "rgba(14,59,34,0.12)",
+  shadowStrong: "rgba(14,59,34,0.24)",
+};
+
 // ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
 const auditLog = (() => {
   const logs = [];
@@ -56,8 +75,8 @@ function AlertModal({ open, type, message, onClose, onConfirm }) {
   return (
     <div style={S.overlay}>
       <div style={S.modalBox}>
-        <div style={{ ...S.iconWrap, background: ok ? "#e8f5e9" : "#fdecea" }}>
-          {ok ? <CheckCircle2 size={38} color="#2e7d32" /> : <AlertCircle size={38} color="#c62828" />}
+        <div style={{ ...S.iconWrap, background: ok ? COLOR.tintGreen : "#fdecea" }}>
+          {ok ? <CheckCircle2 size={38} color={COLOR.green900} strokeWidth={2} /> : <AlertCircle size={38} color="#c62828" strokeWidth={2} />}
         </div>
         <p style={S.modalMsg}>{message}</p>
         <div style={S.btnRow}>
@@ -82,12 +101,12 @@ function TermsModal({ open, onClose }) {
 
   return (
     <div style={S.overlay}>
-      <div style={{ ...S.modalBox, width: 640, maxWidth: "95vw", textAlign: "left", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ ...S.modalBox, width: 700, maxWidth: "95vw", textAlign: "left", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, color: "#c2410c", fontSize: 18, fontWeight: 700 }}>Terms & Conditions</h3>
+          <h3 style={{ margin: 0, color: COLOR.green900, fontSize: 20, fontWeight: 700 }}>Terms &amp; Conditions</h3>
           <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
         </div>
-        <div style={{ overflowY: "auto", flex: 1, paddingRight: 8, fontSize: 13, color: "#374151", lineHeight: 1.8 }}>
+        <div style={{ overflowY: "auto", flex: 1, paddingRight: 8, fontSize: 13, color: COLOR.ink, lineHeight: 1.9 }}>
           <p><strong>1. APPLICATION PROCESS</strong><br />By submitting this iPharma Mart Franchise Application Form, you acknowledge this is an expression of interest only and does not constitute a binding agreement.</p>
           <p><strong>2. DATA PRIVACY (RA 10173)</strong><br />All personal data collected is governed by the Data Privacy Act of 2012. Your information will be used solely for evaluating your franchise application.</p>
           <p><strong>3. NON-TRANSFERABILITY</strong><br />The franchise application and, if approved, the franchise agreement are personal to the applicant and strictly non-transferable.</p>
@@ -96,7 +115,7 @@ function TermsModal({ open, onClose }) {
           <p><strong>6. OTP VERIFICATION</strong><br />A One-Time Password will be sent to your registered mobile number. Standard SMS rates may apply.</p>
           <p><strong>7. NO GUARANTEE</strong><br />Submission does not guarantee approval. iFranchise reserves the right to approve or reject any application at its sole discretion.</p>
           <p><strong>8. GOVERNING LAW</strong><br />This application shall be governed by the laws of the Republic of the Philippines.</p>
-          <p style={{ color: "#6B7280", fontSize: 12 }}>Last updated: January 2025</p>
+          <p style={{ color: COLOR.muted, fontSize: 12, marginTop: 24 }}>Last updated: January 2025</p>
         </div>
         <button style={{ ...S.btn, ...S.btnSolid, marginTop: 16, width: "100%" }} onClick={onClose}>I Have Read the Terms</button>
       </div>
@@ -170,9 +189,9 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOt
   return (
     <div style={S.overlay}>
       <div style={{ ...S.modalBox, width: 380 }}>
-        <div style={{ ...S.iconWrap, background: "#fff3e0" }}><Smartphone size={38} color="#2e7d32" /></div>
-        <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>OTP Verification</h3>
-        <p style={{ margin: "0 0 20px", color: "#6B7280", fontSize: 13, lineHeight: 1.6 }}>
+        <div style={{ ...S.iconWrap, background: COLOR.tintGreen }}><Smartphone size={38} color={COLOR.green900} strokeWidth={2} /></div>
+        <h3 style={{ margin: "0 0 6px", color: COLOR.ink, fontSize: 18, fontWeight: 700 }}>OTP Verification</h3>
+        <p style={{ margin: "0 0 20px", color: COLOR.muted, fontSize: 13, lineHeight: 1.6 }}>
           A 6-digit code was sent to <strong>{mobile?.replace(/(\d{4})(\d{3})(\d{4})/, "$1-$2-$3")}</strong>.
           <br />
         </p>
@@ -181,15 +200,20 @@ function OtpModal({ open, mobile, onVerify, onClose, maxAttempts = 3, expectedOt
             <input key={i} ref={el => refs.current[i] = el}
               type="text" inputMode="numeric" maxLength={1} value={d}
               onChange={e => handleInput(i, e.target.value)} onKeyDown={e => handleKey(i, e)}
-              style={{ width: 44, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700, borderRadius: 10, border: error ? "2px solid #d32f2f" : "2px solid #fed7aa", outline: "none", fontFamily: "'Montserrat',sans-serif", background: "#fffbf7" }} />
+              style={{
+                width: 44, height: 52, textAlign: "center", fontSize: 22, fontWeight: 700,
+                borderRadius: 10, border: error ? "2px solid #d32f2f" : `2px solid ${COLOR.line}`,
+                outline: "none", fontFamily: "'Plus Jakarta Sans',sans-serif",
+                background: COLOR.white, color: COLOR.ink,
+              }} />
           ))}
         </div>
         {error && <p style={{ color: "#d32f2f", fontSize: 12, margin: "0 0 12px", fontWeight: 600 }}>{error}</p>}
         <button style={{ ...S.btn, ...S.btnSolid, width: "100%", marginBottom: 10 }} onClick={verify}>Verify OTP</button>
-        <p style={{ margin: 0, fontSize: 12, color: "#9CA3AF" }}>
+        <p style={{ margin: 0, fontSize: 12, color: COLOR.muted }}>
           {canResend
-            ? <button onClick={resend} disabled={sending} style={{ background: "none", border: "none", color: "#ea580c", fontWeight: 700, cursor: "pointer", fontSize: 12, padding: 0 }}>{sending ? "Resending…" : "Resend OTP"}</button>
-            : <>Resend in <strong style={{ color: "#ea580c" }}>{countdown}s</strong></>}
+            ? <button onClick={resend} disabled={sending} style={{ background: "none", border: "none", color: COLOR.green900, fontWeight: 700, cursor: "pointer", fontSize: 12, padding: 0 }}>{sending ? "Resending…" : "Resend OTP"}</button>
+            : <>Resend in <strong style={{ color: COLOR.green900 }}>{countdown}s</strong></>}
         </p>
         <button style={S.closeBtn} onClick={onClose}><X size={18} /></button>
       </div>
@@ -316,102 +340,100 @@ function IdScannerModal({ open, onComplete, onClose }) {
     reader.readAsDataURL(file);
   };
 
-  // Replace your existing runVerification function with this
+  const runVerification = async () => {
+    stopCamera();
+    setStep("processing");
+    auditLog.record("OCR_STARTED", { idType });
 
-const runVerification = async () => {
-  stopCamera();
-  setStep("processing");
-  auditLog.record("OCR_STARTED", { idType });
-
-  try {
-    const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        frontImage: frontImg,
-        backImage:  backImg,
-        idType,
-      }),
-    });
-
-    if (!verifyRes.ok) throw new Error(`Server error ${verifyRes.status}`);
-
-    const verifyResult = await verifyRes.json();
-
-    if (!verifyResult.success) {
-      setOcrResult({ reason: verifyResult.error || "ID verification failed. Please try again." });
-      setIdValid(false);
-      setStep("result");
-      return;
-    }
-
-    const data = verifyResult.data || {};
-
-    if (!data.isValid) {
-      setOcrResult(data);
-      setIdValid(false);
-      setStep("result");
-      auditLog.record("OCR_INVALID", { reason: data.reason });
-      return;
-    }
-
-    const faceRes = await fetch(`${process.env.REACT_APP_API_URL}/api/face-match`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        faceImage: faceImg, 
-        idImage:   frontImg,
-      }),
-    });
-
-    if (!faceRes.ok) throw new Error(`Face match server error ${faceRes.status}`);
-
-    const faceResult = await faceRes.json();
-    console.log("Face match:", faceResult);
-
-    if (!faceResult.success || !faceResult.matched) {
-      setOcrResult({
-        ...data,
-        isValid: false,
-        reason: faceResult.reason || "Face does not match the ID photo. Please retake your selfie.",
-        faceScore: faceResult.score || 0,
+    try {
+      const verifyRes = await fetch(`${process.env.REACT_APP_API_URL}/api/verify-id`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frontImage: frontImg,
+          backImage:  backImg,
+          idType,
+        }),
       });
+
+      if (!verifyRes.ok) throw new Error(`Server error ${verifyRes.status}`);
+
+      const verifyResult = await verifyRes.json();
+
+      if (!verifyResult.success) {
+        setOcrResult({ reason: verifyResult.error || "ID verification failed. Please try again." });
+        setIdValid(false);
+        setStep("result");
+        return;
+      }
+
+      const data = verifyResult.data || {};
+
+      if (!data.isValid) {
+        setOcrResult(data);
+        setIdValid(false);
+        setStep("result");
+        auditLog.record("OCR_INVALID", { reason: data.reason });
+        return;
+      }
+
+      const faceRes = await fetch(`${process.env.REACT_APP_API_URL}/api/face-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          faceImage: faceImg,
+          idImage:   frontImg,
+        }),
+      });
+
+      if (!faceRes.ok) throw new Error(`Face match server error ${faceRes.status}`);
+
+      const faceResult = await faceRes.json();
+      console.log("Face match:", faceResult);
+
+      if (!faceResult.success || !faceResult.matched) {
+        setOcrResult({
+          ...data,
+          isValid: false,
+          reason: faceResult.reason || "Face does not match the ID photo. Please retake your selfie.",
+          faceScore: faceResult.score || 0,
+        });
+        setIdValid(false);
+        setStep("result");
+        auditLog.record("FACE_MATCH_FAILED", { score: faceResult.score });
+        return;
+      }
+
+      // ── Step 3: All passed ────────────────────────────────────────────
+      auditLog.record("FACE_MATCH_PASSED", { score: faceResult.score });
+
+      const merged = {
+        ...data,
+        faceScore: faceResult.score,
+      };
+
+      setOcrResult(merged);
+      setEditedOcr({
+        lastName:   (merged.lastName   || "").toUpperCase(),
+        firstName:  (merged.firstName  || "").toUpperCase(),
+        middleName: (merged.middleName || "").toUpperCase(),
+        dob:        merged.dob        || "",
+        idNumber:   (merged.idNumber   || "").toUpperCase(),
+        expiryDate: merged.expiryDate || "",
+      });
+      auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
+      setIsEditing(true); // open edit mode so user can fix any missed fields
+      setIdValid(true);
+      setStep("result");
+
+    } catch (err) {
+      console.error("verify-id error:", err);
+      auditLog.record("OCR_ERROR", { error: err.message });
+      setOcrResult({ reason: "Something went wrong during verification. Please try again." });
       setIdValid(false);
       setStep("result");
-      auditLog.record("FACE_MATCH_FAILED", { score: faceResult.score });
-      return;
     }
-
-    // ── Step 3: All passed ────────────────────────────────────────────
-    auditLog.record("FACE_MATCH_PASSED", { score: faceResult.score });
-
-    const merged = {
-      ...data,
-      faceScore: faceResult.score,
-    };
-
-    setOcrResult(merged);
-    setEditedOcr({
-      lastName:   (merged.lastName   || "").toUpperCase(),
-      firstName:  (merged.firstName  || "").toUpperCase(),
-      middleName: (merged.middleName || "").toUpperCase(),
-      dob:        merged.dob        || "",
-      idNumber:   (merged.idNumber   || "").toUpperCase(),
-      expiryDate: merged.expiryDate || "",
-    });
-    auditLog.record("OCR_COMPLETED", { confidence: merged.confidence, idType });
-    setIsEditing(true); // open edit mode so user can fix any missed fields
-    setIdValid(true);
-    setStep("result");
-
-  } catch (err) {
-    console.error("verify-id error:", err);
-    auditLog.record("OCR_ERROR", { error: err.message });
-    setOcrResult({ reason: "Something went wrong during verification. Please try again." });
-    setIdValid(false);
-    setStep("result");
-  }
-};
+  };
 
   // ── Confirm & fill form ─────────────────────────────────────────
   const confirmAndFill = () => {
@@ -454,12 +476,12 @@ const runVerification = async () => {
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#ea580c,#fb923c)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Shield size={18} color="#fff" />
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: COLOR.green900, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Shield size={18} color={COLOR.white} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>ID Verification</h3>
-            <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>Powered by ID Analyzer</p>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: COLOR.ink }}>ID Verification</h3>
+            <p style={{ margin: 0, fontSize: 12, color: COLOR.muted }}>Powered by ID Analyzer</p>
           </div>
           <button style={{ ...S.closeBtn, position: "static", marginLeft: "auto" }} onClick={onClose}><X size={18} /></button>
         </div>
@@ -467,7 +489,7 @@ const runVerification = async () => {
         {/* Progress bar */}
         <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
           {STEP_LABELS.map((label, i) => (
-            <div key={label} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= stepIdx ? "linear-gradient(90deg,#ea580c,#fb923c)" : "#e5e7eb" }} />
+            <div key={label} style={{ flex: 1, height: 4, borderRadius: 99, background: i <= stepIdx ? COLOR.green900 : COLOR.line }} />
           ))}
         </div>
 
@@ -481,9 +503,9 @@ const runVerification = async () => {
                 {VALID_ID_TYPES.map(t => (
                   <button key={t} onClick={() => setIdType(t)} style={{
                     padding: "10px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
-                    border: idType === t ? "2px solid #ea580c": "1.5px solid #e5e7eb",
-                    background: idType === t ? "#fff3e0" : "#fafafa",
-                    color: idType === t ? "#ea580c" : "#374151",
+                    border: idType === t ? `2px solid ${COLOR.green900}` : `1.5px solid ${COLOR.line}`,
+                    background: idType === t ? COLOR.tintGreen : COLOR.cream,
+                    color: idType === t ? COLOR.green900 : COLOR.ink,
                     cursor: "pointer", textAlign: "left", transition: "all .15s",
                   }}>{t}</button>
                 ))}
@@ -499,18 +521,18 @@ const runVerification = async () => {
           {step === "front" && (
             <div>
               <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
-                Scan FRONT side of your<span style={{ color: "#ea580c" }}>{idType}</span>
+                Scan FRONT side of your <span style={{ color: COLOR.green900 }}>{idType}</span>
               </p>
-              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: COLOR.muted }}>
                 Ensure good lighting. All text must be clearly visible. Accepted: JPG, PNG, PDF.
               </p>
               <div style={{ position: "relative", marginBottom: 12 }}>
-                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#fff3e0", border: "2px dashed #fed7aa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: `2px dashed ${COLOR.line}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {frontImg
                     ? <img src={frontImg} alt="Front ID" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", transform: `scale(${frontZoom}) rotate(${frontRotation}deg)`, transition: "transform .2s" }} />
                     : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                        <Camera size={32} color="#9CA3AF" />
-                        <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                        <Camera size={32} color={COLOR.muted} />
+                        <span style={{ fontSize: 12, color: COLOR.muted }}>No image uploaded yet</span>
                       </div>}
                 </div>
                 {frontImg && (
@@ -525,7 +547,7 @@ const runVerification = async () => {
                 onChange={e => handleFile("front", e.target.files[0])} />
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => frontRef.current.click()} style={{ ...S.btn, ...S.btnOutline, flex: 1 }}>
-                  <Upload size={14} style={{ marginRight: 6 }} /> Upload Image
+                  <Upload size={10} style={{ marginRight: 6 }} /> Upload Image
                 </button>
                 <button disabled={!frontImg} onClick={() => setStep("back")}
                   style={{ ...S.btn, ...S.btnSolid, flex: 1, opacity: frontImg ? 1 : 0.5 }}>
@@ -539,18 +561,18 @@ const runVerification = async () => {
           {step === "back" && (
             <div>
               <p style={{ margin: "0 0 12px", fontWeight: 600, fontSize: 14 }}>
-                Scan BACK side of your <span style={{ color: "#ea580c" }}>{idType}</span>
+                Scan BACK side of your <span style={{ color: COLOR.green900 }}>{idType}</span>
               </p>
-              <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6B7280" }}>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: COLOR.muted }}>
                 Upload the back of your ID. This helps verify authenticity.
               </p>
               <div style={{ position: "relative", marginBottom: 12 }}>
-                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#fff3e0", border: "2px dashed #fed7aa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: "100%", height: 180, overflow: "hidden", borderRadius: 10, background: "#f0f0f0", border: `2px dashed ${COLOR.line}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {backImg
                     ? <img src={backImg} alt="Back ID" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", transform: `scale(${backZoom}) rotate(${backRotation}deg)`, transition: "transform .2s" }} />
                     : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                        <Camera size={32} color="#9CA3AF" />
-                        <span style={{ fontSize: 12, color: "#9CA3AF" }}>No image uploaded yet</span>
+                        <Camera size={32} color={COLOR.muted} />
+                        <span style={{ fontSize: 12, color: COLOR.muted }}>No image uploaded yet</span>
                       </div>}
                 </div>
                 {backImg && (
@@ -579,8 +601,8 @@ const runVerification = async () => {
           {/* ── Face scan ── */}
           {step === "face" && (
             <div>
-              <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14, color: "#1a1a1a" }}>Face Verification</p>
-              <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6B7280", lineHeight: 1.6 }}>
+              <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14, color: COLOR.ink }}>Face Verification</p>
+              <p style={{ margin: "0 0 14px", fontSize: 12, color: COLOR.muted, lineHeight: 1.6 }}>
                 Position your face inside the oval and ensure good lighting.
               </p>
 
@@ -590,7 +612,7 @@ const runVerification = async () => {
                 borderRadius: 16, overflow: "hidden",
                 background: faceImg ? "#000" : "#0d1117",
                 marginBottom: 14,
-                boxShadow: "0 8px 32px rgba(249, 58, 58, 0.18)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
               }}>
 
                 {/* Live video */}
@@ -620,13 +642,13 @@ const runVerification = async () => {
                   }}>
                     <div style={{
                       width: 80, height: 80, borderRadius: "50%",
-                      background: "rgba(96, 38, 7, 0.95)",
-                      border: "2px dashed rgba(176, 71, 15, 0.95)",
+                      background: "rgba(14,59,34,0.12)",
+                      border: "2px dashed rgba(14,59,34,0.4)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <Camera size={34} color="rgba(234,88,12,0.95)" />
+                      <Camera size={34} color="rgba(216,242,76,0.85)" />
                     </div>
-                    <span style={{ fontSize: 13, color: "rgba(234,88,12,0.95)", fontWeight: 500 }}>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
                       Camera not started
                     </span>
                   </div>
@@ -655,7 +677,8 @@ const runVerification = async () => {
                       <div style={{
                         width: 150, height: 195,
                         borderRadius: "50%",
-                        border: "3px solid rgba(234,88,12,0.95)",
+                        border: "3px solid rgba(216,242,76,0.95)",
+                        boxShadow: "0 0 0 9999px rgba(0,0,0,0.52)",
                         position: "relative",
                       }}>
                         {/* Corner tick marks */}
@@ -663,7 +686,7 @@ const runVerification = async () => {
                           { top: -3, left: "50%", transform: "translateX(-50%)", width: 28, height: 3, borderRadius: 2 },
                           { bottom: -3, left: "50%", transform: "translateX(-50%)", width: 28, height: 3, borderRadius: 2 },
                         ].map((s, i) => (
-                          <div key={i} style={{ position: "absolute", background: "#ea580c", ...s }} />
+                          <div key={i} style={{ position: "absolute", background: COLOR.lime, ...s }} />
                         ))}
                       </div>
                     </div>
@@ -693,10 +716,10 @@ const runVerification = async () => {
                   }}>
                     <div style={{
                       width: 15, height: 15, borderRadius: "50%",
-                      background: "rgba(169, 68, 14, 0.95)",
+                      background: "rgba(14,59,34,0.88)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 25, fontWeight: 500, color: "#fff",
-                      boxShadow: "0 0 0 8px rgba(168, 69, 17, 0.95)",
+                      boxShadow: "0 0 0 8px rgba(216,242,76,0.3)",
                     }}>
                       {countdown}
                     </div>
@@ -708,7 +731,7 @@ const runVerification = async () => {
                   <div style={{
                     position: "absolute", top: 12, right: 12, zIndex: 4,
                     width: 36, height: 36, borderRadius: "50%",
-                    background: "#ea580c",
+                    background: COLOR.green900,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
                   }}>
@@ -751,7 +774,7 @@ const runVerification = async () => {
                       }}
                     >
                       {countdown !== null
-                        ? `📸 Taking in ${countdown}…`
+                        ? `Taking in ${countdown}…`
                         : <><span style={{ fontSize: 16 }}>📸</span> Take Photo</>}
                     </button>
                   </>
@@ -772,11 +795,11 @@ const runVerification = async () => {
               {!faceImg && (
                 <div style={{
                   marginTop: 12, padding: "10px 14px",
-                  background: "#f0fdf4", borderRadius: 10, border: "1px solid #c8e6c9",
+                  background: COLOR.tintLime, borderRadius: 10, border: `1px solid ${COLOR.line}`,
                   display: "flex", gap: 10, alignItems: "flex-start",
                 }}>
-                  <Info size={14} color="#ea580c" style={{ flexShrink: 0, marginTop: 1 }} />
-                  <p style={{ margin: 0, fontSize: 11, color: "#374151", lineHeight: 1.6 }}>
+                  <Info size={14} color={COLOR.green900} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ margin: 0, fontSize: 11, color: COLOR.ink, lineHeight: 1.6 }}>
                     <strong>Tips:</strong> Face forward, remove glasses if possible, ensure your face is evenly lit with no harsh shadows.
                   </p>
                 </div>
@@ -808,9 +831,9 @@ const runVerification = async () => {
           {/* ── Processing ── */}
           {step === "processing" && (
             <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <div style={{ width: 64, height: 64, border: "5px solid #fed7aa", borderTop: "5px solid #ea580c",borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
-              <p style={{ fontWeight: 700, fontSize: 16, color: "#ea580c", margin: "0 0 8px" }}>Verifying ID…</p>
-              <p style={{ color: "#6B7280", fontSize: 13, margin: 0 }}>Analyzing your document. Please wait.</p>
+              <div style={{ width: 64, height: 64, border: `5px solid ${COLOR.line}`, borderTop: `5px solid ${COLOR.green900}`, borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 20px" }} />
+              <p style={{ fontWeight: 700, fontSize: 16, color: COLOR.green900, margin: "0 0 8px" }}>Verifying ID…</p>
+              <p style={{ color: COLOR.muted, fontSize: 13, margin: 0 }}>Analyzing your document. Please wait.</p>
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           )}
@@ -818,13 +841,13 @@ const runVerification = async () => {
           {/* ── Result ── */}
           {step === "result" && ocrResult && (
             <div>
-              <div style={{ padding: "12px 16px", borderRadius: 10, marginBottom: 16, background: idValid ? "#fff3e0" : "#fdecea", border: `1.5px solid ${idValid ? "#fed7aa" : "#ef9a9a"}`, display: "flex", alignItems: "center", gap: 10 }}>
-                {idValid ? <CheckCircle2 size={20} color="#ea580c" /> : <AlertCircle size={20} color="#c62828" />}
+              <div style={{ padding: "12px 16px", borderRadius: 10, marginBottom: 16, background: idValid ? COLOR.tintGreen : "#fdecea", border: `1.5px solid ${idValid ? COLOR.line : "#ef9a9a"}`, display: "flex", alignItems: "center", gap: 10 }}>
+                {idValid ? <CheckCircle2 size={20} color={COLOR.green900} /> : <AlertCircle size={20} color="#c62828" />}
                 <div>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: idValid ? "#ea580c" : "#b71c1c" }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: idValid ? COLOR.green900 : "#b71c1c" }}>
                     {idValid ? "ID Validated Successfully" : "ID Validation Failed"}
                   </p>
-                  <p style={{ margin: 0, fontSize: 12, color: idValid ? "#fdecea" : "#c62828" }}>
+                  <p style={{ margin: 0, fontSize: 12, color: idValid ? COLOR.green700 : "#c62828" }}>
                     {idValid
                       ? `Confidence: ${(ocrResult.confidence * 100).toFixed(0)}%`
                       : "Please upload a valid, clear government ID."}
@@ -835,16 +858,16 @@ const runVerification = async () => {
               {idValid && (
                 <>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 10px" }}>
-                    <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: "#374151" }}>Extracted Information (will auto-fill form):</p>
+                    <p style={{ fontWeight: 600, fontSize: 13, margin: 0, color: COLOR.ink }}>Extracted Information (will auto-fill form):</p>
                     <button
                       onClick={() => { if (isEditing) setOcrResult(prev => ({ ...prev, ...editedOcr })); setIsEditing(e => !e); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: isEditing ? "#ea580c" : "#6B7280", padding: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600 }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: isEditing ? COLOR.green900 : COLOR.muted, padding: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600 }}
                     >
                       <Pencil size={14} />
                       {isEditing ? "Done" : "Edit"}
                     </button>
                   </div>
-                  <div style={{ background: "#f9fdf9", border: "1.5px solid #c8e6c9", borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+                  <div style={{ background: COLOR.cream, border: `1.5px solid ${COLOR.line}`, borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
                     {[
                       ["Last Name",     "lastName"],
                       ["First Name",    "firstName"],
@@ -853,13 +876,13 @@ const runVerification = async () => {
                       ["ID Number",     "idNumber"],
                       ["Expiry Date",   "expiryDate"],
                     ].map(([label, field]) => (
-                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #f3f4f6", alignItems: "center" }}>
-                        <span style={{ color: "#6B7280", width: 110, flexShrink: 0 }}>{label}</span>
+                      <div key={label} style={{ display: "flex", gap: 12, fontSize: 13, padding: "5px 0", borderBottom: `1px solid ${COLOR.line}`, alignItems: "center" }}>
+                        <span style={{ color: COLOR.muted, width: 110, flexShrink: 0 }}>{label}</span>
                         {isEditing ? (
                           <input value={editedOcr[field] || ""} onChange={e => setEditedOcr(p => ({ ...p, [field]: e.target.value.toUpperCase() }))}
-                            style={{ flex: 1, border: "1.5px solid #c8e6c9", borderRadius: 8, padding: "4px 8px", fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+                            style={{ flex: 1, border: `1.5px solid ${COLOR.line}`, borderRadius: 8, padding: "4px 8px", fontSize: 13, fontFamily: "inherit", outline: "none" }} />
                         ) : (
-                          <span style={{ fontWeight: 600, color: "#1a1a1a" }}>{editedOcr[field] || ocrResult[field] || "—"}</span>
+                          <span style={{ fontWeight: 600, color: COLOR.ink }}>{editedOcr[field] || ocrResult[field] || "—"}</span>
                         )}
                       </div>
                     ))}
@@ -905,23 +928,42 @@ function CustomSelect({ value, placeholder, options, onSelect, error, disabled }
   const [open, setOpen] = useState(false);
   const ref = useRef();
   useEffect(() => {
-    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", fn); return () => document.removeEventListener("mousedown", fn);
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
   }, []);
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" disabled={disabled} onClick={() => setOpen(p => !p)} style={{ width: "100%", padding: "13px 14px", borderRadius: 12, border: error ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa", fontSize: 14, fontFamily: "'Montserrat',sans-serif", color: value ? "#1a1a1a" : "#9CA3AF", background: "#fffbf7", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: disabled ? "not-allowed" : "pointer", outline: "none", boxSizing: "border-box" }}>
+      <button type="button" disabled={disabled} onClick={() => setOpen(p => !p)} style={{
+        width: "100%", padding: "13px 14px", borderRadius: 12,
+        border: error ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}`,
+        fontSize: 14, fontFamily: "'Plus Jakarta Sans',sans-serif",
+        color: value ? COLOR.ink : COLOR.muted, background: COLOR.white,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        cursor: disabled ? "not-allowed" : "pointer", outline: "none",
+        transition: "border-color .2s", boxSizing: "border-box",
+      }}>
         <span>{value || placeholder}</span>
-        <ChevronDown size={16} color="#ea580c" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
+        <ChevronDown size={16} color={COLOR.muted} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s", flexShrink: 0 }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #fed7aa", borderRadius: 12, zIndex: 300, maxHeight: 220, overflowY: "auto", boxShadow: "0 8px 32px rgba(234,88,12,0.12)" }}>
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "#fff", border: `1.5px solid ${COLOR.line}`, borderRadius: 12,
+          zIndex: 300, maxHeight: 220, overflowY: "auto",
+          boxShadow: `0 8px 32px ${COLOR.shadow}`,
+        }}>
           {options.map(o => (
-            <div key={o || "none"} style={{ padding: "11px 14px", cursor: "pointer", fontSize: 14, borderBottom: "1px solid #f3f4f6", fontWeight: o === value ? 700 : 400, color: o === value ? "#ea580c" : "#1a1a1a" }}
-              onMouseEnter={e => e.currentTarget.style.background = "#fff3e0"}
+            <div key={o || "none"} style={{
+              padding: "11px 14px", cursor: "pointer", fontSize: 14,
+              borderBottom: `1px solid ${COLOR.line}`,
+              fontWeight: o === value ? 700 : 400,
+              color: o === value ? COLOR.green900 : COLOR.ink,
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = COLOR.tintLime}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               onClick={() => { onSelect(o); setOpen(false); }}>
-              {o || <span style={{ color: "#9CA3AF" }}>{placeholder}</span>}
+              {o || <span style={{ color: COLOR.muted }}>{placeholder}</span>}
             </div>
           ))}
         </div>
@@ -934,20 +976,31 @@ function CustomSelect({ value, placeholder, options, onSelect, error, disabled }
 function Field({ label, required, error, children, half, style: extraStyle }) {
   return (
     <div style={{ flex: half ? "0 0 calc(50% - 0.45rem)" : "1 1 100%", minWidth: half ? 140 : "auto", ...extraStyle }}>
-      {label && <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: "#374151", marginBottom: "0.4rem" }}>{label} {required && <span style={{ color: "#EF4444" }}>*</span>}</label>}
+      {label && (
+        <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, color: COLOR.ink, marginBottom: "0.4rem" }}>
+          {label} {required && <span style={{ color: "#EF4444" }}>*</span>}
+        </label>
+      )}
       {children}
-      {error && <span style={{ display: "flex", alignItems: "center", color: "#d32f2f", fontSize: "0.78rem", marginTop: "0.3rem", fontWeight: 600 }}><AlertCircle size={12} style={{ marginRight: 4 }} />{error}</span>}
+      {error && (
+        <span style={{ display: "flex", alignItems: "center", color: "#d32f2f", fontSize: "0.78rem", marginTop: "0.3rem", fontWeight: 600 }}>
+          <AlertCircle size={12} style={{ marginRight: 4 }} />{error}
+        </span>
+      )}
     </div>
   );
 }
 
-function SectionHeader({ icon: Icon, title }) {
+function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "0.2rem" }}>
-      <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,#ea580c,#fb923c)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={15} color="#fff" />
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: COLOR.green900, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={15} color={COLOR.lime} />
       </div>
-      <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#c2410c", margin: 0 }}>{title}</h3>
+      <div>
+        <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: COLOR.green900, margin: 0 }}>{title}</h3>
+        {subtitle && <p style={{ fontSize: 11, color: COLOR.muted, margin: 0 }}>{subtitle}</p>}
+      </div>
     </div>
   );
 }
@@ -1049,7 +1102,8 @@ export default function IPharmaForm() {
   const handleBlur = (e) => { const { name, value } = e.target; setErrors(p => ({ ...p, [name]: validateField(name, value) })); };
 
   const inp = (name, placeholder, type = "text", extra = {}) => (
-    <input style={{ ...inpStyle, border: errors[name] ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+    <input
+      style={{ ...inpStyle, border: errors[name] ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
       name={name} type={type} placeholder={placeholder}
       value={form[name]} onChange={handleChange} onBlur={handleBlur} {...extra} />
   );
@@ -1060,98 +1114,98 @@ export default function IPharmaForm() {
   const removeEduc = (i) => setEducList(p => p.filter((_, idx) => idx !== i));
 
   // ID complete handler
-const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
-  if (!idValid) {
-    showAlert("error", ocrResult?.reason || "ID validation failed. Please use a valid government-issued ID.");
-    return;
-  }
+  const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => {
+    if (!idValid) {
+      showAlert("error", ocrResult?.reason || "ID validation failed. Please use a valid government-issued ID.");
+      return;
+    }
 
-  setIdVerified(true);
-  setIdData({ ocrResult, idType, idValid, frontImg });
+    setIdVerified(true);
+    setIdData({ ocrResult, idType, idValid, frontImg });
 
-  auditLog.record("ID_AUTOFILL", { idType });
+    auditLog.record("ID_AUTOFILL", { idType });
 
-  setForm(p => ({
-    ...p,
-    lastName:      ocrResult.lastName   ? capitalize(ocrResult.lastName)  : p.lastName,
-    firstName:     ocrResult.firstName  ? capitalize(ocrResult.firstName) : p.firstName,
-    middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
-    dob:           ocrResult.dob        || p.dob,
-  }));
+    setForm(p => ({
+      ...p,
+      lastName:      ocrResult.lastName   ? capitalize(ocrResult.lastName)  : p.lastName,
+      firstName:     ocrResult.firstName  ? capitalize(ocrResult.firstName) : p.firstName,
+      middleInitial: ocrResult.middleName ? ocrResult.middleName.charAt(0).toUpperCase() : p.middleInitial,
+      dob:           ocrResult.dob        || p.dob,
+    }));
 
-  showAlert("success", "ID verified! Fields have been auto-filled. Please review and complete the remaining fields.");
-};
-
-useEffect(() => {
-  const fetchRegions = async () => {
-    setLoadingRegions(true);
-    try {
-      const res  = await fetch(`${PSGC}/regions/`);
-      const data = await res.json();
-      setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (err) { console.error("Failed to fetch regions:", err); }
-    finally { setLoadingRegions(false); }
+    showAlert("success", "ID verified! Fields have been auto-filled. Please review and complete the remaining fields.");
   };
-  fetchRegions();
-}, []);
 
-useEffect(() => {
-  if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
-  const fetchProvinces = async () => {
-    setLoadingProvinces(true);
-    setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
-    setCities([]); setBarangays([]);
-    try {
-      const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) {
-        const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
-        const citData = await citRes.json();
-        setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
-        setProvinces([]);
-      } else {
-        setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
-      }
-    } catch (err) { console.error("Failed to fetch provinces:", err); }
-    finally { setLoadingProvinces(false); }
-  };
-  fetchProvinces();
-}, [addrRegion]);
+  useEffect(() => {
+    const fetchRegions = async () => {
+      setLoadingRegions(true);
+      try {
+        const res  = await fetch(`${PSGC}/regions/`);
+        const data = await res.json();
+        setRegions(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) { console.error("Failed to fetch regions:", err); }
+      finally { setLoadingRegions(false); }
+    };
+    fetchRegions();
+  }, []);
 
-useEffect(() => {
-  if (!addrProvince) { setCities([]); setBarangays([]); return; }
-  const fetchCities = async () => {
-    setLoadingCities(true);
-    setAddrCity(""); setAddrBarangay(""); setBarangays([]);
-    try {
-      const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
-      const data = await res.json();
-      setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
-    } catch (err) { console.error("Failed to fetch cities:", err); }
-    finally { setLoadingCities(false); }
-  };
-  fetchCities();
-}, [addrProvince]);
+  useEffect(() => {
+    if (!addrRegion) { setProvinces([]); setCities([]); setBarangays([]); return; }
+    const fetchProvinces = async () => {
+      setLoadingProvinces(true);
+      setAddrProvince(""); setAddrCity(""); setAddrBarangay("");
+      setCities([]); setBarangays([]);
+      try {
+        const res  = await fetch(`${PSGC}/regions/${addrRegion}/provinces/`);
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) {
+          const citRes  = await fetch(`${PSGC}/regions/${addrRegion}/cities-municipalities/`);
+          const citData = await citRes.json();
+          setCities(Array.isArray(citData) ? citData.sort((a, b) => a.name.localeCompare(b.name)) : []);
+          setProvinces([]);
+        } else {
+          setProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (err) { console.error("Failed to fetch provinces:", err); }
+      finally { setLoadingProvinces(false); }
+    };
+    fetchProvinces();
+  }, [addrRegion]);
 
-useEffect(() => {
-  if (!addrCity) { setBarangays([]); return; }
-  const fetchBarangays = async () => {
-    setLoadingBarangays(true);
-    setAddrBarangay("");
-    try {
-      const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
-      const data = await res.json();
-      setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
-    } catch (err) { console.error("Failed to fetch barangays:", err); }
-    finally { setLoadingBarangays(false); }
-  };
-  fetchBarangays();
-}, [addrCity]);
+  useEffect(() => {
+    if (!addrProvince) { setCities([]); setBarangays([]); return; }
+    const fetchCities = async () => {
+      setLoadingCities(true);
+      setAddrCity(""); setAddrBarangay(""); setBarangays([]);
+      try {
+        const res  = await fetch(`${PSGC}/provinces/${addrProvince}/cities-municipalities/`);
+        const data = await res.json();
+        setCities(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+      } catch (err) { console.error("Failed to fetch cities:", err); }
+      finally { setLoadingCities(false); }
+    };
+    fetchCities();
+  }, [addrProvince]);
 
-const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name    || "";
-const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
-const getCityName     = () => cities.find(c => c.code === addrCity)?.name        || "";
-const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
+  useEffect(() => {
+    if (!addrCity) { setBarangays([]); return; }
+    const fetchBarangays = async () => {
+      setLoadingBarangays(true);
+      setAddrBarangay("");
+      try {
+        const res  = await fetch(`${PSGC}/cities-municipalities/${addrCity}/barangays/`);
+        const data = await res.json();
+        setBarangays(Array.isArray(data) ? data.sort((a, b) => a.name.localeCompare(b.name)) : []);
+      } catch (err) { console.error("Failed to fetch barangays:", err); }
+      finally { setLoadingBarangays(false); }
+    };
+    fetchBarangays();
+  }, [addrCity]);
+
+  const getRegionName   = () => regions.find(r => r.code === addrRegion)?.name    || "";
+  const getProvinceName = () => provinces.find(p => p.code === addrProvince)?.name || "";
+  const getCityName     = () => cities.find(c => c.code === addrCity)?.name        || "";
+  const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name || addrBarangay || "";
 
   // Progress
   useEffect(() => {
@@ -1168,22 +1222,22 @@ const getBarangayName = () => barangays.find(b => b.code === addrBarangay)?.name
 
   const showSpouse = maritalStatus === "Married" || maritalStatus === "Widowed";
 
-const checkDuplicate = async (email, mobile) => {
-  auditLog.record("DUPLICATE_CHECK", { email, mobile });
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/check-duplicate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, mobile }),
-    });
-    const data = await res.json();
-    console.log("Duplicate check response:", data);
-    return data.exists;
-  } catch (err) {
-    console.error("Duplicate check error:", err);
-    return false;
-  }
-};
+  const checkDuplicate = async (email, mobile) => {
+    auditLog.record("DUPLICATE_CHECK", { email, mobile });
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/check-duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, mobile }),
+      });
+      const data = await res.json();
+      console.log("Duplicate check response:", data);
+      return data.exists;
+    } catch (err) {
+      console.error("Duplicate check error:", err);
+      return false;
+    }
+  };
 
   // Page validators
   const validatePage = (fields, extras = []) => {
@@ -1210,8 +1264,8 @@ const checkDuplicate = async (email, mobile) => {
   const p3Extras = ["letterOfIntent","terms","consent"];
 
   const handleFinalSubmit = async () => {
-    
-    setLoading("load"); 
+
+    setLoading("load");
     if (!validatePage(p3Fields, p3Extras)) {
       setLoading(null);
       showAlert("error", "Please fill in all required fields and complete all verification steps.");
@@ -1230,81 +1284,83 @@ const checkDuplicate = async (email, mobile) => {
     setGeneratedOtp(otp);
 
     try {
-    await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mobile: form.mobile, otp }),
-    });
-  } finally {
+      await fetch(`${process.env.REACT_APP_API_URL}/api/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: form.mobile, otp }),
+      });
+    } finally {
       setLoading(null);
     }
     setShowOtp(true);
 
   };
 
-const handleOtpVerified = async (success) => {
-  setShowOtp(false);
-  if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
-  auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email });
+  const handleOtpVerified = async (success) => {
+    setShowOtp(false);
+    if (!success) { showAlert("error", "OTP verification failed. Please try again."); return; }
+    auditLog.record("APPLICATION_SUBMIT_ATTEMPT", { email: form.email });
 
-  const toBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+    const toBase64 = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
-  let letterOfIntentBase64 = null;
-  if (letterOfIntent) {
-    try {
-      letterOfIntentBase64 = await toBase64(letterOfIntent);
-    } catch {
-      showAlert("error", "Failed to process Letter of Intent. Please try again.");
-      return;
+    let letterOfIntentBase64 = null;
+    if (letterOfIntent) {
+      try {
+        letterOfIntentBase64 = await toBase64(letterOfIntent);
+      } catch {
+        showAlert("error", "Failed to process Letter of Intent. Please try again.");
+        return;
+      }
     }
-  }
 
-  const fullAddress = [addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()].filter(Boolean).join(", ");
-  const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, suffix].filter(Boolean).join(" ");
+    const fullAddress = [addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()].filter(Boolean).join(", ");
+    const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, suffix].filter(Boolean).join(" ");
 
-  const payload = {
-    name: fullName, suffix, maritalStatus,
-    email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
-    telephone: form.telephone, dob: form.dob, address: fullAddress,
-    spouseName: form.spouseName, spouseOccupation: form.spouseOccupation, spouseDob: form.spouseDob,
-    dependents: form.dependents, tin: form.tin,
-    education: educList,
-    involvement: form.involvement, equity: form.equity, investment: form.investment,
-    fundSource: form.fundSource, otherBusiness: form.otherBusiness, location: form.location,
-    familyDepend: form.familyDepend, marketArea: form.marketArea, startDate: form.startDate,
-    idType:         idData?.idType        || null,
-    letterOfIntent: letterOfIntentBase64  || null,  // ← now properly base64
-    idImage:        idData?.frontImg      || null,
-    dateSigned: form.dateSigned,
-    auditTrail: auditLog.getAll(),
+    const payload = {
+      name: fullName, suffix, maritalStatus,
+      email: form.email, phone: form.mobile, altPhone: form.altMobile || null,
+      telephone: form.telephone, dob: form.dob, address: fullAddress,
+      spouseName: form.spouseName, spouseOccupation: form.spouseOccupation, spouseDob: form.spouseDob,
+      dependents: form.dependents, tin: form.tin,
+      education: educList,
+      involvement: form.involvement, equity: form.equity, investment: form.investment,
+      fundSource: form.fundSource, otherBusiness: form.otherBusiness, location: form.location,
+      familyDepend: form.familyDepend, marketArea: form.marketArea, startDate: form.startDate,
+      idType:         idData?.idType        || null,
+      letterOfIntent: letterOfIntentBase64  || null,  // ← now properly base64
+      idImage:        idData?.frontImg      || null,
+      dateSigned: form.dateSigned,
+      auditTrail: auditLog.getAll(),
+    };
+
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ipharma-applications`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) { showAlert("error", `Server error: ${res.status}`); return; }
+      const data = await res.json();
+      if (data.success) {
+        auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
+        showAlert("success", "iPharma Mart Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
+      } else {
+        showAlert("error", data.error || "Failed to submit. Please try again.");
+      }
+    } catch {
+      showAlert("error", "Failed to submit. Please check your connection and try again.");
+    }
   };
 
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/ipharma-applications`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-    });
-    if (!res.ok) { showAlert("error", `Server error: ${res.status}`); return; }
-    const data = await res.json();
-    if (data.success) {
-      auditLog.record("APPLICATION_SUBMITTED", { success: true, applicationId: data.id });
-      showAlert("success", "iPharma Mart Application submitted successfully! We will review your application and contact you soon.", () => { closeAlert(); navigate("/"); });
-    } else {
-      showAlert("error", data.error || "Failed to submit. Please try again.");
-    }
-  } catch {
-    showAlert("error", "Failed to submit. Please check your connection and try again.");
-  }
-};
-
   const steps = [{ label: "Personal", pct: 33 }, { label: "Business", pct: 66 }, { label: "Done", pct: 100 }];
+
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "'Montserrat',sans-serif", backgroundImage: `linear-gradient(rgba(255,255,255,0.78),rgba(255,237,213,0.78)),url(${welcome})`, backgroundSize: "cover", backgroundAttachment: "fixed", paddingTop: 90, paddingBottom: 60 }}>
-          {loading === "load" && (
+    <div className="ip-page">
+
+      {loading === "load" && (
         <>
           <style>{`
             @keyframes spin {
@@ -1313,35 +1369,28 @@ const handleOtpVerified = async (success) => {
             }
           `}</style>
           <div style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+            position: "fixed", inset: 0, background: "rgba(14,36,25,0.5)",
             zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center"
           }}>
             <div style={{
-              background: "#fff", borderRadius: 20, padding: "40px 48px",
+              background: COLOR.white, borderRadius: 20, padding: "40px 48px",
               display: "flex", flexDirection: "column", alignItems: "center",
-              gap: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", minWidth: 260,
+              gap: 16, boxShadow: `0 24px 80px ${COLOR.shadowStrong}`, minWidth: 260,
             }}>
               <div style={{
                 width: 56, height: 56,
-                border: "5px solid #c8e6c9",
-                borderTop: "5px solid #ea580c",
+                border: `5px solid ${COLOR.line}`,
+                borderTop: `5px solid ${COLOR.green900}`,
                 borderRadius: "50%",
                 animation: "spin 0.9s linear infinite",
               }} />
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#ea580c" }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: COLOR.green900 }}>
                 Loading...
               </p>
             </div>
           </div>
         </>
       )}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-        * { box-sizing: border-box; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .ip-inp:focus { border-color: #ea580c !important; background: #fff !important; outline: none !important; }
-        @media (max-width: 768px) { .ip-row { flex-direction: column !important; } }
-      `}</style>
 
       <AlertModal {...alert} onClose={closeAlert} onConfirm={alert.onConfirm ? () => alert.onConfirm() : null} />
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
@@ -1349,64 +1398,68 @@ const handleOtpVerified = async (success) => {
       <IdScannerModal open={showIdScanner} onComplete={handleIdComplete} onClose={() => setShowIdScanner(false)} />
 
       {/* ── Nav ── */}
-      <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: 70, zIndex: 100, background: "#fff", boxShadow: "0 2px 10px rgba(0,0,0,0.08)", display: "flex", alignItems: "center" }}>
-        <div style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", padding: "0 24px" }}>
-          <Link to="/apply-franchise" style={{ display: "flex", alignItems: "center", gap: 6, color: "#2e7d32", fontWeight: 600, fontSize: "0.9rem", textDecoration: "none", whiteSpace: "nowrap" }}>
+      <div className="ip-nav">
+        <div className="ip-nav-inner">
+          <Link
+            to="/apply-franchise"
+            className="ip-back-link"
+            onClick={() => window.scrollTo(0, 0)}
+          >
             <ChevronLeft size={20} strokeWidth={2.5} /><span>Back to Application</span>
           </Link>
-          <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: "50%", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              {steps.map(st => <span key={st.label} style={{ fontSize: "0.7rem", fontWeight: 600, color: progress >= st.pct ? "#2e7d32" : "#9ca3af", transition: "color 0.3s" }}>{st.label}</span>)}
+          <div className="ip-progress">
+            <div className="ip-steps">
+              {steps.map(st => (
+                <span key={st.label} className={`ip-step ${progress >= st.pct ? "active" : ""}`}>{st.label}</span>
+              ))}
             </div>
-            <div style={{ width: "100%", height: 8, background: "#e5e7eb", borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 999, background: "linear-gradient(90deg,#ea580c,#fb923c)", width: `${progress}%`, transition: "width 0.4s ease" }} />
-            </div>
-            <div style={{ marginTop: 4, textAlign: "right", fontSize: "0.75rem", fontWeight: 600, color: "#2e7d32" }}>{progress}%</div>
+            <div className="ip-bar-bg"><div className="ip-bar-fill" style={{ width: `${progress}%` }} /></div>
+            <div className="ip-progress-text">{progress}%</div>
           </div>
         </div>
       </div>
 
-      {/* ── Content ── */}
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 1.5rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <img src={logo} alt="iPharma" style={{ height: 66, objectFit: "contain", marginTop: 12, marginBottom: 18 }} />
-        <div style={{ background: "rgba(255,255,255,0.97)", width: "100%", borderRadius: 20, padding: "36px 30px 30px", boxShadow: "0 10px 30px rgba(234,88,12,0.10)" }}>
-          <h2 style={{ fontSize: 23, color: "#2e7d32", fontWeight: 700, margin: "0 0 4px", textAlign: "center" }}>iPharma Mart Application</h2>
-          <p style={{ color: "#9CA3AF", fontSize: 13, marginBottom: 22, textAlign: "center" }}>Complete the form below to begin your journey with iPharma Mart</p>
+      <div className="ip-content">
+        <img src={logo} alt="iPharma Mart" className="ip-logo" />
+
+        <div className="ip-card">
+          <h2 className="ip-title">iPharma Mart Application</h2>
+          <p className="ip-sub">Complete the form below to begin your journey with iPharma Mart</p>
 
           {/* ══ PAGE 1 ══ */}
           {page === 1 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem" }}>
 
               {/* ID Verification */}
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={IdCard} title="ID Verification" />
                 {!idVerified ? (
                   <div style={{ textAlign: "center", padding: "20px 0" }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 16, background: "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                      <IdCard size={28} color="#ea580c" />
+                    <div style={{ width: 56, height: 56, borderRadius: 16, background: COLOR.tintGreen, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                      <IdCard size={28} color={COLOR.green900} />
                     </div>
-                    <p style={{ fontSize: 13, color: "#374151", marginBottom: 16, fontWeight: 600 }}>Please upload a valid ID</p>
+                    <p style={{ fontSize: 13, color: COLOR.ink, marginBottom: 16, fontWeight: 600 }}>Please upload a valid ID</p>
                     <button type="button" onClick={() => setShowIdScanner(true)} style={{ ...S.btn, ...S.btnSolid, padding: "12px 28px" }}>
                       <Camera size={16} style={{ marginRight: 8 }} /> Upload ID
                     </button>
                     {errors.idVerified && <p style={{ color: "#d32f2f", fontSize: 12, marginTop: 8, fontWeight: 600 }}>{errors.idVerified}</p>}
                   </div>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "#fff3e0", borderRadius: 10, border: "1.5px solid #a5d6a7" }}>
-                    <CheckCircle2 size={24} color="#2E7D32" />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: COLOR.tintGreen, borderRadius: 10, border: `1.5px solid ${COLOR.line}` }}>
+                    <CheckCircle2 size={24} color={COLOR.green900} />
                     <div style={{ flex: 1 }}>
-                      <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#1b5e20" }}>ID Verified — {idData?.idType}</p>
-                      <p style={{ margin: 0, fontSize: 11, color: "#388e3c" }}>Personal details have been auto-filled from your ID scan.</p>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: COLOR.green900 }}>ID Verified — {idData?.idType}</p>
+                      <p style={{ margin: 0, fontSize: 11, color: COLOR.green700 }}>Personal details have been auto-filled from your ID scan.</p>
                     </div>
-                    <button type="button" onClick={() => { setIdVerified(false); setIdData(null); }} style={{ background: "none", border: "none", color: "#9CA3AF", cursor: "pointer", fontSize: 11 }}>Rescan</button>
+                    <button type="button" onClick={() => { setIdVerified(false); setIdData(null); }} style={{ background: "none", border: "none", color: COLOR.muted, cursor: "pointer", fontSize: 11 }}>Rescan</button>
                   </div>
                 )}
               </div>
 
               {/* Applicant Info */}
-              <div style={sec}>
-                <SectionHeader icon={User} title="Applicant Information" />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+              <div className="ip-section">
+                <SectionHeader icon={User} title="Applicant Information" subtitle="Auto-filled from ID scan — verify and complete manually" />
+                <div className="ip-row">
                   <Field label="Last Name" required error={errors.lastName} style={{ flex: "2 1 150px" }}>{inp("lastName", "Dela Cruz")}</Field>
                   <Field label="First Name" required error={errors.firstName} style={{ flex: "2 1 150px" }}>{inp("firstName", "Juan")}</Field>
                   <Field label="M.I." error={errors.middleInitial} style={{ flex: "0 0 72px" }}>{inp("middleInitial", "M", "text", { maxLength: 1 })}</Field>
@@ -1415,9 +1468,9 @@ const handleOtpVerified = async (success) => {
                   </Field>
                 </div>
                 <Field label="Application Date"><input style={disabledStyle} value={form.date} disabled /></Field>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                <div className="ip-row">
                   <Field label="Date of Birth" required error={errors.dob} half>
-                    <input className="ip-inp" style={{ ...inpStyle, border: errors.dob ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                    <input style={{ ...inpStyle, border: errors.dob ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                       name="dob" type="date" min="1936-01-01" max={maxDob}
                       value={form.dob} onChange={handleChange} onBlur={handleBlur} />
                   </Field>
@@ -1431,9 +1484,9 @@ const handleOtpVerified = async (success) => {
                   <>
                     <Field label="Spouse's Name" error={errors.spouseName}>{inp("spouseName", "Spouse's Full Name")}</Field>
                     <Field label="Spouse's Occupation" error={errors.spouseOccupation}>{inp("spouseOccupation", "Current Occupation")}</Field>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                    <div className="ip-row">
                       <Field label="Spouse's Date of Birth" error={errors.spouseDob} half>
-                        <input className="ip-inp" style={{ ...inpStyle, border: errors.spouseDob ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                        <input style={{ ...inpStyle, border: errors.spouseDob ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                           name="spouseDob" type="date" min="1936-01-01" max={maxDob}
                           value={form.spouseDob} onChange={handleChange} onBlur={handleBlur} />
                       </Field>
@@ -1444,26 +1497,25 @@ const handleOtpVerified = async (success) => {
               </div>
 
               {/* Contact */}
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={Smartphone} title="Contact Information" />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                <div className="ip-row">
                   <Field label="Mobile Number" required error={errors.mobile} half>{inp("mobile", "09123456789")}</Field>
                   <Field label="Alternate Mobile Number" error={errors.altMobile} half>{inp("altMobile", "09123456789 (optional)")}</Field>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                <div className="ip-row">
                   <Field label="Telephone Number" error={errors.telephone} half>{inp("telephone", "(02) 1234-5678", "tel")}</Field>
                   <Field label="Email Address" required error={errors.email} half>{inp("email", "juandelacruz@email.com", "email")}</Field>
                 </div>
               </div>
 
               {/* Address */}
-              <div style={sec}>
-                <SectionHeader icon={MapPin} title="Present Address" />
+              <div className="ip-section">
+                <SectionHeader icon={MapPin} title="Present Address" subtitle="Powered by PSGC — Official Philippine address data" />
 
                 <Field label="Region" required error={errors.addrRegion}>
                   <select
-                    className="ip-inp"
-                    style={{ ...inpStyle, border: errors.addrRegion ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                    style={{ ...inpStyle, border: errors.addrRegion ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     value={addrRegion}
                     onChange={e => { setAddrRegion(e.target.value); setErrors(p => ({ ...p, addrRegion: "" })); }}
                     disabled={loadingRegions}
@@ -1476,8 +1528,7 @@ const handleOtpVerified = async (success) => {
                 {provinces.length > 0 && (
                   <Field label="Province" required error={errors.addrProvince}>
                     <select
-                      className="ip-inp"
-                      style={{ ...inpStyle, border: errors.addrProvince ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      style={{ ...inpStyle, border: errors.addrProvince ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                       value={addrProvince}
                       onChange={e => { setAddrProvince(e.target.value); setErrors(p => ({ ...p, addrProvince: "" })); }}
                       disabled={loadingProvinces || !addrRegion}
@@ -1488,11 +1539,10 @@ const handleOtpVerified = async (success) => {
                   </Field>
                 )}
 
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                <div className="ip-row">
                   <Field label="City / Municipality" required error={errors.addrCity} half>
                     <select
-                      className="ip-inp"
-                      style={{ ...inpStyle, border: errors.addrCity ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      style={{ ...inpStyle, border: errors.addrCity ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                       value={addrCity}
                       onChange={e => { setAddrCity(e.target.value); setErrors(p => ({ ...p, addrCity: "" })); }}
                       disabled={loadingCities || !addrRegion}
@@ -1506,8 +1556,7 @@ const handleOtpVerified = async (success) => {
 
                   <Field label="Barangay" required error={errors.addrBarangay} half>
                     <select
-                      className="ip-inp"
-                      style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                      style={{ ...inpStyle, border: errors.addrBarangay ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                       value={addrBarangay}
                       onChange={e => { setAddrBarangay(e.target.value); setErrors(p => ({ ...p, addrBarangay: "" })); }}
                       disabled={loadingBarangays || !addrCity}
@@ -1521,14 +1570,14 @@ const handleOtpVerified = async (success) => {
                 </div>
 
                 <Field label="House No. / Street / Subdivision" required error={errors.addrStreet}>
-                  <input className="ip-inp"
-                    style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <input
+                    style={{ ...inpStyle, border: errors.addrStreet ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     placeholder="House No., Street, Subdivision" value={addrStreet}
                     onChange={e => { setAddrStreet(e.target.value); setErrors(p => ({ ...p, addrStreet: "" })); }} />
                 </Field>
 
                 {addrRegion && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: "#fff3e0", borderRadius: 8, fontSize: 12, color: "#ea580c" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", background: COLOR.tintLime, borderRadius: 8, fontSize: 12, color: COLOR.green900 }}>
                     <MapPin size={13} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>
                       {[addrStreet, getBarangayName(), getCityName(), getProvinceName(), getRegionName()]
@@ -1539,37 +1588,37 @@ const handleOtpVerified = async (success) => {
               </div>
 
               {/* Educational Background */}
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={BookOpen} title="Educational Background" />
-                {educList.length === 0 && <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0" }}>No education records added yet. Click below to begin.</p>}
+                {educList.length === 0 && <p style={{ fontSize: 12, color: COLOR.muted, margin: "0" }}>No education records added yet. Click below to begin.</p>}
                 {educList.map((educ, i) => (
-                  <div key={i} style={{ background: "#fff", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div key={i} style={{ background: COLOR.white, border: `1.5px solid ${COLOR.line}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontWeight: 700, fontSize: 12, color: "#ea580c" }}>Record #{i + 1}</span>
-                      <button type="button" onClick={() => removeEduc(i)} style={{ background: "none", border: "none", color: "#9CA3AF", cursor: "pointer", padding: 4 }}><Trash2 size={14} /></button>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: COLOR.green900 }}>Record #{i + 1}</span>
+                      <button type="button" onClick={() => removeEduc(i)} style={{ background: "none", border: "none", color: COLOR.muted, cursor: "pointer", padding: 4 }}><Trash2 size={14} /></button>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }}>
+                    <div className="ip-row">
                       <Field label="Degree / Level" required half>
                         <CustomSelect value={educ.degree} placeholder="Select degree" options={DEGREE_TYPES} onSelect={v => updateEduc(i, "degree", v)} />
                       </Field>
                       <Field label="Year Graduated" half>
-                        <input className="ip-inp" style={{ ...inpStyle, border: "1.5px solid #fed7aa" }} type="number" placeholder="e.g. 2010" min="1950" max={new Date().getFullYear()} value={educ.yearGrad} onChange={e => updateEduc(i, "yearGrad", e.target.value)} />
+                        <input style={{ ...inpStyle, border: `1.5px solid ${COLOR.line}` }} type="number" placeholder="e.g. 2010" min="1950" max={new Date().getFullYear()} value={educ.yearGrad} onChange={e => updateEduc(i, "yearGrad", e.target.value)} />
                       </Field>
                     </div>
                     <Field label="School / University">
-                      <input className="ip-inp" style={{ ...inpStyle, border: "1.5px solid #fed7aa" }} placeholder="Name of School or University" value={educ.school} onChange={e => updateEduc(i, "school", capitalize(e.target.value))} />
+                      <input style={{ ...inpStyle, border: `1.5px solid ${COLOR.line}` }} placeholder="Name of School or University" value={educ.school} onChange={e => updateEduc(i, "school", capitalize(e.target.value))} />
                     </Field>
                     <Field label="Course / Program">
-                      <input className="ip-inp" style={{ ...inpStyle, border: "1.5px solid #fed7aa" }} placeholder="e.g. BS Pharmacy" value={educ.course} onChange={e => updateEduc(i, "course", capitalize(e.target.value))} />
+                      <input style={{ ...inpStyle, border: `1.5px solid ${COLOR.line}` }} placeholder="e.g. BS Pharmacy" value={educ.course} onChange={e => updateEduc(i, "course", capitalize(e.target.value))} />
                     </Field>
                   </div>
                 ))}
-                <button type="button" onClick={addEduc} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1.5px dashed #ea580c", background: "transparent", color: "#ea580c", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'Montserrat',sans-serif" }}>
+                <button type="button" onClick={addEduc} className="ip-add-btn">
                   <Plus size={16} /> Add Education Record
                 </button>
               </div>
 
-              <button style={submitBtn} onClick={() => { if (validatePage(p1Fields, p1Extras)) { auditLog.record("PAGE_1_COMPLETE"); setPage(2); window.scrollTo(0,0); } }}>
+              <button className="ip-submit-btn" onClick={() => { if (validatePage(p1Fields, p1Extras)) { auditLog.record("PAGE_1_COMPLETE"); setPage(2); window.scrollTo(0,0); } }}>
                 Next: Business Interest <ArrowRight size={16} style={{ marginLeft: 8 }} />
               </button>
             </div>
@@ -1578,32 +1627,32 @@ const handleOtpVerified = async (success) => {
           {/* ══ PAGE 2 ══ */}
           {page === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem" }}>
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={Briefcase} title="Business Interest" />
                 <Field label="Extent of Involvement" required error={errors.involvement}>
-                  <textarea className="ip-inp" style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.involvement ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <textarea style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.involvement ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     name="involvement" placeholder="Describe your expected involvement in daily operations"
                     value={form.involvement} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.9rem" }} className="ip-row">
+                <div className="ip-row">
                   <Field label="Percent of Equity Owned" required error={errors.equity} half>{inp("equity", "100", "number")}</Field>
                   <Field label="Cash Investment Amount (₱)" required error={errors.investment} half>{inp("investment", "2000000", "number")}</Field>
                 </div>
                 <Field label="Source of Funds" required error={errors.fundSource}>{inp("fundSource", "e.g. Personal Savings, Loan, Investment")}</Field>
                 <Field label="Other Business Interests" error={errors.otherBusiness}>
-                  <textarea className="ip-inp" style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: "1.5px solid #fed7aa" }}
+                  <textarea style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: `1.5px solid ${COLOR.line}` }}
                     name="otherBusiness" placeholder="List any other business interests or ventures (optional)"
                     value={form.otherBusiness} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
                 <Field label="Preferred Franchise Location" required error={errors.location}>
-                  <textarea className="ip-inp" style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.location ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <textarea style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.location ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     name="location" placeholder="Describe your preferred location (city, area, specific address if available)"
                     value={form.location} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
               </div>
               <div style={{ display: "flex", gap: "1rem" }}>
-                <button style={backBtn} onClick={() => { setPage(1); window.scrollTo(0,0); }}>← Back</button>
-                <button style={submitBtn} onClick={() => { if (validatePage(p2Fields)) { auditLog.record("PAGE_2_COMPLETE"); setPage(3); window.scrollTo(0,0); } }}>
+                <button className="ip-back-btn" onClick={() => { setPage(1); window.scrollTo(0,0); }}>← Back</button>
+                <button className="ip-submit-btn" onClick={() => { if (validatePage(p2Fields)) { auditLog.record("PAGE_2_COMPLETE"); setPage(3); window.scrollTo(0,0); } }}>
                   Next: Declaration <ArrowRight size={16} style={{ marginLeft: 8 }} />
                 </button>
               </div>
@@ -1613,22 +1662,22 @@ const handleOtpVerified = async (success) => {
           {/* ══ PAGE 3 ══ */}
           {page === 3 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem" }}>
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={FileText} title="Declaration" />
                 <Field label="Family Dependence on Franchise Income" required error={errors.familyDepend}>
-                  <textarea className="ip-inp" style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.familyDepend ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <textarea style={{ ...inpStyle, minHeight: 76, resize: "vertical", border: errors.familyDepend ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     name="familyDepend" placeholder="Will your family depend solely on franchise income? Please explain."
                     value={form.familyDepend} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
                 <Field label="Immediate Market Area" required error={errors.marketArea}>{inp("marketArea", "Describe the immediate market area for your franchise")}</Field>
                 <Field label="Target Start Date" required error={errors.startDate}>
-                  <input className="ip-inp" style={{ ...inpStyle, border: errors.startDate ? "1.5px solid #d32f2f" : "1.5px solid #fed7aa" }}
+                  <input style={{ ...inpStyle, border: errors.startDate ? "1.5px solid #d32f2f" : `1.5px solid ${COLOR.line}` }}
                     name="startDate" type="date" value={form.startDate} onChange={handleChange} onBlur={handleBlur} />
                 </Field>
               </div>
 
               {/* Documents */}
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={Upload} title="Required Documents" />
                 <Field label="Letter of Intent (PDF)" required error={errors.letterOfIntent}>
                   <input ref={loiRef} type="file" accept="application/pdf" style={{ display: "none" }}
@@ -1637,41 +1686,48 @@ const handleOtpVerified = async (success) => {
                       auditLog.record("LOI_UPLOADED", { fileName: f.name, size: f.size });
                       setLetterOfIntent(f); setErrors(p => ({ ...p, letterOfIntent: "" }));
                     }} />
-                  <div onClick={() => loiRef.current.click()} style={{ border: errors.letterOfIntent ? "2px dashed #d32f2f" : "2px dashed #fed7aa", borderRadius: 12, padding: "20px 16px", textAlign: "center", cursor: "pointer", background: "#fffbf7", transition: "all .2s" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#fff3e0"}
-                    onMouseLeave={e => e.currentTarget.style.background = "#fffbf7"}>
+                  <div
+                    onClick={() => loiRef.current.click()}
+                    style={{
+                      border: errors.letterOfIntent ? "2px dashed #d32f2f" : `2px dashed ${COLOR.line}`,
+                      borderRadius: 12, padding: "20px 16px", textAlign: "center",
+                      cursor: "pointer", background: COLOR.cream, transition: "all .2s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = COLOR.tintLime}
+                    onMouseLeave={e => e.currentTarget.style.background = COLOR.cream}
+                  >
                     {letterOfIntent ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
-                        <CheckCircle2 size={20} color="#2E7D32" />
-                        <span style={{ fontWeight: 700, color: "#2E7D32", fontSize: 13 }}>{letterOfIntent.name}</span>
-                        <span style={{ color: "#9CA3AF", fontSize: 11 }}>({(letterOfIntent.size / 1024).toFixed(1)} KB)</span>
+                        <CheckCircle2 size={20} color={COLOR.green900} />
+                        <span style={{ fontWeight: 700, color: COLOR.green900, fontSize: 13 }}>{letterOfIntent.name}</span>
+                        <span style={{ color: COLOR.muted, fontSize: 11 }}>({(letterOfIntent.size / 1024).toFixed(1)} KB)</span>
                       </div>
                     ) : (
                       <>
-                        <Upload size={24} color="#9CA3AF" style={{ margin: "0 auto 8px" }} />
-                        <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#374151" }}>Click to upload Letter of Intent</p>
-                        <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>PDF only — max 10MB</p>
+                        <Upload size={24} color={COLOR.muted} style={{ margin: "0 auto 8px" }} />
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: COLOR.ink }}>Click to upload Letter of Intent</p>
+                        <p style={{ margin: "4px 0 0", fontSize: 11, color: COLOR.muted }}>PDF only — max 10MB</p>
                       </>
                     )}
                   </div>
                 </Field>
                 {idVerified && (
-                  <div style={{ padding: "12px 14px", background: "#e8f5e9", borderRadius: 10, border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center", gap: 10 }}>
-                    <CheckCircle2 size={16} color="#2E7D32" />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#1b5e20" }}>Valid ID attached — {idData?.idType} (from OCR scan)</span>
+                  <div style={{ padding: "12px 14px", background: COLOR.tintLime, borderRadius: 10, border: `1.5px solid ${COLOR.line}`, display: "flex", alignItems: "center", gap: 10 }}>
+                    <CheckCircle2 size={16} color={COLOR.green900} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: COLOR.green900 }}>Valid ID attached — {idData?.idType} (from OCR scan)</span>
                   </div>
                 )}
               </div>
 
               {/* Terms & Consent */}
-              <div style={sec}>
+              <div className="ip-section">
                 <SectionHeader icon={Shield} title="Terms & Consent" />
                 <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={termsAccepted} onChange={e => { setTermsAccepted(e.target.checked); setErrors(p => ({ ...p, terms: "" })); }}
-                    style={{ marginTop: 2, accentColor: "#ea580c", width: 16, height: 16, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+                    style={{ marginTop: 2, accentColor: COLOR.green900, width: 16, height: 16, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: COLOR.ink, lineHeight: 1.6 }}>
                     I have read and agree to the{" "}
-                    <button type="button" onClick={() => setShowTerms(true)} style={{ background: "none", border: "none", color: "#ea580c", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13, textDecoration: "underline", fontFamily: "inherit" }}>Terms and Conditions</button>
+                    <button type="button" onClick={() => setShowTerms(true)} style={{ background: "none", border: "none", color: COLOR.green900, fontWeight: 700, cursor: "pointer", padding: 0, fontSize: 13, textDecoration: "underline", fontFamily: "inherit" }}>Terms and Conditions</button>
                     {" "}of iFranchise Business and Services Corporation. <span style={{ color: "#EF4444" }}>*</span>
                   </span>
                 </label>
@@ -1679,8 +1735,8 @@ const handleOtpVerified = async (success) => {
 
                 <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={consentAccepted} onChange={e => { setConsentAccepted(e.target.checked); setErrors(p => ({ ...p, consent: "" })); }}
-                    style={{ marginTop: 2, accentColor: "#ea580c", width: 16, height: 16, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: "#374151", lineHeight: 1.6 }}>
+                    style={{ marginTop: 2, accentColor: COLOR.green900, width: 16, height: 16, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: COLOR.ink, lineHeight: 1.6 }}>
                     I consent to the collection, processing, and use of my personal data in accordance with the <strong>Data Privacy Act of 2012 (RA 10173)</strong> for the purpose of evaluating my franchise application. <span style={{ color: "#EF4444" }}>*</span>
                   </span>
                 </label>
@@ -1695,18 +1751,153 @@ const handleOtpVerified = async (success) => {
               </div>
 
               <div style={{ display: "flex", gap: "1rem" }}>
-                <button style={backBtn} onClick={() => { setPage(2); window.scrollTo(0,0); }}>← Back</button>
-                <button style={submitBtn} onClick={handleFinalSubmit}>
+                <button className="ip-back-btn" onClick={() => { setPage(2); window.scrollTo(0,0); }}>← Back</button>
+                <button className="ip-submit-btn" onClick={handleFinalSubmit}>
                   Submit Application & Verify via OTP <ArrowRight size={16} style={{ marginLeft: 8 }} />
                 </button>
               </div>
-              <p style={{ textAlign: "center", fontSize: "0.82rem", color: "#9CA3AF", marginTop: "-0.8rem" }}>
-                By submitting, you agree to our terms. An OTP will be sent to your registered mobile number.
-              </p>
+              <p className="ip-footer-note">By submitting, you agree to our terms. An OTP will be sent to your registered mobile number.</p>
             </div>
           )}
         </div>
       </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+        :root {
+          --cream: #F6F7F1;
+          --white: #FFFFFF;
+          --ink: #12241B;
+          --muted: #5C6B60;
+          --green-900: #3b791e;
+          --green-700: #438f1a;
+          --green-600: #509820;
+          --green-500: #3f811e;
+          --lime: #bdd43c;
+          --lime-ink: #24310C;
+          --line: #E1E6D8;
+          --shadow: rgba(50, 109, 32, 0.12);
+          --shadow-strong: rgba(14, 59, 34, 0.24);
+        }
+
+        * { box-sizing: border-box; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .ip-page {
+          min-height: 100vh;
+          font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+          background-image: linear-gradient(rgba(246,247,241,0.9), rgba(216,242,76,0.12)), url(${welcome});
+          background-size: cover;
+          background-attachment: fixed;
+          padding-top: 90px;
+          padding-bottom: 60px;
+          color: var(--ink);
+        }
+
+        .ip-nav {
+          position: fixed; top: 0; left: 0; width: 100%;
+          z-index: 100; padding: 14px 24px;
+          background: rgba(246,247,241,0.92);
+          backdrop-filter: blur(14px);
+          box-shadow: 0 1px 0 var(--line);
+        }
+        .ip-nav-inner {
+          display: flex; align-items: center; gap: 20px; padding: 0 24px;
+        }
+        .ip-back-link {
+          display: flex; align-items: center; gap: 6px; color: var(--green-900);
+          font-weight: 600; font-size: 0.9rem; text-decoration: none;
+          white-space: nowrap; transition: opacity 0.2s;
+        }
+        .ip-back-link:hover { opacity: 0.7; }
+        .ip-progress { flex: 1; display: flex; flex-direction: column; }
+        .ip-steps { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .ip-step { font-size: 0.7rem; font-weight: 600; color: var(--muted); transition: color 0.3s; }
+        .ip-step.active { color: var(--green-700); }
+        .ip-bar-bg { width: 100%; height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+        .ip-bar-fill { height: 100%; border-radius: 999px; background: var(--green-900); transition: width 0.4s ease; }
+        .ip-progress-text { margin-top: 4px; text-align: right; font-size: 0.75rem; font-weight: 600; color: var(--green-700); }
+
+        .ip-content { max-width: 860px; margin: 0 auto; padding: 0 1.5rem; display: flex; flex-direction: column; align-items: center; }
+        .ip-logo { height: 66px; object-fit: contain; margin-top: 12px; margin-bottom: 18px; }
+
+        .ip-card {
+          background: rgba(255,255,255,0.97); width: 100%;
+          border: 1px solid var(--line);
+          border-radius: 24px; padding: 36px 30px 30px;
+          box-shadow: 0 20px 50px var(--shadow);
+        }
+        .ip-title { font-size: 23px; color: var(--green-900); font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px; text-align: center; }
+        .ip-sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; text-align: center; }
+
+        .ip-section {
+          background: var(--cream); border-radius: 18px; border: 1px solid var(--line);
+          padding: 1.3rem 1.3rem 1.1rem; display: flex; flex-direction: column; gap: 0.9rem;
+          transition: box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .ip-section:hover { box-shadow: 0 10px 26px var(--shadow); border-color: var(--green-600); }
+        .ip-row { display: flex; flex-wrap: wrap; gap: 0.9rem; }
+
+        .ip-card input[type="text"], .ip-card input[type="email"], .ip-card input[type="number"],
+        .ip-card input[type="date"], .ip-card input[type="tel"], .ip-card textarea, .ip-card select {
+          width: 100%; padding: 13px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+          outline: none; font-size: 14px; font-family: 'Plus Jakarta Sans', sans-serif;
+          color: var(--ink); background: var(--white); transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; box-sizing: border-box;
+        }
+        .ip-card input:hover, .ip-card select:hover, .ip-card textarea:hover {
+          border-color: var(--green-500) !important;
+        }
+        .ip-card input:focus, .ip-card textarea:focus, .ip-card select:focus {
+          border-color: var(--green-700) !important; background: #fff !important;
+          box-shadow: 0 0 0 3px rgba(27,107,61,0.14);
+        }
+        .ip-card input:disabled {
+          background: var(--cream); color: var(--muted); cursor: not-allowed; border-color: var(--line) !important;
+        }
+
+        /* Smooth, interactive feel for every clickable control */
+        button {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, background 0.2s ease, filter 0.2s ease;
+        }
+        button:not(:disabled):hover {
+          filter: brightness(1.04);
+        }
+        button:not(:disabled):active {
+          transform: scale(0.97);
+        }
+
+        .ip-submit-btn {
+          flex: 1;
+          display: flex; align-items: center; justify-content: center;
+          width: 100%; padding: 15px; border-radius: 999px; border: none;
+          background: var(--green-900); color: var(--white);
+          font-weight: 700; cursor: pointer; font-size: 14px; letter-spacing: 0.3px;
+          transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          box-shadow: 0 10px 24px var(--shadow);
+        }
+        .ip-submit-btn:hover { background: var(--green-700); box-shadow: 0 14px 30px var(--shadow-strong); transform: translateY(-1px); }
+        .ip-submit-btn:active { transform: translateY(0) scale(0.98); }
+
+        .ip-back-btn {
+          padding: 15px 24px; border-radius: 999px; border: 2px solid var(--line);
+          background: var(--white); color: var(--muted);
+          font-weight: 700; cursor: pointer; font-size: 14px;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          transition: border-color 0.2s ease, color 0.2s ease;
+        }
+        .ip-back-btn:hover { border-color: var(--green-600); color: var(--green-900); }
+
+        .ip-add-btn {
+          display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px;
+          border: 1.5px dashed var(--green-900); background: transparent; color: var(--green-900);
+          font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .ip-add-btn:hover { background: var(--tint-lime, rgba(216,242,76,0.16)); }
+
+        .ip-footer-note { text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: -0.8rem; }
+      `}</style>
     </div>
   );
 }
@@ -1714,23 +1905,24 @@ const handleOtpVerified = async (success) => {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const inpStyle = {
   width: "100%", padding: "13px 14px", borderRadius: 12, outline: "none",
-  fontSize: 14, fontFamily: "'Montserrat',sans-serif", color: "#1a1a1a",
-  background: "#fffbf7", transition: "border-color 0.2s", boxSizing: "border-box",
+  fontSize: 14, fontFamily: "'Plus Jakarta Sans',sans-serif", color: COLOR.ink,
+  background: COLOR.white, transition: "border-color 0.2s ease, box-shadow 0.2s ease", boxSizing: "border-box",
 };
-const disabledStyle = { ...inpStyle, background: "#f5f5f5", color: "#888", cursor: "not-allowed", border: "1.5px solid #e5e7eb" };
-const sec = { background: "#fff7ed", borderRadius: 14, border: "1.5px solid #fed7aa", padding: "1.3rem 1.3rem 1.1rem", display: "flex", flexDirection: "column", gap: "0.9rem" };
-const submitBtn = { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 14, borderRadius: 12, border: "none", background: "linear-gradient(90deg,#ea580c,#fb923c)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14, letterSpacing: "0.5px", fontFamily: "'Montserrat',sans-serif", boxShadow: "0 4px 14px rgba(234,88,12,0.3)" };
-const backBtn = { padding: "14px 24px", background: "#6B7280", color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Montserrat',sans-serif" };
+
+const disabledStyle = {
+  ...inpStyle, background: COLOR.cream, color: COLOR.muted,
+  cursor: "not-allowed", border: `1.5px solid ${COLOR.line}`,
+};
 
 const S = {
-  overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
-  modalBox: { background: "#fff", borderRadius: 20, padding: "2.5rem 2rem 2rem", width: 380, maxWidth: "92vw", textAlign: "center", position: "relative", boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(14,36,25,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
+  modalBox: { background: COLOR.white, borderRadius: 24, padding: "2.5rem 2rem 2rem", width: 380, maxWidth: "92vw", textAlign: "center", position: "relative", boxShadow: "0 30px 80px rgba(14,59,34,0.24)" },
   iconWrap: { width: 72, height: 72, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.2rem" },
-  modalMsg: { fontSize: "1rem", color: "#374151", lineHeight: 1.6, marginBottom: "1.5rem" },
+  modalMsg: { fontSize: "1rem", color: COLOR.ink, lineHeight: 1.6, marginBottom: "1.5rem" },
   btnRow: { display: "flex", gap: 10, justifyContent: "center" },
-  btn: { padding: "0.65rem 2rem", borderRadius: 10, fontSize: "0.95rem", fontWeight: 700, cursor: "pointer", border: "none", fontFamily: "'Montserrat',sans-serif", display: "inline-flex", alignItems: "center" },
-  btnSolid: { background: "linear-gradient(90deg,#ea580c,#fb923c)", color: "#fff" },
-  btnOutline: { background: "transparent", color: "#ea580c", border: "2px solid #ea580c" },
-  closeBtn: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", padding: 4 },
-  zoomBtn: { background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  btn: { padding: "0.65rem 2rem", borderRadius: 999, fontSize: "0.95rem", fontWeight: 700, cursor: "pointer", border: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" },
+  btnSolid: { background: COLOR.green900, color: COLOR.white, boxShadow: "0 8px 20px rgba(14,59,34,0.22)" },
+  btnOutline: { background: "transparent", color: COLOR.green900, border: `2px solid ${COLOR.green900}` },
+  closeBtn: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: COLOR.muted, padding: 4 },
+  zoomBtn: { background: COLOR.white, border: `1px solid ${COLOR.line}`, borderRadius: 6, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
 };
