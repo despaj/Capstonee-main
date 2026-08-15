@@ -25,60 +25,223 @@ import {
   Brain, PieChart, LineChart, ShieldCheck, Bell, Printer
 } from 'lucide-react';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
-  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
-  ok:"#2e7d32", okBg:"#e8f5e9",
+  // core
+  green:      "#3b791e",   // was #00897b — primary action / heading color
+  greenDk:    "#2c5c16",   // was #00695c — hover/dark state
+  greenMid:   "#c9dba0",   // was #c8e6c9 — mid accent / borders on hover
+  lime:       "#bdd43c",   // was #00c853 — accent, badges, highlight bar
+  limeInk:    "#24310C",   // text-on-lime
+  ink:        "#12241B",   // was #0d2b1e — headings/body
+  muted:      "#5C6B60",   // was #5a7a65 — secondary text
+  border:     "#E1E6D8",   // was #d1eedd — hairline borders
+  bg:         "#F6F7F1",   // was #f0fdf5 — page background (cream)
+  white:      "#ffffff",
+  warn:       "#b45309", warnBg:"#fff7ed",
+  ok:         "#2c5c16", okBg:"#f0f5e8",
+  red:        "#c0392b", redBg:"#fdf1f0", redBorder:"#f2c9c4",
 };
 
 const ADMIN_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
   :root {
-    --g1:#00c853; --g2:#00897b; --g3:#1a4a2e; --g4:#0d2b1e;
-    --green-primary:#2E7D32; --green-dark:#1B5E20; --green-light:#4CAF50;
-    --green-accent:#d4df33; --green-bg:#ccfcc7; --white:#ffffff;
-    --gray-100:#F3F4F6; --gray-200:#E5E7EB; --gray-300:#D1D5DB;
-    --gray-400:#9CA3AF; --gray-500:#6B7280; --gray-600:#4B5563;
-    --gray-700:#374151; --gray-800:#1F2937;
-    --shadow:rgba(46,125,50,0.1); --shadow-strong:rgba(46,125,50,0.2);
-    --card-border:rgba(0,168,76,0.12);
-    --grad-main:linear-gradient(135deg,#00c853,#00897b);
-    --grad-dark:linear-gradient(135deg,#0d2b1e,#1a4a2e);
-    --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
-    --grad-bg:linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%);
+    --g1:#bdd43c; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+    --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
+    --lime:#bdd43c; --lime-ink:#24310C; --white:#ffffff;
+    --gray-100:#F3F4F1; --gray-200:#E1E6D8; --gray-300:#D4DBC8;
+    --gray-400:#9CA89C; --gray-500:#6B7A65; --gray-600:#4B5A45;
+    --gray-700:#374132; --gray-800:#1F2A1B;
+    --shadow:rgba(50,109,32,0.10); --shadow-strong:rgba(14,59,34,0.20);
+    --card-border:#E1E6D8;
+    --grad-main:linear-gradient(135deg,#509820,#3b791e);
+    --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
+    --grad-gold:linear-gradient(135deg,#e9cd30,#bdd43c);
+    --grad-bg:#F6F7F1;
   }
-`;
 
+  /* ── Sidebar shell ── */
+  .ad-sidebar {
+    background:#fff;
+    box-shadow: 1px 0 0 #E1E6D8;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 14px;
+    overflow-y: auto;
+    z-index: 100;
+  }
+
+  .ad-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px 18px;
+  }
+
+  .ad-logo-mark {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .ad-brand {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .ad-toggle {
+    background: none;
+    border: 1px solid #E1E6D8;
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #5C6B60;
+    flex-shrink: 0;
+  }
+
+  /* ── Section labels ("Main Menu" / "Account") ── */
+  .ad-nav-section {
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9CA89C;
+    padding: 12px 10px 6px;
+  }
+
+  /* ── Nav ── */
+  .ad-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .ad-nav-item {
+    font-family:'Plus Jakarta Sans',sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: #5C6B60;
+    cursor: pointer;
+    position: relative;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .15s ease, color .15s ease;
+  }
+  .ad-nav-item:hover { background:#F6F7F1; color:#12241B; }
+  .ad-nav-item.active {
+    background:#F6F7F1;
+    color:#2c5c16;
+    box-shadow:none;
+    font-weight:700;
+  }
+  .ad-nav-item.active .ad-nav-icon { color:#3b791e; }
+  .ad-nav-item.logout { color:#c0392b; }
+  .ad-nav-item.logout:hover { background:#fdf1f0; }
+
+  .ad-nav-icon {
+    flex-shrink:0;
+    display:flex;
+    align-items: center;
+    justify-content:center;
+    width:22px;
+    height: 22px;
+  }
+
+  .ad-nav-label {
+    flex: 1;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .ad-nav-bar {
+    position:absolute;
+    right:6px;
+    top:20%;
+    height:60%;
+    width:3px;
+    border-radius:2px;
+    background:#bdd43c;
+  }
+
+  /* ── Topbar ── */
+  .ad-topbar {
+    background:#fff;
+    box-shadow:none;
+    border-bottom:1px solid #E1E6D8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 30px;
+  }
+  .ad-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-size: 22px; font-weight: 800; }
+  .ad-avatar {
+    background:#12241B; color:#bdd43c; box-shadow:none; border-radius:12px;
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+  }
+  .ad-user-name { font-weight: 700; font-size: 13px; color: #12241B; text-align: right; }
+  .ad-user-role { font-size: 11.5px; color: #5C6B60; text-align: right; }
+`;
 // ─── Shared style helpers ─────────────────────────────────────────────────────
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
+  height:38, padding:"0 13px", borderRadius:11,
+  border:`1.5px solid ${C.border}`, background:"#fff",
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+  transition:"border-color .2s ease, box-shadow .2s ease",
 };
+// focus state (wherever :focus is handled via onFocus/onBlur or CSS):
+//   borderColor: C.green, boxShadow:"0 0 0 3px rgba(59,121,30,0.12)"
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.white,
+  height:38, padding:"0 18px", borderRadius:999,
+  border:`1.5px solid ${C.border}`, background:C.white,
   fontSize:13, fontWeight:700, cursor:"pointer",
   fontFamily:"inherit", whiteSpace:"nowrap",
+  color: C.green,
+  transition:"all .2s cubic-bezier(.4,0,.2,1)",
 };
 const btnPrimarySt = {
   ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
+  background: C.green,
   color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
+  boxShadow:"0 10px 24px rgba(59,121,30,0.22)",
 };
+// hover (apply via onMouseEnter/Leave exactly as existing code already does):
+//   primary hover -> background:"#509820"
+//   ghost hover   -> borderColor:C.green, background:"#fbfdf6"
 const smallBtnSt = {
   display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 10px", borderRadius:7,
+  height:28, padding:"0 12px", borderRadius:999,
   fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:C.white,
+  fontFamily:"inherit", background:C.white, border:`1px solid ${C.border}`,
 };
-
+const bmActionBtn = (variant = "default") => ({
+  display:"inline-flex", alignItems:"center", gap:5,
+  padding:"8px 20px", borderRadius:999, fontSize:13, fontWeight:700,
+  cursor:"pointer", fontFamily:"inherit", border:"none",
+  ...(variant === "primary"
+    ? { background:C.green, color:"#fff", boxShadow:"0 10px 20px rgba(59,121,30,0.22)" }
+    : variant === "danger"
+    ? { background:"#fdf1f0", color:"#c0392b", border:`1px solid #f2c9c4` }
+    : { background:"#F6F7F1", color:C.greenDk, border:`1.5px solid ${C.border}` }),
+});
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 });
 const fmtTs   = d => new Date(d).toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 
@@ -146,16 +309,7 @@ const bmLabel = {
   display: "block", fontSize: 11, fontWeight: 800, color: "#2e6725",
   marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
 };
-const bmActionBtn = (variant = "default") => ({
-  display: "inline-flex", alignItems: "center", gap: 5,
-  padding: "7px 18px", borderRadius: 9, fontSize: 13, fontWeight: 700,
-  cursor: "pointer", fontFamily: "inherit", border: "none",
-  ...(variant === "primary"
-    ? { background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", boxShadow: "0 2px 10px rgba(0,180,90,0.28)" }
-    : variant === "danger"
-    ? { background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }
-    : { background: "#f0fdf5", color: "#00695c", border: "1.5px solid #b2dfdb" }),
-});
+
 
 function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
   const [open, setOpen] = useState(false);
@@ -563,17 +717,22 @@ useEffect(() => {
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,         section: 'main' },
-     { id: 'activityLog', label: 'Activity Log', icon: <Activity size={20} />, section: 'main' },
-    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,          section: 'main' },
-    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,       section: 'main' },
-    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />, section: 'main' },
-    { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,      section: 'main' },
-    { id: 'applications',   label: 'View Applications',     icon: <FileCheck size={20} />,    section: 'main' },
-    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,        section: 'main' },
     { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,    section: 'main' },
+   
+    { id: 'stockInventory', label: 'Head Office Inventory',       icon: <Layers size={20} />,       section: 'main' },
+       { id: 'FranchiseeInventoryContent', label: 'Franchisee Inventory', icon: <Building2 size={20} />, section: 'main' },
+  
+     { id: 'inventory',      label: 'Product Catalogue',        icon: <Box size={20} />,          section: 'main' },
+    { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />, section: 'main' },
+    { id: 'mobileOrders',   label: 'Mobile Order Management',    icon: <Package size={20} />,      section: 'main' },
+    { id: 'applications',   label: 'Franchisee Applications',     icon: <FileCheck size={20} />,    section: 'main' },
+    { id: 'brandBranch',    label: 'Brands & Branches Management',        icon: <GitBranch size={20} />,    section: 'main' },
+    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,        section: 'main' },
+
+ 
     { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} />,section: 'main' },
-    { id: 'brandBranch',    label: 'Brand & Branch',        icon: <GitBranch size={20} />,    section: 'main' },
-    { id: 'profile',        label: 'Edit Profile',          icon: <User size={20} />,         section: 'account' },
+      { id: 'activityLog', label: 'System Activity Logs', icon: <Activity size={20} />, section: 'main' },
+    { id: 'profile',        label: 'Profile Settings',          icon: <User size={20} />,         section: 'account' },
     { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />,       section: 'account', action: handleLogout },
   ];
 
@@ -590,69 +749,56 @@ useEffect(() => {
   return (
     <div className="admin-dashboard-root">
       <style>{ADMIN_CSS}{`
-        .admin-dashboard-root {
-          font-family:'Poppins',sans-serif;
-          display:flex; min-height:100vh;
-          background:var(--grad-bg);
-        }
-        .ad-sidebar {
-          width:${sidebarCollapsed ? '76px' : '272px'};
-          background:#fff;
-          box-shadow:2px 0 20px rgba(0,140,60,0.08);
-          position:fixed; left:0; top:0; height:100vh;
-          transition:width 0.3s ease; z-index:1000;
-          overflow-y:auto; overflow-x:hidden;
-        }
-        .ad-sidebar-header {
-          padding:1.4rem 1rem;
-          border-bottom:1px solid rgba(0,168,76,0.1);
-          display:flex; align-items:center; justify-content:space-between;
-          min-height:72px;
-        }
-        .ad-logo-mark {
-          width:34px; height:34px; border-radius:10px;
-          background:var(--grad-main);
-          display:flex; align-items:center; justify-content:center;
-          font-weight:900; font-size:16px; color:#fff;
-          font-family:'Montserrat',sans-serif; flex-shrink:0;
-          box-shadow:0 4px 12px rgba(0,180,90,.3);
-        }
-        .ad-brand {
-          font-family:'Montserrat',sans-serif;
-          font-weight:800; font-size:1.15rem; color:#0d2b1e;
-          white-space:nowrap;
-        }
-        .ad-toggle {
-          background:none; border:none; cursor:pointer;
-          padding:6px; color:#94a3b8; border-radius:8px;
-          transition:all .2s; flex-shrink:0;
-        }
-        .ad-toggle:hover { color:#00897b; background:rgba(0,168,76,0.08); }
-        .ad-nav { padding:1rem 0.5rem; }
-        .ad-nav-section {
-          font-size:10px; font-weight:800; text-transform:uppercase;
-          letter-spacing:.1em; color:#94a3b8;
-          padding:12px 14px 6px;
-          display:${sidebarCollapsed ? 'none' : 'block'};
-          font-family:'Montserrat',sans-serif;
-        }
-        .ad-nav-item {
-          display:flex; align-items:center; gap:12px;
-          padding:10px 12px; color:#5a7a65; cursor:pointer;
-          transition:all .2s; border-radius:12px;
-          position:relative; margin:2px 0;
-          font-weight:600; font-size:14px;
-          font-family:'Montserrat',sans-serif;
-        }
-        .ad-nav-item:hover { background:rgba(0,168,76,0.08); color:#0d2b1e; }
-        .ad-nav-item.active {
-          background:linear-gradient(135deg,rgba(0,200,83,0.15),rgba(0,137,123,0.1));
-          color:#00695c;
-          box-shadow:inset 0 0 0 1.5px rgba(0,137,123,0.2);
-        }
-        .ad-nav-item.active .ad-nav-icon { color:#00897b; }
-        .ad-nav-item.logout { color:#ef4444; margin-top:8px; }
-        .ad-nav-item.logout:hover { background:rgba(239,68,68,0.08); }
+         .admin-dashboard-root {
+     font-family:'Plus Jakarta Sans',sans-serif;
+     display:flex; min-height:100vh;
+     background: #F6F7F1;
+     background-image: radial-gradient(#E1E6D8 1px, transparent 1px);
+     background-size: 22px 22px;
+   }
+   .ad-sidebar {
+     width:${sidebarCollapsed ? '76px' : '272px'};
+     transition: width 0.3s ease;
+   }
+   .ad-main {
+     flex: 1;
+     min-width: 0;
+     margin-left:${sidebarCollapsed ? '76px' : '272px'};
+     transition: margin-left 0.3s ease;
+   }
+     .ad-content {
+     width: 100%;
+     max-width: 1400px;
+     margin: 0 auto;
+     padding: 20px 30px 40px;
+     box-sizing: border-box;
+   }
+.ad-logo-mark {
+  background: #12241B;           /* dark chip, not gradient */
+  color:#bdd43c;
+  box-shadow:none;
+  border-radius:10px;
+}
+.ad-brand { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-weight:800; }
+.ad-nav-item {
+  font-family:'Plus Jakarta Sans',sans-serif;
+  border-radius:12px;
+  color:#5C6B60;
+}
+.ad-nav-item:hover { background:#F6F7F1; color:#12241B; }
+.ad-nav-item.active {
+  background:#F6F7F1;
+  color:#2c5c16;
+  box-shadow:none;                /* remove the inset ring */
+  font-weight:700;
+}
+.ad-nav-item.active .ad-nav-icon { color:#3b791e; }
+.ad-nav-bar {
+  background:#bdd43c;             /* lime active-rail, not gradient */
+  width:3px;
+}
+.ad-nav-item.logout { color:#c0392b; }
+.ad-nav-item.logout:hover { background:#fdf1f0; }
         .ad-nav-icon { flex-shrink:0; display:flex; justify-content:center; width:22px; }
         .ad-nav-label {
           display:${sidebarCollapsed ? 'none' : 'block'};
@@ -667,98 +813,75 @@ useEffect(() => {
           margin-left:${sidebarCollapsed ? '76px' : '272px'};
           transition:margin-left 0.3s ease;
         }
-        .ad-topbar {
-          background:rgba(255,255,255,0.9);
-          backdrop-filter:blur(12px);
-          padding:1rem 2rem;
-          box-shadow:0 2px 16px rgba(0,140,60,0.08);
-          display:flex; justify-content:space-between; align-items:center;
-          position:sticky; top:0; z-index:100;
-          border-bottom:1px solid rgba(0,168,76,0.08);
-        }
-        .ad-topbar-breadcrumb { font-size:12px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
-        .ad-topbar-title { font-family:'Montserrat',sans-serif; font-size:1.5rem; font-weight:800; color:#0d2b1e; }
-        .ad-user-name { font-weight:700; color:#0d2b1e; font-size:14px; font-family:'Montserrat',sans-serif; }
-        .ad-user-role { font-size:11px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
-        .ad-avatar {
-          width:42px; height:42px; border-radius:14px;
-          background:var(--grad-main);
-          display:flex; align-items:center; justify-content:center;
-          font-size:1rem; font-weight:800; color:#fff; cursor:pointer;
-          transition:all .2s;
-          box-shadow:0 4px 12px rgba(0,180,90,.3);
-          font-family:'Montserrat',sans-serif;
-        }
-        .ad-avatar:hover { transform:scale(1.08); box-shadow:0 6px 18px rgba(0,180,90,.4); }
-        .ad-content { padding:1.8rem 2rem; }
-        @media(max-width:768px){
-          .ad-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
-          .ad-main{margin-left:0;}
-          .ad-topbar,.ad-content{padding:1rem;}
-        }
+        
+     .ad-topbar {
+  width:100%;
+  background:#fff;
+  backdrop-filter:none;
+  box-shadow:none;
+  border-bottom:1px solid #E1E6D8;
+  box-sizing:border-box;
+}
+.ad-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; }
+.ad-avatar { background:#12241B; color:#bdd43c; box-shadow:none; border-radius:12px; }
       `}</style>
 
-      {/* ── SIDEBAR ── */}
-      <aside className="ad-sidebar">
-        <div className="ad-sidebar-header">
-          {!sidebarCollapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="ad-logo-mark">iF</div>
-              <span className="ad-brand">iFranchise</span>
-            </div>
-          )}
-          {sidebarCollapsed && (
-            <div className="ad-logo-mark" style={{ margin: '0 auto' }}>iF</div>
-          )}
-          {!sidebarCollapsed && (
-            <button className="ad-toggle" onClick={() => setSidebarCollapsed(true)}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
-        {sidebarCollapsed && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
-            <button className="ad-toggle" onClick={() => setSidebarCollapsed(false)}>
-              <ChevronRight size={16} />
-            </button>
+
+    {/* ── SIDEBAR ── */}
+    <aside className="ad-sidebar">
+      <div className="ad-sidebar-header">
+        {!sidebarCollapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src={logoSync} alt="FranchiSync" style={{ height: 50, width: 'auto', objectFit: 'contain' }} />
           </div>
         )}
-        <nav className="ad-nav">
-          {!sidebarCollapsed && <div className="ad-nav-section">Main Menu</div>}
-          {mainNav.map(item => (
-            <div
-              key={item.id}
-              className={`ad-nav-item ${activeModule === item.id ? 'active' : ''}`}
-              onClick={() => {
-                if (item.action) { item.action(); }
-                else { setActiveModule(item.id); if (item.id === 'applications') fetchApplications(); }
-              }}
-              title={sidebarCollapsed ? item.label : undefined}
-            >
-              <span className="ad-nav-icon">{item.icon}</span>
-              <span className="ad-nav-label">{item.label}</span>
-              {activeModule === item.id && <span className="ad-nav-bar" />}
-            </div>
-          ))}
-          {!sidebarCollapsed && (
-            <div className="ad-nav-section" style={{ marginTop: 8 }}>Account</div>
-          )}
-          {accountNav.map(item => (
-            <div
-              key={item.id}
-              className={`ad-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
-              onClick={() => {
-                if (item.action) { item.action(); }
-                else { setActiveModule(item.id); }
-              }}
-              title={sidebarCollapsed ? item.label : undefined}
-            >
-              <span className="ad-nav-icon">{item.icon}</span>
-              <span className="ad-nav-label">{item.label}</span>
-            </div>
-          ))}
-        </nav>
-      </aside>
+        {sidebarCollapsed && (
+          <img src={logoIfranchise} alt="iFranchise" style={{ height: 35, width: '10', objectFit: 'contain', margin: '10 auto', display: 'block' }} />
+        )}
+        {!sidebarCollapsed && (
+          <button className="ad-toggle" onClick={() => setSidebarCollapsed(true)}>
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {sidebarCollapsed && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+          <button className="ad-toggle" onClick={() => setSidebarCollapsed(false)}>
+            <ChevronRight size={16} />
+           
+          </button>
+        </div>
+    
+      )}
+     <nav className="ad-nav">
+  {!sidebarCollapsed && <div className="ad-nav-section">Main Menu</div>}
+  {mainNav.map(item => (
+    <div
+      key={item.id}
+      className={`ad-nav-item${activeModule === item.id ? ' active' : ''}`}
+      onClick={() => item.action ? item.action() : setActiveModule(item.id)}
+    >
+      <span className="ad-nav-icon">{item.icon}</span>
+      <span className="ad-nav-label">{item.label}</span>
+      {activeModule === item.id && <span className="ad-nav-bar" />}
+    </div>
+  ))}
+  {!sidebarCollapsed && (
+    <div className="ad-nav-section" style={{ marginTop: 8 }}>Account</div>
+  )}
+  {accountNav.map(item => (
+    <div
+      key={item.id}
+      className={`ad-nav-item${item.id === 'logout' ? ' logout' : ''}${activeModule === item.id ? ' active' : ''}`}
+      onClick={() => item.action ? item.action() : setActiveModule(item.id)}
+    >
+      <span className="ad-nav-icon">{item.icon}</span>
+      <span className="ad-nav-label">{item.label}</span>
+    </div>
+  ))}
+</nav>
+    </aside>
 
       {/* ── MAIN ── */}
       <main className="ad-main">
@@ -798,6 +921,7 @@ useEffect(() => {
           {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands}  initialFocus={inventoryFocus}/>}
+          {activeModule === 'FranchiseeInventoryContent' && <FranchiseeInventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'     && <MobileShopContent user={user} brands={brands}/>}
           {activeModule === 'mobileOrders'   && <MobileOrdersContent user={user} brands={brands}/>}
           {activeModule === 'receipts'       && <Receipts />}
@@ -918,33 +1042,31 @@ const fmtFull = (iso) =>
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
 
-/* ── Polished KPI card ── */
-function StatCard({ label, value, sub, color, icon: Icon }) {
+function StatCard({ label, value, sub, icon: Icon }) {
   return (
     <div
       style={{
-        background: C.white, border: '1px solid rgba(0,168,76,0.12)',
-        borderRadius: 18, padding: '18px 20px',
-        boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
-        transition: 'transform .18s ease, box-shadow .18s ease',
+        background:"#fff", border:`1px solid ${C.border}`,
+        borderRadius:20, padding:"20px 22px",
+        boxShadow:"0 2px 10px rgba(50,109,32,0.05)",
+        transition:"transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s ease",
       }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 26px rgba(0,140,60,0.14)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 14px rgba(0,140,60,0.07)'; }}
+      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow="0 16px 32px rgba(50,109,32,0.12)"; }}
+      onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 2px 10px rgba(50,109,32,0.05)"; }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.muted, marginBottom: 5 }}>{label}</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: color || C.ink, letterSpacing: '-0.5px' }}>{value}</div>
+          <div style={{ fontSize:10.5, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.09em", color:C.muted, marginBottom:6 }}>{label}</div>
+          <div style={{ fontSize:26, fontWeight:800, color:C.ink, letterSpacing:"-0.02em" }}>{value}</div>
         </div>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: C.greenLt, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={20} color={C.greenDk} />
+        <div style={{ width:42, height:42, borderRadius:12, background:C.ink, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Icon size={19} color={C.lime} />
         </div>
       </div>
-      <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>
+      <div style={{ fontSize:11.5, color:C.muted, fontWeight:500 }}>{sub}</div>
     </div>
   );
 }
-
 /* ── Pill badge with a small status dot ── */
 function ActionBadge({ action }) {
   const m = ACTION_META[action] || { color: C.muted, bg: C.bg, label: action, dot: C.muted };
@@ -1024,7 +1146,7 @@ const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimum
 const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
 const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmt8     = (d) => d.toISOString().slice(0, 10);
-const FONT     = "'Montserrat', sans-serif";
+const FONT = "'Plus Jakarta Sans', sans-serif";
 const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
 
 function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
@@ -1207,31 +1329,58 @@ function SparkBar({ values = [], color = "#00c853", height = 30 }) {
     </div>
   );
 }
-
 function PanelCard({ children, style: s }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+    <div style={{
+      background:"#fff", border:`1px solid ${C.border}`, borderRadius:20,
+      overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,0.05)",
+      transition:"box-shadow .25s ease, transform .25s ease",
+      ...s,
+    }}>
       {children}
     </div>
   );
 }
 
-function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#2E7D32,#00897b)", action }) {
+function CardHeader({ icon: Icon, title, sub, gradient, action }) {
+  if (gradient) {
+    return (
+      <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+            <Icon size={17} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
+            {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+          </div>
+        </div>
+        {action}
+      </div>
+    );
+  }
   return (
-    <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
-          <Icon size={17} color="#fff" />
+    <div style={{
+      padding:"16px 20px", display:"flex", justifyContent:"space-between",
+      alignItems:"center", borderBottom:`1px solid ${C.border}`, background:"#fff",
+    }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{
+          width:34, height:34, borderRadius:10, background:C.ink,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <Icon size={16} color={C.lime} />
         </div>
         <div>
-          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
-          {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+          <div style={{ fontFamily:FONT, fontWeight:800, fontSize:14, color:C.ink, letterSpacing:"-0.01em" }}>{title}</div>
+          {sub && <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>{sub}</div>}
         </div>
       </div>
       {action}
     </div>
   );
 }
+
 
 function ChartLabel({ children }) {
   return (
@@ -1241,6 +1390,19 @@ function ChartLabel({ children }) {
   );
 }
 
+function Eyebrow({ children }) {
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:7,
+      fontSize:10.5, fontWeight:800, letterSpacing:"0.12em",
+      textTransform:"uppercase", color:C.green,
+    }}>
+      <span style={{ width:6, height:6, borderRadius:"50%", background:C.lime,
+        boxShadow:"0 0 0 3px rgba(189,212,60,0.3)" }} />
+      {children}
+    </span>
+  );
+}
 function BulletItem({ text, color = "#00897b", size = "normal" }) {
   const fs = size === "small" ? 11 : 12.5;
   return (
@@ -2315,7 +2477,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const closeInfo = () => setInfoModal(null);
 
   const [toast, setToast] = useState(null);
-  const hasActiveFilters = !!(filterBrand || filterBranch || (rangeMode === "custom" && appliedRange) || viewArchive);
 
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
 
@@ -2467,17 +2628,6 @@ const deleteArchive = (year) => {
       closeInfo();
     },
   });
-};
-
-const clearAllFilters = () => {
-  setFilterBrand(null);
-  setFilterBranch(null);
-  setRangeMode("preset");
-  setPreset("month");
-  setAppliedRange(null);
-  setCustomFrom(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
-  setCustomTo(fmt8(today));
-  setViewArchive(null);
 };
 
 const applyCustomRange = async () => {
@@ -2688,6 +2838,7 @@ const applyCustomRange = async () => {
                 <Store size={10} /> {filterBranch} <X size={9} />
               </span>
             )}
+            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
           </>
         )}
 
@@ -2730,20 +2881,6 @@ const applyCustomRange = async () => {
             </>
           ) : "Apply"}
         </button>
-        {hasActiveFilters && (
-        <button
-          onClick={clearAllFilters}
-          style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "7px 14px", borderRadius: 9,
-            border: "1px solid #fecaca", background: "#fff",
-            color: "#ef4444", fontSize: 12, fontWeight: 700,
-            cursor: "pointer", fontFamily: FONT,
-          }}
-        >
-          <X size={12} /> Clear All Filters
-        </button>
-        )}
          </div>
 
         {/* Archive */}
@@ -2981,15 +3118,15 @@ function ActivityLogContent({ user }) {
   // to the top of the scrollable card body ("Event ID / Timestamp / User..." row).
   // Given its own tinted background + shadow so it reads as a distinct bar,
   // not just text floating over the same white as the rows.
-  const stickyTh = {
-    position: 'sticky', top: 0, zIndex: 5,
-    padding: '13px 12px', textAlign: 'left', fontWeight: 800, fontSize: 10.5,
-    color: '#00695c', letterSpacing: '0.08em', textTransform: 'uppercase',
-    background: 'linear-gradient(180deg,#eafaf3,#ddf5e9)',
-    borderBottom: '2px solid #a7ddc4',
-    boxShadow: '0 3px 8px rgba(0,140,60,0.08)',
-    whiteSpace: 'nowrap',
-  };
+const stickyTh = {
+  position:'sticky', top:0, zIndex:5,
+  padding:'13px 12px', textAlign:'left', fontWeight:800, fontSize:10.5,
+  color:C.greenDk, letterSpacing:'0.08em', textTransform:'uppercase',
+  background:'#F6F7F1',
+  borderBottom:`2px solid ${C.border}`,
+  boxShadow:'none',
+  whiteSpace:'nowrap',
+};
   const stickyTheadRow = {
     boxShadow: '0 2px 0 rgba(0,140,60,0.05)',
   };
@@ -3437,7 +3574,6 @@ function BmModal({ title, onClose, onSubmit, saving = false, children }) {
     </div>
   );
 }
-
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -3960,6 +4096,300 @@ const handleRestore = async (entry) => {
   );
 }
 
+
+function FranchiseeInventoryContent({ user, brands: propBrands = [] }) {
+  const [ingredients, setIngredients] = useState([]);
+  const [batchesByIngredient, setBatchesByIngredient] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [batchLoadingId, setBatchLoadingId] = useState(null);
+  const [activeBrand, setActiveBrand] = useState(null);
+  const [activeBranch, setActiveBranch] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const apiUrl = process.env.REACT_APP_API_URL;
+
+  const fetchIngredients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/ingredients`);
+      const data = await res.json();
+      setIngredients(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch franchisee inventory:", err);
+      setIngredients([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => { fetchIngredients(); }, [fetchIngredients]);
+
+  const branchNamesFor = useCallback((brandName) => {
+    const brandObj = propBrands.find(b => normalize(b.name) === normalize(brandName));
+    if (!brandObj) {
+      return [...new Set(ingredients.filter(i => normalize(i.brand) === normalize(brandName)).map(i => i.branch).filter(Boolean))];
+    }
+    return (brandObj.branches || []).map(br => typeof br === "string" ? br : br.name).filter(Boolean);
+  }, [propBrands, ingredients]);
+
+  const availableBrands = useMemo(() => {
+    const fromProps = propBrands.map(b => b.name).filter(Boolean);
+    const fromItems = ingredients.map(i => i.brand).filter(Boolean);
+    return [...new Set([...fromProps, ...fromItems])];
+  }, [propBrands, ingredients]);
+
+  const itemsForBrand = useCallback((brandName) =>
+    ingredients.filter(i => normalize(i.brand) === normalize(brandName)), [ingredients]);
+
+  const activeBrandItems = useMemo(() => {
+    if (!activeBrand) return [];
+    const q = search.trim().toLowerCase();
+    return itemsForBrand(activeBrand).filter(item => {
+      if (activeBranch && item.branch !== activeBranch) return false;
+      if (q && !String(item.name || "").toLowerCase().includes(q) && !String(item.branch || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [activeBrand, activeBranch, search, itemsForBrand]);
+
+  const loadBatches = useCallback(async (ingredient, force = false) => {
+    if (!ingredient?.id) return;
+    setSelectedProduct(ingredient);
+    if (!force && batchesByIngredient[ingredient.id]) return;
+    setBatchLoadingId(ingredient.id);
+    try {
+      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+      const data = await res.json();
+      const active = (Array.isArray(data) ? data : []).filter(b => Number(b.stock || 0) > 0);
+      const sorted = sortBatchesByMethod(active, ingredient.brand, ingredient.perishable);
+      setBatchesByIngredient(prev => ({ ...prev, [ingredient.id]: sorted }));
+    } catch (err) {
+      console.error("Failed to load FIFO/FEFO batches:", err);
+      setBatchesByIngredient(prev => ({ ...prev, [ingredient.id]: [] }));
+    } finally {
+      setBatchLoadingId(null);
+    }
+  }, [apiUrl, batchesByIngredient]);
+
+  useEffect(() => {
+    if (!activeBrand) return;
+    if (selectedProduct && normalize(selectedProduct.brand) !== normalize(activeBrand)) setSelectedProduct(null);
+  }, [activeBrand, selectedProduct]);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+    const stillVisible = activeBrandItems.some(i => String(i.id) === String(selectedProduct.id));
+    if (!stillVisible) setSelectedProduct(null);
+  }, [activeBrandItems, selectedProduct]);
+
+  const totalStock = (item) => Number(item?.stock || 0);
+  const isLow = (item) => Number(item?.stock || 0) <= Number(item?.min_stock || 0);
+  const money = (n) => `₱${Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
+  const dateOnly = (d) => d ? new Date(d).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric", timeZone:"Asia/Manila" }) : "—";
+
+  const brandStats = (brandName) => {
+    const rows = itemsForBrand(brandName);
+    return {
+      products: rows.length,
+      stock: rows.reduce((s, i) => s + Number(i.stock || 0), 0),
+      low: rows.filter(isLow).length,
+      branches: new Set(rows.map(i => i.branch).filter(Boolean)).size,
+    };
+  };
+
+  return (
+    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .fr-brand-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+        .fr-brand-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(50,109,32,.12) !important; border-color: #c9dba0 !important; }
+        .fr-product-row { transition: background .12s ease, border-color .12s ease; }
+        .fr-product-row:hover { background:#f8faf5 !important; }
+      `}</style>
+
+      {!activeBrand ? (
+        <>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:18 }}>
+            <div>
+              
+              <div style={{ fontSize:12, fontWeight: 800, color:C.muted, marginTop:3 }}>Select a brand to view branch stock and its FIFO / FEFO consumption queue.</div>
+            </div>
+            <button onClick={fetchIngredients} style={{ ...smallBtnSt, height:36, padding:"0 14px", border:`1px solid ${C.border}`, background:C.white, color:C.green }}>
+              <RefreshCw size={13} style={loading ? { animation:"spin .8s linear infinite" } : undefined}/> Refresh
+            </button>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(235px, 1fr))", gap:16 }}>
+            {availableBrands.map(brandName => {
+              const st = brandStats(brandName);
+              return (
+                <button key={brandName} className="fr-brand-card" onClick={() => { setActiveBrand(brandName); setActiveBranch(""); setSelectedProduct(null); setSearch(""); }}
+                  style={{ textAlign:"left", background:C.white, border:`1px solid ${C.border}`, borderRadius:18, padding:0, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer", fontFamily:"inherit" }}>
+                  <div style={{ height:5, background:"linear-gradient(90deg,#bdd43c,#3b791e)" }}/>
+                  <div style={{ padding:"18px 18px 16px" }}>
+                    <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:15, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brandName}</div>
+                        <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{st.branches} branch{st.branches===1?"":"es"}</div>
+                      </div>
+                      <div style={{ width:40, height:40, borderRadius:12, background:"#F6F7F1", display:"flex", alignItems:"center", justifyContent:"center", color:C.green }}>
+                        <Building2 size={19}/>
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:18 }}>
+                      <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase" }}>Products</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{st.products}</div></div>
+                      <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase" }}>Stock</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{st.stock}</div></div>
+                      <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:st.low?C.red:C.green, marginTop:3 }}>{st.low}</div></div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {!loading && availableBrands.length === 0 && (
+              <div style={{ gridColumn:"1/-1", background:C.white, border:`1px solid ${C.border}`, borderRadius:18, padding:"50px 20px", textAlign:"center", color:C.muted }}>No franchisee inventory brands found.</div>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+              <button onClick={() => { setActiveBrand(null); setActiveBranch(""); setSelectedProduct(null); }} style={{ ...smallBtnSt, height:34, width:34, padding:0, justifyContent:"center", border:`1px solid ${C.border}`, background:C.white, color:C.greenDk }}>←</button>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:17, fontWeight:800, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{activeBrand}</div>
+                <div style={{ fontSize:11.5, color:C.muted, marginTop:2 }}>Franchisee Inventory · FIFO / FEFO batch consumption</div>
+              </div>
+            </div>
+            <button onClick={() => { fetchIngredients(); if (selectedProduct) loadBatches(selectedProduct, true); }} style={{ ...smallBtnSt, height:34, padding:"0 13px", border:`1px solid ${C.border}`, background:C.white, color:C.green }}>
+              <RefreshCw size={12} style={loading || batchLoadingId ? { animation:"spin .8s linear infinite" } : undefined}/> Refresh
+            </button>
+          </div>
+
+          <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:16, padding:"12px 14px", marginBottom:14, display:"flex", gap:9, alignItems:"center", flexWrap:"wrap", boxShadow:"0 2px 8px rgba(50,109,32,.04)" }}>
+            <div style={{ position:"relative", flex:"1 1 230px" }}>
+              <Search size={13} color={C.muted} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search product or branch…" style={{ ...invInputSt, height:36, paddingLeft:30 }}/>
+            </div>
+            <select value={activeBranch} onChange={e=>{ setActiveBranch(e.target.value); setSelectedProduct(null); }} style={{ ...invInputSt, width:220, height:36, cursor:"pointer" }}>
+              <option value="">All Branches</option>
+              {branchNamesFor(activeBrand).map(br => <option key={br} value={br}>{br}</option>)}
+            </select>
+            {(activeBranch || search) && <button onClick={()=>{setActiveBranch("");setSearch("");setSelectedProduct(null);}} style={{ ...smallBtnSt, height:36, border:`1px solid ${C.border}`, background:C.white, color:C.muted }}>Clear Filters</button>}
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(360px, .95fr) minmax(430px, 1.25fr)", gap:14, alignItems:"stretch" }}>
+            <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", minHeight:520 }}>
+              <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", background:"#fbfcf8" }}>
+                <div>
+                  <div style={{ fontSize:13.5, fontWeight:800, color:C.ink }}>Products</div>
+                  <div style={{ fontSize:10.5, color:C.muted, marginTop:2 }}>Choose a product to inspect its queue</div>
+                </div>
+                <span style={{ fontSize:10.5, fontWeight:800, color:C.greenDk, background:"#f0f5e8", border:`1px solid ${C.greenMid}`, borderRadius:20, padding:"3px 9px" }}>{activeBrandItems.length}</span>
+              </div>
+
+              <div style={{ maxHeight:620, overflowY:"auto" }}>
+                {loading ? (
+                  <div style={{ padding:"50px 20px", textAlign:"center", color:C.muted }}>Loading products…</div>
+                ) : activeBrandItems.length === 0 ? (
+                  <div style={{ padding:"50px 20px", textAlign:"center", color:C.muted }}>No products match the selected filters.</div>
+                ) : activeBrandItems.map(item => {
+                  const active = String(selectedProduct?.id) === String(item.id);
+                  const fifo = getFifoMethod(item.brand, item.perishable);
+                  return (
+                    <div key={item.id} className="fr-product-row" role="button" onClick={()=>loadBatches(item)}
+                      style={{ padding:"13px 15px", borderBottom:`1px solid ${C.bg}`, cursor:"pointer", background:active?"#f6f8ef":C.white, borderLeft:active?`3px solid ${C.lime}`:"3px solid transparent" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" }}>
+                        <div style={{ minWidth:0, flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
+                          <div style={{ fontSize:10.5, color:C.muted, marginTop:3, display:"flex", gap:8, flexWrap:"wrap" }}>
+                            <span>{item.branch || "—"}</span><span>·</span><span>Min {item.min_stock ?? 0}</span><span>·</span><span>{money(item.cost_per_unit)}</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontSize:14, fontWeight:800, color:isLow(item)?C.red:C.greenDk }}>{totalStock(item)} <span style={{ fontSize:10, fontWeight:600, color:C.muted }}>{item.unit}</span></div>
+                          <span style={{ display:"inline-block", marginTop:5, padding:"2px 7px", borderRadius:20, fontSize:9.5, fontWeight:800, background:fifo.method==="FEFO"?"#fff7ed":"#f0f5e8", color:fifo.method==="FEFO"?"#9a3412":C.greenDk, border:`1px solid ${fifo.method==="FEFO"?"#fed7aa":C.greenMid}` }}>{fifo.method}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", minHeight:520 }}>
+              {!selectedProduct ? (
+                <div style={{ height:"100%", minHeight:520, display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center", padding:30, color:C.muted }}>
+                  <div>
+                    <div style={{ width:52, height:52, borderRadius:16, background:"#F6F7F1", margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center", color:C.green }}><Package size={23}/></div>
+                    <div style={{ fontSize:13.5, fontWeight:800, color:C.ink }}>Select a product</div>
+                    <div style={{ fontSize:11.5, marginTop:5, lineHeight:1.5 }}>Choose a product on the left to view its FIFO or FEFO batch consumption queue.</div>
+                  </div>
+                </div>
+              ) : (() => {
+                const fifo = getFifoMethod(selectedProduct.brand, selectedProduct.perishable);
+                const batches = batchesByIngredient[selectedProduct.id] || [];
+                const totalBatchStock = batches.reduce((s,b)=>s+Number(b.stock||0),0);
+                const isLoadingBatches = batchLoadingId === selectedProduct.id;
+                return (
+                  <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+                    <div style={{ padding:"15px 17px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12 }}>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:14, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{selectedProduct.name}</div>
+                          <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>{selectedProduct.branch || "—"} · {totalBatchStock} {selectedProduct.unit} · {batches.length} active batch{batches.length===1?"":"es"}</div>
+                        </div>
+                        <button onClick={()=>loadBatches(selectedProduct, true)} style={{ ...smallBtnSt, height:30, padding:"0 10px", border:`1px solid ${C.border}`, background:C.white, color:C.green }}><RefreshCw size={11} style={isLoadingBatches?{animation:"spin .8s linear infinite"}:undefined}/></button>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 10px", borderRadius:8, background:fifo.method==="FEFO"?"#fffbeb":"#f0f5e8", border:`1px solid ${fifo.method==="FEFO"?"#fde68a":C.greenMid}`, fontSize:10.5, color:fifo.method==="FEFO"?"#9a3412":C.greenDk, fontWeight:700, marginTop:11 }}>
+                        <span>{fifo.method} QUEUE</span><span style={{ fontWeight:500, opacity:.85 }}>— {fifo.queueLabel}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ padding:"0 16px 16px", overflowY:"auto", flex:1 }}>
+                      {isLoadingBatches ? (
+                        <div style={{ textAlign:"center", padding:"42px 0", color:C.muted }}><RefreshCw size={18} style={{animation:"spin .8s linear infinite"}}/><div style={{fontSize:11.5,marginTop:8}}>Loading queue…</div></div>
+                      ) : batches.length === 0 ? (
+                        <div style={{ textAlign:"center", padding:"48px 20px", color:C.muted, fontSize:12 }}>No active batches recorded for this product.</div>
+                      ) : batches.map((batch, index) => {
+                        const nextOut = index === 0;
+                        const keyDate = fifo.method === "FEFO" ? batch.exp_date : (batch.supply_date || batch.mfg_date || batch.created_at);
+                        return (
+                          <div key={batch.id || index} style={{ padding:"13px 2px", borderBottom:`1px solid ${nextOut?C.greenMid:C.border}` }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"42px 1.1fr .9fr .7fr", gap:10, alignItems:"center" }}>
+                              <div style={{ width:30, height:30, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center", background:nextOut?C.ink:"#F6F7F1", color:nextOut?C.lime:C.muted, fontSize:11, fontWeight:800 }}>{index+1}</div>
+                              <div style={{ minWidth:0 }}>
+                                <div style={{ fontSize:11.5, fontWeight:800, color:C.ink }}>Batch {batch.batch_number || batch.lot_number || `#${index+1}`}</div>
+                                <div style={{ fontSize:10.5, color:C.muted, marginTop:2 }}>{fifo.method === "FEFO" ? "Expiry" : "Received"}: {dateOnly(keyDate)}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize:9.5, color:C.muted, fontWeight:700, textTransform:"uppercase" }}>Remaining</div>
+                                <div style={{ fontSize:12.5, fontWeight:800, color:C.ink, marginTop:2 }}>{Number(batch.stock||0)} {selectedProduct.unit}</div>
+                              </div>
+                              <div style={{ textAlign:"right" }}>
+                                {nextOut ? <span style={{ display:"inline-block", padding:"4px 8px", borderRadius:20, background:"#f0f5e8", border:`1px solid ${C.greenMid}`, color:C.greenDk, fontSize:9.5, fontWeight:900 }}>NEXT OUT</span> : <span style={{ fontSize:10.5, color:C.muted }}>Queued</span>}
+                              </div>
+                            </div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:10, paddingLeft:42 }}>
+                              <div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Cost / Unit</div><div style={{fontSize:11.5,fontWeight:700,color:C.ink,marginTop:2}}>{money(batch.cost_per_unit)}</div></div>
+                              <div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",fontWeight:700}}>Supplier</div><div style={{fontSize:11.5,fontWeight:700,color:C.ink,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{batch.supplier || "—"}</div></div>
+                              <div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",fontWeight:700}}>{fifo.method==="FEFO"?"Expiry":"Supply Date"}</div><div style={{fontSize:11.5,fontWeight:700,color:C.ink,marginTop:2}}>{dateOnly(keyDate)}</div></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ShopDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
@@ -4206,6 +4636,7 @@ const keyFor = (item) => (item.id != null ? `id-${item.id}` : `new-${normalize(i
 const placeholderImageFor = (name) =>
   `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
 
+
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
@@ -4224,8 +4655,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const [bulkListing,     setBulkListing]     = useState(false);
 
   const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
-
-  const [togglingId, setTogglingId] = useState(null);
 
   const editImageRef = useRef(null);
 
@@ -4277,10 +4706,13 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     fetchActivityLog();
   }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
+  // Pull the live unit cost from Stock Inventory. The shop price is always
+  // derived from this — never entered by hand — so it stays in sync
+  // automatically whenever cost changes upstream.
   const getCostFor = useCallback((brandName, itemName) => {
     const b = normalize(brandName), n = normalize(itemName);
     const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? Number(match.cost_per_unit || 0) : 0;
+    return match ? Number(match.cost || 0) : 0;
   }, [stockItems]);
 
   // Every unique (brand, product name) combination that exists in Stock
@@ -4295,19 +4727,18 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [stockItems]);
 
-  const getUnitFor = useCallback((brandName, itemName) => {
-    const b = normalize(brandName), n = normalize(itemName);
-    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? (match.unit || "") : "";
-  }, [stockItems]);
-
+  // Merge each Stock Inventory product with its Mobile Shop listing
+  // override (if one has been set up). Products with no override yet
+  // are still shown, marked as "Not Listed", so staff can list them.
+  // Price is always computed live from cost — it's never stored as a
+  // free-standing editable number. Stock is intentionally not exposed
+  // here — it lives in Stock Inventory's FIFO/FEFO queues.
   const items = useMemo(() => {
     return uniqueStockProducts.map((sp) => {
       const match = shopItems.find(
         (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
       );
       const liveCost = getCostFor(sp.brand, sp.name);
-      const liveUnit = getUnitFor(sp.brand, sp.name);
       return {
         id: match ? match.id : null,
         name: sp.name,
@@ -4315,13 +4746,13 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         shop: match ? match.shop : sp.brand,
         cost: liveCost,
         price: computePrice(liveCost),
-        unit: liveUnit,
+        unit: match ? match.unit : "",
         image_url: match ? match.image_url : "",
         is_visible: match ? !!match.is_visible : false,
         listed: !!match,
       };
     });
- }, [uniqueStockProducts, shopItems, getCostFor, getUnitFor]);
+  }, [uniqueStockProducts, shopItems, getCostFor]);
 
   const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
 
@@ -4407,18 +4838,15 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setEditLoading(true);
     const coords = await getBrowserLocation();
     const liveCost = getCostFor(editingItem.brand, editingItem.name);
-    const liveUnit = getUnitFor(editingItem.brand, editingItem.name);
     const payload = {
       name: editingItem.name,
       price: computePrice(liveCost),
       unit: editingItem.unit || "",
-      unit: liveUnit,
       image_url: editingItem.image_url,
       shop: editingItem.brand,
       brand: editingItem.brand,
       is_visible: editingItem.is_visible !== false,
       performed_by: user?.name || "System",
-      performed_by_role: user?.role || "Unknown", 
       latitude: coords?.latitude,
       longitude: coords?.longitude,
     };
@@ -4467,7 +4895,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         brand: it.brand,
         is_visible: true,
         performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown", 
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       };
@@ -4497,7 +4924,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
     } catch {
@@ -4511,13 +4938,13 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   };
 
   const toggleVisibility = async (item) => {
-    if (!item.id) return;
+    if (!item.id) return; // nothing to toggle until it's listed
     const coords = await getBrowserLocation();
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       fetchShopItems();
       fetchActivityLog();
@@ -4605,10 +5032,10 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
               <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ padding: "22px 24px" }}>
-            <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 14 }}>ℹ️</span>
-              <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, unit, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
-            </div>
+              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 14 }}>ℹ️</span>
+                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
                 <Field label="Brand">
                   <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
@@ -4624,8 +5051,9 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
                     </span>
                   </div>
                 </Field>
-                <Field label="Unit">
-                  <div style={readOnlyFieldStyle}>{editingItem.unit || "—"}</div>
+                <Field label="Unit (Optional)">
+                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
                 </Field>
                 <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
                 </div>
@@ -7801,6 +8229,11 @@ try {
   });
   const data = await response.json();
   if (data.success) {
+    await fetch(`${process.env.REACT_APP_API_URL}/delete-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_data: targetUser }),
+    });
     await fetchDeleteHistory();
     await fetchUsers();
     await fetchActivityLog();
@@ -8825,25 +9258,50 @@ const REJECT_REASONS = [
   "Other",
 ];
 
-/* ── FIFO / FEFO helpers — mirror Stock Inventory exactly ── */
+/* ── FIFO / FEFO helpers — copied from Stock Inventory process ── */
 function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
-function getFifoMethod(brand) {
-  return isPharmaBrand(brand)
-    ? { method:"FEFO", queueLabel:"nearest expiry dispensed first" }
-    : { method:"FIFO", queueLabel:"oldest received batch used first" };
+
+function getFifoMethod(brand, isPerishable) {
+  const isPharma = (brand || "").toLowerCase().includes("ipharma") && isPerishable;
+
+  if (isPharma || isPerishable) {
+    return {
+      method: "FEFO",
+      topLabel: "▲ EXPIRY DATE (FEFO KEY)",
+      queueLabel: isPharma
+        ? "nearest expiry dispensed first — FDA compliance & patient safety"
+        : "nearest expiry dispensed first — reduce spoilage waste",
+    };
+  }
+
+  return {
+    method: "FIFO",
+    topLabel: "◄ NEXT OUT",
+    queueLabel: "oldest received batch used first",
+  };
 }
-function sortBatchesByMethod(batches, brand) {
-  const { method } = getFifoMethod(brand);
+
+function sortBatchesByMethod(batches, brand, isPerishable) {
+  const { method } = getFifoMethod(brand, isPerishable);
+
   return [...batches].sort((a, b) => {
     if (method === "FEFO") {
       const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
       const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
       return da - db;
     }
+
     const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
     const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
     return da - db;
   });
+}
+
+function computeNextOutCost(batches, brand, isPerishable) {
+  const active = batches.filter(b => Number(b.stock) > 0);
+  if (active.length === 0) return null;
+  const sorted = sortBatchesByMethod(active, brand, isPerishable);
+  return Number(sorted[0].cost_per_unit) || 0;
 }
 
 const normalizeName = (str) => (str || "").trim().toLowerCase().replace(/s$/i, "");

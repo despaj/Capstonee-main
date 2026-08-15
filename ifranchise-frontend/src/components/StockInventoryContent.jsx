@@ -6,11 +6,11 @@ import {
 } from 'lucide-react'
 
 const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#6b8c77", border:"#daeee5",
-  bg:"#f4fbf7", white:"#ffffff", warn:"#d97706", warnBg:"#fffbeb",
-  ok:"#2e7d32", okBg:"#e8f5e9", red:"#dc2626", redBg:"#fef2f2",
-  amber:"#f59e0b", amberBg:"#fffbeb", amberBorder:"#fde68a",
+  green:"#3b791e", greenDk:"#2c5c16", greenLt:"#f0f5e8", greenMid:"#c9dba0",
+  teal:"#509820", lime:"#bdd43c", limeInk:"#24310C", ink:"#12241B", muted:"#5C6B60", border:"#E1E6D8",
+  bg:"#F6F7F1", white:"#ffffff", warn:"#b45309", warnBg:"#fff7ed",
+  ok:"#2c5c16", okBg:"#f0f5e8", red:"#c0392b", redBg:"#fdf1f0",
+  amber:"#d97706", amberBg:"#fff7ed", amberBorder:"#fed7aa",
 };
 
 const getBrowserLocation = () => {
@@ -26,8 +26,8 @@ const getBrowserLocation = () => {
 
 /* ── shared style atoms ── */
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:8,
-  border:`1px solid ${C.border}`, background:C.white,
+  height:38, padding:"0 13px", borderRadius:11,
+  border:`1.5px solid ${C.border}`, background:C.white,
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
   transition:"border-color .15s",
@@ -38,7 +38,7 @@ const invLabelSt = {
 };
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:8,
+  height:38, padding:"0 18px", borderRadius:999,
   border:`1px solid ${C.border}`, background:C.white,
   fontSize:13, fontWeight:600, cursor:"pointer",
   fontFamily:"inherit", whiteSpace:"nowrap", color:C.ink,
@@ -46,9 +46,9 @@ const btnSt = {
 };
 const btnPrimarySt = {
   ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
+  background:C.green,
   color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.25)",
+  boxShadow:"0 10px 24px rgba(59,121,30,0.22)",
 };
 const btnAmberSt = {
   ...btnSt,
@@ -58,7 +58,7 @@ const btnAmberSt = {
 };
 const smallBtnSt = {
   display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 11px", borderRadius:6,
+  height:28, padding:"0 12px", borderRadius:999,
   fontSize:12, fontWeight:600, cursor:"pointer",
   fontFamily:"inherit", background:"transparent",
   transition:"background .12s, color .12s",
@@ -116,7 +116,7 @@ function Toast({ toast, onClose }) {
       border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
       borderLeftWidth: 5,
       boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:"'Montserrat',sans-serif",
+      fontFamily:"'Plus Jakarta Sans',sans-serif",
       animation:"toastIn .22s ease",
     }}>
       <div style={{
@@ -491,7 +491,7 @@ function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, o
   const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
 
   const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
 
   return (
     <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
@@ -852,48 +852,41 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, read
 function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
   const brandItems  = items.filter(i => brandDef.match((i.brand || "").toLowerCase()));
   const lowCount    = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
-  const totalStock  = brandItems.reduce((s, i) => s + Number(i.stock || 0), 0);
+  const totalStock  = brandItems.reduce((sum, i) => sum + Number(i.stock || 0), 0);
   const branchCount = (brandObj?.branches || []).length;
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(); }}
       style={{
-        background:C.white, border:"1px solid rgba(0,168,76,0.14)", borderRadius:20,
-        overflow:"hidden", boxShadow:"0 4px 20px rgba(0,140,60,0.08)", cursor:"pointer",
-        transition:"transform .15s ease, box-shadow .15s ease", display:"flex", flexDirection:"column",
+        textAlign:"left", width:"100%", padding:0, appearance:"none",
+        background:C.white, border:`1px solid ${C.border}`, borderRadius:18,
+        overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer",
+        transition:"transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+        fontFamily:"inherit",
       }}
-      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,140,60,0.16)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,140,60,0.08)"; }}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 14px 32px rgba(50,109,32,.12)";e.currentTarget.style.borderColor=C.greenMid;}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 10px rgba(50,109,32,.05)";e.currentTarget.style.borderColor=C.border;}}
     >
-      <div style={{ padding:"22px 20px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white }}>
-        <div style={{ width:44, height:44, borderRadius:12, background:"rgba(255,255,255,0.18)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}>
-          <StoreIcon size={22} color="#fff"/>
+      <div style={{ padding:"18px 18px 15px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8", display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ width:42, height:42, borderRadius:12, background:C.ink, color:C.lime, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <StoreIcon size={19} color={C.lime}/>
         </div>
-        <div style={{ fontSize:17, fontWeight:800 }}>{brandDef.label}</div>
-        <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
-      </div>
-      <div style={{ padding:"16px 20px 20px", display:"flex", flexDirection:"column", gap:10 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Ingredients</span>
-          <span style={{ fontSize:15, fontWeight:800, color:C.ink }}>{brandItems.length}</span>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brandDef.label}</div>
+          <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{branchCount} branch{branchCount===1?"":"es"} · Head Office Inventory</div>
         </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Total Stock</span>
-          <span style={{ fontSize:15, fontWeight:800, color:C.ink }}>{totalStock.toLocaleString()}</span>
-        </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Low Stock</span>
-          <span style={{ fontSize:15, fontWeight:800, color:lowCount>0?C.warn:C.green }}>{lowCount}</span>
-        </div>
-        <div style={{ marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px 0", borderRadius:9, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700 }}>
-          View Products <ArrowRightIcon size={11}/>
+        <div style={{ width:30, height:30, borderRadius:9, background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.greenDk }}>
+          <ArrowRightIcon size={13}/>
         </div>
       </div>
-    </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:0, padding:"16px 18px" }}>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Products</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{brandItems.length}</div></div>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Stock</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{totalStock.toLocaleString()}</div></div>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:lowCount?C.red:C.green, marginTop:3 }}>{lowCount}</div></div>
+      </div>
+    </button>
   );
 }
 
@@ -913,7 +906,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   const filteredBranches = branches.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
 
   const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
 
   return (
     <div ref={ref} style={{ position:"relative", minWidth:150 }}>
@@ -1122,17 +1115,17 @@ const confirmDeleteBatch = async () => {
   const listMaxHeight = expanded ? 700 : 480;
 
 return (
-  <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)", display:"flex", flexDirection:"column" }}>
+  <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", display:"flex", flexDirection:"column" }}>
   {/* header */}
-  <div style={{ padding: expanded ? "16px 22px" : "12px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
+  <div style={{ padding: expanded ? "16px 22px" : "12px 18px", background:"#fbfcf8", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.ink, flexWrap:"wrap", gap:8 }}>
     <span style={{ display:"flex", alignItems:"center", gap:10 }}>
       {onBack ? (
         <button onClick={onBack} title="Back to all brands"
-          style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.22)", color:"#fff", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
+          style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
           <ArrowLeftIcon size={16} strokeWidth={2.5}/>
         </button>
       ) : (
-        <StoreIcon size={expanded?17:14} color="#fff"/>
+        <StoreIcon size={expanded?17:14} color={C.green}/>
       )}
       <span style={{ fontWeight:800, fontSize:expanded?17:14 }}>{brandDef.label}</span>
     </span>
@@ -1141,11 +1134,11 @@ return (
       {!readOnly && (
         <>
           <button onClick={() => onReceiveStock(brandDef, selected)} title="Receive stock for this brand"
-            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 11px", borderRadius:7, border:"1px solid rgba(255,255,255,0.55)", background:"rgba(255,255,255,0.16)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
+            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 11px", borderRadius:7, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk, fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
             <PlusIcon size={11}/> Receive Stock
           </button>
           <button onClick={() => onQuickAdd(brandDef)} title="Add a new ingredient to this brand"
-            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"1px solid rgba(255,255,255,0.5)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
             <PlusIcon size={12}/> Add Item
           </button>
         </>
@@ -1154,7 +1147,7 @@ return (
   </div>
 
       {/* filter row (brand filter intentionally omitted — this card IS the brand filter) */}
-      <div style={{ padding: expanded ? "12px 18px" : "10px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fafffe" }}>
+      <div style={{ padding: expanded ? "12px 18px" : "10px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fbfcf8" }}>
         <div style={{ position:"relative", flex:"1 1 160px", minWidth:100 }}>
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
@@ -1172,7 +1165,7 @@ return (
       </div>
 
       {/* two columns: left = scrollable product list, right = scrollable FIFO/FEFO queue */}
-      <div style={{ display:"grid", gridTemplateColumns: expanded ? "420px 1fr" : "1fr 1fr", minHeight: expanded ? 540 : 380, maxHeight: listMaxHeight }}>
+      <div style={{ display:"grid", gridTemplateColumns: expanded ? "minmax(360px,.95fr) minmax(430px,1.25fr)" : "1fr 1fr", minHeight: expanded ? 540 : 380, maxHeight: listMaxHeight }}>
         <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:listMaxHeight, minHeight:0 }}>
           {filtered.length === 0 ? (
             <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No products found.</div>
@@ -1182,9 +1175,9 @@ return (
             const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
             return (
               <div key={item.id} onClick={() => setSelectedId(item.id)}
-                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
+                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:active?C.greenDk:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
                   {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
                 </div>
                 <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>
@@ -1206,7 +1199,7 @@ return (
           })}
         </div>
 
-        <div style={{ padding: expanded ? 20 : 14, overflowY:"auto", maxHeight:listMaxHeight, minHeight:0 }}>
+        <div style={{ padding: expanded ? 17 : 14, overflowY:"auto", maxHeight:listMaxHeight, minHeight:0 }}>
           <FifoQueue
             product={selected} batches={batches} loading={batchLoading} readOnly={readOnly}
             onEditBatch={(b) => setEditingBatch({ batch:b, ingredient:selected })}
@@ -2573,7 +2566,7 @@ const openEdit = async item => {
     const active = sort.col === col;
     return (
       <th onClick={() => { setSort(s=>({ col, asc:s.col===col?!s.asc:true })); setPage(0); }}
-        style={{ padding:"11px 16px", textAlign:align, fontWeight:600, fontSize:12, color:active?C.green:C.muted, letterSpacing:"0.02em", borderBottom:`1.5px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#fafffe", minWidth:minW }}>
+        style={{ padding:"11px 16px", textAlign:align, fontWeight:600, fontSize:12, color:active?C.green:C.muted, letterSpacing:"0.02em", borderBottom:`1.5px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#fbfcf8", minWidth:minW }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
           {label}
           {active ? (sort.asc ? <SortAscIcon/> : <SortDescIcon/>) : <span style={{ opacity:0.22 }}><SortDescIcon/></span>}
@@ -2586,26 +2579,26 @@ const openEdit = async item => {
 
   /* ── render ── */
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", color:C.ink }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
-        .inv-row:hover td { background: #f4fbf7 !important; }
-        .edit-btn:hover  { background: #e8f5e9 !important; color: #00695c !important; }
+        .inv-row:hover td { background: #F6F7F1 !important; }
+        .edit-btn:hover  { background: #f0f5e8 !important; color: #2c5c16 !important; }
         .del-btn:hover   { background: #fef2f2 !important; color: #dc2626 !important; }
         button:not(:disabled) { transition: filter .15s ease, transform .1s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; cursor: pointer; }
         button:not(:disabled):hover { filter: brightness(0.96); }
         button:not(:disabled):active { transform: translateY(1px); }
         select, input { transition: border-color .15s ease, box-shadow .15s ease; }
-        select:hover:not(:disabled), input:hover:not(:disabled) { border-color: #00897b !important; }
-        select:focus, input:focus, textarea:focus { border-color: #00897b !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
+        select:hover:not(:disabled), input:hover:not(:disabled) { border-color: #3b791e !important; }
+        select:focus, input:focus, textarea:focus { border-color: #3b791e !important; box-shadow: 0 0 0 3px rgba(59,121,30,0.12); }
         [role="button"] { transition: filter .15s ease, transform .12s ease; }
         [role="button"]:hover { filter: brightness(0.97); }
       `}</style>
 
       {/* Landing screen: 4 brand cards — clicking one opens its full product + FIFO/FEFO view */}
       {!activeBrandDef ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
           {BRAND_DEFS.map(bd => (
             <BrandOverviewCard
               key={bd.key}
