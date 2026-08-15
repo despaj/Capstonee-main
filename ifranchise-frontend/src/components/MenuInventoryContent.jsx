@@ -738,13 +738,20 @@ function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick })
 function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   if (!item) return null;
 
-  const low        = Number(item.stock) <= Number(item.min_stock);
+  const low        = item.is_low;
   const isDeleting = deletingId === item.id;
   const ingredients = item.ingredients || [];
 
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
+        <div style={{ flex:1, background:low?C.warnBg:C.okBg, borderRadius:10, padding:"10px 14px" }}>
+  <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Can Make</div>
+  <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
+    {item.available_stock != null ? item.available_stock : "—"}
+    {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:"#fff3e0", padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+  </div>
+</div>
         <div style={{ minWidth:0 }}>
           <div style={{ fontSize:16, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
           <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:5 }}>
@@ -759,6 +766,11 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
           </button>
         </div>
       </div>
+      {item.low_ingredients?.length > 0 && (
+  <div style={{ fontSize:11, color:C.warn, marginTop:8 }}>
+    Low on: {item.low_ingredients.join(", ")}
+  </div>
+)}
 
       {item.image_url && (
         <img src={item.image_url} alt={item.name}
@@ -767,13 +779,6 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
       )}
 
       <div style={{ display:"flex", gap:10, marginBottom:16 }}>
-        <div style={{ flex:1, background:low?C.warnBg:C.okBg, borderRadius:10, padding:"10px 14px" }}>
-          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Stock</div>
-          <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
-            {item.stock}
-            {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:"#fff3e0", padding:"2px 7px", borderRadius:20 }}>LOW</span>}
-          </div>
-        </div>
         <div style={{ flex:1, background:C.greenLt, borderRadius:10, padding:"10px 14px" }}>
           <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Price</div>
           <div style={{ fontSize:18, fontWeight:800, color:C.greenDk }}>{fmtPeso(item.price)}</div>
@@ -871,9 +876,12 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
           {filtered.length === 0 ? (
             <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
           ) : filtered.map(item => {
-            const low = Number(item.stock) <= Number(item.min_stock);
-            const active = item.id === selectedId;
-            return (
+              const low = item.is_low;
+              const active = item.id === selectedId;
+              const stockPct = item.available_stock != null
+                ? Math.min(100, item.available_stock * 10)   // adjust scale as you like
+                : 0;
+              return (
               <div key={item.id} onClick={() => setSelectedId(item.id)}
                 style={{ padding:"11px 16px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
@@ -903,52 +911,78 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
+function computeAvailability(ingredients) {
+  if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
+
+  let minPortions = Infinity;
+  const lowIngredients = [];
+
+  for (const ing of ingredients) {
+    const qtyRequired = parseFloat(ing.qty_required) || 0;
+    const stock = parseFloat(ing.stock) || 0;
+    if (qtyRequired <= 0) continue;
+
+    const portions = Math.floor(stock / qtyRequired);
+    if (portions < minPortions) minPortions = portions;
+
+    if (ing.min_stock != null && stock <= parseFloat(ing.min_stock)) {
+      lowIngredients.push(ing.name);
+    }
+  }
+
+  return {
+    available: minPortions === Infinity ? null : minPortions,
+    lowIngredients,
+  };
+}
+
 function MenuBrandCard({
-  label, items, branchOptions, showBranchFilter,
-  onEdit, onRequestDelete, deletingId, onQuickAdd,
+  brandName, items, branchOptions, categories,
+  onEdit, onRequestDelete, deletingId, onQuickAdd, onBack,
+  onOpenDeleteHistory, deleteHistoryCount,
   onImportExcel, excelRef,
-  onOpenDeleteHistory, onOpenActivityLog, deleteHistoryCount, activityLogCount,
 }) {
-  const [search, setSearch]     = useState("");
-  const [branchF, setBranchF]   = useState("");
-  const [statusF, setStatusF]   = useState("");
-  const [viewingItem, setViewingItem] = useState(null);
+  const [search, setSearch]         = useState("");
+  const [branchF, setBranchF]       = useState("");
+  const [statusF, setStatusF]       = useState("");
+  const [categoryF, setCategoryF]   = useState("");
+  const [selectedId, setSelectedId] = useState(null);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return items
       .filter(i => {
-        if (q && !i.name.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
+        if (q && !i.name.toLowerCase().includes(q)) return false;
         if (branchF && i.branch !== branchF) return false;
-        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
-        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        if (categoryF && i.category !== categoryF) return false;
+        if (statusF === "low" && !i.is_low) return false;
+        if (statusF === "ok"  && i.is_low) return false;
         return true;
       })
       .sort((a,b) => a.name.localeCompare(b.name));
-  }, [items, search, branchF, statusF]);
+  }, [items, search, branchF, categoryF, statusF]);
 
   useEffect(() => {
-    if (viewingItem && !items.find(i => i.id === viewingItem.id)) setViewingItem(null);
-  }, [items, viewingItem]);
+    if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
+  }, [items, selectedId]);
 
-  // Keep the modal's item in sync with any live edits (stock/price changes, etc.)
-  const liveViewingItem = viewingItem ? (items.find(i => i.id === viewingItem.id) || null) : null;
-
-  const lowCount  = items.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
-  const anyFilter = search || branchF || statusF;
-  const clearAll  = () => { setSearch(""); setBranchF(""); setStatusF(""); };
-
-  const rowGridCols = "1fr 150px 90px 100px 90px 190px";
+  const selected = items.find(i => i.id === selectedId) || null;
+  const lowCount = items.filter(i => i.is_low).length;
 
   return (
-    <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
+    <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)", display:"flex", flexDirection:"column" }}>
       {/* header */}
-      <div style={{ padding:"14px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
-        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <StoreIcon size={17} color="#fff"/>
-          <span style={{ fontWeight:800, fontSize:16 }}>{label}</span>
+      <div style={{ padding:"16px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
+        <span style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {onBack ? (
+            <button onClick={onBack} title="Back to all brands"
+              style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.22)", color:"#fff", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
+              <ArrowLeftIcon size={16}/>
+            </button>
+          ) : (
+            <StoreIcon size={17} color="#fff"/>
+          )}
+          <span style={{ fontWeight:800, fontSize:17 }}>{brandName}</span>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
           <span style={{ opacity:0.92 }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
@@ -960,93 +994,75 @@ function MenuBrandCard({
       </div>
 
       {/* filter row */}
-      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", background:"#fafffe" }}>
-        <div style={{ position:"relative", flex:"1 1 200px", minWidth:160 }}>
-          <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item, branch…" style={{ ...invInputSt, height:34, fontSize:12, paddingLeft:28 }}/>
+      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fafffe" }}>
+        <div style={{ position:"relative", flex:"1 1 160px", minWidth:100 }}>
+          <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
-        {showBranchFilter && <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>}
-        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:34, fontSize:12, width:120 }}>
+        <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
+        <select value={categoryF} onChange={e=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:140 }}>
+          <option value="">All Categories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:110 }}>
           <option value="">All Status</option>
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
         </select>
         <div style={{ flex:1 }}/>
-        <button onClick={onOpenDeleteHistory} style={{ ...btnSt, height:34, fontSize:12, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
-          <HistoryIcon size={12}/> Delete History
+        <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:"1.5px solid #dc2626", color:"#dc2626", gap:5 }}>
+          <HistoryIcon size={11}/> Delete History
           {deleteHistoryCount > 0 && (
-            <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistoryCount}</span>
+            <span style={{ background:"#dc2626", color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
           )}
         </button>
-        <button onClick={onOpenActivityLog} style={{ ...btnSt, height:34, fontSize:12, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
-          <ActivityIcon size={12}/> Activity Log
-          {activityLogCount > 0 && (
-            <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLogCount}</span>
-          )}
-        </button>
-        <label style={{ ...btnSt, height:34, fontSize:12, cursor:"pointer" }}>
-          <FileIcon size={12}/> Import Excel
+        <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5 }}>
+          <FileIcon size={11}/> Import Excel
           <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
         </label>
       </div>
 
-      {anyFilter && (
-        <div style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 18px", borderBottom:`1px solid ${C.border}`, flexWrap:"wrap", background:"#fafffe" }}>
-          <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-          {search   && <Chip label={`"${search}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearch("")}/>}
-          {branchF  && <Chip label={branchF}        color="#00695c" bg="#e0f7fa" onRemove={()=>setBranchF("")}/>}
-          {statusF  && <Chip label={statusF==="low"?"Low Stock":"In Stock"} color={statusF==="low"?C.warn:C.ok} bg={statusF==="low"?C.warnBg:C.okBg} onRemove={()=>setStatusF("")}/>}
-          <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+      {/* two columns: left = scrollable item list, right = scrollable ingredients panel */}
+      <div style={{ display:"grid", gridTemplateColumns:"420px 1fr", minHeight:540, maxHeight:700 }}>
+        <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:700, minHeight:0 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
+          ) : filtered.map(item => {
+            const low = Number(item.stock) <= Number(item.min_stock);
+            const active = item.id === selectedId;
+            const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
+            return (
+              <div key={item.id} onClick={() => setSelectedId(item.id)}
+                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
+                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:active?C.greenDk:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+                  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
+                </div>
+                <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>
+                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
+                </div>
+                <div style={{ marginTop:5 }}>
+                  <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
+                </div>
+                <div style={{ display:"flex", gap:6, marginTop:7 }}>
+                  <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
+                  <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
 
-      {/* row/table header */}
-      <div style={{ display:"grid", gridTemplateColumns:rowGridCols, gap:8, padding:"10px 20px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
-        <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Status</span><span>Actions</span>
-      </div>
-
-      {/* row list */}
-      <div style={{ maxHeight:560, overflowY:"auto" }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding:"36px 14px", textAlign:"center", color:C.muted, fontSize:12.5 }}>No items found.</div>
-        ) : filtered.map(item => {
-          const low = Number(item.stock) <= Number(item.min_stock);
-          return (
-            <div key={item.id}
-              style={{ display:"grid", gridTemplateColumns:rowGridCols, gap:8, alignItems:"center", padding:"12px 20px", borderBottom:`1px solid ${C.bg}` }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</div>
-                {item.category && <div style={{ fontSize:11, color:C.muted, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.category}</div>}
-              </div>
-              <div style={{ fontSize:12, color:C.muted, display:"flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                <StoreIcon size={11} color={C.green}/> {item.branch}
-              </div>
-              <div style={{ fontSize:13, fontWeight:700, color:C.ink }}>{item.stock}</div>
-              <div style={{ fontSize:13, fontWeight:700, color:C.greenDk }}>{fmtPeso(item.price)}</div>
-              <div>
-                {low
-                  ? <span style={{ fontSize:10, fontWeight:800, color:C.warn, background:C.warnBg, padding:"3px 9px", borderRadius:20 }}>LOW</span>
-                  : <span style={{ fontSize:10, fontWeight:800, color:C.ok, background:C.okBg, padding:"3px 9px", borderRadius:20 }}>OK</span>}
-              </div>
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                <button onClick={()=>setViewingItem(item)} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.greenDk }}><EyeIcon size={10}/> View</button>
-                <button onClick={()=>onEdit(item)} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
-                <button onClick={()=>onRequestDelete(item)} disabled={deletingId===item.id} style={{ ...smallBtnSt, height:26, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
-              </div>
+        <div style={{ padding:20, overflowY:"auto", maxHeight:700, minHeight:0 }}>
+          {selected ? (
+            <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
+          ) : (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center", padding:20 }}>
+              <div>Select an item on the left<br/>to view its ingredients.</div>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
-
-      {liveViewingItem && (
-        <ItemDetailModal
-          item={liveViewingItem}
-          onClose={() => setViewingItem(null)}
-          onEdit={(it) => { setViewingItem(null); onEdit(it); }}
-          onRequestDelete={(it) => { setViewingItem(null); onRequestDelete(it); }}
-          deletingId={deletingId}
-        />
-      )}
     </div>
   );
 }
@@ -1056,6 +1072,8 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const isAdmin    = user?.role === "Super Admin" || user?.role === "Sales Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
+
+  const [branchFilter, setBranchFilter] = useState("");
 
   const brandList   = propBrands.length > 0 ? propBrands : [];
   const allBranches = useMemo(() => {
@@ -1113,10 +1131,11 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [ingDropOpen, setIngDropOpen] = useState(false);
   const ingRef = useRef(null);
 
-  const emptyForm = useCallback(() => ({
-    name:"", category:"", branch:isAdmin?"":userBranch,
-    cost:"", stock:0, minStock:0, price:"", ingredients:[], image_url:"",
-  }), [isAdmin, userBranch]);
+const emptyForm = useCallback(() => ({
+  name:"", category:"", branch:isAdmin?"":userBranch,
+  cost:"", price:"", ingredients:[], image_url:"",
+}), [isAdmin, userBranch]);
+
   const excelRef = useRef(null);
 
   const [formData,    setFormData]    = useState(emptyForm);
@@ -1158,15 +1177,17 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     finally { setLoading(false); }
   }, []);
 
-  const fetchStockItems = useCallback(async (branch) => {
-    try {
-      const effectiveBranch = !isAdmin ? userBranch : (branch || "");
-      const q = effectiveBranch ? `?branch=${encodeURIComponent(effectiveBranch)}` : "";
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
-      const d   = await res.json();
-      setStockItems(Array.isArray(d) ? d : []);
-    } catch { setStockItems([]); }
-  }, [isAdmin, userBranch]);
+const fetchStockItems = useCallback(async (branch, brand) => {
+  try {
+    const params = new URLSearchParams();
+    if (branch) params.set("branch", branch);
+    if (brand)  params.set("brand", brand);
+    const q = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
+    const d   = await res.json();
+    setStockItems(Array.isArray(d) ? d : []);
+  } catch { setStockItems([]); }
+}, []);
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
@@ -1181,6 +1202,12 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
       })) : []);
     } catch (err) { console.error("Failed to fetch inventory delete history:", err); }
   }, []);
+
+    useEffect(() => {
+  if (!formData.branch && !formBrandId) return;
+  const brandObj = brandList.find(b => String(b.id) === String(formBrandId));
+  fetchStockItems(formData.branch, brandObj?.name || "");
+}, [formData.branch, formBrandId, brandList, fetchStockItems]);
 
   const fetchActivityLog = useCallback(async () => {
     try {
@@ -1435,22 +1462,23 @@ const handleAddItem = async e => {
     finally { setRestoringId(null); }
   };
 
-  const openEditModal = item => {
-    setEditingItem(item);
-    setFormData({
-      name:item.name, category:item.category, branch:item.branch,
-      cost:item.cost||"", stock:item.stock, minStock:item.min_stock, price:item.price,
-      image_url: item.image_url || "",
-      ingredients: (item.ingredients||[]).map(ing => ({
-        stock_item_id: ing.stock_item_id || ing.id,
-        name:          ing.name,
-        qty_required:  ing.qty_required,
-        unit:          ing.unit,
-      })),
-    });
-    fetchStockItems(item.branch);
-    setShowEditModal(true);
-  };
+const openEditModal = item => {
+  setEditingItem(item);
+  setFormData({
+    name:item.name, category:item.category, branch:item.branch,
+    cost:item.cost||"", price:item.price,
+    image_url: item.image_url || "",
+    ingredients: (item.ingredients||[]).map(ing => ({
+      stock_item_id: ing.stock_item_id || ing.id,
+      name:          ing.name,
+      qty_required:  ing.qty_required,
+      unit:          ing.unit,
+    })),
+  });
+  const brandForItem = branchToBrand[item.branch] || "";
+  fetchStockItems(item.branch, brandForItem);
+  setShowEditModal(true);
+};
 
   const openAddModal = () => {
     const branch = isAdmin ? "" : userBranch;
@@ -1486,11 +1514,9 @@ const handleAddItem = async e => {
   const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
   const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
 
-  const ingFiltered = stockItems.filter(s => {
-    const matchesSearch = !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase());
-    const matchesBranch = formData.branch && s.branch === formData.branch;
-    return matchesSearch && matchesBranch;
-  });
+const ingFiltered = stockItems.filter(s => {
+  !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase())
+});
 
   // ── Excel import ─────────────────────────────────────────────────────────────
   const importExcel = e => {
@@ -1735,17 +1761,14 @@ const handleAddItem = async e => {
           Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
         </div>
       )}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:13 }}>
-        <div><label style={invLabelSt}>Stock Qty</label><input type="number" name="stock"    value={formData.stock}    onChange={handleInputChange} min="0" style={invInputSt}/></div>
-        <div><label style={invLabelSt}>Min Stock</label><input type="number" name="minStock" value={formData.minStock} onChange={handleInputChange} min="0" style={invInputSt}/></div>
-        <div><label style={invLabelSt}>Selling Price (₱)</label><input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/></div>
+    <div style={{ marginBottom:13 }}>
+      <label style={invLabelSt}>Selling Price (₱)</label>
+      <input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/>
+    </div>
+      <div style={{ marginBottom:13 }}>
+        <label style={invLabelSt}>Ingredients</label>
+        {renderIngredientPicker()}
       </div>
-     {["coffee spot", "food caravan"].some(b => formBrand?.name?.toLowerCase().includes(b)) && (
-  <div style={{ marginBottom:13 }}>
-    <label style={invLabelSt}>Ingredients</label>
-    {renderIngredientPicker()}
-  </div>
-)}
       <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
         <button type="button" disabled={saving} onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={{ ...btnSt, opacity: saving ? 0.5 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Cancel</button>
         <button type="submit" disabled={saving} style={{ ...btnPrimarySt, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
@@ -1763,13 +1786,15 @@ const handleAddItem = async e => {
 const goBackToBrands = () => {
   setActiveScreen("brands");
   setFilterBrand(null);
-  setFilterBrandName("");   // ← clear the brand-name filter too
+  setFilterBrandName("");
+  setBranchFilter("");
 };
 
 const openBrand = brandId => {
   const brandObj = brandList.find(b => b.id === brandId);
   setFilterBrand(brandId);
-  setFilterBrandName(brandObj ? brandObj.name : "");   // ← this is what brandGroups actually filters on
+  setFilterBrandName(brandObj ? brandObj.name : "");
+  setBranchFilter("");
   setActiveScreen("inventory");
 };
 
@@ -1815,179 +1840,87 @@ const openBrand = brandId => {
   }
 
   // ── Screen 2: Row-list card (scoped to selected brand for admins) ─────────────
-  return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      {fontImport}
+return (
+  <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+    {fontImport}
 
-      {/* Filter bar */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
-            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
-            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
-          </div>
-          {isAdmin && (
-            <select value={filterBrandName} onChange={e=>{setFilterBrandName(e.target.value);setFilterCategory("");}} style={{ ...invInputSt, width:170 }}>
-              <option value="">All Brands</option>
-              {brandList.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}
-            </select>
-          )}
-          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
-            <option value="">All Categories</option>
-            {filteredCategories.map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
-            <option value="">All Status</option>
-            <option value="low">Low Stock</option>
-            <option value="ok">In Stock</option>
-          </select>
-          <div style={{ flex:1 }}/>
-
-          {/* ── History buttons ── */}
-          <button onClick={()=>setShowDeleteHistory(true)} style={{ ...btnSt, border:"1.5px solid #dc2626", color:"#dc2626", gap:6 }}>
-            <HistoryIcon size={13}/> Delete History
-            {deleteHistory.length > 0 && (
-              <span style={{ background:"#dc2626", color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{deleteHistory.length}</span>
-            )}
-          </button>
-          <button onClick={()=>setShowActivityLog(true)} style={{ ...btnSt, border:`1.5px solid ${C.green}`, color:C.greenDk, gap:6 }}>
-            <ActivityIcon size={13}/> Activity Log
-            {activityLog.length > 0 && (
-              <span style={{ background:C.green, color:"#fff", fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:20 }}>{activityLog.length}</span>
-            )}
-          </button>
-
-          <label style={{ ...btnSt, cursor:"pointer" }}>
-            <FileIcon size={13}/> Import Excel
-            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={importExcel} style={{ display:"none" }}/>
-          </label>
-          <button onClick={()=>{
-            const branch = isAdmin ? "" : userBranch;
-            setFormData({...emptyForm(), branch});
-            fetchStockItems(branch);
-            setFormBrandId("");
-            setShowAddModal(true);
-          }} style={btnPrimarySt}>
-            <PlusIcon/> Add New Item
-          </button>
-        </div>
-
-        {/* Active filter chips */}
-        {anyFilter && (
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-            {searchQuery     && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
-            {filterBrandName && <Chip label={filterBrandName}    color={C.greenDk} bg={C.greenLt} onRemove={()=>setFilterBrandName("")}/>}
-            {filterCategory  && <Chip label={filterCategory}     color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
-            {filterStatus    && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
-          </div>
-        )}
+    {loading ? (
+      <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)` }}>
+        Loading inventory…
       </div>
+    ) : (
+      <MenuBrandCard
+        brandName={filterBrandName || "All Items"}
+        items={filteredItems}
+        branchOptions={branchOptionsForCard}
+        categories={filteredCategories}
+        onEdit={openEditModal}
+        onRequestDelete={setDeleteTarget}
+        deletingId={deletingId}
+        onQuickAdd={()=>{
+          const branch = isAdmin ? "" : userBranch;
+          setFormData({...emptyForm(), branch});
+          fetchStockItems(branch, filterBrandName || "");
+          setFormBrandId(filterBrand ? String(filterBrand) : "");
+          setShowAddModal(true);
+        }}
+        onBack={isAdmin ? goBackToBrands : null}
+        onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
+        deleteHistoryCount={deleteHistory.length}
+        onImportExcel={importExcel}
+        excelRef={excelRef}
+      />
+    )}
 
-      {/* One card per brand — rows are already grouped by brand this way,
-          and each card gets its own branch dropdown + its own pagination. */}
-      {loading ? (
-        <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)` }}>
-          Loading inventory…
-        </div>
-      ) : brandGroups.length === 0 ? (
-        <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic", background:C.white, borderRadius:18, border:`1px dashed ${C.border}` }}>
-          No items match your filters.
-        </div>
-      ) : brandGroups.map(group => {
-        const branches     = [...new Set(group.items.map(i => i.branch))].sort();
-        const activeBranch = brandBranchFilter[group.name] || "all";
-        const displayItems = activeBranch === "all" ? group.items : group.items.filter(i => i.branch === activeBranch);
-        const lowCount      = displayItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
+    {deleteTarget && (
+      <DeleteConfirmModal
+        target={{
+          name: deleteTarget.name,
+          branch: deleteTarget.branch,
+          ingredientCount: (deleteTarget.ingredients || []).length,
+        }}
+        deleting={deletingId === deleteTarget.id}
+        onClose={() => { if (deletingId !== deleteTarget.id) setDeleteTarget(null); }}
+        onConfirm={async () => {
+          await handleDeleteItem(deleteTarget.id);
+          setDeleteTarget(null);
+        }}
+      />
+      )}
 
-        return (
-          <div key={group.name} style={{ marginBottom:22, background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-            <div style={{ padding:"14px 20px", background:`linear-gradient(135deg,#2E7D32,#00897b)`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:34, height:34, borderRadius:9, background:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                  <StoreIcon size={17} color="#fff"/>
-                </div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:15, color:"#fff" }}>{group.name}</div>
-                  <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.8)", marginTop:1 }}>
-                    {displayItems.length} item{displayItems.length!==1?"s":""}{lowCount>0?` · ${lowCount} low stock`:""}
-                  </div>
-                </div>
-              </div>
-              {branches.length > 1 && (
-                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.8)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Branch</span>
-                  <select
-                    value={activeBranch}
-                    onChange={e=>setBrandBranchFilter(p=>({...p,[group.name]:e.target.value}))}
-                    style={{ height:32, padding:"0 10px", borderRadius:8, border:"1.5px solid rgba(255,255,255,0.4)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", outline:"none", appearance:"none" }}>
-                    <option value="all" style={{ color:"#0d2b1e" }}>All branches</option>
-                    {branches.map(b=><option key={b} value={b} style={{ color:"#0d2b1e" }}>{b}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            <MenuBrandListCard
-              items={displayItems}
-              onEdit={openEditModal}
-              onRequestDelete={setDeleteTarget}
-              deletingId={deletingId}
-            />
+    {/* Add / Edit Modal */}
+    {(showAddModal || showEditModal) && (
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
+        onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
+        <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:560, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
+            <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
           </div>
-        );
-      })}
-
-      {deleteTarget && (
-        <DeleteConfirmModal
-          target={{
-            name: deleteTarget.name,
-            branch: deleteTarget.branch,
-            ingredientCount: (deleteTarget.ingredients || []).length,
-          }}
-          deleting={deletingId === deleteTarget.id}
-          onClose={() => { if (deletingId !== deleteTarget.id) setDeleteTarget(null); }}
-          onConfirm={async () => {
-            await handleDeleteItem(deleteTarget.id);
-            setDeleteTarget(null);
-          }}
-        />
-        )}
-
-      {/* Add / Edit Modal */}
-      {(showAddModal || showEditModal) && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
-          onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
-          <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:560, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-              <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
-              <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
-            </div>
-            <form onSubmit={showAddModal ? handleAddItem : handleEditItem}>
-              {renderFormFields()}
-            </form>
-          </div>
+          <form onSubmit={showAddModal ? handleAddItem : handleEditItem}>
+            {renderFormFields()}
+          </form>
         </div>
-      )}
+      </div>
+    )}
 
-      {showDeleteHistory && (
-        <InventoryDeleteHistoryPanel
-          history={deleteHistory}
-          onRestore={handleRestore}
-          restoringId={restoringId}
-          onClose={() => setShowDeleteHistory(false)}
-        />
-      )}
+    {showDeleteHistory && (
+      <InventoryDeleteHistoryPanel
+        history={deleteHistory}
+        onRestore={handleRestore}
+        restoringId={restoringId}
+        onClose={() => setShowDeleteHistory(false)}
+      />
+    )}
 
-      {showActivityLog && (
-        <InventoryActivityLogPanel
-          log={activityLog}
-          onClose={() => setShowActivityLog(false)}
-        />
-      )}
+    {showActivityLog && (
+      <InventoryActivityLogPanel
+        log={activityLog}
+        onClose={() => setShowActivityLog(false)}
+      />
+    )}
 
-       <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
-  );
+     <Toast toast={toast} onClose={() => setToast(null)} />
+  </div>
+);
 }

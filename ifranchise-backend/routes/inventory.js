@@ -3,6 +3,31 @@ const router = express.Router();
 const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
 
+function computeAvailability(ingredients) {
+  if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
+
+  let minPortions = Infinity;
+  const lowIngredients = [];
+
+  for (const ing of ingredients) {
+    const qtyRequired = parseFloat(ing.qty_required) || 0;
+    const stock = parseFloat(ing.stock) || 0;
+    if (qtyRequired <= 0) continue;
+
+    const portions = Math.floor(stock / qtyRequired);
+    if (portions < minPortions) minPortions = portions;
+
+    if (ing.min_stock != null && stock <= parseFloat(ing.min_stock)) {
+      lowIngredients.push(ing.name);
+    }
+  }
+
+  return {
+    available: minPortions === Infinity ? null : minPortions,
+    lowIngredients,
+  };
+}
+
 router.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -12,13 +37,20 @@ router.get("/inventory", async (req, res) => {
 
     const items = await Promise.all(result.rows.map(async item => {
       const ings = await pool.query(
-        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock
+        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock, i.min_stock
          FROM product_ingredients pi
          JOIN ingredients i ON i.id = pi.ingredient_id
          WHERE pi.inventory_id = $1`,
         [item.id]
       );
-      return { ...item, ingredients: ings.rows };
+      const { available, lowIngredients } = computeAvailability(ings.rows);
+      return {
+        ...item,
+        ingredients: ings.rows,
+        available_stock: available,        // null = no ingredients linked, can't compute
+        low_ingredients: lowIngredients,    // names of ingredients running low
+        is_low: lowIngredients.length > 0,
+      };
     }));
 
     res.json(items);
