@@ -310,137 +310,1226 @@ const bmLabel = {
   marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
 };
 
-
 function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
   const [open, setOpen] = useState(false);
+  const [liveNotif, setLiveNotif] = useState(null);
+  const [readCounts, setReadCounts] = useState({});
+
   const wrapRef = useRef(null);
+  const previousCountsRef = useRef({});
+  const initializedRef = useRef(false);
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+
+    const handler = (e) => {
+      if (
+        wrapRef.current &&
+        !wrapRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+
+    return () =>
+      document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const totalCount = notifications.reduce((s, n) => s + n.count, 0);
+  /*
+  ========================================================
+  LIVE NOTIFICATION DETECTOR
+  ========================================================
+  */
+
+  useEffect(() => {
+    if (!notifications) return;
+
+    const currentCounts = {};
+
+    notifications.forEach((n) => {
+      currentCounts[n.id] = n.count || 0;
+    });
+
+    /*
+      Initial load:
+      store existing counts but don't show a splash.
+    */
+    if (!initializedRef.current) {
+      previousCountsRef.current = currentCounts;
+      initializedRef.current = true;
+      return;
+    }
+
+    let newNotification = null;
+
+    for (const n of notifications) {
+      const previousCount =
+        previousCountsRef.current[n.id] || 0;
+
+      const currentCount =
+        n.count || 0;
+
+      if (currentCount > previousCount) {
+        newNotification = n;
+        break;
+      }
+    }
+
+    previousCountsRef.current = currentCounts;
+
+    if (newNotification) {
+      setLiveNotif(newNotification);
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+
+      toastTimerRef.current = setTimeout(() => {
+        setLiveNotif(null);
+      }, 5000);
+    }
+  }, [notifications]);
+
+  /*
+  ========================================================
+  CLEAN TIMER
+  ========================================================
+  */
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  /*
+  ========================================================
+  READ / UNREAD NOTIFICATION COUNTS
+  ========================================================
+
+  Clicking a notification marks the CURRENT count for that
+  notification as read. Only newly-added counts appear again.
+  */
+
+  useEffect(() => {
+    setReadCounts((prev) => {
+      const next = { ...prev };
+      const currentById = new Map(
+        (Array.isArray(notifications) ? notifications : []).map((n) => [
+          n.id,
+          Number(n.count || 0),
+        ])
+      );
+
+      let changed = false;
+
+      // If a notification disappeared completely, reset its read count
+      // so a future occurrence starts as unread again.
+      Object.keys(next).forEach((id) => {
+        if (!currentById.has(id)) {
+          if (next[id] !== 0) {
+            next[id] = 0;
+            changed = true;
+          }
+          return;
+        }
+
+        const currentCount = currentById.get(id);
+        const readCount = Number(next[id] || 0);
+
+        // If the server count decreased after an item was resolved,
+        // keep the remembered read count within the current total.
+        if (readCount > currentCount) {
+          next[id] = currentCount;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [notifications]);
+
+  const markNotificationAsRead = (notification) => {
+    if (!notification?.id) return;
+
+    setReadCounts((prev) => ({
+      ...prev,
+      [notification.id]: Number(notification.count || 0),
+    }));
+  };
+
+  const visibleNotifications = (Array.isArray(notifications) ? notifications : [])
+    .map((n) => {
+      const currentCount = Number(n.count || 0);
+      const alreadyRead = Number(readCounts[n.id] || 0);
+      const unreadCount = Math.max(currentCount - alreadyRead, 0);
+
+      return {
+        ...n,
+        unreadCount,
+      };
+    })
+    .filter((n) => n.unreadCount > 0);
+
+  const totalCount = visibleNotifications.reduce(
+    (sum, n) => sum + n.unreadCount,
+    0
+  );
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        title="Notifications"
-        style={{
-          position: "relative", width: 42, height: 42, borderRadius: 14,
-          border: `1px solid ${open ? "rgba(0,168,76,0.4)" : "rgba(0,168,76,0.15)"}`,
-          background: open ? "rgba(0,168,76,0.08)" : "#fff",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "all .15s", boxShadow: "0 2px 8px rgba(0,140,60,0.06)",
-          flexShrink: 0,
-        }}
-      >
-        <Bell size={19} color={open ? "#00897b" : "#5a7a65"} />
-        {totalCount > 0 && (
-          <span style={{
-            position: "absolute", top: -4, right: -4,
-            minWidth: 18, height: 18, borderRadius: 9, padding: "0 4px",
-            background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff",
-            fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
-            border: "2px solid #fff", fontFamily: "'Montserrat',sans-serif",
-          }}>
-            {totalCount > 99 ? "99+" : totalCount}
-          </span>
-        )}
-      </button>
+    <>
+      {/* ====================================================
+          LIVE NOTIFICATION SPLASH
+          TOP RIGHT
+      ==================================================== */}
 
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 10px)", right: 0, width: 340, maxHeight: 440,
-          background: "#fff", borderRadius: 16, border: "1px solid rgba(0,168,76,0.15)",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.16)", overflow: "hidden", zIndex: 3000,
-          fontFamily: "'Montserrat',sans-serif", display: "flex", flexDirection: "column",
-        }}>
-          <div style={{
-            padding: "14px 18px", background: "linear-gradient(135deg,#2E7D32,#00897b)",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>Notifications</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>
-                {totalCount > 0 ? `${totalCount} item${totalCount !== 1 ? "s" : ""} need attention` : "You're all caught up"}
-              </div>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-              title="Refresh"
+      {liveNotif && (
+        <div
+          className="franchisync-live-toast"
+          onClick={() => {
+            markNotificationAsRead(liveNotif);
+            onNavigate(liveNotif);
+            setLiveNotif(null);
+          }}
+        >
+          {/* ICON */}
+
+          <div className="franchisync-toast-icon">
+            <liveNotif.icon
+              size={19}
+              strokeWidth={2.2}
+              color="#2E7D32"
+            />
+          </div>
+
+          {/* CONTENT */}
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <div
               style={{
-                width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.4)",
-                background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
               }}
             >
-              <RefreshCw size={13} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
-            </button>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+
+                  color: "#2E7D32",
+
+                  textTransform: "uppercase",
+                  letterSpacing: ".5px",
+
+                  background: "#EDF7EF",
+
+                  border:
+                    "1px solid #B9DDBF",
+
+                  borderRadius: 20,
+
+                  padding: "3px 7px",
+                }}
+              >
+                New
+              </span>
+
+              <div
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 800,
+
+                  color: "#234329",
+
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {liveNotif.title}
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+
+                fontSize: 12,
+                fontWeight: 500,
+
+                color: "#5F6D63",
+
+                lineHeight: 1.5,
+
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {liveNotif.message}
+            </div>
+
+            <div
+              style={{
+                marginTop: 7,
+
+                fontSize: 10.5,
+                fontWeight: 700,
+
+                color: "#2E7D32",
+              }}
+            >
+              Click to view
+            </div>
           </div>
 
-          <div style={{ overflowY: "auto", flex: 1 }}>
-            {loading && notifications.length === 0 ? (
-              <div style={{ padding: "40px 0", textAlign: "center", color: "#5a7a65", fontSize: 13 }}>Loading…</div>
-            ) : notifications.length === 0 ? (
-              <div style={{ padding: "40px 20px", textAlign: "center" }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                  <Check size={20} color="#059669" />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#0d2b1e" }}>Nothing needs your attention</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>New alerts will show up here.</div>
-              </div>
-            ) : notifications.map((n) => (
-              <div
-                key={n.id}
-                onClick={() => { onNavigate(n); setOpen(false); }}
-                style={{
-                  display: "flex", gap: 12, padding: "13px 18px", cursor: "pointer",
-                  borderBottom: "1px solid #f0f8f0", alignItems: "flex-start",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f6fef8"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, background: n.bg,
-                  border: `1px solid ${n.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <n.icon size={16} color={n.color} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{n.title}</span>
-                      <span style={{
-                        flexShrink: 0,
-                        minWidth: 20,
-                        height: 20,
-                        padding: "0 6px",
-                        borderRadius: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        lineHeight: 1,
-                        background: n.bg,
-                        color: n.color,
-                        border: `1px solid ${n.border}`,
-                        boxSizing: "border-box",
-                      }}>
-                        {n.count > 99 ? "99+" : n.count}
-                      </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2, lineHeight: 1.45 }}>{n.message}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* CLOSE */}
+
+          <button
+            type="button"
+            className="franchisync-toast-close"
+            title="Close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLiveNotif(null);
+            }}
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+
+          {/* AUTO CLOSE PROGRESS */}
+
+          <div className="franchisync-toast-progress" />
         </div>
       )}
-    </div>
+
+      {/* ====================================================
+          YOUR ORIGINAL NOTIFICATION BELL
+      ==================================================== */}
+
+      <div
+        ref={wrapRef}
+        style={{
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={() => setOpen((v) => !v)}
+          title="Notifications"
+          style={{
+            position: "relative",
+
+            width: 42,
+            height: 42,
+
+            borderRadius: 11,
+
+            border: `1px solid ${
+              open
+                ? "#2E7D32"
+                : "#B9DDBF"
+            }`,
+
+            background: open
+              ? "#E8F5EA"
+              : "#EDF7EF",
+
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+
+            cursor: "pointer",
+
+            transition:
+              "all .2s ease",
+
+            boxShadow: open
+              ? "0 4px 14px rgba(46,125,50,.14)"
+              : "0 2px 8px rgba(46,125,50,.07)",
+
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor =
+              "#2E7D32";
+
+            e.currentTarget.style.background =
+              "#E8F5EA";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor =
+              open
+                ? "#2E7D32"
+                : "#B9DDBF";
+
+            e.currentTarget.style.background =
+              open
+                ? "#E8F5EA"
+                : "#EDF7EF";
+          }}
+        >
+          <Bell
+            size={19}
+            color="#2E7D32"
+            strokeWidth={2.1}
+          />
+
+          {totalCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+
+                top: -5,
+                right: -5,
+
+                minWidth: 19,
+                height: 19,
+
+                borderRadius: 10,
+
+                padding: "0 4px",
+
+                background:
+                  "linear-gradient(135deg,#ef4444,#dc2626)",
+
+                color: "#fff",
+
+                fontSize: 10,
+                fontWeight: 800,
+
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                border: "2px solid #fff",
+
+                fontFamily:
+                  "'Montserrat',sans-serif",
+
+                boxShadow:
+                  "0 2px 6px rgba(220,38,38,.22)",
+              }}
+            >
+              {totalCount > 99
+                ? "99+"
+                : totalCount}
+            </span>
+          )}
+        </button>
+
+        {/* ==================================================
+            DROPDOWN
+        ================================================== */}
+
+        {open && (
+          <div
+            className="franchisync-notification-dropdown"
+            style={{
+              position: "absolute",
+
+              top:
+                "calc(100% + 10px)",
+
+              right: 0,
+
+              width: 370,
+
+              height: 430,
+
+              maxWidth:
+                "calc(100vw - 30px)",
+
+              background: "#fff",
+
+              borderRadius: 13,
+
+              border:
+                "1px solid #C7E0CB",
+
+              boxShadow:
+                "0 18px 45px rgba(15,23,42,.15)",
+
+              overflow: "hidden",
+
+              zIndex: 3000,
+
+              fontFamily:
+                "'Montserrat',sans-serif",
+
+              display: "flex",
+              flexDirection: "column",
+
+              animation:
+                "franchisyncDropdown .22s ease-out",
+            }}
+          >
+            {/* HEADER */}
+
+            <div
+              style={{
+                padding: "15px 18px",
+
+                background:
+                  "linear-gradient(135deg,#256529,#2E7D32)",
+
+                display: "flex",
+
+                justifyContent:
+                  "space-between",
+
+                alignItems: "center",
+
+                flexShrink: 0,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 14,
+
+                    color: "#fff",
+                  }}
+                >
+                  Notifications
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 11,
+
+                    color:
+                      "rgba(255,255,255,.78)",
+
+                    marginTop: 3,
+                  }}
+                >
+                  {totalCount > 0
+                    ? `${totalCount} ${
+                        totalCount !== 1
+                          ? "notifications"
+                          : "notification"
+                      } require attention`
+                    : "You're all caught up"}
+                </div>
+              </div>
+
+              {/* REFRESH */}
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefresh();
+                }}
+                title="Refresh"
+                style={{
+                  width: 30,
+                  height: 30,
+
+                  borderRadius: 8,
+
+                  border:
+                    "1px solid rgba(255,255,255,.45)",
+
+                  background:
+                    "rgba(255,255,255,.15)",
+
+                  color: "#fff",
+
+                  cursor: "pointer",
+
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+
+                  flexShrink: 0,
+
+                  transition:
+                    "all .2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background =
+                    "#fff";
+
+                  e.currentTarget.style.color =
+                    "#2E7D32";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background =
+                    "rgba(255,255,255,.15)";
+
+                  e.currentTarget.style.color =
+                    "#fff";
+                }}
+              >
+                <RefreshCw
+                  size={13}
+                  style={{
+                    animation: loading
+                      ? "notificationSpin .8s linear infinite"
+                      : "none",
+                  }}
+                />
+              </button>
+            </div>
+
+            {/* ==================================================
+                VERTICAL NOTIFICATION LIST
+            ================================================== */}
+
+            <div
+              className="franchisync-notification-scroll"
+              style={{
+                overflowY: "auto",
+                overflowX: "hidden",
+
+                flex: 1,
+
+                minHeight: 0,
+
+                background: "#fff",
+              }}
+            >
+              {loading &&
+              notifications.length === 0 ? (
+                <div
+                  style={{
+                    padding: "45px 0",
+
+                    textAlign: "center",
+
+                    color: "#5A7A65",
+
+                    fontSize: 13,
+                  }}
+                >
+                  <RefreshCw
+                    size={20}
+                    color="#2E7D32"
+                    style={{
+                      marginBottom: 9,
+
+                      animation:
+                        "notificationSpin .8s linear infinite",
+                    }}
+                  />
+
+                  <div>
+                    Loading notifications...
+                  </div>
+                </div>
+              ) : visibleNotifications.length ===
+                0 ? (
+                /* EMPTY */
+
+                <div
+                  style={{
+                    padding:
+                      "45px 20px",
+
+                    textAlign:
+                      "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+
+                      borderRadius: 10,
+
+                      background:
+                        "#EDF7EF",
+
+                      border:
+                        "1px solid #B9DDBF",
+
+                      display: "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+
+                      margin:
+                        "0 auto 11px",
+                    }}
+                  >
+                    <Check
+                      size={20}
+                      color="#2E7D32"
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 13,
+
+                      fontWeight: 700,
+
+                      color: "#243128",
+                    }}
+                  >
+                    Nothing needs your attention
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 11.5,
+
+                      color: "#829087",
+
+                      marginTop: 4,
+                    }}
+                  >
+                    New alerts will show up here.
+                  </div>
+                </div>
+              ) : (
+                visibleNotifications.map(
+                  (n, index) => (
+                    <div
+                      key={n.id}
+
+                      /*
+                      =========================================
+                      CLICK SPECIFIC NOTIFICATION
+                      =========================================
+
+                      This keeps your original redirect logic.
+
+                      onNavigate(n) receives the selected
+                      notification and your parent component
+                      decides which module to open.
+                      */
+
+                      onClick={() => {
+                        markNotificationAsRead(n);
+                        onNavigate(n);
+                        setOpen(false);
+                      }}
+
+                      style={{
+                        display: "flex",
+
+                        gap: 12,
+
+                        padding:
+                          "14px 18px",
+
+                        cursor:
+                          "pointer",
+
+                        borderBottom:
+                          index !==
+                          visibleNotifications.length -
+                            1
+                            ? "1px solid #EEF3EF"
+                            : "none",
+
+                        alignItems:
+                          "flex-start",
+
+                        background:
+                          "#fff",
+
+                        transition:
+                          "background .18s ease, transform .18s ease",
+                      }}
+                      onMouseEnter={(
+                        e
+                      ) => {
+                        e.currentTarget.style.background =
+                          "#F5FAF6";
+
+                        e.currentTarget.style.transform =
+                          "translateX(2px)";
+                      }}
+                      onMouseLeave={(
+                        e
+                      ) => {
+                        e.currentTarget.style.background =
+                          "#fff";
+
+                        e.currentTarget.style.transform =
+                          "translateX(0)";
+                      }}
+                    >
+                      {/* ICON */}
+
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+
+                          borderRadius: 9,
+
+                          // Uniform FranchiSync icon style
+                          background:
+                            "#EDF7EF",
+
+                          border:
+                            "1px solid #B9DDBF",
+
+                          display: "flex",
+
+                          alignItems:
+                            "center",
+
+                          justifyContent:
+                            "center",
+
+                          flexShrink: 0,
+                        }}
+                      >
+                        <n.icon
+                          size={17}
+                          strokeWidth={2}
+                          color="#2E7D32"
+                        />
+                      </div>
+
+                      {/* DETAILS */}
+
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+
+                            justifyContent:
+                              "space-between",
+
+                            alignItems:
+                              "flex-start",
+
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+
+                              fontSize: 12.75,
+
+                              color:
+                                "#243128",
+
+                              lineHeight: 1.4,
+
+                              overflow:
+                                "hidden",
+
+                              textOverflow:
+                                "ellipsis",
+
+                              whiteSpace:
+                                "nowrap",
+                            }}
+                          >
+                            {n.title}
+                          </span>
+
+                          {n.count > 0 && (
+                            <span
+                              style={{
+                                flexShrink:
+                                  0,
+
+                                minWidth:
+                                  22,
+
+                                height: 21,
+
+                                padding:
+                                  "0 6px",
+
+                                borderRadius:
+                                  6,
+
+                                display:
+                                  "flex",
+
+                                alignItems:
+                                  "center",
+
+                                justifyContent:
+                                  "center",
+
+                                fontSize:
+                                  10,
+
+                                fontWeight:
+                                  800,
+
+                                lineHeight:
+                                  1,
+
+                                background:
+                                  "#EDF7EF",
+
+                                color:
+                                  "#2E7D32",
+
+                                border:
+                                  "1px solid #B9DDBF",
+
+                                boxSizing:
+                                  "border-box",
+                              }}
+                            >
+                              {n.unreadCount >
+                              99
+                                ? "99+"
+                                : n.unreadCount}
+                            </span>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 11.75,
+
+                            color:
+                              "#65736A",
+
+                            marginTop: 4,
+
+                            lineHeight:
+                              1.45,
+                          }}
+                        >
+                          {n.message}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================
+            STYLE / MOTION
+        ==================================================== */}
+
+        <style>
+          {`
+
+            /* ================================
+               DROPDOWN
+            ================================= */
+
+            @keyframes franchisyncDropdown {
+              0% {
+                opacity: 0;
+                transform: translateY(-7px) scale(.98);
+              }
+
+              100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+            }
+
+
+            /* ================================
+               TOP RIGHT LIVE SPLASH
+            ================================= */
+
+            .franchisync-live-toast {
+              position: fixed;
+
+              top: 22px;
+              right: 24px;
+
+              width: 410px;
+              max-width: calc(100vw - 32px);
+
+              min-height: 88px;
+
+              padding: 16px 17px;
+
+              background: #FFFDF3;
+
+              border: 1.5px solid #2E7D32;
+
+              border-radius: 13px;
+
+              box-shadow:
+                0 16px 45px rgba(15,23,42,.18),
+                0 3px 10px rgba(46,125,50,.08);
+
+              z-index: 99999;
+
+              display: flex;
+
+              align-items: flex-start;
+
+              gap: 13px;
+
+              box-sizing: border-box;
+
+              font-family:
+                'Montserrat',
+                sans-serif;
+
+              cursor: pointer;
+
+              overflow: hidden;
+
+              animation:
+                franchisyncLiveSplash
+                .52s
+                cubic-bezier(.22,1,.36,1);
+            }
+
+
+            .franchisync-live-toast:hover {
+              background: #FFFBEA;
+
+              box-shadow:
+                0 18px 48px rgba(15,23,42,.21),
+                0 4px 14px rgba(46,125,50,.10);
+
+              transform: translateY(2px);
+            }
+
+
+            .franchisync-toast-icon {
+              width: 40px;
+              height: 40px;
+
+              border-radius: 9px;
+
+              background: #EDF7EF;
+
+              border: 1px solid #2E7D32;
+
+              display: flex;
+
+              align-items: center;
+              justify-content: center;
+
+              flex-shrink: 0;
+
+              box-shadow:
+                0 3px 8px rgba(46,125,50,.08);
+            }
+
+
+            .franchisync-toast-close {
+              width: 27px;
+              height: 27px;
+
+              border: none;
+
+              border-radius: 7px;
+
+              background: transparent;
+
+              color: #59675D;
+
+              display: flex;
+
+              align-items: center;
+              justify-content: center;
+
+              cursor: pointer;
+
+              flex-shrink: 0;
+
+              transition:
+                background .18s ease,
+                color .18s ease;
+            }
+
+
+            .franchisync-toast-close:hover {
+              background: rgba(46,125,50,.08);
+
+              color: #2E7D32;
+            }
+
+
+            @keyframes franchisyncLiveSplash {
+
+              0% {
+                opacity: 0;
+
+                transform:
+                  translateX(65px)
+                  translateY(-12px)
+                  scale(.92);
+              }
+
+              55% {
+                opacity: 1;
+
+                transform:
+                  translateX(-7px)
+                  translateY(0)
+                  scale(1.015);
+              }
+
+              75% {
+                transform:
+                  translateX(3px)
+                  translateY(0)
+                  scale(.997);
+              }
+
+              100% {
+                opacity: 1;
+
+                transform:
+                  translateX(0)
+                  translateY(0)
+                  scale(1);
+              }
+            }
+
+
+            /* ================================
+               5 SECOND PROGRESS BAR
+            ================================= */
+
+            .franchisync-toast-progress {
+              position: absolute;
+
+              left: 0;
+              bottom: 0;
+
+              height: 3px;
+
+              background:
+                linear-gradient(
+                  90deg,
+                  #2E7D32,
+                  #66A96B
+                );
+
+              animation:
+                franchisyncToastProgress
+                5s
+                linear forwards;
+            }
+
+
+            @keyframes franchisyncToastProgress {
+
+              0% {
+                width: 100%;
+              }
+
+              100% {
+                width: 0%;
+              }
+            }
+
+
+            /* ================================
+               SCROLLBAR
+            ================================= */
+
+            .franchisync-notification-scroll {
+              scrollbar-width: thin;
+
+              scrollbar-color:
+                #A8D1AE
+                #F2F7F3;
+
+              overscroll-behavior:
+                contain;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar {
+              width: 7px;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-track {
+              background:
+                #F2F7F3;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-thumb {
+              background:
+                #A8D1AE;
+
+              border-radius:
+                10px;
+
+              border:
+                2px solid #F2F7F3;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-thumb:hover {
+              background:
+                #2E7D32;
+            }
+
+
+            /* ================================
+               REFRESH
+            ================================= */
+
+            @keyframes notificationSpin {
+
+              from {
+                transform:
+                  rotate(0deg);
+              }
+
+              to {
+                transform:
+                  rotate(360deg);
+              }
+            }
+
+
+            /* ================================
+               MOBILE
+            ================================= */
+
+            @media (max-width: 600px) {
+
+              .franchisync-live-toast {
+
+                top: 12px;
+
+                left: 12px;
+                right: 12px;
+
+                width: auto;
+
+                max-width: none;
+              }
+            }
+
+          `}
+        </style>
+      </div>
+    </>
   );
 }
 export default function AdminDashboard() {
@@ -558,34 +1647,43 @@ const confirmLogout = async () => {
 
 const fetchNotifications = useCallback(async () => {
   setNotifLoading(true);
+
   try {
-    const [appsRes, reportsRes, lowStockRes] = await Promise.all([
+    const [appsRes, reportsRes, ingredientsRes] = await Promise.all([
       fetch(`${process.env.REACT_APP_API_URL}/applications`),
       fetch(`${process.env.REACT_APP_API_URL}/reports?status=submitted`),
-      fetch(`${process.env.REACT_APP_API_URL}/notifications/low-stock-items`), 
+      // Use the exact same source as Head Office Inventory.
+      fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
     ]);
 
-    const apps      = appsRes.ok      ? await appsRes.json()      : [];
-    const reports    = reportsRes.ok   ? await reportsRes.json()   : [];
-    const lowStock   = lowStockRes.ok  ? await lowStockRes.json()  : [];
+    const apps = appsRes.ok ? await appsRes.json() : [];
+    const reports = reportsRes.ok ? await reportsRes.json() : [];
+    const ingredients = ingredientsRes.ok ? await ingredientsRes.json() : [];
 
-    const pendingApps    = Array.isArray(apps) ? apps.filter(a => a.status === "pending") : [];
+    const pendingApps = Array.isArray(apps)
+      ? apps.filter(a => String(a.status || "").toLowerCase() === "pending")
+      : [];
+
     const pendingReports = Array.isArray(reports) ? reports : [];
-    const lowStockItems  = Array.isArray(lowStock) ? lowStock : [];
+
+    // Keep this aligned with Head Office Inventory's low-stock rule.
+    const lowStockItems = Array.isArray(ingredients)
+      ? ingredients.filter(item => Number(item?.stock ?? 0) <= Number(item?.min_stock ?? 0))
+      : [];
 
     const items = [];
 
     if (pendingApps.length > 0) {
       items.push({
         id: "applications",
-        module: "Applications",
+        module: "applications",
         title: "Pending Applications",
         message: `${pendingApps.length} application${pendingApps.length !== 1 ? "s" : ""} awaiting review`,
         count: pendingApps.length,
         icon: FileCheck,
-        bg: "#fef9c3",
-        color: "#92400e",
-        border: "#fde68a",
+        bg: "#f0f5e8",
+        color: "#3b791e",
+        border: "#c9dba0",
       });
     }
 
@@ -597,39 +1695,64 @@ const fetchNotifications = useCallback(async () => {
         message: `${pendingReports.length} report${pendingReports.length !== 1 ? "s" : ""} waiting for approval`,
         count: pendingReports.length,
         icon: FileText,
-        bg: "#dbeafe",
-        color: "#1e40af",
-        border: "#93c5fd",
+        bg: "#f0f5e8",
+        color: "#3b791e",
+        border: "#c9dba0",
       });
     }
 
-if (lowStockItems.length > 0) {
-  // Group items by brand + branch
-  const grouped = {};
-  lowStockItems.forEach(item => {
-    const key = `${item.brand || "Unknown Brand"}|${item.branch || "Unknown Branch"}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(item);
-  });
+    if (lowStockItems.length > 0) {
+      // Group by brand + branch so the notification list stays readable.
+      const grouped = {};
 
-  Object.entries(grouped).forEach(([key, groupItems]) => {
-    const [brand, branch] = key.split("|");
-    const names = groupItems.slice(0, 3).map(i => i.name).join(", ");
+      lowStockItems.forEach(item => {
+        const brandName = item.brand || "Unknown Brand";
+        const branchName = item.branch || "Head Office";
+        const key = `${brandName}|${branchName}`;
 
-    items.push({
-      id: `low-stock-${key}`,
-      module: "stockInventory", 
-      title: `${brand} ${branch} — Low Stock`,
-      message: groupItems.length <= 3
-        ? `${names} running low`
-        : `${names} and ${groupItems.length - 3} more running low`,
-      count: groupItems.length,
-      icon: AlertTriangle,
-      bg: "#fee2e2", color: "#dc2626", border: "#fecaca",
-      navParams: { brand, branch, filterLowStock: true },
-    });
-  });
-}
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+      });
+
+      Object.entries(grouped).forEach(([key, groupItems]) => {
+        const [brandName, branchName] = key.split("|");
+
+        // Include units in the preview so the user knows how each item is measured.
+        const preview = groupItems
+          .slice(0, 3)
+          .map(item => `${item.name || "Unnamed Product"} (${item.unit || "units"})`)
+          .join(", ");
+
+        let stockMessage;
+        if (groupItems.length === 1) {
+          stockMessage = `${preview} is running low.`;
+        } else if (groupItems.length <= 3) {
+          stockMessage = `${preview} are running low.`;
+        } else {
+          stockMessage = `${preview} and ${groupItems.length - 3} more are running low.`;
+        }
+
+        items.push({
+          id: `head-office-low-stock-${brandName}-${branchName}`,
+          module: "stockInventory",
+          title: `${brandName} — Low Stock`,
+          // Keep push/live notification concise. Full per-item quantities are inside Head Office Inventory.
+          message: `${stockMessage} Suggested restock: View more inside items.`,
+          count: groupItems.length,
+          icon: AlertTriangle,
+          bg: "#fffdf3",
+          color: "#3b791e",
+          border: "#bdd43c",
+          suggestion: "Suggested restock: View more inside items.",
+          lowStockItems: groupItems,
+          navParams: {
+            brand: brandName,
+            branch: branchName,
+            filterLowStock: true,
+          },
+        });
+      });
+    }
 
     setNotifications(items);
   } catch (err) {
@@ -646,23 +1769,6 @@ useEffect(() => {
   const interval = setInterval(fetchNotifications, 60000);
   return () => clearInterval(interval);
 }, [fetchNotifications, user?.id]);
-useEffect(() => {
-  if (!user?.id) return;
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 60000);
-  return () => clearInterval(interval);
-}, [fetchNotifications, user?.id]);
-
-useEffect(() => {
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 60000); // refresh every 60s
-  return () => clearInterval(interval);
-}, [fetchNotifications]);
-  useEffect(() => {
-    fetchNotifications();
-    const t = setInterval(fetchNotifications, 60000); // refresh every minute
-    return () => clearInterval(t);
-  }, [fetchNotifications]);
   const [applications, setApplications] = useState([]);
   useEffect(() => {
   fetchApplications();
@@ -4204,7 +5310,7 @@ function FranchiseeInventoryContent({ user, brands: propBrands = [] }) {
         @keyframes spin { to { transform: rotate(360deg); } }
         .fr-brand-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
         .fr-brand-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(50,109,32,.12) !important; border-color: #c9dba0 !important; }
-        .fr-product-row { transition: background .12s ease, border-color .12s ease; }
+        .fr-product-row { transition: background .12s ease, border-color .12s ea se; }
         .fr-product-row:hover { background:#f8faf5 !important; }
       `}</style>
 
