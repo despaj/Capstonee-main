@@ -4,6 +4,19 @@ const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 const { logActivity } = require("../utils/activityLogger");
 
+// ── State machine ──────────────────────────────────────────────
+const ALLOWED_TRANSITIONS = {
+  pending:  ["accepted", "rejected"],
+  accepted: ["shipping", "rejected"],
+  shipping: ["received"],
+  received: [],
+  rejected: [],
+};
+
+// Only these roles may move an order into "received" — admin/HO side
+// can ship it, but only the receiving branch confirms delivery.
+const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
+
 router.get("/orders", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -74,26 +87,37 @@ router.put("/orders/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const { status, performed_by, performed_by_role, latitude, longitude } = req.body;
-    const validStatuses = ["pending", "accepted", "rejected", "disposed"];
+    console.log("PUT /orders/:id body:", req.body);
+    const validStatuses = ["pending", "accepted", "shipping", "received", "rejected"];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: "Invalid status value" }); // no client.release() here
+      return res.status(400).json({ error: "Invalid status value" });
     }
 
     await client.query("BEGIN");
 
-    const currentRes = await client.query("SELECT status FROM orders WHERE id=$1 FOR UPDATE", [req.params.id]);
+    const currentRes = await client.query("SELECT * FROM orders WHERE id=$1 FOR UPDATE", [req.params.id]);
     if (currentRes.rows.length === 0) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Order not found" }); // no client.release() here either
+      return res.status(404).json({ error: "Order not found" });
     }
     const currentStatus = currentRes.rows[0].status;
 
-    if (status === "accepted") {
-      if (currentStatus !== "pending") {
-        await client.query("ROLLBACK");
-        return res.status(409).json({ error: `Order is already "${currentStatus}" — can't accept again` });
-      }
+    // ── Transition guard: no skipping steps, no going backwards ──
+    const allowedNext = ALLOWED_TRANSITIONS[currentStatus] || [];
+    if (!allowedNext.includes(status)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: `Order is "${currentStatus}" — cannot move to "${status}".`,
+      });
+    }
 
+    // ── "received" can only be confirmed by the receiving branch ──
+    if (status === "received" && !FRANCHISEE_ROLES.includes(performed_by_role)) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Only the receiving branch can mark an order as received." });
+    }
+
+    if (status === "accepted") {
       const itemsRes = await client.query(
         `SELECT oi.shop_item_id, oi.quantity, si.name AS item_name, si.shop,
                 si.ingredient_id, i.stock AS ingredient_stock, i.branch, i.brand, i.perishable
@@ -206,11 +230,16 @@ router.put("/orders/:id", async (req, res) => {
     }
 
     const result = await client.query("UPDATE orders SET status=$1 WHERE id=$2 RETURNING *", [status, req.params.id]);
-    if (result.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Order not found" }); }
     const order = result.rows[0];
 
+    const ACTION_LABELS = {
+      accepted: "accept",
+      shipping: "ship",
+      received: "receive",
+      rejected: "reject",
+    };
     await logActivity({
-      action: status === "accepted" ? "accept" : status === "rejected" ? "reject" : "update",
+      action: ACTION_LABELS[status] || "update",
       itemName: `Order #${order.id}`,
       performedBy: performed_by || "System",
       details: { note: `Status changed to "${status}"` },
@@ -222,13 +251,15 @@ router.put("/orders/:id", async (req, res) => {
       role: performed_by_role || "Unknown",
     });
 
+    const statusLabels = {
+      pending:  "Order Placed",
+      accepted: "Order Accepted",
+      shipping: "Order Shipped",
+      received: "Order Delivered",
+      rejected: "Order Rejected",
+    };
+
     if (order?.user_id) {
-      const statusLabels = {
-        pending:  "Order Placed",
-        shipping: "Order Accepted",
-        disposed: "Order Fulfilled",
-        rejected: "Order Rejected",
-      };
       await client.query(
         `INSERT INTO notifications (user_id, type, title, body) VALUES ($1,$2,$3,$4)`,
         [order.user_id, `order_${status}`, statusLabels[status] || "Order Update", `Your order #${order.id} is now ${status}.`]
@@ -238,12 +269,6 @@ router.put("/orders/:id", async (req, res) => {
     await client.query("COMMIT");
 
     if (order?.user_id) {
-      const statusLabels = {
-        pending:  "Order Placed",
-        shipping: "Order Accepted",
-        disposed: "Order Fulfilled",
-        rejected: "Order Rejected",
-      };
       const userRow = await pool.query("SELECT push_token FROM users WHERE id=$1", [order.user_id]);
       const token = userRow.rows[0]?.push_token;
       if (token) await sendPushNotification(token, statusLabels[status] || "Order Update", `Your order #${req.params.id} is now ${status}.`);
@@ -262,7 +287,11 @@ router.put("/orders/:id", async (req, res) => {
 router.get("/api/orders/counts", async (req, res) => {
   const { userId } = req.query;
   try {
-    const toShip   = await pool.query("SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='pending'", [userId]);
+    // "To Ship" on the franchisee side covers both pending (awaiting HO
+    // accept) and accepted (accepted, not yet shipped) — same visual state.
+    const toShip   = await pool.query(
+      "SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status IN ('pending','accepted')", [userId]
+    );
     const shipping = await pool.query("SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='shipping'", [userId]);
     const received = await pool.query("SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status='received'", [userId]);
     res.json({
