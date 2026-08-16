@@ -9,18 +9,22 @@ const bcrypt = require("bcrypt");
 router.get("/users", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, brand, branch, age, address, contact_number, saved_address FROM users ORDER BY id"
+      "SELECT id, name, first_name, last_name, middle_initial, suffix, email, role, brand, branch, age, address, contact_number, saved_address FROM users ORDER BY id"
     );
-    res.json(result.rows);
+    const mapped = result.rows.map(r => ({
+      ...r,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      middleInitial: r.middle_initial,
+    }));
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch users." });
   }
 });
-
 router.post("/users", async (req, res) => {
   try {
-    let { name, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude, restored } = req.body;
-
+    let { name, firstName, lastName, middleInitial, suffix, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude, restored } = req.body;
     let tempPasswordGenerated = false;
     if (!password) {
       const bcrypt = require("bcrypt");
@@ -32,9 +36,9 @@ router.post("/users", async (req, res) => {
     }
 
     const result = await pool.query(
-      "INSERT INTO users (name, email, password, role, brand, branch) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-      [name, email, password, role, brand, branch]
-    );
+  "INSERT INTO users (name, first_name, last_name, middle_initial, suffix, email, password, role, brand, branch) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
+  [name, firstName || null, lastName || null, middleInitial || null, suffix || null, email, password, role, brand, branch]
+);
     const newUser = result.rows[0];
 
     await logActivity({
@@ -80,7 +84,7 @@ router.patch("/users/:id/saved-address", async (req, res) => {
 
 router.put("/users/:id", async (req, res) => {
   try {
-    const { name, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude } = req.body;
+    const { name, firstName, lastName, middleInitial, suffix, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude } = req.body;
 
     const before = await pool.query("SELECT * FROM users WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "User not found" });
@@ -88,14 +92,14 @@ router.put("/users/:id", async (req, res) => {
 
     let query, params;
     if (password) {
-      const bcrypt = require("bcrypt");
-      const hashed = await bcrypt.hash(password, 10);
-      query = `UPDATE users SET name=$1, email=$2, role=$3, brand=$4, branch=$5, password=$6 WHERE id=$7 RETURNING *`;
-      params = [name, email, role, brand, branch, hashed, req.params.id];
-    } else {
-      query = `UPDATE users SET name=$1, email=$2, role=$3, brand=$4, branch=$5 WHERE id=$6 RETURNING *`;
-      params = [name, email, role, brand, branch, req.params.id];
-    }
+  const bcrypt = require("bcrypt");
+  const hashed = await bcrypt.hash(password, 10);
+  query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9, password=$10 WHERE id=$11 RETURNING *`;
+  params = [name, firstName || null, lastName || null, middleInitial || null, suffix || null, email, role, brand, branch, hashed, req.params.id];
+} else {
+  query = `UPDATE users SET name=$1, first_name=$2, last_name=$3, middle_initial=$4, suffix=$5, email=$6, role=$7, brand=$8, branch=$9 WHERE id=$10 RETURNING *`;
+  params = [name, firstName || null, lastName || null, middleInitial || null, suffix || null, email, role, brand, branch, req.params.id];
+}
     const result = await pool.query(query, params);
     const updatedUser = result.rows[0];
 

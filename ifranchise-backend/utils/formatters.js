@@ -1,5 +1,9 @@
 const rowToApplication = (row) => ({
   id:               row.id,
+  firstName:     row.first_name,
+  lastName:      row.last_name,
+  middleInitial: row.middle_initial,
+  suffix:       row.suffix,
   name:             row.name,
   email:            row.email,
   phone:            row.phone,

@@ -26,7 +26,8 @@ router.get("/applications", async (req, res) => {
     const result = await pool.query(`
       SELECT
         'ip-' || id::text AS id,
-        name, email, phone, 'iPharma Mart' AS franchise,
+          name, NULL AS first_name, NULL AS last_name, NULL AS middle_initial, NULL AS suffix,
+        email, phone, 'iPharma Mart' AS franchise,
         status, date, address, dob, civil_status,
         spouse_name, spouse_occupation, spouse_dob, dependents,
         telephone, tin, education,
@@ -44,7 +45,8 @@ router.get("/applications", async (req, res) => {
 
       SELECT
         id::text AS id,
-        name, email, phone, franchise,
+        name, first_name, last_name, middle_initial, suffix,
+        email, phone, franchise,
         status, date, address, dob, civil_status,
         spouse_name, spouse_occupation, NULL AS spouse_dob, dependents,
         NULL AS telephone, NULL AS tin, NULL AS education,
@@ -82,20 +84,23 @@ router.post("/applications", async (req, res) => {
     const b = req.body;
     const result = await pool.query(
       `INSERT INTO applications (
-        name, email, phone, franchise, payment_mode, status, date,
+        name, first_name, last_name, middle_initial, suffix, email, phone, franchise, payment_mode, status, date,
         dob, civil_status, gender, nationality, address, dependents,
         spouse_name, spouse_occupation,
         employment_type, years_employer, income,
         employer_name, business_address, position, business_nature,
         signature, date_signed, id_type, id_image, letter_of_intent
       ) VALUES (
-        $1,$2,$3,$4,$5,'pending',CURRENT_DATE,
-        $6,$7,$8,$9,$10,$11,$12,$13,
-        $14,$15,$16,$17,$18,$19,$20,
-        $21,$22,$23,$24,$25
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', CURRENT_DATE,
+        $10, $11, $12, $13, $14, $15,
+        $16, $17,
+        $18, $19, $20,
+        $21, $22, $23, $24,
+        $25, $26, $27, $28, $29
       ) RETURNING *`,
       [
-        b.name, b.email, b.phone, b.franchise, b.paymentMode,
+        b.name, b.firstName, b.lastName, b.middleInitial || null, b.suffix || null,
+        b.email, b.phone, b.franchise, b.paymentMode,
         b.dob || null, b.civilStatus, b.gender, b.nationality, b.address,
         b.dependents ? parseInt(b.dependents) : null,
         b.spouseName || null, b.spouseOccupation || null,
@@ -108,13 +113,13 @@ router.post("/applications", async (req, res) => {
     );
     const app = rowToApplication(result.rows[0]);
 
-   await logActivity(
+    await logActivity(
       b.restored ? "restore" : "create",
       app.name,
       b.performed_by || "System",
       { franchise: app.franchise, status: app.status, email: app.email, phone: app.phone,
         ...(b.restored ? { note: "Restored from delete history" } : {}) },
-      req, app.franchise, "Applications", b.latitude, b.longitude, b.role || "Unknown" 
+      req, app.franchise, "Applications", b.latitude, b.longitude, b.role || "Unknown"
     );
 
     res.json({ success: true, id: app.id, message: "Application submitted successfully", application: app });

@@ -6229,7 +6229,10 @@ const handleRestoreApplication = async (entry) => {
   // ── iPharma-specific view ──
   <>
     <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
+      <Field label="First Name"         value={viewApp.firstName} />
+      <Field label="Last Name"          value={viewApp.lastName}/>
+      <Field label="M.I."               value={viewApp.middleInitial || "N/A"} />
+      <Field label="Suffix"             value={viewApp.suffix || "N/A"} />
       <Field label="Email Address"      value={viewApp.email} />
       <Field label="Phone Number"       value={viewApp.phone} />
       <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
@@ -6284,7 +6287,10 @@ const handleRestoreApplication = async (entry) => {
   // ── Regular franchise view (existing fields) ──
   <>
     <Section title="Basic Information">
-      <Field label="Full Name"          value={viewApp.name}              full />
+      <Field label="First Name"         value={viewApp.firstName}/>
+      <Field label="Last Name"          value={viewApp.lastName}/>
+      <Field label="M.I."               value={viewApp.middleInitial || "N/A"} />
+      <Field label="Suffix"             value={viewApp.suffix || "N/A"} />
       <Field label="Email Address"      value={viewApp.email} />
       <Field label="Phone Number"       value={viewApp.phone} />
       <Field label="Franchise Interest" value={viewApp.franchise} />
@@ -6823,9 +6829,14 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
   }, [selectedBrandId, brands]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const name = form.fullName.value, email = form.email.value, phone = form.phone.value;
+  e.preventDefault();
+  const form = e.target;
+  const firstName = form.firstName.value;
+  const lastName = form.lastName.value;
+  const middleInitial = form.middleInitial.value;
+  const suffix = form.suffix.value;
+  const name = [firstName, middleInitial ? middleInitial + "." : "", lastName, suffix].filter(Boolean).join(" ");
+  const email = form.email.value, phone = form.phone.value;
     const role = selectedRole;    
     const branch = form.branch.value;
     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
@@ -6835,7 +6846,7 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password: tempPassword, role, brand, branch }),
+        body: JSON.stringify({ name, firstName, lastName, middleInitial: middleInitial || null, suffix: suffix || null, email, password: tempPassword, role, brand, branch }),
       });
       if (!res.ok) { const err = await res.json(); 
         
@@ -6866,12 +6877,30 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
         </div>
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Creating account for: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong></p>
         <form onSubmit={handleSubmit}>
-          {[['Full Name', 'fullName', 'text', applicant?.name], ['Email Address', 'email', 'email', applicant?.email], ['Phone Number', 'phone', 'tel', applicant?.phone]].map(([label, name, type, def]) => (
-            <div key={name} style={{ marginBottom: 14 }}>
-              <label style={bmLabel}>{label}</label>
-              <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop: 4 }} />
-            </div>
-          ))}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+  <div style={{ flex: 2 }}>
+    <label style={bmLabel}>Last Name</label>
+    <input name="lastName" type="text" defaultValue={applicant?.lastName} required style={{ ...bmInput, marginTop: 4 }} />
+  </div>
+  <div style={{ flex: 2 }}>
+    <label style={bmLabel}>First Name</label>
+    <input name="firstName" type="text" defaultValue={applicant?.firstName} required style={{ ...bmInput, marginTop: 4 }} />
+  </div>
+  <div style={{ flex: 1 }}>
+    <label style={bmLabel}>M.I.</label>
+    <input name="middleInitial" type="text" maxLength={1} defaultValue={applicant?.middleInitial} style={{ ...bmInput, marginTop: 4 }} />
+  </div>
+  <div style={{ flex: 1 }}>
+    <label style={bmLabel}>Suffix</label>
+    <input name="suffix" type="text" defaultValue={applicant?.suffix} style={{ ...bmInput, marginTop: 4 }} />
+  </div>
+</div>
+{[['Email Address', 'email', 'email', applicant?.email], ['Phone Number', 'phone', 'tel', applicant?.phone]].map(([label, name, type, def]) => (
+  <div key={name} style={{ marginBottom: 14 }}>
+    <label style={bmLabel}>{label}</label>
+    <input name={name} type={type} defaultValue={def} required style={{ ...bmInput, marginTop: 4 }} />
+  </div>
+))}
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Role</label>
             {roles && roles.length > 1 ? (
@@ -7832,18 +7861,35 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
           <h2 style={{ fontFamily:'Montserrat,sans-serif', fontSize:18, fontWeight:800, color:'#0d2b1e', margin:0 }}>{title}</h2>
           <button onClick={onClose} style={{ width:32, height:32, borderRadius:'50%', border:'1px solid #b2dfdb', background:'#e0f2f1', cursor:'pointer', color:'#00695c', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={15}/></button>
         </div>
-        <form onSubmit={onSubmit}>
-          {[['Full Name','name','text'],['Email Address','email','email']].map(([label,name,type]) => (
-            <div key={name} style={{ marginBottom:14 }}>
-              <label style={bmLabel}>{label}</label>
-              <input type={type} name={name} value={formData[name]} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
-            </div>
-          ))}
-          <div style={{ marginBottom:14 }}>
-            <label style={bmLabel}>Role</label>
-            <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
-              <option value="">Select Role</option>
-              {['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee'].map(r => <option key={r}>{r}</option>)}
+         <form onSubmit={onSubmit}>
+  <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+    <div style={{ flex:2 }}>
+      <label style={bmLabel}>Last Name</label>
+      <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+    </div>
+    <div style={{ flex:2 }}>
+      <label style={bmLabel}>First Name</label>
+      <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+    </div>
+    <div style={{ flex:1 }}>
+      <label style={bmLabel}>M.I.</label>
+      <input type="text" name="middleInitial" maxLength={1} value={formData.middleInitial} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+    </div>
+    <div style={{ flex:1 }}>
+      <label style={bmLabel}>Suffix</label>
+      <input type="text" name="suffix" value={formData.suffix} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+    </div>
+  </div>
+  <div style={{ marginBottom:14 }}>
+    <label style={bmLabel}>Email Address</label>
+    <input type="email" name="email" value={formData.email} onChange={handleInputChange} style={{ ...bmInput, marginTop:4 }} />
+  </div>
+
+  <div style={{ marginBottom:14 }}>
+    <label style={bmLabel}>Role</label>
+    <select name="role" value={formData.role} onChange={handleInputChange} required style={{ ...bmInput, marginTop:4, appearance:'none', cursor:'pointer' }}>
+      <option value="">Select Role</option>
+      {['Super Admin', 'Franchisee Operations Admin', 'Sales Admin', 'Franchisee'].map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
             <div style={{ marginBottom:14 }}>
@@ -7875,21 +7921,18 @@ function UserDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
             </div>
           {isEdit ? (
           <div style={{ marginBottom:14 }}>
-            <label style={{ ...bmLabel, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span>New Password (leave blank to keep)</span>
-              <button type="button" onClick={handleGeneratePassword} style={{ fontSize:11, background:'none', border:'none', color:'#00897b', cursor:'pointer', fontWeight:700, textDecoration:'underline' }}>↺ Generate</button>
-            </label>
-            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
-              <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
-                placeholder="Leave blank to keep current"
-                style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
-              <button type="button" onClick={() => setShowPassword(v=>!v)}
-                style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
-                {showPassword?"Hide":"Show"}
-              </button>
-            </div>
-            {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
-          </div>
+  <label style={bmLabel}>New Password (leave blank to keep)</label>
+  <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>
+    <input type={showPassword?"text":"password"} name="password" value={formData.password} onChange={pwChange}
+      placeholder="Leave blank to keep current"
+      style={{ ...bmInput, flex:1, fontFamily:'monospace', letterSpacing:'0.05em' }} />
+    <button type="button" onClick={() => setShowPassword(v=>!v)}
+      style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:36, padding:'0 12px', flexShrink:0 }}>
+      {showPassword?"Hide":"Show"}
+    </button>
+  </div>
+  {showPasswordValidation && <PasswordValidation errors={passwordErrors}/>}
+</div>
           ) : (
           <div style={{ marginBottom:14 }}>
             <p style={{ fontSize:11, color:C.muted, margin:0 }}>A temporary password will be auto-generated and emailed to the user upon account creation.</p>
@@ -8132,6 +8175,7 @@ setSaving(true);
 
 const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
 const coords = await getBrowserLocation();
+const fullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName, formData.suffix].filter(Boolean).join(" ");
 const payload = {
   ...formData,
   password: tempPassword,
@@ -8182,6 +8226,7 @@ if (formData.password) {
 setSaving(true); 
 const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
 const coords = await getBrowserLocation();
+const fullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName, formData.suffix].filter(Boolean).join(" ");
 const payload = {
   ...formData,
   brand: selectedBrand?.name || formData.brand || "",
@@ -8294,7 +8339,11 @@ try {
 
   const openEditModal = (user) => {
     setEditingUser(user);
-    setFormData({ name:user.name, email:user.email, role:user.role, branch:user.branch, password:'', brand: user.brand || ''  });
+    setFormData({
+  firstName: user.firstName || '', lastName: user.lastName || '',
+  middleInitial: user.middleInitial || '', suffix: user.suffix || '',
+  name: user.name, email: user.email, role: user.role, branch: user.branch, password: '', brand: user.brand || ''
+});
     const ownerBrand = brands.find(b =>       // ← add from here
       (b.branches || []).some(br => (br.name ?? br) === user.branch)
     );
@@ -8303,7 +8352,7 @@ try {
     setShowPassword(false);
   };
   const resetForm = () => {
-    setFormData({ name:'', email:'', role:'', branch:'', password:'', brand:'' });
+     setFormData({ firstName:'', lastName:'', middleInitial:'', suffix:'', name:'', email:'', role:'', branch:'', password:'', brand:'' });
     setShowPasswordValidation(false);
     setPasswordErrors([]);
     setShowPassword(false);
@@ -8454,15 +8503,18 @@ const filteredUsers = users.filter(u => {
                   <td style={{ padding:'12px 14px', color:'#5a7a65', fontSize:12 }}>{user.branch}</td>
                 
                   <td style={{ padding:'12px 14px' }}>
-                    <div style={{ display:'flex', gap:6 }}>
-                      <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
-                        <Pencil size={11}/>
-                      </button>
-                      <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
-                        <Trash2 size={11}/>
-                      </button>
-                    </div>
-                  </td>
+  <div style={{ display:'flex', gap:6 }}>
+    <button onClick={() => openEditModal(user)} style={{ ...smallBtnSt, border:'1.5px solid #b2dfdb', background:'#e0f2f1', color:'#00695c', height:28, padding:'0 12px' }}>
+      <Pencil size={11}/>
+    </button>
+    <button onClick={() => handleSendCredentials(user)} title="Resend Credentials" style={{ ...smallBtnSt, border:'1.5px solid #bfdbfe', background:'#dbeafe', color:'#2563eb', height:28, padding:'0 12px' }}>
+      <Mail size={11}/>
+    </button>
+    <button onClick={() => handleDeleteUser(user)} style={{ ...smallBtnSt, border:'1.5px solid #fecaca', background:'#fee2e2', color:'#dc2626', height:28, padding:'0 12px' }}>
+      <Trash2 size={11}/>
+    </button>
+  </div>
+</td>
                 </tr>
               ))}
             </tbody>
@@ -10215,10 +10267,7 @@ const advanceStatus = async (order, nextUiStatus, changeNote) => {
 
 function ProfileContent({ user }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [formData, setFormData] = useState({
-    name: user.name, email: user.email, personalEmail: '',
-    role: user.role, currentPassword: '', newPassword: '', confirmPassword: ''
-  });
+  const [formData, setFormData] = useState({ firstName:'', lastName:'', middleInitial:'', suffix:'', name:'', email:'', role:'', branch:'', password:'' });
   const [showOtpModal,     setShowOtpModal]     = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp,              setOtp]              = useState('');
@@ -10239,6 +10288,19 @@ function ProfileContent({ user }) {
   const showConfirm = (message, onConfirm)     => setConfirmModal({ message, onConfirm });
 
   const formDataRef = React.useRef(formData);
+  useEffect(() => {
+  setFormData(prev => ({
+    ...prev,
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    middleInitial: user.middleInitial || '',
+    suffix: user.suffix || '',
+    name: user.name || '',
+    email: user.email || '',
+    role: user.role || '',
+    personalEmail: user.personalEmail || '',
+  }));
+}, [user]);
   const handleInputChange = React.useCallback((e) => {
     const { name, value } = e.target;
     formDataRef.current = { ...formDataRef.current, [name]: value };
@@ -10341,15 +10403,25 @@ function ProfileContent({ user }) {
   };
 
   const updateProfile = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: formData.name, email: formData.email, role: formData.role, branch: user.branch }),
-      });
+  try {
+    const fullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName, formData.suffix].filter(Boolean).join(" ");
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: fullName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        middleInitial: formData.middleInitial || null,
+        suffix: formData.suffix || null,
+        email: formData.email,
+        role: formData.role,
+        branch: user.branch,
+      }),
+    });
       const data = await response.json();
       if (data.success) {
         showAlert('Profile updated successfully!', 'success');
-        const updatedUser = { ...user, name: formData.name, email: formData.email };
+        const updatedUser = { ...user, name: fullName, firstName: formData.firstName, lastName: formData.lastName, middleInitial: formData.middleInitial, suffix: formData.suffix, email: formData.email };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setIsUnlocked(false);
       } else {
@@ -10362,15 +10434,20 @@ function ProfileContent({ user }) {
   };
 
   const handleCancel = () => {
-    showConfirm('Discard all unsaved changes?', () => {
-      setFormData({ name: user.name, email: user.email, personalEmail: '', role: user.role, currentPassword: '', newPassword: '', confirmPassword: '' });
-      setOtp(''); setOtpSent(false); setShowOtpModal(false);
-      setShowPasswordValidation(false); setPasswordErrors([]);
-      setFieldErrors({}); setIsUnlocked(false);
+  showConfirm('Discard all unsaved changes?', () => {
+    setFormData({
+      firstName: user.firstName || '', lastName: user.lastName || '',
+      middleInitial: user.middleInitial || '', suffix: user.suffix || '',
+      name: user.name, email: user.email, personalEmail: '', role: user.role,
+      currentPassword: '', newPassword: '', confirmPassword: '',
     });
-  };
+    setOtp(''); setOtpSent(false); setShowOtpModal(false);
+    setShowPasswordValidation(false); setPasswordErrors([]);
+    setFieldErrors({}); setIsUnlocked(false);
+  });
+};
 
-  const initials = user.name
+const initials = user.name
     ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
@@ -10499,18 +10576,46 @@ function ProfileContent({ user }) {
           </div>
           <form onSubmit={handleSubmit} style={{ padding: '22px 24px' }}>
 
-            {/* Full Name */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={bmLabel}>Full Name</label>
-              <input
-                type="text" name="name" value={formData.name}
-                onChange={handleInputChange}
-                disabled={!isUnlocked}
-                style={inputStyle(!isUnlocked)}
-              />
-              <FieldError name="name" />
-            </div>
-
+            {/* Name */}
+<div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+  <div style={{ flex: 2 }}>
+    <label style={bmLabel}>Last Name</label>
+    <input
+      type="text" name="lastName" value={formData.lastName}
+      onChange={handleInputChange}
+      disabled={!isUnlocked}
+      style={inputStyle(!isUnlocked)}
+    />
+  </div>
+  <div style={{ flex: 2 }}>
+    <label style={bmLabel}>First Name</label>
+    <input
+      type="text" name="firstName" value={formData.firstName}
+      onChange={handleInputChange}
+      disabled={!isUnlocked}
+      style={inputStyle(!isUnlocked)}
+    />
+  </div>
+  <div style={{ flex: 1 }}>
+    <label style={bmLabel}>M.I.</label>
+    <input
+      type="text" name="middleInitial" maxLength={1} value={formData.middleInitial}
+      onChange={handleInputChange}
+      disabled={!isUnlocked}
+      style={inputStyle(!isUnlocked)}
+    />
+  </div>
+  <div style={{ flex: 1 }}>
+    <label style={bmLabel}>Suffix</label>
+    <input
+      type="text" name="suffix" value={formData.suffix}
+      onChange={handleInputChange}
+      disabled={!isUnlocked}
+      style={inputStyle(!isUnlocked)}
+    />
+  </div>
+</div>
+<FieldError name="lastName" />
             {/* Work Email */}
             <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Work Email Address</label>
@@ -12715,9 +12820,10 @@ function ViewApplicationModal({ application, onClose }) {
  
         <AppSection title="Applicant Information">
           <AppGrid2>
-            <div style={{ gridColumn: "1/-1" }}>
-              <AppField label="Full Name" value={application.name} large />
-            </div>
+            <AppField label="Last Name" value={application.lastName} />
+<AppField label="First Name" value={application.firstName} />
+<AppField label="M.I." value={application.middleInitial || "N/A"} />
+<AppField label="Suffix" value={application.suffix || "N/A"} />
             <AppField label="Date of Birth"      value={application.dob} />
             <AppField label="Civil Status"       value={application.civilStatus} />
             {!isIPharma && (
