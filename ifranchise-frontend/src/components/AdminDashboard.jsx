@@ -27,15 +27,16 @@ import {
 
 const C = {
   // core
-  green:      "#3b791e",   // was #00897b — primary action / heading color
-  greenDk:    "#2c5c16",   // was #00695c — hover/dark state
-  greenMid:   "#c9dba0",   // was #c8e6c9 — mid accent / borders on hover
-  lime:       "#bdd43c",   // was #00c853 — accent, badges, highlight bar
-  limeInk:    "#24310C",   // text-on-lime
-  ink:        "#12241B",   // was #0d2b1e — headings/body
-  muted:      "#5C6B60",   // was #5a7a65 — secondary text
-  border:     "#E1E6D8",   // was #d1eedd — hairline borders
-  bg:         "#F6F7F1",   // was #f0fdf5 — page background (cream)
+  green:      "#3b791e", 
+  greenDk:    "#2c5c16",
+  greenMid:   "#c9dba0", 
+  teal:       "#509820",
+  lime:       "#bdd43c",  
+  limeInk:    "#24310C",   
+  ink:        "#12241B",
+  muted:      "#5C6B60",  
+  border:     "#E1E6D8", 
+  bg:         "#F6F7F1", 
   white:      "#ffffff",
   warn:       "#b45309", warnBg:"#fff7ed",
   ok:         "#2c5c16", okBg:"#f0f5e8",
@@ -9237,11 +9238,7 @@ const emptyIcon =
 // Disposing an order deducts stock straight from the FIFO/FEFO batch queue
 // used by Stock Inventory, so both modules always agree on what's on hand.
 // No payment step — this only tracks the order → stock lifecycle.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/* ── Status maps ── */
-const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
-const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
+// ────────────────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
   pending:  { label:"Incoming",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
@@ -9317,7 +9314,7 @@ function normalizeOrder(o) {
     address: o.address ?? "",
     items: Array.isArray(o.items) ? o.items : [],
     total: o.total_amount,
-    status: DB_TO_UI_STATUS[o.status] ?? "pending",
+    status: o.status ?? "pending",
     createdAt: o.created_at,
   };
 }
@@ -9353,7 +9350,12 @@ const fmtPeriod = (period) => {
 
 const itemImage = (item) => item.image || item.image_url || item.photo || item.photo_url || null;
 
-const primaryBtn = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(0,180,90,0.25)" };
+const primaryBtn = {
+  padding:"10px 18px", borderRadius:10, border:"none",
+  background:`linear-gradient(135deg,${C.green},${C.greenDk})`,
+  color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer",
+  fontFamily:"inherit", boxShadow:"0 2px 10px rgba(59,121,30,0.25)"
+};
 const ghostBtn   = { padding:"10px 18px", borderRadius:10, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" };
 const dangerBtn  = { padding:"10px 18px", borderRadius:10, border:"none", background:`linear-gradient(135deg,#ef4444,${C.red})`, color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.22)" };
 const dangerTextBtn = { padding:"9px 14px", borderRadius:10, border:`1px solid ${C.redBorder}`, background:C.redBg, color:C.red, fontWeight:700, fontSize:12.5, cursor:"pointer", fontFamily:"inherit" };
@@ -9512,14 +9514,17 @@ function ReasonForm({ title, confirmLabel, danger, onCancel, onConfirm, saving }
   );
 }
 
-function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepting }) {
+function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepting, onShip, shipDisabled, shipping }) {
   const isPending = order.status === "pending";
+  const isAccepted = order.status === "accepted";
   const shortItems = (stockInfo?.results || []).filter(r => !r.sufficient);
   const insufficient = isPending && stockInfo && !stockInfo.checking && shortItems.length > 0;
 
-  const statusStyle = {
+ const statusStyle = {
     pending:  { bg:"#fff7ed", border:"#fed7aa", color:"#9a3412", label:"Incoming" },
-    accepted: { bg:C.greenLt, border:C.greenMid, color:C.greenDk, label:"Shipping" },
+    accepted: { bg:C.greenLt, border:C.greenMid, color:C.greenDk, label:"To Ship" }, 
+    shipping: { bg:"#eff6ff", border:"#bfdbfe", color:"#1d4ed8", label:"Shipping" },
+    received: { bg:C.greenLt, border:C.greenMid, color:C.greenDk, label:"Delivered" },
     rejected: { bg:C.redBg,  border:C.redBorder, color:"#7f1d1d", label:"Rejected" },
   }[order.status] || { bg:"#f3f4f6", border:"#e5e7eb", color:"#374151", label:order.status };
 
@@ -9581,6 +9586,29 @@ function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepti
           {accepting ? "Accepting…" : insufficient ? "Insufficient Stock" : "Accept"}
         </button>
       )}
+
+      {isAccepted && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onShip(order); }}
+          disabled={shipDisabled}
+          style={{ ...primaryBtn, opacity: shipDisabled ? 0.5 : 1, cursor: shipDisabled ? "not-allowed" : "pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px 0", fontSize:12 }}
+        >
+          {shipping && <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>}
+          {shipping ? "Shipping…" : "Ship Order"}
+        </button>
+      )}
+
+      {/* NEW — read-only states, no action available on admin side */}
+      {order.status === "shipping" && (
+        <div style={{ textAlign:"center", fontSize:11.5, fontWeight:700, color:"#1d4ed8", padding:"6px 0" }}>
+          Awaiting branch confirmation…
+        </div>
+      )}
+      {order.status === "received" && (
+        <div style={{ textAlign:"center", fontSize:11.5, fontWeight:700, color:C.green, padding:"6px 0" }}>
+          Delivered
+        </div>
+      )}
     </div>
   );
 }
@@ -9636,7 +9664,7 @@ function ReceiptSlip({ order }) {
   );
 }
 
-function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, acceptDisabled, accepting }) {
+function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, acceptDisabled, accepting, onShip, shipDisabled, shipping }) {
   const [mode, setMode] = useState(null);
   const [rejecting, setRejecting] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -9672,7 +9700,7 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
               <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>Placed {fmtDate(order.createdAt)}</div>
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              {order.status === "accepted" && (
+              {["accepted", "shipping", "received"].includes(order.status) && (
                 <button onClick={doPrint} disabled={printing} style={{ ...printBtn, opacity: printing ? 0.6 : 1 }}>
                   {printing ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Printer size={14}/>} Print Receipt
                 </button>
@@ -9797,11 +9825,16 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk }}>
                   <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
-                  <span>This order is accepted and shipping. Stock was already deducted.</span>
+                  <span>Stock was deducted on accept. Ready to send out for delivery.</span>
                 </div>
                 <div style={{ display:"flex", gap:10 }}>
-                  <button onClick={() => onPrint([order])} style={{ ...printBtn, flex:1 }}>
-                    <Printer size={14}/> Print Receipt
+                  <button onClick={() => onShip(order)} disabled={shipDisabled}
+                    style={{ ...primaryBtn, flex:1, opacity: shipDisabled ? 0.5 : 1, cursor: shipDisabled ? "not-allowed" : "pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                    {shipping && <RefreshCw size={13} style={{ animation:"spin 0.8s linear infinite" }}/>}
+                    {shipping ? "Shipping…" : "Ship Order"}
+                  </button>
+                  <button onClick={() => onPrint([order])} style={printBtn}>
+                    <Printer size={14}/>
                   </button>
                   <button onClick={() => setMode("reject")} style={dangerTextBtn}>Cancel</button>
                 </div>
@@ -9810,6 +9843,22 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
             {order.status === "accepted" && mode === "reject" && (
               <ReasonForm title="Cancel this order" confirmLabel="Cancel Order" saving={rejecting}
                 onCancel={() => setMode(null)} onConfirm={doReject}/>
+            )}
+
+            {/* NEW — shipping: admin side is read-only, waiting on the branch */}
+            {order.status === "shipping" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:10, padding:"11px 13px", fontSize:12.5, color:"#1d4ed8", animation:"cardIn .2s ease" }}>
+                <RefreshCw size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                <span>Out for delivery. Waiting for the branch to confirm receipt.</span>
+              </div>
+            )}
+
+            {/* NEW — received: terminal, read-only */}
+            {order.status === "received" && (
+              <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:10, padding:"11px 13px", fontSize:12.5, color:C.greenDk, animation:"cardIn .2s ease" }}>
+                <Check size={15} style={{ flexShrink:0, marginTop:1 }}/>
+                <span>Delivered and confirmed received by the branch.</span>
+              </div>
             )}
 
             {order.status === "rejected" && (
@@ -9856,8 +9905,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const [massAccepting, setMassAccepting] = useState(false);
   const [acceptingId,   setAcceptingId]   = useState(null);
 
-  // NEW: automatic, per-order stock availability — replaces manual "check stock" + dispose flow
-  // shape: { [orderId]: { checking: bool, ok: bool, results: [{...item, matched, available, sufficient}] } }
+  const [shippingId, setShippingId] = useState(null);
+
   const [stockAvailability, setStockAvailability] = useState({});
 
   const showToast = (type, title, message) => setToast({ type, title, message });
@@ -9983,33 +10032,32 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     if (orders.length > 0) refreshStockAvailability(orders);
   }, [orders, refreshStockAvailability]);
 
-const advanceStatus = async (order, nextUiStatus, changeNote) => {
-    const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
-    const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
-    try {
-      const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
-        method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
-        body: JSON.stringify({
-          status: dbStatus,
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      if (!res.ok) {
-        let detail = "";
-        try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
-        throw new Error(detail || `Update failed (${res.status})`);
+  const advanceStatus = async (order, nextUiStatus, changeNote) => {
+      const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
+      try {
+        const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+          method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
+          body: JSON.stringify({
+            status: nextUiStatus,
+            performed_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        });
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
+          throw new Error(detail || `Update failed (${res.status})`);
+        }
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
+        setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
+        await fetchActivityLog();
+      } catch (err) {
+        showToast("error", "Couldn't update order", err.message);
+        throw err;
       }
-      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
-      setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
-      await fetchActivityLog();
-    } catch (err) {
-      showToast("error", "Couldn't update order", err.message);
-      throw err;
-    }
-  };
+    };
 
     const acceptOrderWithDeduction = async (order) => {
     const availability = stockAvailability[order.id];
@@ -10047,6 +10095,18 @@ const advanceStatus = async (order, nextUiStatus, changeNote) => {
       await advanceStatus(order, "rejected", changeNote);
       showToast("success", "Order rejected", `#${order.id} was marked as rejected.`);
     } catch {}
+  };
+
+  const handleShip = async (order) => {
+    setShippingId(order.id);
+    try {
+      await advanceStatus(order, "shipping", "Marked as shipping");
+      showToast("success", "Order shipped", `#${order.id} is on its way.`);
+    } catch (err) {
+      showToast("error", "Couldn't ship order", err.message);
+    } finally {
+      setShippingId(null);
+    }
   };
 
   const handleMassAcceptAndPrint = async () => {
@@ -10088,13 +10148,17 @@ const advanceStatus = async (order, nextUiStatus, changeNote) => {
     total:    orders.length,
     pending:  orders.filter(o => o.status === "pending").length,
     accepted: orders.filter(o => o.status === "accepted").length,
+    shipping: orders.filter(o => o.status === "shipping").length,
+    received: orders.filter(o => o.status === "received").length,
     rejected: orders.filter(o => o.status === "rejected").length,
   };
 
   const FILTER_CHIPS = [
     { key:"all",      label:"All Orders",      count:counts.total },
     { key:"pending",  label:"Incoming Orders", count:counts.pending },
-    { key:"accepted", label:"Shipping",        count:counts.accepted },
+    { key:"accepted", label:"To Ship",         count:counts.accepted },
+    { key:"shipping", label:"Shipping",        count:counts.shipping },
+    { key:"received", label:"Delivered",       count:counts.received },
     { key:"rejected", label:"Rejected",        count:counts.rejected },
   ];
 
@@ -10185,6 +10249,9 @@ const advanceStatus = async (order, nextUiStatus, changeNote) => {
                 onAccept={handleAccept}
                 acceptDisabled={acceptingId === order.id || (order.status === "pending" && !stockAvailability[order.id]?.ok)}
                 accepting={acceptingId === order.id}
+                onShip={handleShip}
+                shipDisabled={shippingId === order.id}
+                shipping={shippingId === order.id} 
               />
             </div>
           ))}
@@ -10201,6 +10268,9 @@ const advanceStatus = async (order, nextUiStatus, changeNote) => {
           stockInfo={stockAvailability[viewOrder.id]}
           acceptDisabled={acceptingId === viewOrder.id || (viewOrder.status === "pending" && !stockAvailability[viewOrder.id]?.ok)}
           accepting={acceptingId === viewOrder.id}
+          onShip={handleShip}
+          shipDisabled={shippingId === viewOrder.id}
+          shipping={shippingId === viewOrder.id}
         />
       )}
 
