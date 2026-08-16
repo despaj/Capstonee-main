@@ -719,20 +719,16 @@ useEffect(() => {
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,         section: 'main' },
     { id: 'reports',        label: 'Sales & Reports',       icon: <BarChart2 size={20} />,    section: 'main' },
-   
-    { id: 'stockInventory', label: 'Head Office Inventory',       icon: <Layers size={20} />,       section: 'main' },
-       { id: 'FranchiseeInventoryContent', label: 'Franchisee Inventory', icon: <Building2 size={20} />, section: 'main' },
-  
-     { id: 'inventory',      label: 'Product Catalogue',        icon: <Box size={20} />,          section: 'main' },
+    { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,       section: 'main' },
+    { id: 'inventory',      label: 'Product Catalogue',        icon: <Box size={20} />,          section: 'main' },
     { id: 'mobileShop',     label: 'Mobile Shop Supplies',  icon: <ShoppingCart size={20} />, section: 'main' },
     { id: 'mobileOrders',   label: 'Mobile Order Management',    icon: <Package size={20} />,      section: 'main' },
     { id: 'applications',   label: 'Franchisee Applications',     icon: <FileCheck size={20} />,    section: 'main' },
     { id: 'brandBranch',    label: 'Brands & Branches Management',        icon: <GitBranch size={20} />,    section: 'main' },
-    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,        section: 'main' },
-
  
     { id: 'communication',  label: 'Announcements',         icon: <MessageCircle size={20} />,section: 'main' },
-      { id: 'activityLog', label: 'System Activity Logs', icon: <Activity size={20} />, section: 'main' },
+    { id: 'activityLog', label: 'System Activity Logs', icon: <Activity size={20} />, section: 'main' },
+    { id: 'users',          label: 'User Management',       icon: <Users size={20} />,        section: 'main' },
     { id: 'profile',        label: 'Profile Settings',          icon: <User size={20} />,         section: 'account' },
     { id: 'logout',         label: 'Logout',                icon: <LogOut size={20} />,       section: 'account', action: handleLogout },
   ];
@@ -922,7 +918,6 @@ useEffect(() => {
           {activeModule === 'activityLog' && <ActivityLogContent user={user} />}
           {activeModule === 'inventory'      && <MenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands}  initialFocus={inventoryFocus}/>}
-          {activeModule === 'FranchiseeInventoryContent' && <FranchiseeInventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileShop'     && <MobileShopContent user={user} brands={brands}/>}
           {activeModule === 'mobileOrders'   && <MobileOrdersContent user={user} brands={brands}/>}
           {activeModule === 'receipts'       && <Receipts />}
@@ -3575,6 +3570,7 @@ function BmModal({ title, onClose, onSubmit, saving = false, children }) {
     </div>
   );
 }
+
 function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
   const [brands,              setBrands]              = useState(propBrands || []);
   const [loading,             setLoading]             = useState(true);
@@ -3643,17 +3639,30 @@ const fetchActivityLog = useCallback(async () => {
   };
 
   const fetchBrands = async () => {
-    setLoading(true);
-    try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      const sorted = [...list].sort((a, b) => { if (a.name === "Head Office") return -1; if (b.name === "Head Office") return 1; return 0; });
-      setBrands(sorted);
-      onBrandsChange?.(sorted);
-    } catch (err) { console.error("Failed to fetch brands:", err); }
-    finally { setLoading(false); }
-  };
+      setLoading(true);
+      try {
+        const res  = await fetch(`${process.env.REACT_APP_API_URL}/brands`);
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : [];
+        const sorted = [...list]
+          .sort((a, b) => {
+            if (a.name === "Head Office") return -1;
+            if (b.name === "Head Office") return 1;
+            return 0;
+          })
+          .map((b) => ({
+            ...b,
+            branches: [...(b.branches || [])].sort((x, y) => {
+              if (x.name === "Head Office") return -1;
+              if (y.name === "Head Office") return 1;
+              return 0;
+            }),
+          }));
+        setBrands(sorted);
+        onBrandsChange?.(sorted);
+      } catch (err) { console.error("Failed to fetch brands:", err); }
+      finally { setLoading(false); }
+    };
 
   useEffect(() => { fetchBrands(); fetchDeleteHistory(); fetchActivityLog(); }, [fetchActivityLog]);
 
@@ -4096,7 +4105,6 @@ const handleRestore = async (entry) => {
     </div>
   );
 }
-
 
 function FranchiseeInventoryContent({ user, brands: propBrands = [] }) {
   const [ingredients, setIngredients] = useState([]);
@@ -4639,7 +4647,6 @@ const placeholderImageFor = (name) =>
 
 
 function MobileShopContent({ user, brands: propBrands = [] }) {
-  const [showActivityLog, setShowActivityLog] = useState(false);
   const [activityLog,     setActivityLog]     = useState([]);
   const [shopItems,       setShopItems]       = useState([]); // listing overrides: photo/visibility, keyed to a stock product
   const [itemsLoading,    setItemsLoading]    = useState(true);
@@ -4695,7 +4702,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   // which products can appear in the Mobile Shop at all, and for cost.
   const fetchStockItems = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
+      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent("Head Office")}`);
       const data = await res.json();
       setStockItems(Array.isArray(data) ? data : []);
     } catch { setStockItems([]); }
@@ -5160,10 +5167,6 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
               style={{ ...toolbarBtnSt, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
               <LayersIcon /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
             </button>
-            <button onClick={() => setShowActivityLog(true)} className="msc-btn"
-              style={{ ...toolbarBtnSt, border: `1px solid ${C.border}`, background: C.white, color: C.ink }}>
-              Activity Log
-            </button>
           </span>
 
           <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
@@ -5549,13 +5552,20 @@ const handleExportCSV = () => {
   setAlertModal({ title: `Exported ${filteredApps.length} application${filteredApps.length !== 1 ? "s" : ""}`, type: "success" });
 };
 
-  const filteredApps = applications.filter(app => {
+const FRANCHISE_ALIASES = {
+  "Coffee Spot": ["Coffee Spot", "Coffee Spot Full Store"],
+};
+
+const filteredApps = applications.filter(app => {
   const q = searchQuery.toLowerCase();
   if (q && !app.name?.toLowerCase().includes(q) &&
            !app.email?.toLowerCase().includes(q) &&
            !app.phone?.toLowerCase().includes(q)) return false;
   if (filterStatus    !== "all" && app.status    !== filterStatus)    return false;
-  if (filterFranchise !== "all" && app.franchise !== filterFranchise) return false;
+  if (filterFranchise !== "all") {
+  const matches = FRANCHISE_ALIASES[filterFranchise] || [filterFranchise];
+  if (!matches.includes(app.franchise)) return false;
+}
   return true;
 });
 
