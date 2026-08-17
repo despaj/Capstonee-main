@@ -31,9 +31,9 @@ const C = {
   greenDk:    "#2c5c16",
   greenMid:   "#c9dba0", 
   teal:       "#509820",
-  lime:       "#bdd43c",  
+  lime:       "#48b328",  
   limeInk:    "#24310C",   
-  ink:        "#12241B",
+  ink:        "#b3a941",
   muted:      "#5C6B60",  
   border:     "#E1E6D8", 
   bg:         "#F6F7F1", 
@@ -2523,6 +2523,7 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
 function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
+  transactionCount = 0, averageTransaction = 0, branchPerformance = [],
 }) {
   const panelRef = useRef(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -2535,74 +2536,43 @@ function SalesTrendSection({
   );
 
   const catData = useMemo(() => {
-    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
-    if (!total) return [];
-    // Use the selected brand's own category list (set in Brand & Branch
-    // management) so Coffee Spot never shows Medicine/Equipment, etc.
-    const cats = selectedBrandObj?.categories?.length
-      ? selectedBrandObj.categories
-      : ["General"];
-    // Weighted so the first-listed category gets the biggest share, tapering off.
-    const weights   = cats.map((_, i) => Math.pow(0.72, i));
-    const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
-    return cats.map((label, i) => ({
-      label,
-      value: Math.round(total * (weights[i] / weightSum)),
-    }));
-  }, [kpiData, total, selectedBrandObj]);
+    return Array.isArray(kpiData?.categoryBreakdown) ? kpiData.categoryBreakdown : [];
+  }, [kpiData]);
 
   const brandBreakdownData = useMemo(() => {
-    if (kpiData?.brandBreakdown?.length) return kpiData.brandBreakdown;
-    if (!total || !brands?.length) return [];
-    const totalWeight = brands.reduce((s, b) => s + (b.branches?.length || 1), 0) || 1;
-    return brands
-      .map(b => ({ label: b.name, value: Math.round(total * ((b.branches?.length || 1) / totalWeight)) }))
-      .sort((a, b) => b.value - a.value);
-  }, [kpiData, total, brands]);
+    return Array.isArray(kpiData?.brandBreakdown) ? kpiData.brandBreakdown : [];
+  }, [kpiData]);
 
   const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
   const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
 const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
 
   const branchData = useMemo(() => {
-    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
-    if (!total) return [];
-    return [
-      { label: "Main Branch", value: Math.round(total * 0.30) },
-      { label: "Alabang",     value: Math.round(total * 0.22) },
-      { label: "BGC",         value: Math.round(total * 0.18) },
-      { label: "Makati",      value: Math.round(total * 0.16) },
-      { label: "Ortigas",     value: Math.round(total * 0.14) },
-    ];
-  }, [kpiData, total]);
+    if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
+    return branchPerformance.slice(0, 6);
+  }, [kpiData, branchPerformance]);
 
   const gpLine = useMemo(() => {
-    if (kpiData?.gpSeries?.length === values.length) return kpiData.gpSeries;
-    // Fallback estimate — only used when backend hasn't supplied real GP% data
-    return values.map((v, i) => {
-      const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
-      return parseFloat(base.toFixed(1));
-    });
+    return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
   }, [kpiData, values]);
 
   const priorYearValues = useMemo(() => {
-    if (kpiData?.priorYearValues?.length === values.length) return kpiData.priorYearValues;
-    return values.map(v => v * 0.72);
+    return kpiData?.priorYearValues?.length === values.length ? kpiData.priorYearValues : [];
   }, [kpiData, values]);
 
-  const isGpEstimated  = !(kpiData?.gpSeries?.length === values.length);
-  const isPyEstimated  = !(kpiData?.priorYearValues?.length === values.length);
+  const hasGpData = gpLine.length === values.length && values.length > 0;
+  const hasPriorYearData = priorYearValues.length === values.length && values.length > 0;
 
   const hasData = total > 0;
-  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
-  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
-  const avgOrder    = kpiData?.avgOrder ?? avg;
+  const grossProfit = kpiData?.salesProfit ?? null;
+  const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
+  const avgOrder    = kpiData?.avgOrder ?? averageTransaction ?? 0;
 
   const analysisBullets = useMemo(() => {
     if (!hasData) return [];
     const bullets = [];
     bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
-    bullets.push(`Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
+    if (grossProfit != null) bullets.push(`Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`);
     bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
     bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
     bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
@@ -2706,12 +2676,12 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
             <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
             {hasData ? (
               <>
-                <ComboChart barData={[values, priorYearValues]} lineData={gpLine} labels={labels} height={220} />
+                <ComboChart barData={hasPriorYearData ? [values, priorYearValues] : [values]} lineData={hasGpData ? gpLine : []} labels={labels} height={220} />
                 <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
                   {[
-                    { color: PAL[0], label: "Sales CY" },
-                    { color: PAL[1], label: isPyEstimated ? "Sales PY (est.)" : "Sales PY" },
-                    { color: "#1d4ed8", label: isGpEstimated ? "Gross Profit % (est.)" : "Gross Profit % (CY)", line: true },
+                    { color: PAL[0], label: "Sales — selected period" },
+                    ...(hasPriorYearData ? [{ color: PAL[1], label: "Prior-year sales" }] : []),
+                    ...(hasGpData ? [{ color: "#1d4ed8", label: "Gross Profit %", line: true }] : []),
                   ].map((l, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {l.line
@@ -2725,7 +2695,7 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                   {[
                     { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
                     { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
                   ].map((card, i) => (
                     <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
@@ -2821,7 +2791,7 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
   );
 }
 
-function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, labels = [], kpiData }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -2849,11 +2819,11 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     finally { setLoading(false); }
   };
 
-  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
-  const projChg = analysis?.projectedChange  ?? 5.2;
-  const peakDay = analysis?.peakDay         ?? "Thursday";
-  const slowDay = analysis?.slowestDay      ?? "Sunday";
-  const conf    = analysis?.confidence      ?? (total ? 72 : null);
+  const projRev = analysis?.projectedRevenue ?? null;
+  const projChg = analysis?.projectedChange ?? null;
+  const peakDay = analysis?.peakDay ?? null;
+  const slowDay = analysis?.slowestDay ?? null;
+  const conf = analysis?.confidence ?? null;
 
   const typeStyle = (type) => ({
     success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
@@ -2864,12 +2834,11 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
   const preRunBullets = useMemo(() => {
     if (!total) return [];
     return [
-      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
-      `Estimated 7-day projected revenue: ${projRev ? fmtAmt(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
-      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
-      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
-    ].filter(Boolean);
-  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
+      `${transactions?.length?.toLocaleString() ?? 0} transaction records are available to the AI service.`,
+      `Recorded revenue represented by the selected dashboard series is ${fmtAmt(total)}.`,
+      `The evidence charts below show the historical values supplied for analysis. AI forecasts only appear after Run AI Analysis is completed.`,
+    ];
+  }, [total, transactions]);
 
   // ── Print (opens the offscreen report layout in a new tab) ─────────────
   const handlePrint = () => {
@@ -2971,22 +2940,32 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
 
       {/* ── Live dashboard view (unchanged, compact) ── */}
       <div style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
-            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
-            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
-            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
-          ].map((card, i) => (
-            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <card.icon size={11} color={card.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,.8fr)", gap: 16, marginBottom: 20 }}>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>Historical Revenue Evidence</div>
+                <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, fontFamily:FONT }}>Actual dashboard series used as evidence for the AI analysis</div>
               </div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
-              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+              <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20, background:"#eff6ff", color:"#1d4ed8", fontFamily:FONT }}>SOURCE DATA</span>
             </div>
-          ))}
+            <DashboardLineGraph labels={labels} values={values} height={210} />
+          </div>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>AI Output Evidence</div>
+            <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, marginBottom:12, fontFamily:FONT }}>Forecast fields stay empty until the AI returns them</div>
+            {analysis ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {[
+                  ["Projected 7-Day Revenue", projRev != null ? fmtAmt(projRev) : "Not returned"],
+                  ["Projected Change", projChg != null ? `${projChg >= 0 ? "+" : ""}${Number(projChg).toFixed(1)}%` : "Not returned"],
+                  ["Peak Day", peakDay || "Not returned"],
+                  ["Slowest Day", slowDay || "Not returned"],
+                  ["Confidence", conf != null ? `${conf}%` : "Not returned"],
+                ].map(([label,value]) => <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"9px 10px", borderRadius:9, background:"#f8fbff", border:"1px solid #e5edf8" }}><span style={{fontSize:10.5,color:"#64748b",fontWeight:700}}>{label}</span><strong style={{fontSize:11,color:"#1e3a5f",textAlign:"right"}}>{value}</strong></div>)}
+              </div>
+            ) : <div style={{ minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", border:"1px dashed #bfdbfe", borderRadius:10, background:"#f8fbff", color:"#64748b", fontSize:11.5, textAlign:"center", padding:18 }}>Run AI Analysis to generate forecast evidence and recommendations.</div>}
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
@@ -3248,6 +3227,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
 
 function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
   const [data,    setData]    = useState(null);
+  const [inventoryRows, setInventoryRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tab,     setTab]     = useState("top10");
 
@@ -3263,9 +3243,14 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
         if (names.length) params.set("branches", names.join(","));
       }
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
-      const json = await res.json();
+      const [analyticsRes, inventoryRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
+        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+      ]);
+      const json = analyticsRes.ok ? await analyticsRes.json() : {};
+      const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
       setData(json);
+      setInventoryRows(Array.isArray(inventoryJson) ? inventoryJson : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
@@ -3278,6 +3263,41 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   const totalSKUs = data?.totalProducts ?? 0;
   const fastCount = fast.length;
   const slowCount = slow.length;
+
+  const stockEvidence = useMemo(() => {
+    const norm = v => String(v || "").trim().toLowerCase();
+    const combined = [...top10, ...fast, ...slow];
+    const byName = new Map();
+    combined.forEach(p => {
+      const key = norm(p?.name);
+      if (key && !byName.has(key)) byName.set(key, p);
+    });
+
+    let periodDays = 30;
+    if (rangeMode === "preset") periodDays = preset === "day" ? 1 : preset === "week" ? 7 : preset === "year" ? 365 : 30;
+    else if (appliedRange?.from && appliedRange?.to) {
+      periodDays = Math.max(1, Math.ceil((new Date(appliedRange.to + "T23:59:59") - new Date(appliedRange.from + "T00:00:00")) / 864e5));
+    }
+
+    return [...byName.values()].map(p => {
+      const inv = inventoryRows.find(i => norm(i?.name) === norm(p?.name) && (!filterBranch || i?.branch === filterBranch));
+      if (!inv) return null;
+      const stock = Number(inv.stock ?? 0);
+      const reorder = Number(inv.min_stock ?? 0);
+      const sold = Number(p.totalQty ?? 0);
+      const dailySales = sold > 0 ? sold / periodDays : 0;
+      const daysLeft = dailySales > 0 ? stock / dailySales : null;
+      const ratio = sold > 0 ? stock / sold : null;
+      let status = "OK", recommendation = "Monitor";
+      if (stock <= reorder || (daysLeft != null && daysLeft < 14)) { status = "CRITICAL"; recommendation = "Restock urgently"; }
+      else if ((daysLeft != null && daysLeft > 90) || (ratio != null && ratio > 3)) { status = "OVERSTOCK"; recommendation = "Reduce ordering / promote"; }
+      else if (daysLeft != null && daysLeft < 30) { status = "WATCH"; recommendation = "Reorder soon"; }
+      return { name:p.name, stock, reorder, sold, daysLeft, ratio, status, recommendation, unit:inv.unit || "units" };
+    }).filter(Boolean).slice(0, 10);
+  }, [top10, fast, slow, inventoryRows, preset, rangeMode, appliedRange, filterBranch]);
+
+  const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
+  const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
 
   const revenuePie = top10.slice(0, 5).map((p, i) => ({
     label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
@@ -3370,6 +3390,23 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         }
       />
       <div style={{ padding: "18px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Days of Stock Remaining</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:9}}>{stockEvidence.map((r,i)=><div key={r.name} style={{display:"grid",gridTemplateColumns:"130px 1fr 48px",alignItems:"center",gap:9}}><span title={r.name} style={{fontSize:10.5,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span><div style={{height:10,borderRadius:4,background:"#edf8f0",position:"relative",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.daysLeft||0)/maxDaysLeft)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#22c55e",borderRadius:4}}/></div><strong style={{fontSize:10.5,textAlign:"right",color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</strong></div>)}</div> : <DashboardEmptyState message="No matched sales + inventory records for this filter." />}
+            <div style={{display:"flex",gap:14,marginTop:14,fontSize:9.5,color:"#64748b"}}><span><b style={{color:"#ef4444"}}>14d</b> critical</span><span><b style={{color:"#f59e0b"}}>30d</b> reorder watch</span></div>
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Stock-to-Sales Ratio by Product</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:10}}>{stockEvidence.map(r=><div key={r.name}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:4}}><span title={r.name} style={{fontSize:10.5,fontWeight:700,color:"#263b2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span><span style={{fontSize:10.5,fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a"}}>{r.ratio==null?"—":`×${r.ratio.toFixed(1)}`}</span></div><div style={{height:6,borderRadius:99,background:"#edf8f0",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.ratio||0)/maxRatio)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a",borderRadius:99}}/></div></div>)}</div> : <DashboardEmptyState message="No stock-to-sales ratio can be calculated for this filter." />}
+          </div>
+        </div>
+
+        {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+        </div>}
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
           {[
             { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
@@ -3552,6 +3589,94 @@ function InfoModal({ modal, onClose, onConfirm }) {
   );
 }
 
+
+
+function DashboardLineGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
+  const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const x = i => labels.length <= 1 ? PL + pW / 2 : PL + (i / (labels.length - 1)) * pW;
+  const y = v => PT + pH - (Number(v || 0) / max) * pH;
+  const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid = [0,.25,.5,.75,1];
+
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No revenue data for the selected period." />;
+
+  return (
+    <div style={{ position:"relative", width:"100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
+        {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
+          <g key={i}>
+            <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
+            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort(max*g)}</text>
+          </g>
+        )})}
+        <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {safeValues.map((v,i)=>(
+          <g key={i}>
+            <circle cx={x(i)} cy={y(v)} r={hover===i?5:3.5} fill="#fff" stroke="#3b791e" strokeWidth="2.5" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}} />
+            <rect x={x(i)-10} y={PT} width="20" height={pH} fill="transparent" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} />
+          </g>
+        ))}
+        {tickIdx.map(i => <text key={i} x={x(i)} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>)}
+      </svg>
+      {hover != null && (
+        <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
+          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>
+          {fmtAmt(safeValues[hover])}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardBarGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
+  const W = 760, H = height, PL = 46, PR = 16, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W-PL-PR, pH = H-PT-PB;
+  const gap = 6;
+  const bw = Math.max(4, (pW / Math.max(labels.length,1)) - gap);
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid=[0,.25,.5,.75,1];
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No transaction data for the selected period." />;
+  return (
+    <div style={{position:"relative", width:"100%"}}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Transaction volume chart">
+        {grid.map((g,i)=>{const yy=PT+pH-g*pH;return <g key={i}><line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5"/><text x={PL-8} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{Math.round(max*g)}</text></g>})}
+        {safeValues.map((v,i)=>{
+          const slot=pW/Math.max(labels.length,1); const xx=PL+i*slot+(slot-bw)/2; const hh=(v/max)*pH; const yy=PT+pH-hh;
+          return <rect key={i} x={xx} y={yy} width={bw} height={Math.max(hh,1)} rx="4" fill={hover===i?"#2c5c16":"#c9dba0"} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}/>
+        })}
+        {tickIdx.map(i=>{const slot=pW/Math.max(labels.length,1);return <text key={i} x={PL+i*slot+slot/2} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>})}
+      </svg>
+      {hover != null && <div style={{position:"absolute",top:8,right:10,background:"#12241B",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:11,fontWeight:700,pointerEvents:"none"}}><div style={{opacity:.7,fontSize:9.5,marginBottom:2}}>{labels[hover]}</div>{safeValues[hover].toLocaleString()} transactions</div>}
+    </div>
+  );
+}
+
+function DashboardEmptyState({ message }) {
+  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+}
+
+function DashboardRankBars({ data = [] }) {
+  if (!data.length) return <DashboardEmptyState message="No branch sales data for the selected period." />;
+  const max = Math.max(...data.map(d=>d.value),1);
+  return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
+    {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
+        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
+      </div>
+      <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
+    </div>)}
+  </div>;
+}
+
 function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
 
@@ -3586,6 +3711,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [toast, setToast] = useState(null);
 
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
+  const [analysisTab, setAnalysisTab] = useState("sales");
 
   useEffect(() => {
     const fn = (e) => {
@@ -3712,6 +3838,44 @@ const filteredTransactions = useMemo(() => {
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
   const trending  = Number(pctChange) >= 0;
 
+  const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
+  const transactionCount = viewArchive ? null : filteredTransactions.length;
+  const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
+  const activeBranchCount = viewArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+
+  const transactionCountSeries = useMemo(() => {
+    if (viewArchive || !chartLabels.length) return [];
+    const counts = Object.fromEntries(chartLabels.map(label => [label, 0]));
+    const now = new Date();
+    const isCustom = rangeMode === "custom" && appliedRange;
+    let customFromDate = null;
+    if (isCustom) customFromDate = new Date(appliedRange.from + "T00:00:00");
+
+    filteredTransactions.forEach(tx => {
+      const d = new Date(tx.created_at);
+      let label;
+      if (isCustom) {
+        const wi = Math.max(0, Math.floor((d - customFromDate) / (7 * 864e5)));
+        label = `W${wi + 1}`;
+      } else if (preset === "day") label = `${d.getHours()}:00`;
+      else if (preset === "week") label = d.toLocaleDateString("en-US", { weekday: "short" });
+      else if (preset === "month") label = `D${d.getDate()}`;
+      else if (preset === "year") label = d.toLocaleDateString("en-US", { month: "short" });
+      if (label in counts) counts[label] += 1;
+    });
+    return chartLabels.map(label => counts[label] || 0);
+  }, [filteredTransactions, chartLabels, preset, rangeMode, appliedRange, viewArchive]);
+
+  const branchPerformance = useMemo(() => {
+    if (viewArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const branch = tx.branch || "Unassigned";
+      grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewArchive]);
+
 const saveArchive = () => {
   const year = parseInt(archiveYear);
   if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
@@ -3824,13 +3988,13 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+      {/* ── KPI Cards: Sales Trend tab only ── */}
+      {analysisTab === "sales" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
-          { label: "Sales Revenue", value: kpiData?.salesRevenue,  icon: TrendingUp   },
-          { label: "Sales Profit",  value: kpiData?.salesProfit,   icon: BarChart2    },
-          { label: "Cost of Sales", value: kpiData?.cogs,          icon: Package      },
-          { label: "Total Sales",   value: kpiData?.totalSales,    icon: ShoppingCart },
+          { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
+          { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
+          { label: "Average Sale", value: viewArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
+          { label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
         ].map((k, i) => {
           const isHidden = !!hiddenKpis[i];
           return (
@@ -3862,18 +4026,19 @@ const applyCustomRange = async () => {
                     ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
                     : k.value != null
                       ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
-                          {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
+                          {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
                         </div>
                       : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
                   }
                 </div>
                 <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
               </div>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT, marginTop: 3 }}>{getRangeLabel()} · {filterLabel}</div>
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -4041,27 +4206,30 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-     {/* ── SECTION 1: SALES TREND ── */}
-      <SalesTrendSection
-        values={values} labels={chartData.labels} kpiData={kpiData}
-        total={total} avg={avg} peak={peak} low={low}
-        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
-        getRangeLabel={getRangeLabel} filterLabel={filterLabel}
-        filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList}
-      /> 
+      {/* ── Analysis workspace tabs ── */}
+      <div style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:"14px 14px 0 0", marginTop:16, marginBottom:18, padding:"0 20px", display:"flex", alignItems:"stretch", gap:8, overflowX:"auto" }}>
+        {[
+          { id:"sales", label:"Sales Trend", icon:TrendingUp },
+          { id:"prescriptive", label:"Prescriptive Analysis", icon:Brain },
+          { id:"stock", label:"Sales vs Stock", icon:Package },
+        ].map(t => <button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{ position:"relative", minWidth:170, padding:"17px 16px 15px", border:"none", background:"transparent", color:analysisTab===t.id?"#139a43":"#94a3b8", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT, display:"flex", alignItems:"center", justifyContent:"center", gap:7, whiteSpace:"nowrap" }}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#22a447"}}/>}</button>)}
+      </div>
 
-      <PrescriptiveSection
-        transactions={filteredTransactions}
-        filterLabel={filterLabel}
-        preset={preset} total={total} values={values} kpiData={kpiData}
-      />
+      {analysisTab === "sales" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
+            <DashboardLineGraph labels={chartLabels} values={values} />
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
+        </div>
+        <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", marginBottom:18, boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:10}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Transaction Volume</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3}}>Number of completed transactions per interval</div></div>{!viewArchive&&<span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{filteredTransactions.length.toLocaleString()} total</span>}</div><DashboardBarGraph labels={chartLabels} values={transactionCountSeries}/></div>
+        <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} />
+      </>}
 
-      {/* ── SECTION 3: SALES VS STOCK ── */}
-      <SalesVsStockSection
-        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
-        filterBranch={filterBranch} filterBrand={filterBrand}
-        selectedBrand={selectedBrand} total={total}
-      />
+      {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
+
+      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} />}
 
       <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
 
@@ -14393,3 +14561,4 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
+
