@@ -4228,7 +4228,11 @@ function FAApplicationsContent({ user, applications: initialApps }) {
                     // ── iPharma-specific view ──
                     <>
                       <Section title="Basic Information">
-                        <Field label="Full Name"          value={viewApp.name}              full />
+                        <Field label="First Name"         value={viewApp.firstName} />
+      <Field label="Last Name"          value={viewApp.lastName}/>
+      <Field label="M.I."               value={viewApp.middleInitial || "N/A"} />
+      <Field label="Suffix"             value={viewApp.suffix || "N/A"} />
+
                         <Field label="Email Address"      value={viewApp.email} />
                         <Field label="Phone Number"       value={viewApp.phone} />
                         <Field label="Date Signed"        value={fmtDate(viewApp.dateSigned)} />
@@ -4283,7 +4287,11 @@ function FAApplicationsContent({ user, applications: initialApps }) {
                     // ── Regular franchise view (existing fields) ──
                     <>
                       <Section title="Basic Information">
-                        <Field label="Full Name"          value={viewApp.name}              full />
+                       <Field label="First Name"         value={viewApp.firstName} />
+      <Field label="Last Name"          value={viewApp.lastName}/>
+      <Field label="M.I."               value={viewApp.middleInitial || "N/A"} />
+      <Field label="Suffix"             value={viewApp.suffix || "N/A"} />
+
                         <Field label="Email Address"      value={viewApp.email} />
                         <Field label="Phone Number"       value={viewApp.phone} />
                         <Field label="Franchise Interest" value={viewApp.franchise} />

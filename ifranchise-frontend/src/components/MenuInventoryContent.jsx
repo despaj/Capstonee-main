@@ -2,43 +2,46 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import * as XLSX from "xlsx";
 import { RefreshCw, AlertTriangle, Check, X, Trash2 } from "lucide-react";
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Design tokens — copied 1:1 from Stock Inventory ──────────────────────────
 const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
-  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
-  ok:"#2e7d32", okBg:"#e8f5e9",
+  green:"#3b791e", greenDk:"#2c5c16", greenLt:"#f0f5e8", greenMid:"#c9dba0",
+  teal:"#509820", lime:"#bdd43c", limeInk:"#24310C", ink:"#12241B", muted:"#5C6B60", border:"#E1E6D8",
+  bg:"#F6F7F1", white:"#ffffff", warn:"#b45309", warnBg:"#fff7ed",
+  ok:"#2c5c16", okBg:"#f0f5e8", red:"#c0392b", redBg:"#fdf1f0",
+  amber:"#d97706", amberBg:"#fff7ed", amberBorder:"#fed7aa",
 };
 
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
+  height:38, padding:"0 13px", borderRadius:11,
+  border:`1.5px solid ${C.border}`, background:C.white,
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
+  transition:"border-color .15s",
 };
 const invLabelSt = {
-  display:"block", fontSize:11, fontWeight:800,
-  color:C.muted, marginBottom:5,
-  textTransform:"uppercase", letterSpacing:"0.07em",
+  display:"block", fontSize:11, fontWeight:700,
+  color:C.muted, marginBottom:5, letterSpacing:"0.04em",
 };
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
+  height:38, padding:"0 18px", borderRadius:999,
   border:`1px solid ${C.border}`, background:C.white,
-  fontSize:13, fontWeight:700, cursor:"pointer",
-  fontFamily:"inherit", whiteSpace:"nowrap",
+  fontSize:13, fontWeight:600, cursor:"pointer",
+  fontFamily:"inherit", whiteSpace:"nowrap", color:C.ink,
+  transition:"background .15s, border-color .15s",
 };
 const btnPrimarySt = {
   ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
+  background:C.green,
   color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
+  boxShadow:"0 10px 24px rgba(59,121,30,0.22)",
 };
 const smallBtnSt = {
   display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 10px", borderRadius:7,
+  height:28, padding:"0 12px", borderRadius:999,
   fontSize:12, fontWeight:600, cursor:"pointer",
-  fontFamily:"inherit", background:C.white,
+  fontFamily:"inherit", background:"transparent",
+  transition:"background .12s, color .12s",
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
@@ -47,12 +50,12 @@ const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const PAGE_SIZE = 20;
 const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
-const FONT     = "'Montserrat', sans-serif";
+const FONT     = "'Plus Jakarta Sans', sans-serif";
 
 const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
 const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
 
-// ─── Fuzzy duplicate detection ────────────────────────────────────────────────
+// ─── Fuzzy duplicate detection (unchanged) ─────────────────────────────────────
 const normalizeName = str => {
   if (!str) return "";
   return str.toLowerCase().trim().replace(/\s+/g," ").replace(/[''']/g,"").replace(/s$/,"");
@@ -66,7 +69,7 @@ const findDuplicate = (name, branch, existingItems) => {
   }) || null;
 };
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
+// ─── Icons — Stock Inventory's set, plus the couple Menu needed extra ─────────
 const SearchIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
 const EditIcon      = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
 const TrashIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
@@ -82,6 +85,7 @@ const ActivityIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="
 const ArrowLeftIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
 const ArrowRightIcon= ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
 const EyeIcon       = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
+const AlertCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
@@ -94,7 +98,7 @@ const getBrowserLocation = () => {
   });
 };
 
-// ─── MiniBar (borrowed look from Stock Inventory) ─────────────────────────────
+// ─── MiniBar ───────────────────────────────────────────────────────────────────
 function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
   const w = Math.max(0, Math.min(100, pct ?? 0));
   return (
@@ -104,7 +108,7 @@ function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
   );
 }
 
-// ─── Chip ─────────────────────────────────────────────────────────────────────
+// ─── Chip ──────────────────────────────────────────────────────────────────────
 function Chip({ label, color, bg, onRemove }) {
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
@@ -150,7 +154,7 @@ function BranchSearchSelect({ value, onChange, allBranches }) {
   );
 }
 
-// ─── Searchable single-branch filter (Stock Inventory look) ───────────────────
+// ─── Searchable single-branch filter — copied from Stock Inventory ───────────
 function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   const [branchQ, setBranchQ] = useState("");
   const [open, setOpen]       = useState(false);
@@ -165,17 +169,17 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   const filteredBranches = branches.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
 
   const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:300, background:C.white, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:230, overflowY:"auto" };
-  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:active?C.greenDk:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
+  const optSt  = (active) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:C.ink, fontWeight:active?700:500, background:active?C.greenLt:"transparent", display:"flex", alignItems:"center", gap:8 });
 
   return (
-    <div ref={ref} style={{ position:"relative", minWidth:170 }}>
+    <div ref={ref} style={{ position:"relative", minWidth:150 }}>
       <div onClick={() => { setOpen(v=>!v); setBranchQ(""); }}
-        style={{ ...invInputSt, height:34, fontSize:12, display:"flex", alignItems:"center", gap:6, cursor:"pointer", paddingRight:26, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
-        <StoreIcon size={12} color={C.green}/>
+        style={{ ...invInputSt, height:30, fontSize:11, display:"flex", alignItems:"center", gap:6, cursor:"pointer", paddingRight:26, userSelect:"none", color:activeBranch?C.ink:C.muted }}>
+        <StoreIcon size={11} color={C.green}/>
         <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
           {activeBranch || "All Branches"}
         </span>
-        <ChevronIcon size={11} dir={open?"up":"down"}/>
+        <ChevronIcon size={10} dir={open?"up":"down"}/>
       </div>
       {open && (
         <div style={dropSt}>
@@ -198,7 +202,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
   );
 }
 
-// ─── CategorySelect (still used in Add/Edit form) ──────────────────────────────
+// ─── CategorySelect ─────────────────────────────────────────────────────────
 function CategorySelect({ value, onChange, categories, onAddCategory }) {
   const [adding, setAdding] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -215,7 +219,7 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
           <option value="">Select category…</option>
           {categories.map(c=><option key={c} value={c}>{c}</option>)}
         </select>
-        <button type="button" onClick={()=>setAdding(v=>!v)} style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
+        <button type="button" onClick={()=>setAdding(v=>!v)} style={{ ...smallBtnSt, height:38, width:38, justifyContent:"center", border:`1px solid ${C.border}`, color:adding?C.green:C.muted }}>
           <TagIcon size={14}/>
         </button>
       </div>
@@ -223,35 +227,44 @@ function CategorySelect({ value, onChange, categories, onAddCategory }) {
         <div style={{ display:"flex", gap:6, marginTop:6 }}>
           <input autoFocus type="text" value={newCat} onChange={e=>setNewCat(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();handleAdd();}}} placeholder="New category…" style={{ ...invInputSt, flex:1 }}/>
           <button type="button" onClick={handleAdd} style={{ ...btnPrimarySt, padding:"0 14px" }}>Add</button>
-          <button type="button" onClick={()=>{setAdding(false);setNewCat("");}} style={{ ...smallBtnSt, height:36, width:36, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935" }}><XIcon size={13}/></button>
+          <button type="button" onClick={()=>{setAdding(false);setNewCat("");}} style={{ ...smallBtnSt, height:38, width:38, justifyContent:"center", border:"1px solid #fecaca", color:C.red }}><XIcon size={13}/></button>
         </div>
       )}
     </div>
   );
 }
 
+// ─── DELETE CONFIRM MODAL — Stock Inventory's header-strip chrome ────────────
 function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
+  if (!target) return null;
   return (
-    <div onClick={deleting ? undefined : onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
-        <div style={{ width:52, height:52, borderRadius:"50%", background:"#fee2e2", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
-          <Trash2 size={22} color="#dc2626"/>
-        </div>
-        <h2 style={{ textAlign:"center", fontSize:17, fontWeight:800, color:C.ink, marginBottom:8 }}>Delete item?</h2>
-        <p style={{ textAlign:"center", fontSize:13, color:C.muted, lineHeight:1.6, marginBottom:16 }}>
-          You are about to delete <strong>"{target.name}"</strong>{target.branch ? <> from <strong>{target.branch}</strong></> : null}.
-        </p>
-        {target.ingredientCount > 0 && (
-          <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#c2410c", textAlign:"center", marginBottom:16 }}>
-            ⚠ This item has {target.ingredientCount} linked ingredient{target.ingredientCount!==1?"s":""}.
+    <div onClick={deleting ? undefined : onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:FONT, overflow:"hidden" }}>
+        <div style={{ background:C.redBg, padding:"20px 24px 16px", borderBottom:"1px solid #fecaca", display:"flex", alignItems:"flex-start", gap:13 }}>
+          <div style={{ flexShrink:0, marginTop:1 }}><AlertCircleIcon size={26} color={C.red}/></div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5 }}>Delete Item</div>
+            <div style={{ fontSize:13, color:C.ink, lineHeight:1.6 }}>
+              Are you sure you want to delete <strong>"{target.name}"</strong>{target.branch ? <> from <strong>{target.branch}</strong></> : null}?
+            </div>
+            {target.ingredientCount > 0 && (
+              <div style={{ marginTop:8, background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", fontSize:12, color:"#7f1d1d" }}>
+                This item has {target.ingredientCount} linked ingredient{target.ingredientCount!==1?"s":""}.
+              </div>
+            )}
+            <div style={{ marginTop:8, fontSize:11.5, color:C.muted }}>You can recover this from Delete History.</div>
           </div>
-        )}
-        <p style={{ textAlign:"center", fontSize:12, color:"#9ca3af", marginBottom:20 }}>You can recover this from Delete History.</p>
-        <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
-          <button type="button" onClick={onClose} disabled={deleting} style={{ padding:"9px 22px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", opacity:deleting?0.5:1 }}>Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={deleting} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#dc2626,#ef4444)", color:"#fff", fontSize:13, fontWeight:700, cursor:deleting?"not-allowed":"pointer", fontFamily:"inherit", boxShadow:"0 2px 10px rgba(220,38,38,0.35)", opacity:deleting?0.7:1 }}>
-            {deleting ? <RefreshCw size={14} style={{ animation:"spin 0.8s linear infinite" }}/> : <Trash2 size={14}/>}
-            {deleting ? "Deleting…" : "Delete item"}
+          <button onClick={onClose} disabled={deleting} style={{ flexShrink:0, width:28, height:28, borderRadius:"50%", border:"1px solid #fecaca", background:"transparent", cursor:deleting?"not-allowed":"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={13}/>
+          </button>
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onClose} disabled={deleting} style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ ...btnSt, background:C.red, color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(192,57,43,0.25)", opacity: deleting ? 0.7 : 1, cursor: deleting ? "not-allowed" : "pointer" }}>
+            {deleting
+              ? <><RefreshCw size={13} style={{ animation:"spin .8s linear infinite" }}/> Deleting…</>
+              : <><TrashIcon size={13}/> Delete</>}
           </button>
         </div>
       </div>
@@ -259,32 +272,30 @@ function DeleteConfirmModal({ target, onConfirm, onClose, deleting = false }) {
   );
 }
 
-// ─── Delete History Panel ─────────────────────────────────────────────────────
+// ─── Delete History Panel — Stock Inventory's grid-row chrome ────────────────
 function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
 
-        <style>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
+            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Delete History</h2>
             {history.length > 0 && (
-              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:"#dc2626" }}>
+              <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#fee2e2", color:C.red }}>
                 {history.length} deleted
               </span>
             )}
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <XIcon size={15}/>
           </button>
         </div>
 
         {history.length > 0 && (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, padding:"6px 0 10px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
             <span>Item</span><span>Branch</span><span>Stock</span><span>Price</span><span>Deleted At</span><span></span>
           </div>
         )}
@@ -296,7 +307,7 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
             const d    = entry.inventory_data   || {};
             const ings = entry.ingredients_data || [];
             return (
-              <div key={entry.id} style={{ padding:"14px 0", borderBottom: i < history.length-1 ? "1px solid #f0f8f0" : "none" }}>
+              <div key={entry.id} style={{ padding:"14px 0", borderBottom: i < history.length-1 ? `1px solid ${C.bg}` : "none" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 70px 80px 110px 100px", gap:8, alignItems:"center" }}>
                   <div>
                     <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
@@ -307,7 +318,7 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
                   <div style={{ fontSize:12, color:C.green, fontWeight:700 }}>{fmtPeso(d.price||0)}</div>
                   <div style={{ fontSize:11, color:"#9ca3af" }}>{entry.deleted_at ? fmtTs(entry.deleted_at) : "—"}</div>
                   <button onClick={() => onRestore(entry)} disabled={restoringId === entry.id}
-                   style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:9, border:`1.5px solid ${C.green}`, background:"#e0f2f1", color:C.greenDk, fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap",
+                   style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, border:`1.5px solid ${C.green}`, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap",
                       opacity: restoringId === entry.id ? 0.7 : 1, cursor: restoringId === entry.id ? "not-allowed" : "pointer" }}>
                     {restoringId === entry.id
                       ? <RefreshCw size={12} style={{ animation:"spin 0.8s linear infinite" }}/>
@@ -334,7 +345,7 @@ function InventoryDeleteHistoryPanel({ history, onRestore, restoringId, onClose 
   );
 }
 
-// ─── Activity Log Panel ───────────────────────────────────────────────────────
+// ─── Activity Log Panel — Stock Inventory's grid-row chrome ──────────────────
 function InventoryActivityLogPanel({ log, onClose }) {
   const [search, setSearch]         = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -358,19 +369,19 @@ function InventoryActivityLogPanel({ log, onClose }) {
       delete: { bg:"rgba(239,68,68,0.12)",   color:"#dc2626", label:"Deleted" },
     };
     const s = map[action] || map.edit;
-    return <span style={{ padding:"2px 9px", borderRadius:20, fontSize:10, fontWeight:800, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
+    return <span style={{ padding:"2px 9px", borderRadius:4, fontSize:10, fontWeight:700, background:s.bg, color:s.color, whiteSpace:"nowrap" }}>{s.label}</span>;
   };
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
 
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <h2 style={{ fontSize:17, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
-            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:"#e0f2f1", color:C.greenDk }}>{filtered.length} entries</span>
+            <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0 }}>Activity Log</h2>
+            <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:C.greenLt, color:C.greenDk }}>{filtered.length} entries</span>
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <XIcon size={15}/>
           </button>
         </div>
@@ -390,7 +401,7 @@ function InventoryActivityLogPanel({ log, onClose }) {
           </select>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:"2px solid #e0f2f1", fontSize:10, fontWeight:800, color:C.green, textTransform:"uppercase", letterSpacing:"0.07em" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, padding:"6px 0 8px", borderBottom:`2px solid ${C.greenLt}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>
           <span>Action</span><span>Item</span><span>Branch</span><span>By</span><span>Timestamp</span>
         </div>
 
@@ -398,7 +409,7 @@ function InventoryActivityLogPanel({ log, onClose }) {
           {filtered.length === 0 ? (
             <div style={{ padding:"40px 0", textAlign:"center", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>No activity yet.</div>
           ) : filtered.map((entry, i) => (
-            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? "1px solid #f0f8f0" : "none" }}>
+            <div key={entry.id || i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 100px 120px 160px", gap:8, alignItems:"center", padding:"11px 0", borderBottom: i < filtered.length-1 ? `1px solid ${C.bg}` : "none" }}>
               <div>{actionBadge(entry.action)}</div>
               <div>
               <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{entry.itemName}</div>
@@ -418,14 +429,14 @@ function InventoryActivityLogPanel({ log, onClose }) {
 function LogPagination({ page, totalPages, onChange }) {
   if (totalPages <= 1) return null;
   const pageBtn = (active, disabled) => ({
-    minWidth: 32, height: 32, padding: '0 8px', borderRadius: 9,
+    minWidth: 32, height: 32, padding: '0 8px', borderRadius: 999,
     border: `1px solid ${active ? 'transparent' : C.border}`,
-    background: active ? 'linear-gradient(135deg,#00c853,#00897b)' : C.white,
+    background: active ? C.green : C.white,
     color: active ? '#fff' : disabled ? '#cbd5c9' : C.ink,
     fontSize: 12.5, fontWeight: active ? 800 : 600,
     cursor: disabled ? 'not-allowed' : 'pointer',
     fontFamily: FONT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    boxShadow: active ? '0 3px 10px rgba(0,180,90,0.28)' : 'none',
+    boxShadow: active ? '0 3px 10px rgba(59,121,30,0.25)' : 'none',
     transition: 'transform .12s ease, box-shadow .12s ease, background .12s ease',
   });
   const pages = Array.from({ length: totalPages }, (_, i) => i).filter(i => Math.abs(i - page) <= 2 || i === 0 || i === totalPages - 1);
@@ -436,70 +447,44 @@ function LogPagination({ page, totalPages, onChange }) {
   });
   return (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-      <button
-        onClick={() => onChange(Math.max(0, page - 1))}
-        disabled={page === 0}
-        style={pageBtn(false, page === 0)}
-        onMouseEnter={e => { if (page !== 0) e.currentTarget.style.background = C.greenLt; }}
-        onMouseLeave={e => { if (page !== 0) e.currentTarget.style.background = C.white; }}
-      >
-        ‹
-      </button>
+      <button onClick={() => onChange(Math.max(0, page - 1))} disabled={page === 0} style={pageBtn(false, page === 0)}>‹</button>
       {withGaps.map((p, i) =>
         p === 'gap' ? (
           <span key={`gap-${i}`} style={{ width: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>···</span>
         ) : (
-          <button
-            key={p}
-            onClick={() => onChange(p)}
-            style={pageBtn(p === page, false)}
-            onMouseEnter={e => { if (p !== page) e.currentTarget.style.background = C.greenLt; }}
-            onMouseLeave={e => { if (p !== page) e.currentTarget.style.background = C.white; }}
-          >
-            {p + 1}
-          </button>
+          <button key={p} onClick={() => onChange(p)} style={pageBtn(p === page, false)}>{p + 1}</button>
         )
       )}
-      <button
-        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
-        disabled={page >= totalPages - 1}
-        style={pageBtn(false, page >= totalPages - 1)}
-        onMouseEnter={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.greenLt; }}
-        onMouseLeave={e => { if (page < totalPages - 1) e.currentTarget.style.background = C.white; }}
-      >
-        ›
-      </button>
+      <button onClick={() => onChange(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={pageBtn(false, page >= totalPages - 1)}>›</button>
     </div>
   );
 }
 
+// ─── Pagination — copied from Stock Inventory ─────────────────────────────────
 function Pagination({ page, setPage, total, pageSize }) {
   const totalPgs = Math.max(1, Math.ceil(total / pageSize));
   if (totalPgs <= 1) return null;
   return (
-    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderTop:`1px solid ${C.border}`, background:"#f9fefb" }}>
       <span style={{ fontSize:12, color:C.muted }}>
         Showing <strong style={{ color:C.ink }}>{(page*pageSize+1).toLocaleString()}–{Math.min((page+1)*pageSize,total).toLocaleString()}</strong> of <strong style={{ color:C.ink }}>{total.toLocaleString()}</strong>
       </span>
       <div style={{ display:"flex", gap:4 }}>
         {[{l:"«",a:()=>setPage(0),d:page===0},{l:"‹",a:()=>setPage(p=>Math.max(0,p-1)),d:page===0}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
         ))}
         {Array.from({length:totalPgs},(_,i)=>i).filter(i=>Math.abs(i-page)<=2).map(i=>(
-          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?`linear-gradient(135deg,${C.teal},${C.green})`:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
+          <button key={i} onClick={()=>setPage(i)} style={{ ...smallBtnSt, height:30, minWidth:30, justifyContent:"center", fontWeight:i===page?800:600, border:i===page?"none":`1px solid ${C.border}`, background:i===page?C.green:C.white, color:i===page?C.white:C.ink }}>{i+1}</button>
         ))}
         {[{l:"›",a:()=>setPage(p=>Math.min(totalPgs-1,p+1)),d:page>=totalPgs-1},{l:"»",a:()=>setPage(totalPgs-1),d:page>=totalPgs-1}].map(({l,a,d})=>(
-          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1 }}>{l}</button>
+          <button key={l} onClick={a} disabled={d} style={{ ...smallBtnSt, height:30, width:30, justifyContent:"center", border:`1px solid ${C.border}`, opacity:d?0.35:1, background:C.white }}>{l}</button>
         ))}
       </div>
     </div>
   );
 }
 
-// ─── InventoryTable ───────────────────────────────────────────────────────────
-// Self-contained pagination/sorting — each brand card gets its own instance,
-// so paging one brand never affects another. Resets to page 0 whenever the
-// item list it's given changes (new filters, different branch selected, etc).
+// ─── InventoryTable (kept for parity — same token-driven styling now) ────────
 function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
   const [sort, setSort]             = useState({ col:"name", asc:true });
   const [page, setPage]             = useState(0);
@@ -523,7 +508,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
     const active = sort.col === col;
     return (
       <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
-        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`2px solid ${C.greenLt}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f8fffe", ...s }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
           {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
         </span>
@@ -531,7 +516,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
     );
   };
   const ThStatic = ({ label, style:s }) => (
-    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
+    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:10.5, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`2px solid ${C.greenLt}`, whiteSpace:"nowrap", background:"#f8fffe", ...s }}>{label}</th>
   );
 
   if (!items.length) return <div style={{ padding:"36px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
@@ -550,7 +535,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
               <Th col="cost"      label="Cost"        style={{ minWidth:90  }}/>
               <Th col="price"     label="Price"       style={{ minWidth:90  }}/>
               <ThStatic           label="Ingredients" style={{ minWidth:140 }}/>
-              <th style={{ padding:"9px 12px", background:"#f0fdf5", borderBottom:`1px solid ${C.border}`, minWidth:150 }}/>
+              <th style={{ padding:"9px 12px", background:"#f8fffe", borderBottom:`2px solid ${C.greenLt}`, minWidth:150 }}/>
             </tr>
           </thead>
           <tbody>
@@ -561,12 +546,12 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
               const isExpanded = expandedRows[item.id];
               return (
                 <React.Fragment key={item.id}>
-                  <tr style={{ borderBottom: isExpanded?"none":`1px solid #f2faf5` }}
-                    onMouseEnter={e=>e.currentTarget.style.background="#fafffe"}
+                  <tr style={{ borderBottom: isExpanded?"none":`1px solid ${C.bg}` }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#fafcf7"}
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                     <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:C.greenLt, color:C.greenDk }}>{item.category}</span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted, fontSize:12 }}>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><StoreIcon size={11} color={C.green}/> {item.branch}</span>
@@ -574,7 +559,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
                         {item.stock}
-                        {low && <span style={{ background:"#fff3e0", color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
+                        {low && <span style={{ background:C.warnBg, color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
                       </span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
@@ -595,7 +580,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
                       <div style={{ display:"flex", gap:5, justifyContent:"flex-end" }}>
                        <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity: isDeleting ? 0.5 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}><EditIcon/> Edit</button>
                         <button onClick={()=>onRequestDelete(item)} disabled={isDeleting}
-                        style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
+                        style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity: isDeleting ? 0.6 : 1, cursor: isDeleting ? "not-allowed" : "pointer" }}>
                         {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
                         {isDeleting ? "Deleting…" : "Delete"}
                       </button>
@@ -603,7 +588,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
                     </td>
                   </tr>
                   {isExpanded && ingredients.length > 0 && (
-                    <tr style={{ borderBottom:`1px solid #f2faf5` }}>
+                    <tr style={{ borderBottom:`1px solid ${C.bg}` }}>
                       <td colSpan={9} style={{ padding:"0 12px 12px 12px", background:"#f9fefb" }}>
                         <div style={{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 14px", background:C.greenLt, borderRadius:10, border:`1px solid ${C.greenMid}` }}>
                           <span style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", width:"100%", marginBottom:4 }}>
@@ -632,6 +617,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
+// ─── Toast — same design, retuned to Stock Inventory's green/red tokens ──────
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
@@ -648,19 +634,19 @@ function Toast({ toast, onClose }) {
     <div style={{
       position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
       maxWidth:380, padding:"16px 18px", borderRadius:14,
-      background: isErr ? "#fef2f2" : "#f0fdf5",
-      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
-      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      background: isErr ? C.redBg : C.okBg,
+      borderLeft: `5px solid ${isErr ? C.red : C.green}`,
+      border: `1px solid ${isErr ? "#fecaca" : C.greenMid}`,
       borderLeftWidth: 5,
       boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:"'Montserrat',sans-serif",
+      fontFamily:FONT,
       animation:"toastIn .22s ease",
     }}>
       <div style={{
         flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
         alignItems:"center", justifyContent:"center",
-        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
-        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+        background: isErr ? C.red : C.green, color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(192,57,43,0.4)" : "rgba(59,121,30,0.4)"}`,
       }}>
         {isErr
           ? <AlertTriangle size={16}/>
@@ -670,11 +656,11 @@ function Toast({ toast, onClose }) {
       </div>
 
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : C.ink }}>
           {toast.title}
         </div>
         {toast.message && (
-          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : C.muted, marginTop:3, lineHeight:1.4 }}>
             {toast.message}
           </div>
         )}
@@ -683,7 +669,7 @@ function Toast({ toast, onClose }) {
       {!isLoading && (
         <button onClick={onClose} style={{
           background:"none", border:"none",
-          color: isErr ? "#991b1b" : "#3f5f4f",
+          color: isErr ? "#991b1b" : C.muted,
           cursor:"pointer", padding:2, flexShrink:0,
           display:"flex", alignItems:"center", justifyContent:"center",
         }}>
@@ -694,47 +680,43 @@ function Toast({ toast, onClose }) {
   );
 }
 
-// ─── BrandOverviewCard — landing screen, Stock-Inventory style ────────────────
+// ─── BrandOverviewCard — Stock Inventory's ink-icon / 2-stat card ─────────────
 function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(); }}
       style={{
-        background:C.white, border:"1px solid rgba(0,168,76,0.14)", borderRadius:20,
-        overflow:"hidden", boxShadow:"0 4px 20px rgba(0,140,60,0.08)", cursor:"pointer",
-        transition:"transform .15s ease, box-shadow .15s ease", display:"flex", flexDirection:"column",
+        textAlign:"left", width:"100%", padding:0, appearance:"none",
+        background:C.white, border:`1px solid ${C.border}`, borderRadius:18,
+        overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer",
+        transition:"transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+        fontFamily:"inherit",
       }}
-      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,140,60,0.16)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,140,60,0.08)"; }}
+      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 14px 32px rgba(50,109,32,.12)";e.currentTarget.style.borderColor=C.greenMid;}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 10px rgba(50,109,32,.05)";e.currentTarget.style.borderColor=C.border;}}
     >
-      <div style={{ padding:"22px 20px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:C.white }}>
-        <div style={{ width:44, height:44, borderRadius:12, background:"rgba(255,255,255,0.18)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}>
-          <StoreIcon size={22} color="#fff"/>
+      <div style={{ padding:"18px 18px 15px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8", display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ width:42, height:42, borderRadius:12, background:C.ink, color:C.lime, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <StoreIcon size={19} color={C.lime}/>
         </div>
-        <div style={{ fontSize:17, fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
-        <div style={{ fontSize:11.5, opacity:0.85, marginTop:2 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
-      </div>
-      <div style={{ padding:"16px 20px 20px", display:"flex", flexDirection:"column", gap:10 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Items</span>
-          <span style={{ fontSize:15, fontWeight:800, color:C.ink }}>{itemCount}</span>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
+          <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
         </div>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:12, color:C.muted, fontWeight:600 }}>Low Stock</span>
-          <span style={{ fontSize:15, fontWeight:800, color:lowCount>0?C.warn:C.green }}>{lowCount}</span>
-        </div>
-        <div style={{ marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px 0", borderRadius:9, background:C.greenLt, color:C.greenDk, fontSize:12, fontWeight:700 }}>
-          View Products <ArrowRightIcon size={11}/>
+        <div style={{ width:30, height:30, borderRadius:9, background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.greenDk }}>
+          <ArrowRightIcon size={13}/>
         </div>
       </div>
-    </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:0, padding:"16px 18px" }}>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Items</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{itemCount}</div></div>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:lowCount?C.red:C.green, marginTop:3 }}>{lowCount}</div></div>
+      </div>
+    </button>
   );
 }
 
-// ─── ItemDetailPanel — content shown inside the "View Item Details" modal ─────
+// ─── ItemDetailPanel ───────────────────────────────────────────────────────────
 function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   if (!item) return null;
 
@@ -749,7 +731,7 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Can Make</div>
   <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
     {item.available_stock != null ? item.available_stock : "—"}
-    {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:"#fff3e0", padding:"2px 7px", borderRadius:20 }}>LOW</span>}
+    {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
   </div>
 </div>
         <div style={{ minWidth:0 }}>
@@ -760,7 +742,7 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
         </div>
         <div style={{ display:"flex", gap:6, flexShrink:0 }}>
           <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity:isDeleting?0.5:1, cursor:isDeleting?"not-allowed":"pointer" }}><EditIcon size={11}/> Edit</button>
-          <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #ffcdd2", color:"#e53935", opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
+          <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
             {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
             {isDeleting ? "Deleting…" : <><TrashIcon size={11}/> Delete</>}
           </button>
@@ -812,17 +794,17 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
-// ─── ItemDetailModal — popup shown when "View" is clicked on a row ────────────
+// ─── ItemDetailModal ────────────────────────────────────────────────────────
 function ItemDetailModal({ item, onClose, onEdit, onRequestDelete, deletingId }) {
   if (!item) return null;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"26px 28px", width:"100%", maxWidth:520, maxHeight:"86vh", overflowY:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, padding:"26px 28px", width:"100%", maxWidth:520, maxHeight:"86vh", overflowY:"auto", boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:`1px solid ${C.greenMid}`, fontFamily:FONT }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <h2 style={{ fontSize:16, fontWeight:800, color:C.ink, margin:0, display:"flex", alignItems:"center", gap:8 }}>
             <EyeIcon size={15}/> Item Details
           </h2>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:"#e0f2f1", cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.greenLt, cursor:"pointer", color:C.green, display:"flex", alignItems:"center", justifyContent:"center" }}>
             <XIcon size={15}/>
           </button>
         </div>
@@ -857,8 +839,7 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
 
   return (
     <div>
-      {/* filter row */}
-      <div style={{ padding:"10px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", background:"#fafffe" }}>
+      <div style={{ padding:"10px 20px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:8, flexWrap:"wrap", background:"#fbfcf8" }}>
         <div style={{ position:"relative", flex:"1 1 180px", minWidth:140 }}>
           <div style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search item…" style={{ ...invInputSt, height:32, fontSize:12, paddingLeft:28 }}/>
@@ -870,7 +851,6 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
         </select>
       </div>
 
-      {/* two-column: names left, ingredients right */}
       <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", minHeight:420, maxHeight:560 }}>
         <div style={{ borderRight:`1px solid ${C.border}`, overflowY:"auto", maxHeight:560 }}>
           {filtered.length === 0 ? (
@@ -878,14 +858,11 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
           ) : filtered.map(item => {
               const low = item.is_low;
               const active = item.id === selectedId;
-              const stockPct = item.available_stock != null
-                ? Math.min(100, item.available_stock * 10)   // adjust scale as you like
-                : 0;
               return (
               <div key={item.id} onClick={() => setSelectedId(item.id)}
-                style={{ padding:"11px 16px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
+                style={{ padding:"11px 16px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:13, fontWeight:active?800:600, color:active?C.greenDk:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+                  <span style={{ fontSize:13, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
                   {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
                 </div>
                 <div style={{ fontSize:11, color:C.muted, marginTop:3, display:"flex", justifyContent:"space-between", gap:6 }}>
@@ -936,6 +913,7 @@ function computeAvailability(ingredients) {
   };
 }
 
+// ─── MenuBrandCard — header/filter row restyled flat like Stock Inventory's BrandCard ─
 function MenuBrandCard({
   brandName, items, branchOptions, categories,
   onEdit, onRequestDelete, deletingId, onQuickAdd, onBack,
@@ -970,31 +948,31 @@ function MenuBrandCard({
   const lowCount = items.filter(i => i.is_low).length;
 
   return (
-    <div style={{ background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)", display:"flex", flexDirection:"column" }}>
-      {/* header */}
-      <div style={{ padding:"16px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white, flexWrap:"wrap", gap:8 }}>
+    <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", display:"flex", flexDirection:"column" }}>
+      {/* header — flat, matches Stock Inventory's BrandCard */}
+      <div style={{ padding:"16px 22px", background:"#fbfcf8", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.ink, flexWrap:"wrap", gap:8 }}>
         <span style={{ display:"flex", alignItems:"center", gap:10 }}>
           {onBack ? (
             <button onClick={onBack} title="Back to all brands"
-              style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.22)", color:"#fff", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
-              <ArrowLeftIcon size={16}/>
+              style={{ display:"inline-flex", alignItems:"center", gap:6, height:34, padding:"0 14px", borderRadius:9, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk, fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"pointer" }}>
+              <ArrowLeftIcon size={16} strokeWidth={2.5}/>
             </button>
           ) : (
-            <StoreIcon size={17} color="#fff"/>
+            <StoreIcon size={17} color={C.green}/>
           )}
           <span style={{ fontWeight:800, fontSize:17 }}>{brandName}</span>
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
-          <span style={{ opacity:0.92 }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+          <span style={{ opacity:0.85, color:C.muted }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
           <button onClick={onQuickAdd} title="Add a new menu item"
-            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"1px solid rgba(255,255,255,0.5)", background:"rgba(255,255,255,0.15)", color:"#fff", fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
             <PlusIcon size={12}/> Add Item
           </button>
         </span>
       </div>
 
       {/* filter row */}
-      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fafffe" }}>
+      <div style={{ padding:"12px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:6, flexWrap:"wrap", background:"#fbfcf8" }}>
         <div style={{ position:"relative", flex:"1 1 160px", minWidth:100 }}>
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
@@ -1010,13 +988,13 @@ function MenuBrandCard({
           <option value="ok">In Stock</option>
         </select>
         <div style={{ flex:1 }}/>
-        <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:"1.5px solid #dc2626", color:"#dc2626", gap:5 }}>
+        <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
           <HistoryIcon size={11}/> Delete History
           {deleteHistoryCount > 0 && (
-            <span style={{ background:"#dc2626", color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
+            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
           )}
         </button>
-        <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5 }}>
+        <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5, background:C.white }}>
           <FileIcon size={11}/> Import Excel
           <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
         </label>
@@ -1033,9 +1011,9 @@ function MenuBrandCard({
             const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
             return (
               <div key={item.id} onClick={() => setSelectedId(item.id)}
-                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.green:"transparent"}`, background:active?C.greenLt:"transparent", borderBottom:`1px solid ${C.bg}` }}>
+                style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:active?C.greenDk:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
                   {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
                 </div>
                 <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>
@@ -1046,7 +1024,7 @@ function MenuBrandCard({
                 </div>
                 <div style={{ display:"flex", gap:6, marginTop:7 }}>
                   <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
-                  <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:"#e53935" }}><TrashIcon size={10}/> Delete</button>
+                  <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:C.red }}><TrashIcon size={10}/> Delete</button>
                 </div>
               </div>
             );
@@ -1067,7 +1045,7 @@ function MenuBrandCard({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Component ────────────────────────────────────────────────────────────
 export default function MenuInventoryContent({ user, brands: propBrands = [] }) {
   const isAdmin    = user?.role === "Super Admin" || user?.role === "Sales Admin";
   const userBranch = user?.branch || "";
@@ -1085,7 +1063,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
-  // map branch name -> brand name, used to group inventory rows by brand
   const branchToBrand = useMemo(() => {
     const map = {};
     brandList.forEach(b => (b.branches||[]).forEach(br => {
@@ -1095,15 +1072,14 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return map;
   }, [brandList]);
 
-  // ── Core state ──────────────────────────────────────────────────────────────
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
   const [loading,         setLoading]         = useState(false);
-  const [filterBrandName, setFilterBrandName] = useState("");   // "" = show every brand card
+  const [filterBrandName, setFilterBrandName] = useState("");
   const [filterCategory,  setFilterCategory]  = useState("");
   const [filterStatus,    setFilterStatus]    = useState("");
   const [searchQuery,     setSearchQuery]     = useState("");
-  const [brandBranchFilter, setBrandBranchFilter] = useState({}); // { [brandName]: branchName | "all" }
+  const [brandBranchFilter, setBrandBranchFilter] = useState({});
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showEditModal,   setShowEditModal]   = useState(false);
   const [editingItem,     setEditingItem]     = useState(null);
@@ -1117,13 +1093,11 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const [toast,           setToast]           = useState(null);
   const showToast = (type, title, message) => setToast({ type, title, message });
 
-  // ── History / log state ─────────────────────────────────────────────────────
   const [deleteHistory,     setDeleteHistory]     = useState([]);
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
   const [activityLog,       setActivityLog]       = useState([]);
   const [showActivityLog,   setShowActivityLog]   = useState(false);
 
-  // ── Ingredient picker state ─────────────────────────────────────────────────
   const [ingSearch,   setIngSearch]   = useState("");
   const [ingQty,      setIngQty]      = useState("1");
   const [ingUnit,     setIngUnit]     = useState("");
@@ -1141,7 +1115,6 @@ const emptyForm = useCallback(() => ({
   const [formData,    setFormData]    = useState(emptyForm);
   const [formBrandId, setFormBrandId] = useState("");
 
-  // ── Category helpers (still needed by the Add/Edit form) ───────────────────
   const inventoryCategories = useMemo(() => {
     return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
   }, [brandList]);
@@ -1165,7 +1138,6 @@ const emptyForm = useCallback(() => ({
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  // ── Fetch helpers ───────────────────────────────────────────────────────────
   const fetchInventory = useCallback(async (branch) => {
     setLoading(true);
     try {
@@ -1228,9 +1200,6 @@ const fetchStockItems = useCallback(async (branch, brand) => {
     }
   }, []);
 
-  // ── Effects ─────────────────────────────────────────────────────────────────
-  // Admins pull the full inventory once and the brand cards below split it up
-  // client-side; non-admins only ever see their own branch's items.
   useEffect(() => {
     if (!isAdmin) { fetchInventory(userBranch); return; }
     fetchInventory();
@@ -1241,8 +1210,6 @@ const fetchStockItems = useCallback(async (branch, brand) => {
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
-  // Search / category / status filters only — brand & branch narrowing happens
-  // per-card below so each brand keeps its own row set and its own pagination.
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventory.filter(i => {
@@ -1262,8 +1229,6 @@ const fetchStockItems = useCallback(async (branch, brand) => {
     return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
   }, [filterBrandName, brandList]);
 
-  // Group the filtered rows by brand, keep them in the brand's own list order,
-  // then apply the top "Brand" narrowing filter (if any) on top of that.
   const brandGroups = useMemo(() => {
     const map = {};
     filteredItems.forEach(item => {
@@ -1276,16 +1241,32 @@ const fetchStockItems = useCallback(async (branch, brand) => {
     if (filterBrandName) names = names.filter(n => n === filterBrandName);
     return names.map(name => ({ name, items: map[name] }));
   }, [filteredItems, branchToBrand, brandList, filterBrandName]);
+  
+  const UNIT_GROUPS = {
+  g:      { base: "kg",      factor: 0.001 },
+  kg:     { base: "kg",      factor: 1 },
+  ml:     { base: "liters",  factor: 0.001 },
+  liters: { base: "liters",  factor: 1 },
+  pcs:    { base: "pcs",     factor: 1 },
+};
 
-  // ── Computed cost from ingredients ──────────────────────────────────────────
-  const computedCost = useMemo(() => {
-    if (!formData.ingredients || formData.ingredients.length === 0) return 0;
-    return formData.ingredients.reduce((total, ing) => {
-      const stock = stockItems.find(s => s.id === ing.stock_item_id);
-      if (!stock) return total;
-      return total + (parseFloat(stock.cost_per_unit||0) * parseFloat(ing.qty_required||0));
-    }, 0);
-  }, [formData.ingredients, stockItems]);
+function convertUnit(quantity, fromUnit, toUnit) {
+  if (fromUnit === toUnit) return quantity;
+  const from = UNIT_GROUPS[fromUnit];
+  const to = UNIT_GROUPS[toUnit];
+  if (!from || !to || from.base !== to.base) return quantity; // fail-safe: don't crash the form
+  return (quantity * from.factor) / to.factor;
+}
+
+const computedCost = useMemo(() => {
+  if (!formData.ingredients || formData.ingredients.length === 0) return 0;
+  return formData.ingredients.reduce((total, ing) => {
+    const stock = stockItems.find(s => s.id === ing.stock_item_id);
+    if (!stock) return total;
+    const qtyInStockUnit = convertUnit(parseFloat(ing.qty_required||0), ing.unit, stock.unit);
+    return total + (parseFloat(stock.cost_per_unit||0) * qtyInStockUnit);
+  }, 0);
+}, [formData.ingredients, stockItems]);
 
   useEffect(() => {
     const cost  = computedCost.toFixed(2);
@@ -1488,7 +1469,6 @@ const openEditModal = item => {
     setShowAddModal(true);
   };
 
-  // ── Input handlers ──────────────────────────────────────────────────────────
   const handleInputChange = e => {
     let { name, value } = e.target;
     if (name === "name") value = value.replace(/\b\w/g, c => c.toUpperCase());
@@ -1514,11 +1494,10 @@ const openEditModal = item => {
   const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
   const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
 
-const ingFiltered = stockItems.filter(s => {
+const ingFiltered = stockItems.filter(s =>
   !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase())
-});
+);
 
-  // ── Excel import ─────────────────────────────────────────────────────────────
   const importExcel = e => {
     const file = e.target.files[0];
     const toTitleCase = str => str.replace(/\b\w/g, c => c.toUpperCase());
@@ -1594,10 +1573,9 @@ const ingFiltered = stockItems.filter(s => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ── Render helpers for the Add/Edit form ────────────────────────────────────
   const renderIngredientPicker = () => (
-    <div style={{ background:"#f0fdf5", border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
-      <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
+    <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:12, padding:"14px 16px", marginTop:4 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:10 }}>Ingredients Required</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px auto", gap:8, marginBottom:10 }}>
         <div ref={ingRef} style={{ position:"relative" }}>
           <input style={invInputSt} value={ingSearch}
@@ -1609,11 +1587,11 @@ const ingFiltered = stockItems.filter(s => {
               {ingFiltered.map(s=>(
                 <div key={s.id}
                   onMouseDown={e=>{e.preventDefault();setIngPicked(s);setIngSearch(s.name);setIngUnit(s.unit);setIngDropOpen(false);}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#f0fdf5"}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                   style={{ padding:"8px 12px", cursor:"pointer", fontSize:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <span style={{ fontWeight:600, color:C.ink }}>{s.name}</span>
-                  <span style={{ fontSize:11, color:C.muted, background:"#dcfce7", padding:"2px 8px", borderRadius:20 }}>{s.unit} · {s.branch}</span>
+                  <span style={{ fontSize:11, color:C.muted, background:C.greenLt, padding:"2px 8px", borderRadius:20 }}>{s.unit} · {s.branch}</span>
                 </div>
               ))}
             </div>
@@ -1624,7 +1602,7 @@ const ingFiltered = stockItems.filter(s => {
           <option value="">unit</option>
           {UNITS.map(u=><option key={u} value={u}>{u}</option>)}
         </select>
-        <button type="button" onClick={addIngredient} style={{ ...btnPrimarySt, height:36, padding:"0 14px", flexShrink:0 }}>
+        <button type="button" onClick={addIngredient} style={{ ...btnPrimarySt, height:38, padding:"0 14px", flexShrink:0 }}>
           <PlusIcon/> Add
         </button>
       </div>
@@ -1638,9 +1616,17 @@ const ingFiltered = stockItems.filter(s => {
               <input type="number" value={ing.qty_required} min="0" step="any"
                 onChange={e=>updateIngQty(idx,e.target.value)}
                 style={{ ...invInputSt, textAlign:"center" }}/>
-              <span style={{ fontSize:11, color:C.muted, background:"#f0fdf5", padding:"3px 8px", borderRadius:20, textAlign:"center" }}>{ing.unit}</span>
+              <select
+  value={ing.unit}
+  onChange={e => setFormData(f => ({
+    ...f,
+    ingredients: f.ingredients.map((row,i) => i===idx ? { ...row, unit: e.target.value } : row)
+  }))}
+  style={{ ...invInputSt, height:28, fontSize:11, padding:"0 8px" }}>
+  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+</select>
               <button type="button" onClick={()=>removeIngredient(idx)}
-                style={{ ...smallBtnSt, height:28, width:28, justifyContent:"center", border:"1px solid #ffcdd2", color:"#e53935", flexShrink:0 }}>
+                style={{ ...smallBtnSt, height:28, width:28, justifyContent:"center", border:"1px solid #fecaca", color:C.red, flexShrink:0 }}>
                 <XIcon size={11}/>
               </button>
             </div>
@@ -1704,7 +1690,7 @@ const ingFiltered = stockItems.filter(s => {
             <button
               type="button"
               onClick={() => setFormData(p => ({ ...p, image_url: "" }))}
-              style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:"#e53935", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+              style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:C.red, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
               <XIcon size={9}/>
             </button>
           </div>
@@ -1798,7 +1784,19 @@ const openBrand = brandId => {
   setActiveScreen("inventory");
 };
 
-  const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>;
+  const fontImport = <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes toastIn { from{opacity:0;transform:translateY(-6px);} to{opacity:1;transform:translateY(0);} }
+    .inv-row:hover td { background: #F6F7F1 !important; }
+    .edit-btn:hover  { background: ${C.greenLt} !important; color: ${C.greenDk} !important; }
+    .del-btn:hover   { background: #fef2f2 !important; color: ${C.red} !important; }
+    button:not(:disabled) { transition: filter .15s ease, transform .1s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; cursor: pointer; }
+    button:not(:disabled):hover { filter: brightness(0.96); }
+    button:not(:disabled):active { transform: translateY(1px); }
+    select, input { transition: border-color .15s ease, box-shadow .15s ease; }
+    select:hover:not(:disabled), input:hover:not(:disabled) { border-color: ${C.green} !important; }
+    select:focus, input:focus, textarea:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(59,121,30,0.12); }
+  `}</style>;
 
   const branchOptionsForCard = isAdmin && selectedBrandObj
     ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
@@ -1807,16 +1805,15 @@ const openBrand = brandId => {
   // ── Screen 1: Brand cards ─────────────────────────────────────────────────────
   if (activeScreen === "brands" && isAdmin) {
     return (
-      <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily:FONT, color:C.ink }}>
         {fontImport}
-       
 
         {loading && brandList.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading brands…</div>
         ) : brandList.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No brands found.</div>
         ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:16 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
             {brandList.map(b => {
               const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
               const brandItems  = inventory.filter(i => branchNames.includes(i.branch));
@@ -1841,11 +1838,11 @@ const openBrand = brandId => {
 
   // ── Screen 2: Row-list card (scoped to selected brand for admins) ─────────────
 return (
-  <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
+  <div style={{ fontFamily:FONT, color:C.ink }}>
     {fontImport}
 
     {loading ? (
-      <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid rgba(0,168,76,0.12)` }}>
+      <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid ${C.border}` }}>
         Loading inventory…
       </div>
     ) : (
@@ -1890,11 +1887,11 @@ return (
 
     {/* Add / Edit Modal */}
     {(showAddModal || showEditModal) && (
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
+      <div style={{ position:"fixed", inset:0, background:"rgba(18,36,27,0.32)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}
         onClick={e=>{ if(e.target===e.currentTarget){setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());resetIngPicker();} }}>
-        <div style={{ background:C.white, borderRadius:20, padding:"26px 26px 20px", width:560, maxWidth:"95vw", maxHeight:"92vh", overflowY:"auto", boxShadow:"0 10px 48px rgba(0,0,0,.18)" }}>
+        <div style={{ background:C.white, borderRadius:18, padding:"26px 26px 20px", width:540, maxWidth:"95vw", maxHeight:"93vh", overflowY:"auto", boxShadow:"0 12px 48px rgba(0,0,0,0.16)" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
+            <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
             <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
           </div>
           <form onSubmit={showAddModal ? handleAddItem : handleEditItem}>

@@ -1584,6 +1584,10 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
 
     const payload = {
       name:             fullName,
+      firstName:     form.firstName,
+lastName:      form.lastName,
+middleInitial: form.middleInitial || null,
+suffix:        form.suffix || null,
       email:            form.email,
       phone:            form.mobile,
       altPhone:         form.altMobile || null,

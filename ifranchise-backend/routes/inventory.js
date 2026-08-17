@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
+const { convertUnit } = require("../utils/unitConversion");
 
 function computeAvailability(ingredients) {
   if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
@@ -10,8 +11,8 @@ function computeAvailability(ingredients) {
   const lowIngredients = [];
 
   for (const ing of ingredients) {
-    const qtyRequired = parseFloat(ing.qty_required) || 0;
     const stock = parseFloat(ing.stock) || 0;
+    const qtyRequired = convertUnit(parseFloat(ing.qty_required) || 0, ing.recipe_unit, ing.ingredient_unit);
     if (qtyRequired <= 0) continue;
 
     const portions = Math.floor(stock / qtyRequired);
@@ -37,10 +38,10 @@ router.get("/inventory", async (req, res) => {
 
     const items = await Promise.all(result.rows.map(async item => {
       const ings = await pool.query(
-        `SELECT pi.quantity AS qty_required, pi.unit, i.id, i.name, i.stock, i.min_stock
-         FROM product_ingredients pi
-         JOIN ingredients i ON i.id = pi.ingredient_id
-         WHERE pi.inventory_id = $1`,
+        `SELECT pi.quantity AS qty_required, pi.unit AS recipe_unit, i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit
+        FROM product_ingredients pi
+        JOIN ingredients i ON i.id = pi.ingredient_id
+        WHERE pi.inventory_id = $1`,
         [item.id]
       );
       const { available, lowIngredients } = computeAvailability(ings.rows);
@@ -61,7 +62,7 @@ router.get("/inventory", async (req, res) => {
 
 router.put("/inventory/:id", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, performed_by_role } = req.body;
+    const { name, category, branch, brand, cost, price, image_url, latitude, longitude, performed_by_role } = req.body;
 
     const before = await pool.query("SELECT * FROM inventory WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) return res.status(404).json({ error: "Item not found" });
@@ -69,10 +70,9 @@ router.put("/inventory/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE inventory
-       SET name=$1, category=$2, branch=$3, brand=$4, stock=$5, min_stock=$6, cost=$7, price=$8, image_url=$9, updated_at=NOW()
-       WHERE id=$10 RETURNING *`,
+       SET name=$1, category=$2, branch=$3, brand=$4, cost=$5, price=$6, image_url=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
       [name, category, branch, brand || null,
-       parseInt(stock) || 0, parseInt(min_stock ?? minStock) || 0,
        parseFloat(cost) || 0, parseFloat(price) || 0,
        image_url || null, req.params.id]
     );
@@ -81,7 +81,7 @@ router.put("/inventory/:id", async (req, res) => {
     const updatedItem = result.rows[0];
 
     const changes = {};
-    for (const field of ["name", "category", "branch", "brand", "stock", "min_stock", "cost", "price", "image_url"]) {
+    for (const field of ["name", "category", "branch", "brand", "cost", "price", "image_url"]) {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
@@ -126,7 +126,7 @@ router.delete("/inventory/:id", async (req, res) => {
       `INSERT INTO inventory_delete_history (inventory_data, ingredients_data, deleted_by, deleted_at)
        VALUES ($1,$2,$3,NOW())`,
       [
-        JSON.stringify({ name: item.name, category: item.category, branch: item.branch, brand: item.brand, stock: item.stock, min_stock: item.min_stock, cost: item.cost, price: item.price, image_url: item.image_url }),
+        JSON.stringify({ name: item.name, category: item.category, branch: item.branch, brand: item.brand, cost: item.cost, price: item.price, image_url: item.image_url }),
         JSON.stringify(ings.rows),
         req.body?.deleted_by || "Unknown",
       ]
@@ -136,7 +136,7 @@ router.delete("/inventory/:id", async (req, res) => {
       action: "delete",
       itemName: item.name,
       performedBy: req.body?.deleted_by || "System",
-      details: { category: item.category, stock: item.stock, cost: item.cost, price: item.price },
+      details: { category: item.category, cost: item.cost, price: item.price },
       req,
       branch: item.branch,
       module: "Menu Inventory",
@@ -211,14 +211,13 @@ router.get("/inventory/:id/ingredients", async (req, res) => {
 
 router.post("/inventory", async (req, res) => {
   try {
-    const { name, category, branch, brand, stock, min_stock, minStock, cost, price, image_url, latitude, longitude, restored, performed_by_role } = req.body;
+    const { name, category, branch, brand, cost, price, image_url, latitude, longitude, restored, performed_by_role } = req.body;
     if (!branch) return res.status(400).json({ error: "Branch is required" });
 
     const result = await pool.query(
-      `INSERT INTO inventory (name, category, branch, brand, stock, min_stock, cost, price, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      `INSERT INTO inventory (name, category, branch, brand, cost, price, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [name, category, branch, brand || null,
-       parseInt(stock) || 0, parseInt(min_stock ?? minStock) || 0,
        parseFloat(cost) || 0, parseFloat(price) || 0, image_url || null]
     );
 
@@ -229,8 +228,7 @@ router.post("/inventory", async (req, res) => {
       itemName: newItem.name,
       performedBy: req.body?.performed_by || "System",
       details: {
-        category, branch, brand, stock: newItem.stock, min_stock: newItem.min_stock,
-        cost: newItem.cost, price: newItem.price,
+        category, branch, brand, cost: newItem.cost, price: newItem.price,
         ...(restored ? { note: "Restored from delete history" } : {}),
       },
       req,
@@ -262,14 +260,15 @@ router.post("/inventory/:id/sell", async (req, res) => {
     if (productResult.rows[0].stock < 0) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Insufficient product stock" }); }
 
     const recipe = await client.query(
-      `SELECT pi.ingredient_id, pi.quantity, i.name, i.brand, i.perishable
-       FROM product_ingredients pi JOIN ingredients i ON i.id=pi.ingredient_id
-       WHERE pi.inventory_id=$1`,
+      `SELECT pi.ingredient_id, pi.quantity, pi.unit AS recipe_unit, i.name, i.brand, i.perishable, i.unit AS ingredient_unit
+      FROM product_ingredients pi JOIN ingredients i ON i.id=pi.ingredient_id
+      WHERE pi.inventory_id=$1`,
       [req.params.id]
     );
 
     for (const row of recipe.rows) {
-      const needed = parseFloat(row.quantity) * parseInt(quantity);
+      const neededInRecipeUnit = parseFloat(row.quantity) * parseInt(quantity);
+      const needed = convertUnit(neededInRecipeUnit, row.recipe_unit, row.ingredient_unit);
       const isFefo = (row.brand || "").toLowerCase().includes("ipharma") || !!row.perishable;
 
       const batchesRes = await client.query(

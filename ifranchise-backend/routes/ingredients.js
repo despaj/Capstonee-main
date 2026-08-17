@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
+const { convertUnit } = require("../utils/unitConversion");
+const { recomputeProductCosts } = require("../utils/recomputeProductCosts");
 
 function computeNextOutCost(batches, brand, perishable) {
   const active = batches.filter(b => Number(b.stock) > 0);
@@ -24,10 +26,18 @@ function computeNextOutCost(batches, brand, perishable) {
 
 router.get("/ingredients", async (req, res) => {
   try {
-    const { branch } = req.query;
-    const result = branch
-      ? await pool.query("SELECT * FROM ingredients WHERE branch=$1 ORDER BY name", [branch])
-      : await pool.query("SELECT * FROM ingredients ORDER BY name");
+    const { branch, brand } = req.query;
+    let query = "SELECT * FROM ingredients";
+    const params = [];
+    const conditions = [];
+
+    if (branch) { params.push(branch); conditions.push(`branch=$${params.length}`); }
+    if (brand)  { params.push(brand);  conditions.push(`brand=$${params.length}`); }
+
+    if (conditions.length) query += " WHERE " + conditions.join(" AND ");
+    query += " ORDER BY name";
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch ingredients" });
@@ -100,22 +110,8 @@ router.put("/ingredients/:id", async (req, res) => {
     );
 
     const updatedItem = result.rows[0];
+    const updatedProductsCount = await recomputeProductCosts(client, req.params.id);
 
-    const affectedProducts = await client.query(
-      `SELECT DISTINCT inventory_id FROM product_ingredients WHERE ingredient_id=$1`, [req.params.id]
-    );
-    for (const row of affectedProducts.rows) {
-      const costResult = await client.query(
-        `SELECT SUM(pi.quantity * i.cost_per_unit) AS total_cost
-         FROM product_ingredients pi JOIN ingredients i ON i.id=pi.ingredient_id
-         WHERE pi.inventory_id=$1`,
-        [row.inventory_id]
-      );
-      await client.query(
-        `UPDATE inventory SET cost=$1, updated_at=NOW() WHERE id=$2`,
-        [parseFloat(costResult.rows[0].total_cost) || 0, row.inventory_id]
-      );
-    }
     await client.query(
       `UPDATE shop_items
         SET stock = $1,
@@ -144,7 +140,7 @@ router.put("/ingredients/:id", async (req, res) => {
       role: performed_by_role || "Unknown",
     });
 
-    res.json({ success: true, item: updatedItem, updatedProducts: affectedProducts.rows.length });
+    res.json({ success: true, item: updatedItem, updatedProducts: updatedProductsCount });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PUT /ingredients/:id error:", err);
@@ -314,6 +310,9 @@ router.post("/ingredient-batches", async (req, res) => {
       extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
       [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
     );
+
+    await recomputeProductCosts(client, ingredient_id);
+
     await client.query(
       `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
       [total_stock, resolvedCost, ingredient_id]
@@ -383,6 +382,9 @@ router.put("/ingredient-batches/:id", async (req, res) => {
       extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
       [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
     );
+
+    await recomputeProductCosts(client, ingredient_id);
+
     await client.query(
       `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
       [total_stock, resolvedCost, ingredient_id]
@@ -457,6 +459,8 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
       extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
       [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
     );
+    await recomputeProductCosts(client, ingredient_id);
+
     await client.query(
       `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
       [total_stock, resolvedCost, ingredient_id]
