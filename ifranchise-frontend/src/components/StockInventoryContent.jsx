@@ -439,6 +439,81 @@ function BatchDeleteConfirmModal({ batch, ingredient, deleting, onConfirm, onCan
   );
 }
 
+/* ── BATCH TRANSFER HISTORY MODAL — Head Office batches only ── */
+function BatchTransferHistoryModal({ batch, ingredient, apiUrl, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${apiUrl}/ingredient-batches/${batch.id}/transfer-history`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setRows(Array.isArray(d) ? d : []); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [batch.id, apiUrl]);
+
+  const totalTransferred = rows.reduce((s, r) => s + Number(r.quantity || 0), 0);
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2800, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:18, width:"100%", maxWidth:560, maxHeight:"80vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${C.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+        <div style={{ padding:"18px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", background:"#fbfcf8" }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, color:C.ink, display:"flex", alignItems:"center", gap:8 }}>
+              <HistoryIcon size={14}/> Transfer History — Batch {batch.batch_number || "—"}
+            </div>
+            <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>{ingredient.name} · Head Office</div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.white, cursor:"pointer", color:C.muted, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <XIcon size={14}/>
+          </button>
+        </div>
+
+        <div style={{ padding:"14px 24px", borderBottom:`1px solid ${C.border}`, display:"flex", gap:20, background:"#fafffe" }}>
+          <div>
+            <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Total Transferred</div>
+            <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginTop:2 }}>{totalTransferred} {ingredient.unit}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em" }}>Transfers</div>
+            <div style={{ fontSize:16, fontWeight:800, color:C.ink, marginTop:2 }}>{rows.length}</div>
+          </div>
+        </div>
+
+        <div style={{ overflowY:"auto", flex:1, padding:"8px 24px 20px" }}>
+          {loading ? (
+            <div style={{ textAlign:"center", padding:"30px 0", color:C.muted, fontSize:12.5 }}>Loading transfer history…</div>
+          ) : rows.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"36px 0", color:"#9ca3af", fontSize:13, fontStyle:"italic" }}>
+              No stock from this batch has been transferred to a branch yet.
+            </div>
+          ) : rows.map((r, i) => (
+            <div key={r.id} style={{ padding:"12px 0", borderBottom: i < rows.length-1 ? `1px solid ${C.bg}` : "none", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10 }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <StoreIcon size={12} color={C.green}/>
+                  <span style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.destination_branch || "—"}</span>
+                </div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>
+                  Order #{r.order_id} · {r.destination_brand || "—"} · {r.transferred_at ? fmtTs(r.transferred_at) : "—"}
+                </div>
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>{r.quantity} {ingredient.unit}</div>
+                <span style={{ fontSize:9.5, fontWeight:800, padding:"2px 8px", borderRadius:20, marginTop:3, display:"inline-block", background: r.applied ? C.greenLt : C.amberBg, color: r.applied ? C.greenDk : "#9a3412", border:`1px solid ${r.applied ? C.greenMid : C.amberBorder}` }}>
+                  {r.applied ? "RECEIVED" : "IN TRANSIT"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── IMPORT LOADING MODAL ── */
 function ImportLoadingModal({ visible, progress }) {
   if (!visible) return null;
@@ -720,7 +795,7 @@ function ActivityLogPanel({ log, onClose }) {
    Simple white rows, divided by a thin bottom line (green for the next-out
    batch, gray for the rest) instead of colored backgrounds.
 ───────────────────────────────────────────────────────────────────────── */
-function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, readOnly=false }) {
+function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onViewHistory, readOnly=false }) {
   if (!product) {
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center", padding:20 }}>
@@ -826,18 +901,28 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, read
 
               {b.notes && <div style={{ fontSize:10.5, color:C.muted, marginTop:6, fontStyle:"italic" }}>{b.notes}</div>}
 
-              {!readOnly && (
-                <div style={{ display:"flex", gap:6, marginTop:10 }}>
-                  <button onClick={() => onEditBatch(b)} className="edit-btn"
-                    style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, padding:"3px 8px", fontSize:10 }}>
-                    <EditIcon size={9}/> Edit
+            {(!readOnly || (product.branch || "").trim().toLowerCase() === "head office") && (
+              <div style={{ display:"flex", gap:6, marginTop:10 }}>
+                {!readOnly && (
+                  <>
+                    <button onClick={() => onEditBatch(b)} className="edit-btn"
+                      style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, padding:"3px 8px", fontSize:10 }}>
+                      <EditIcon size={9}/> Edit
+                    </button>
+                    <button onClick={() => onDeleteBatch(b)} className="del-btn"
+                      style={{ ...smallBtnSt, border:"1px solid #fecaca", color:"#e53935", padding:"3px 8px", fontSize:10 }}>
+                      <TrashIcon size={9}/> Delete
+                    </button>
+                  </>
+                )}
+                {(product.branch || "").trim().toLowerCase() === "head office" && (
+                  <button onClick={() => onViewHistory(b)} className="hist-btn"
+                    style={{ ...smallBtnSt, border:"1px solid #bbdefb", color:"#1565c0", padding:"3px 8px", fontSize:10 }}>
+                    <HistoryIcon size={9}/> History
                   </button>
-                  <button onClick={() => onDeleteBatch(b)} className="del-btn"
-                    style={{ ...smallBtnSt, border:"1px solid #fecaca", color:"#e53935", padding:"3px 8px", fontSize:10 }}>
-                    <TrashIcon size={9}/> Delete
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
+            )}
             </div>
           );
         })}
@@ -956,7 +1041,9 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuic
   const [deleteConfirmBatch, setDeleteConfirmBatch] = useState(null); 
   const [deletingBatch, setDeletingBatch]         = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
-  const didSetDefaultBranch = useRef(false); // ← new
+  const didSetDefaultBranch = useRef(false);
+
+  const [transferHistoryBatch, setTransferHistoryBatch] = useState(null);
 
   const brandItems = useMemo(
     () => items.filter(i => brandDef.match((i.brand || "").toLowerCase())),
@@ -1204,6 +1291,7 @@ return (
             product={selected} batches={batches} loading={batchLoading} readOnly={readOnly}
             onEditBatch={(b) => setEditingBatch({ batch:b, ingredient:selected })}
             onDeleteBatch={(b) => setDeleteConfirmBatch({ batch:b, ingredient:selected })}
+            onViewHistory={(b) => setTransferHistoryBatch({ batch:b, ingredient:selected })}
           />
         </div>
       </div>
@@ -1226,6 +1314,16 @@ return (
         onCancel={() => { if (!deletingBatch) setDeleteConfirmBatch(null); }}
       />
     )}
+
+    {transferHistoryBatch && (
+      <BatchTransferHistoryModal
+        batch={transferHistoryBatch.batch}
+        ingredient={transferHistoryBatch.ingredient}
+        apiUrl={apiUrl}
+        onClose={() => setTransferHistoryBatch(null)}
+      />
+    )}
+
     </div>
   );
 }
@@ -1807,6 +1905,8 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
   const [deletingBatch, setDeletingBatch] = useState(false);
   const [restoringBatchId, setRestoringBatchId] = useState(null);
 
+  const [historyBatch, setHistoryBatch] = useState(null);
+
   const fetchBatchHistory = useCallback(async () => {
     try {
       const res = await fetch(`${apiUrl}/ingredient-batch-delete-history?ingredient_id=${ingredient.id}`);
@@ -2072,6 +2172,12 @@ const restoreBatch = async (entry) => {
                       </button>
                     </>
                   )}
+                  {(ingredient.branch || "").trim().toLowerCase() === "head office" && (
+                    <button onClick={()=>setHistoryBatch(batch)} title="View transfer history" className="hist-btn"
+                      style={{ display:"inline-flex", alignItems:"center", gap:5, height:30, padding:"0 12px", borderRadius:8, border:"1px solid #bbdefb", background:"#fff", color:"#1565c0", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+                      <HistoryIcon size={12}/> History
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -2101,6 +2207,15 @@ const restoreBatch = async (entry) => {
 
 {showBatchHistory && (
   <BatchDeleteHistoryPanel history={batchDeleteHistory} restoringId={restoringBatchId} onRestore={restoreBatch} onClose={() => setShowBatchHistory(false)} />
+)}
+
+{historyBatch && (
+  <BatchTransferHistoryModal
+    batch={historyBatch}
+    ingredient={ingredient}
+    apiUrl={apiUrl}
+    onClose={() => setHistoryBatch(null)}
+  />
 )}
     </div>
   );

@@ -12,6 +12,7 @@ import jsPDF from 'jspdf';
 import html2canvas from "html2canvas";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
 import logoSync from "../assets/report/franchsync-logo.png";
+import { supabase } from "../supabaseClient";
 
 import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
@@ -4664,6 +4665,8 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
 
   const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
 
+  const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans","gallons"];
+
   const editImageRef = useRef(null);
 
   const fetchActivityLog = useCallback(async () => {
@@ -4823,13 +4826,42 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     return Object.keys(errs).length === 0;
   };
 
-  const handleImageSelect = (e) => {
+  const handleImageSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
-    reader.readAsDataURL(file);
-    e.target.value = "";
+
+    // basic guardrails
+    if (!file.type.startsWith("image/")) {
+      setToast({ type: "error", title: "Invalid File", message: "Please select an image." });
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ type: "error", title: "File Too Large", message: "Please choose an image under 5MB." });
+      e.target.value = "";
+      return;
+    }
+
+    const ext = file.name.split(".").pop();
+    const path = `shop-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    setEditLoading(true);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("shop-images")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("shop-images").getPublicUrl(path);
+      setEditingItem((prev) => ({ ...prev, image_url: data.publicUrl }));
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      setToast({ type: "error", title: "Upload Failed", message: "Could not upload the photo. Try again." });
+    } finally {
+      setEditLoading(false);
+      e.target.value = "";
+    }
   };
 
   const openEditor = (item) => {
@@ -5060,8 +5092,11 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
                   </div>
                 </Field>
                 <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
+                  <select value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                    style={msInputStyle}>
+                    <option value="">Select unit…</option>
+                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
                 </Field>
                 <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
                 </div>
@@ -5850,6 +5885,13 @@ const handleApprove = async (id) => {
   }
 };
 
+const handleApproveAndCreateAccount = async (app) => {
+  if (app.status !== "approved") {
+    await handleApprove(app.id);
+  }
+  setAccountApp({ ...app, status: "approved" });
+};
+
 const handleReject = async (id) => {
   if (processingId) return;
   setProcessingId(id);
@@ -6188,19 +6230,6 @@ const handleRestoreApplication = async (entry) => {
               >
                 <Printer size={13} /> Print
               </button>
-              <button
-                onClick={() => setAccountApp(viewApp)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 16px", borderRadius: 9, border: "none",
-                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
-                  color: "#fff", fontSize: 12, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "inherit",
-                  boxShadow: "0 2px 10px rgba(0,180,90,0.28)",
-                }}
-              >
-                <UserPlus size={13} /> Create Account
-              </button>
             </div>
           </div>
 
@@ -6434,21 +6463,24 @@ const handleRestoreApplication = async (entry) => {
                 <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
               </button>
               <button
-                onClick={async () => { await handleApprove(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "approved" } : prev); }}
-                disabled={viewApp.status === "approved" || processingId !== null}
+                onClick={async () => {
+                  await handleApproveAndCreateAccount(viewApp);
+                  setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
+                }}
+                disabled={processingId !== null}
                 style={{
                   display: "flex", alignItems: "center", gap: 7,
                   padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: viewApp.status === "approved" ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
-                  color: viewApp.status === "approved" ? "#9e9e9e" : "#fff",
+                  background: "linear-gradient(135deg,#00c853,#00897b)",
+                  color: "#fff",
                   fontSize: 13, fontWeight: 700,
-                  cursor: (viewApp.status === "approved" || processingId !== null) ? "not-allowed" : "pointer",
+                  cursor: processingId !== null ? "not-allowed" : "pointer",
                   fontFamily: "inherit",
-                  boxShadow: viewApp.status === "approved" ? "none" : "0 2px 10px rgba(0,180,90,0.3)",
-                  opacity: viewApp.status === "approved" ? 0.6 : 1,
+                  boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
+                  opacity: processingId !== null ? 0.6 : 1,
                 }}
               >
-                <Check size={14} /> {viewApp.status === "approved" ? "Already Approved" : "Approve"}
+                <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
               </button>
             </div>
           </div>
@@ -6516,17 +6548,23 @@ const handleRestoreApplication = async (entry) => {
                 <Eye size={15} /> View Application Details
               </button>
               <button
-                onClick={() => { setAccountApp(menuApp); setMenuApp(null); showAlert("Opening account creation", null, "success"); }}
+                onClick={async () => {
+                  await handleApproveAndCreateAccount(menuApp);
+                  setMenuApp(null);
+                }}
+                disabled={processingId !== null}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
-                  background: "linear-gradient(135deg,#2E7D32,#00897b)",
+                  background: "linear-gradient(135deg,#00c853,#00897b)",
                   color: "#fff", fontSize: 13, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "inherit",
-                  boxShadow: "0 2px 10px rgba(0,180,90,0.28)",
+                  cursor: processingId !== null ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: processingId !== null ? 0.6 : 1,
                 }}
               >
-                <UserPlus size={15} /> Create Account
+                <UserPlus size={15} />
+                {menuApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}

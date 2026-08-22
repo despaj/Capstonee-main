@@ -38,7 +38,7 @@ router.get("/applications", async (req, res) => {
         NULL AS employment_type, NULL AS years_employer, NULL AS income,
         NULL AS employer_name, NULL AS business_address,
         NULL AS position, NULL AS business_nature,
-        id_type, id_image, letter_of_intent, created_at
+        id_type, created_at
       FROM ipharma_applications
 
       UNION ALL
@@ -56,7 +56,7 @@ router.get("/applications", async (req, res) => {
         payment_mode, gender, nationality,
         employment_type, years_employer, income,
         employer_name, business_address, position, business_nature,
-        id_type, id_image, letter_of_intent, created_at
+        id_type, created_at
       FROM applications
 
       ORDER BY created_at DESC

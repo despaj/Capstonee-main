@@ -545,4 +545,22 @@ router.get("/ingredient-activity-log", async (req, res) => {
   }
 });
 
+router.get("/ingredient-batches/:id/transfer-history", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT t.id, t.quantity, t.applied, t.created_at AS transferred_at,
+              o.id AS order_id, o.branch AS destination_branch, o.brand AS destination_brand
+       FROM order_stock_transfers t
+       JOIN orders o ON o.id = t.order_id
+       WHERE t.source_batch_id = $1
+       ORDER BY t.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("GET /ingredient-batches/:id/transfer-history error:", err);
+    res.status(500).json({ error: "Failed to fetch batch transfer history" });
+  }
+});
+
 module.exports = router;

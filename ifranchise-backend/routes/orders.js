@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 const { logActivity } = require("../utils/activityLogger");
+const { recomputeProductCosts } = require("../utils/recomputeProductCosts");
 
 // ── State machine ──────────────────────────────────────────────
 const ALLOWED_TRANSITIONS = {
@@ -111,7 +112,6 @@ router.put("/orders/:id", async (req, res) => {
       });
     }
 
-    // ── "received" can only be confirmed by the receiving branch ──
     if (status === "received" && !FRANCHISEE_ROLES.includes(performed_by_role)) {
       await client.query("ROLLBACK");
       return res.status(403).json({ error: "Only the receiving branch can mark an order as received." });
@@ -160,9 +160,6 @@ router.put("/orders/:id", async (req, res) => {
         });
       }
 
-      // Deduct once per ingredient (not per shop_items row) so a shared
-      // ingredient isn't double-deducted, using the same FIFO/FEFO batch
-      // logic Stock Inventory uses elsewhere.
       const processed = new Set();
       for (const row of itemsRes.rows) {
         if (processed.has(row.ingredient_id)) continue;
@@ -196,7 +193,14 @@ router.put("/orders/:id", async (req, res) => {
         for (const b of sortedBatches) {
           if (remaining <= 0) break;
           const take = Math.min(remaining, Number(b.stock));
-          await client.query(`UPDATE ingredient_batches SET stock = stock - $1, updated_at=NOW() WHERE id=$2`, [take, b.id]);
+          
+          await client.query(
+            `INSERT INTO order_stock_transfers
+              (order_id, ingredient_id, source_batch_id, quantity, cost_per_unit, mfg_date, exp_date, supplier)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [req.params.id, row.ingredient_id, b.id, take, b.cost_per_unit, b.mfg_date, b.exp_date, b.supplier]
+          );
+
           remaining -= take;
         }
 
@@ -226,6 +230,104 @@ router.put("/orders/:id", async (req, res) => {
           longitude,
           role: performed_by_role || "Unknown",
         });
+      }
+    }
+
+    if (status === "received") {
+      const transfersRes = await client.query(
+        `SELECT t.*, i.name, i.brand, i.unit, i.perishable
+         FROM order_stock_transfers t
+         JOIN ingredients i ON i.id = t.ingredient_id
+         WHERE t.order_id = $1 AND t.applied = FALSE`,
+        [req.params.id]
+      );
+
+      const touchedIngredientIds = new Set();
+
+      for (const t of transfersRes.rows) {
+        let destRes = await client.query(
+          `SELECT * FROM ingredients WHERE name=$1 AND brand=$2 AND branch=$3`,
+          [t.name, t.brand, currentRes.rows[0].branch]
+        );
+        let dest;
+        if (destRes.rows.length > 0) {
+          dest = destRes.rows[0];
+        } else {
+          const created = await client.query(
+            `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable)
+             VALUES ($1,$2,$3,$4,0,0,0,'{}'::jsonb,$5) RETURNING *`,
+            [t.name, currentRes.rows[0].branch, t.brand, t.unit, t.perishable]
+          );
+          dest = created.rows[0];
+        }
+
+        const countRes = await client.query(
+          `SELECT
+            (SELECT COUNT(*) FROM ingredient_batches WHERE ingredient_id=$1) +
+            (SELECT COUNT(*) FROM ingredient_batch_delete_history WHERE ingredient_id=$1) AS total`,
+          [dest.id]
+        );
+        const total = parseInt(countRes.rows[0].total) || 0;
+        const letter = String.fromCharCode(65 + Math.floor(total / 999));
+        const num = (total % 999) + 1;
+        const batch_number = `${letter}${String(num).padStart(3, "0")}`;
+
+        await client.query(
+          `INSERT INTO ingredient_batches
+            (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes)
+           VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9)`,
+          [dest.id, batch_number, t.quantity, t.mfg_date, t.exp_date,
+           t.cost_per_unit, t.supplier || "Head Office Transfer", t.perishable,
+           `Auto-transferred from Order #${req.params.id}`]
+        );
+
+        await client.query(`UPDATE order_stock_transfers SET applied=TRUE WHERE id=$1`, [t.id]);
+        touchedIngredientIds.add(dest.id);
+      }
+
+      for (const ingId of touchedIngredientIds) {
+        const totals = await client.query(
+          `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
+           FROM ingredient_batches WHERE ingredient_id=$1`,
+          [ingId]
+        );
+        const { total_stock, earliest_exp } = totals.rows[0];
+
+        const ingInfo = await client.query(`SELECT brand, perishable FROM ingredients WHERE id=$1`, [ingId]);
+        const { brand: ingBrand, perishable: ingPerishable } = ingInfo.rows[0] || {};
+
+        const activeBatches = await client.query(
+          `SELECT stock, cost_per_unit, exp_date, supply_date, mfg_date, created_at
+           FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
+          [ingId]
+        );
+        const isFefo = (ingBrand || "").toLowerCase().includes("ipharma") || !!ingPerishable;
+        const active = activeBatches.rows;
+        let resolvedCost = 0;
+        if (active.length > 0) {
+          const sorted = [...active].sort((a, b) => {
+            if (isFefo) {
+              const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
+              const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
+              return da - db;
+            }
+            const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
+            const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+            return da - db;
+          });
+          resolvedCost = Number(sorted[0].cost_per_unit) || 0;
+        }
+
+        await client.query(
+          `UPDATE ingredients SET stock=$1, cost_per_unit=$2,
+           extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
+          [total_stock, resolvedCost, earliest_exp || null, ingId]
+        );
+        await recomputeProductCosts(client, ingId);
+        await client.query(
+          `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
+          [total_stock, resolvedCost, ingId]
+        );
       }
     }
 
@@ -287,8 +389,6 @@ router.put("/orders/:id", async (req, res) => {
 router.get("/api/orders/counts", async (req, res) => {
   const { userId } = req.query;
   try {
-    // "To Ship" on the franchisee side covers both pending (awaiting HO
-    // accept) and accepted (accepted, not yet shipped) — same visual state.
     const toShip   = await pool.query(
       "SELECT COUNT(*) FROM orders WHERE user_id=$1 AND status IN ('pending','accepted')", [userId]
     );

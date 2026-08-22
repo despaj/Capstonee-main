@@ -794,7 +794,6 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   );
 }
 
-// ─── ItemDetailModal ────────────────────────────────────────────────────────
 function ItemDetailModal({ item, onClose, onEdit, onRequestDelete, deletingId }) {
   if (!item) return null;
   return (

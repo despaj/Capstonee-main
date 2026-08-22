@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import logo from "../assets/logo.png";
 import welcome from "../assets/welcomepage.png";
+import { supabase } from "../supabaseClient"; 
 
 // ─── DESIGN TOKENS (matches LandingPage.jsx palette) ─────────────────────────
 const COLOR = {
@@ -74,6 +75,16 @@ const VALID_ID_TYPES = [
 ];
 
 const MAX_LOI_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
+
+const uploadLoi = async (file) => {
+  const path = `loi/${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
+  const { error } = await supabase.storage
+    .from("application-documents")
+    .upload(path, file, { contentType: "application/pdf" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("application-documents").getPublicUrl(path);
+  return data.publicUrl;
+};
 
 const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
@@ -791,7 +802,7 @@ const runVerification = async () => {
 };
 
   // ── Confirm & fill form ─────────────────────────────────────────
-  const confirmAndFill = () => {
+  const confirmAndFill = async () => {
     auditLog.record("ID_DATA_ACCEPTED", { idType, ocrResult });
 
     const formatDob = (raw) => {
@@ -804,6 +815,19 @@ const runVerification = async () => {
       return raw;
     };
 
+  let frontImgUrl = frontImg;
+    try {
+      const blob = await (await fetch(frontImg)).blob();
+      const path = `id-images/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+      const { error } = await supabase.storage.from("application-documents").upload(path, blob, { contentType: "image/jpeg" });
+      if (!error) {
+        const { data } = supabase.storage.from("application-documents").getPublicUrl(path);
+        frontImgUrl = data.publicUrl;
+      }
+    } catch (err) {
+      console.error("ID image upload failed, falling back to base64:", err);
+    }
+
     const merged = { ...ocrResult, ...editedOcr };
     const { address, ...mergedWithoutAddress } = merged;
 
@@ -811,9 +835,8 @@ const runVerification = async () => {
       ocrResult: { ...mergedWithoutAddress, dob: formatDob(merged.dob) },
       idType,
       idValid,
-      frontImg,
-      backImg,
-      faceImg,
+      frontImg: frontImgUrl,
+      backImg, faceImg,
     });
     onClose();
   };
@@ -1577,9 +1600,9 @@ const handleIdComplete = ({ ocrResult, idType, idValid, frontImg, backImg }) => 
     const resolvedNationality = nationality === "Others" ? form.nationalityOther : nationality;
     const fullName = [form.firstName, form.middleInitial ? form.middleInitial + "." : "", form.lastName, form.suffix].filter(Boolean).join(" ");
 
-    let letterOfIntentBase64 = null;
+    let letterOfIntentUrl = null;
     if (letterOfIntent) {
-      letterOfIntentBase64 = await fileToBase64(letterOfIntent);
+      letterOfIntentUrl = await uploadLoi(letterOfIntent);
     }
 
     const payload = {
@@ -1613,7 +1636,7 @@ suffix:        form.suffix || null,
       idType:  idData?.idType   || null,
       idImage: idData?.frontImg || null, 
       // Letter of intent
-      letterOfIntent:   letterOfIntentBase64,
+      letterOfIntent:   letterOfIntentUrl,
       auditTrail:       auditLog.getAll(),
     };
 
