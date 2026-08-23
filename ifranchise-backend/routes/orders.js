@@ -19,6 +19,7 @@ const ALLOWED_TRANSITIONS = {
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
+  const { userId } = req.query;
   try {
     const result = await pool.query(`
       SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
@@ -28,9 +29,10 @@ router.get("/orders", async (req, res) => {
       LEFT JOIN users u ON u.id=o.user_id
       LEFT JOIN order_items oi ON oi.order_id=o.id
       LEFT JOIN shop_items si ON si.id=oi.shop_item_id
+      WHERE o.user_id = $1
       GROUP BY o.id, u.name, o.address
       ORDER BY o.created_at DESC
-    `);
+    `, [userId]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch orders" });
@@ -38,9 +40,12 @@ router.get("/orders", async (req, res) => {
 });
 
 router.get("/orders/:id", async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ error: "userId is required" });
   try {
     const result = await pool.query(`
       SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
+        o.user_id,
         u.name AS user_name,
         COALESCE(json_agg(json_build_object('name',si.name,'qty',oi.quantity,'price',oi.price,'unit',si.unit,'image_url',si.image_url)) FILTER (WHERE oi.id IS NOT NULL),'[]') AS items
       FROM orders o
@@ -51,7 +56,20 @@ router.get("/orders/:id", async (req, res) => {
       GROUP BY o.id, u.name, o.address
     `, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "Order not found" });
-    res.json(result.rows[0]);
+
+    const order = result.rows[0];
+
+    // Owner can always view their own order. Otherwise, only staff roles may view it.
+    if (String(order.user_id) !== String(userId)) {
+      const requester = await pool.query("SELECT role FROM users WHERE id=$1", [userId]);
+      const role = requester.rows[0]?.role;
+      const STAFF_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager"]; // adjust to your actual role names
+      if (!STAFF_ROLES.includes(role)) {
+        return res.status(403).json({ error: "You don't have access to this order" });
+      }
+    }
+
+    res.json(order);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch order" });
   }
@@ -112,10 +130,17 @@ router.put("/orders/:id", async (req, res) => {
       });
     }
 
+    const HQ_ROLES = ["Franchisee Operations Admin", "Super Admin"];
+    if (["accepted", "shipping", "rejected"].includes(status) && !HQ_ROLES.includes(performed_by_role)) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Only Head Office staff can perform this action." });
+    }
+
     if (status === "received" && !FRANCHISEE_ROLES.includes(performed_by_role)) {
       await client.query("ROLLBACK");
       return res.status(403).json({ error: "Only the receiving branch can mark an order as received." });
     }
+
 
     if (status === "accepted") {
       const itemsRes = await client.query(
