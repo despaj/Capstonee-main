@@ -55,7 +55,6 @@ const FONT     = "'Plus Jakarta Sans', sans-serif";
 const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
 const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
 
-// ─── Fuzzy duplicate detection (unchanged) ─────────────────────────────────────
 const normalizeName = str => {
   if (!str) return "";
   return str.toLowerCase().trim().replace(/\s+/g," ").replace(/[''']/g,"").replace(/s$/,"");
@@ -924,6 +923,15 @@ function MenuBrandCard({
   const [statusF, setStatusF]       = useState("");
   const [categoryF, setCategoryF]   = useState("");
   const [selectedId, setSelectedId] = useState(null);
+  const didSetDefaultBranch = useRef(false)
+
+   useEffect(() => {
+    if (!didSetDefaultBranch.current && branchOptions.length > 0) {
+      const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
+      if (headOffice) setBranchF(headOffice);
+      didSetDefaultBranch.current = true;
+    }
+  }, [branchOptions]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -1105,7 +1113,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const ingRef = useRef(null);
 
 const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch,
+  name:"", category:"", branch:isAdmin?"":userBranch, brand:"",
   cost:"", price:"", ingredients:[], image_url:"",
 }), [isAdmin, userBranch]);
 
@@ -1209,16 +1217,18 @@ const fetchStockItems = useCallback(async (branch, brand) => {
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
-  const filteredItems = useMemo(() => {
+const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return inventory.filter(i => {
+      const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
+      if (filterBrandName && itemBrand !== filterBrandName) return false;
       if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
       if (filterCategory && i.category!==filterCategory) return false;
       if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
       if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
       return true;
     });
-  }, [inventory, searchQuery, filterCategory, filterStatus]);
+  }, [inventory, searchQuery, filterCategory, filterStatus, filterBrandName, branchToBrand]);
 
   const filteredCategories = useMemo(() => {
     if (filterBrandName) {
@@ -1456,8 +1466,10 @@ const handleAddItem = async e => {
 
 const openEditModal = item => {
   setEditingItem(item);
+  const branch = isAdmin ? "Head Office" : item.branch;
+  const brandForItem = filterBrandName || branchToBrand[item.branch] || ""; 
   setFormData({
-    name:item.name, category:item.category, branch:item.branch,
+    name:item.name, category:item.category, branch, brand:brandForItem,
     cost:item.cost||"", price:item.price,
     image_url: item.image_url || "",
     ingredients: (item.ingredients||[]).map(ing => ({
@@ -1467,19 +1479,20 @@ const openEditModal = item => {
       unit:          ing.unit,
     })),
   });
-  const brandForItem = branchToBrand[item.branch] || "";
-  fetchStockItems(item.branch, brandForItem);
+  const brandObj = brandList.find(b => b.name === brandForItem);
+  setFormBrandId(brandObj ? String(brandObj.id) : "");
+  fetchStockItems(branch, brandForItem);
   setShowEditModal(true);
 };
 
-  const openAddModal = () => {
-    const branch = isAdmin ? "" : userBranch;
-    const brandName = selectedBrandObj ? selectedBrandObj.name : "";
-    setFormData({ ...emptyForm(), branch });
-    fetchStockItems(branch, brandName);   // ← now passes brand too
-    setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
-    setShowAddModal(true);
-  };
+const openAddModal = () => {
+  const branch = isAdmin ? "Head Office" : userBranch;
+  const brandName = selectedBrandObj ? selectedBrandObj.name : "";
+  setFormData({ ...emptyForm(), branch, brand: brandName });
+  fetchStockItems(branch, brandName);
+  setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
+  setShowAddModal(true);
+};
 
   const handleInputChange = e => {
     let { name, value } = e.target;
@@ -1658,7 +1671,10 @@ const openEditModal = item => {
     </div>
   );
 
-  const renderFormFields = () => (
+const renderFormFields = () => {
+   const currentBrandName = formData.brand || selectedBrandObj?.name || filterBrandName || "";
+
+    return (
     <>
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Item Name</label>
@@ -1719,25 +1735,30 @@ const openEditModal = item => {
         )}
       </div>
 
-      {isAdmin && (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Brand</label>
-          <select value={formBrandId} onChange={e=>{ setFormBrandId(e.target.value); setFormData(p=>({...p,branch:"",category:""})); }} style={invInputSt}>
-            <option value="">Select brand…</option>
-            {brandList.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+ <div style={{ marginBottom:13 }}>
+        <label style={invLabelSt}>Brand</label>
+        <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>
+          {currentBrandName || "—"}
         </div>
-      )}
+      </div>
+
       {isAdmin ? (
         <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Branch</label>
-          <BranchSearchSelect
-            value={formData.branch}
-            onChange={val=>setFormData(p=>({...p,branch:val,category:""}))}
-            allBranches={formBrandId
-              ? allBranches.filter(b=>{ const brand=brandList.find(x=>String(x.id)===String(formBrandId)); return brand?(brand.branches||[]).some(br=>(typeof br==="string"?br:br.name)===b.branch):true; })
-              : allBranches}
-          />
+          <label style={invLabelSt}>Branch *</label>
+          {(() => {
+            const selectedBrandObjForBranch = brandList.find(b => b.name === formData.brand);
+            const filteredBranches = selectedBrandObjForBranch
+              ? (selectedBrandObjForBranch.branches || []).map(br => typeof br === "string" ? br : br.name)
+              : [];
+            return (
+              <select style={{ ...invInputSt, opacity: !formData.brand ? 0.5 : 1, cursor: !formData.brand ? "not-allowed" : "pointer" }}
+                value={formData.branch} required disabled={!formData.brand}
+                onChange={e => setFormData(f => ({ ...f, branch: e.target.value }))}>
+                <option value="">{!formData.brand ? "Select a brand first…" : "Select branch…"}</option>
+                {filteredBranches.map(br => <option key={br} value={br}>{br}</option>)}
+              </select>
+            );
+          })()}
         </div>
       ) : (
         <div style={{ marginBottom:13 }}>
@@ -1745,6 +1766,7 @@ const openEditModal = item => {
           <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
         </div>
       )}
+
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Category</label>
         <CategorySelect
@@ -1786,6 +1808,7 @@ const openEditModal = item => {
       </div>
     </>
   );
+}; 
 
   const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
   const anyFilter = filterBrandName||filterCategory||filterStatus||searchQuery;
@@ -1838,7 +1861,7 @@ const openBrand = brandId => {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
             {brandList.map(b => {
               const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
-              const brandItems  = inventory.filter(i => branchNames.includes(i.branch));
+              const brandItems  = inventory.filter(i => (i.brand || branchToBrand[i.branch]) === b.name || (!i.brand && branchNames.includes(i.branch)));
               return (
                 <BrandOverviewCard
                   key={b.id}
@@ -1868,27 +1891,28 @@ return (
         Loading inventory…
       </div>
     ) : (
-      <MenuBrandCard
-        brandName={filterBrandName || "All Items"}
-        items={filteredItems}
-        branchOptions={branchOptionsForCard}
-        categories={filteredCategories}
-        onEdit={openEditModal}
-        onRequestDelete={setDeleteTarget}
-        deletingId={deletingId}
-        onQuickAdd={()=>{
-          const branch = isAdmin ? "" : userBranch;
-          setFormData({...emptyForm(), branch});
-          fetchStockItems(branch, filterBrandName || "");
-          setFormBrandId(filterBrand ? String(filterBrand) : "");
-          setShowAddModal(true);
-        }}
-        onBack={isAdmin ? goBackToBrands : null}
-        onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
-        deleteHistoryCount={deleteHistory.length}
-        onImportExcel={importExcel}
-        excelRef={excelRef}
-      />
+<MenuBrandCard
+  key={filterBrandName || "all"}
+  brandName={filterBrandName || "All Items"}
+  items={filteredItems}
+  branchOptions={branchOptionsForCard}
+  categories={filteredCategories}
+  onEdit={openEditModal}
+  onRequestDelete={setDeleteTarget}
+  deletingId={deletingId}
+  onQuickAdd={()=>{
+    const branch = isAdmin ? "Head Office" : userBranch;
+    setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
+    fetchStockItems(branch, filterBrandName || "");
+    setFormBrandId(filterBrand ? String(filterBrand) : "");
+    setShowAddModal(true);
+  }}
+  onBack={isAdmin ? goBackToBrands : null}
+  onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
+  deleteHistoryCount={deleteHistory.length}
+  onImportExcel={importExcel}
+  excelRef={excelRef}
+/>
     )}
 
     {deleteTarget && (
