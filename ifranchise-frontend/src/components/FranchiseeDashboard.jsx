@@ -18,108 +18,109 @@ import {
 
 
 const VIBE_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
+  html, body, #root, button, input, textarea, select, option { font-family:'Plus Jakarta Sans',sans-serif; }
   :root {
-  --g1:#00c853; --g2:#00897b; --g3:#1a4a2e; --g4:#0d2b1e;
-  --green-primary:#00897b; --green-dark:#00695c; --green-light:#4CAF50;
-  --green-accent:#d4df33; --green-bg:#e8f5e9; --green-mid:#c8e6c9; --white:#ffffff;
+  --g1:#509820; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+  --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
+  --green-accent:#bdd43c; --green-bg:#f0f5e8; --green-mid:#c9dba0; --white:#ffffff;
   --off-white:#F0EFE7; --gray-100:#F3F4F6; --gray-200:#E5E7EB;
   --gray-300:#D1D5DB; --gray-400:#9CA3AF; --gray-500:#6B7280;
   --gray-600:#4B5563; --gray-700:#374151; --gray-800:#1F2937;
-  --text-dark:#0d2b1e; --text-gray:#6b8c77;
-  --shadow:rgba(0,140,60,0.07); --shadow-strong:rgba(0,140,60,0.16);
+  --text-dark:#12241B; --text-gray:#5C6B60;
+  --shadow:rgba(59,121,30,0.07); --shadow-strong:rgba(59,121,30,0.16);
   --blue:#3B82F6; --red:#dc2626; --orange:#d97706; --success:#2e7d32;
-  --card-border:#daeee5;
+  --card-border:#E1E6D8;
   /* ── aliases matching StockInventoryContent's C{} palette 1:1 ── */
-  --teal:#00c853; --ink:#0d2b1e; --muted:#6b8c77; --border:#daeee5; --bg:#f4fbf7;
+  --teal:#509820; --ink:#12241B; --muted:#5C6B60; --border:#E1E6D8; --bg:#F6F7F1;
   --warn:#d97706; --warn-bg:#fffbeb;
-  --ok:#2e7d32; --ok-bg:#e8f5e9;
+  --ok:#2e7d32; --ok-bg:#f0f5e8;
   --red-bg:#fef2f2;
   --amber:#f59e0b; --amber-bg:#fffbeb; --amber-border:#fde68a;
-  --grad-main:linear-gradient(135deg,#00c853,#00897b);
-  --grad-dark:linear-gradient(135deg,#0d2b1e,#1a4a2e);
+  --grad-main:linear-gradient(135deg,#509820,#3b791e);
+  --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
   --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
-  --grad-bg:linear-gradient(140deg,#e8f5e9 0%,#f4fbf7 45%,#e0f2f1 100%);
+  --grad-bg:linear-gradient(140deg,#f0f5e8 0%,#F6F7F1 45%,#f0f5e8 100%);
   --grad-blue:linear-gradient(135deg,#3b82f6,#1d4ed8);
   --grad-orange:linear-gradient(135deg,#f59e0b,#d97706);
   --grad-red:linear-gradient(135deg,#ef4444,#dc2626);
   --grad-purple:linear-gradient(135deg,#8b5cf6,#7c3aed);
 }
-  .v-card { background:#fff; border:1px solid var(--card-border); border-radius:18px; box-shadow:0 2px 20px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; overflow:hidden; }
-  .v-card:hover { transform:translateY(-3px); box-shadow:0 10px 32px rgba(0,140,60,0.14); }
-  .v-kpi { background:#fff; border:1px solid var(--card-border); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; position:relative; overflow:hidden; }
-  .v-kpi::before { content:''; position:absolute; top:-30px; right:-30px; width:100px; height:100px; border-radius:50%; background:linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06)); pointer-events:none; }
-  .v-kpi:hover { transform:translateY(-4px); box-shadow:0 12px 36px rgba(0,140,60,0.15); }
-  .v-kpi-label { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:#6b8c77; margin-bottom:8px; font-family:'Montserrat',sans-serif; }
-  .v-kpi-value { font-family:'Montserrat',sans-serif; font-size:26px; font-weight:800; color:#0d2b1e; }
-  .v-kpi-sub { font-size:11px; font-weight:600; color:#8ca998; margin-top:4px; font-family:'Poppins',sans-serif; }
+  .v-card { background:#fff; border:1px solid #E1E6D8; border-radius:18px; box-shadow:0 2px 14px rgba(59,121,30,0.07); transition:box-shadow .2s; overflow:hidden; }
+  .v-card:hover { box-shadow:0 8px 24px rgba(59,121,30,0.10); }
+  .v-kpi { background:#fff; border:1px solid #E1E6D8; border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(59,121,30,0.07); transition:box-shadow .2s; position:relative; overflow:hidden; }
+  .v-kpi::before { content:''; position:absolute; top:-32px; right:-32px; width:96px; height:96px; border-radius:50%; background:rgba(189,212,60,0.10); pointer-events:none; }
+  .v-kpi:hover { box-shadow:0 8px 24px rgba(59,121,30,0.10); }
+  .v-kpi-label { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:#5C6B60; margin-bottom:8px; font-family:'Plus Jakarta Sans',sans-serif; }
+  .v-kpi-value { font-family:'Plus Jakarta Sans',sans-serif; font-size:26px; font-weight:800; color:#12241B; }
+  .v-kpi-sub { font-size:11px; font-weight:600; color:#7A8878; margin-top:4px; font-family:'Plus Jakarta Sans',sans-serif; }
   .v-kpi-icon { width:44px; height:44px; border-radius:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .v-kpi-icon.green { background:#e8f5e9; color:#00897b; }
+  .v-kpi-icon.green { background:#f0f5e8; color:#3b791e; }
   .v-kpi-icon.blue  { background:rgba(59,130,246,0.1); color:#3b82f6; }
   .v-kpi-icon.orange{ background:#fffbeb; color:#d97706; }
   .v-kpi-icon.red   { background:#fef2f2; color:#dc2626; }
   .v-kpi-icon.purple{ background:rgba(139,92,246,0.1); color:#8b5cf6; }
-  .v-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid rgba(0,168,76,0.1); }
-  .v-section-title { font-family:'Montserrat',sans-serif; font-size:1.3rem; font-weight:800; color:#0d2b1e; display:flex; align-items:center; gap:10px; }
+  .v-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:16px; border-bottom:2px solid rgba(59,121,30,0.1); }
+  .v-section-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:16px; font-weight:800; color:#12241B; display:flex; align-items:center; gap:10px; }
   .v-section-title-accent { width:6px; height:24px; border-radius:3px; background:var(--grad-main); }
-  .v-btn { padding:9px 20px; border-radius:10px; border:none; font-weight:700; cursor:pointer; transition:all .2s; font-family:'Montserrat',sans-serif; font-size:13px; display:inline-flex; align-items:center; gap:7px; letter-spacing:.02em; }
-  .v-btn-primary { background:var(--grad-main); color:#fff; box-shadow:0 4px 14px rgba(0,180,90,.3); }
-  .v-btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,180,90,.4); }
-  .v-btn-secondary { background:var(--gray-100); color:var(--gray-700); border:1px solid var(--gray-200); }
-  .v-btn-secondary:hover { background:var(--gray-200); }
+  .v-btn { height:38px; padding:0 18px; border-radius:999px; border:1.5px solid #E1E6D8; font-weight:700; cursor:pointer; transition:all .15s; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; display:inline-flex; align-items:center; justify-content:center; gap:7px; background:#fff; color:#2c5c16; }
+  .v-btn-primary { background:#3b791e; color:#fff; border-color:#3b791e; box-shadow:0 10px 24px rgba(59,121,30,.20); }
+  .v-btn-primary:hover { background:#509820; box-shadow:0 10px 24px rgba(59,121,30,.20); }
+  .v-btn-secondary { background:#fff; color:#2c5c16; border:1.5px solid #E1E6D8; }
+  .v-btn-secondary:hover { background:#F6F7F1; border-color:#c9dba0; }
   .v-btn-danger { background:var(--grad-red); color:#fff; box-shadow:0 4px 14px rgba(239,68,68,.25); }
   .v-btn-danger:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(239,68,68,.35); }
-  .v-btn-ghost { background:transparent; color:#00897b; border:1.5px solid rgba(0,137,123,0.3); }
-  .v-btn-ghost:hover { background:rgba(0,137,123,0.08); }
+  .v-btn-ghost { background:transparent; color:#3b791e; border:1.5px solid rgba(59,121,30,0.3); }
+  .v-btn-ghost:hover { background:rgba(59,121,30,0.08); }
   .v-btn-blue { background:var(--grad-blue); color:#fff; box-shadow:0 4px 14px rgba(59,130,246,.3); }
   .v-btn-blue:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(59,130,246,.4); }
   .v-btn-sm { padding:6px 14px; font-size:12px; border-radius:8px; }
-  .v-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px; font-family:'Montserrat',sans-serif; }
+  .v-badge { padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px; font-family:'Plus Jakarta Sans',sans-serif; }
   .v-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.7; }
-  .v-badge-green { background: rgba(0,137,123,0.12); color:#00695c; }
+  .v-badge-green { background: rgba(59,121,30,0.12); color:#2c5c16; }
   .v-badge-orange { background: rgba(217,119,6,0.12); color:#d97706; }
   .v-badge-red { background: rgba(220,38,38,0.12); color:#dc2626; }
   .v-badge-blue { background:rgba(59,130,246,0.12); color:#2563eb; }
   .v-badge-purple { background:rgba(139,92,246,0.12); color:#7c3aed; }
   .v-table { width:100%; border-collapse:collapse; }
-  .v-table th { text-align:left; padding:12px 16px; font-family:'Montserrat',sans-serif; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#6b8c77; background:rgba(0,168,76,0.05); border-bottom:2px solid rgba(0,168,76,0.1); }
+  .v-table th { text-align:left; padding:12px 16px; font-family:'Plus Jakarta Sans',sans-serif; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#5C6B60; background:rgba(59,121,30,0.05); border-bottom:2px solid rgba(59,121,30,0.1); }
   .v-table th:first-child { border-radius:12px 0 0 0; }
   .v-table th:last-child { border-radius:0 12px 0 0; }
-  .v-table td { padding:14px 16px; border-bottom:1px solid rgba(0,168,76,0.07); color:#374151; font-size:13.5px; transition:background .15s; font-family:'Poppins',sans-serif; }
+  .v-table td { padding:14px 16px; border-bottom:1px solid rgba(59,121,30,0.07); color:#374151; font-size:13.5px; transition:background .15s; font-family:'Plus Jakarta Sans',sans-serif; }
   .v-table tr:hover td { background:rgba(0,200,83,0.03); }
   .v-table tr:last-child td { border-bottom:none; }
   .v-search-wrap { position:relative; }
   .v-search-wrap svg { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; }
-  .v-search { width:100%; padding:10px 14px 10px 38px; border:2px solid rgba(0,168,76,0.15); border-radius:10px; font-family:'Poppins',sans-serif; font-size:13px; color:#0d2b1e; background:#fafffc; transition:all .2s; outline:none; }
-  .v-search::placeholder { color:#8ca998; }
-  .v-search:focus { border-color:#00897b; box-shadow:0 0 0 3px rgba(0,137,123,0.1); background:#fff; }
+  .v-search { width:100%; height:38px; padding:0 14px 0 38px; border:1.5px solid #E1E6D8; border-radius:11px; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; color:#12241B; background:#fff; transition:all .15s; outline:none; }
+  .v-search::placeholder { color:#7A8878; }
+  .v-search:focus { border-color:#3b791e; box-shadow:0 0 0 3px rgba(59,121,30,0.1); background:#fff; }
   .v-form-group { margin-bottom:18px; }
-  .v-form-label { display:block; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:#5a7a65; margin-bottom:7px; font-family:'Montserrat',sans-serif; }
-  .v-form-input, .v-form-select { width:100%; padding:11px 14px; border:2px solid rgba(0,168,76,0.15); border-radius:10px; font-family:'Poppins',sans-serif; font-size:14px; color:#0d2b1e; background:#fafffc; outline:none; transition:all .2s; }
-  .v-form-input:focus, .v-form-select:focus { border-color:#00897b; box-shadow:0 0 0 3px rgba(0,137,123,0.1); background:#fff; }
+  .v-form-label { display:block; font-weight:700; font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:#5C6B60; margin-bottom:7px; font-family:'Plus Jakarta Sans',sans-serif; }
+  .v-form-input, .v-form-select { width:100%; min-height:38px; padding:9px 13px; border:1.5px solid #E1E6D8; border-radius:11px; font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; color:#12241B; background:#fff; outline:none; transition:all .15s; }
+  .v-form-input:focus, .v-form-select:focus { border-color:#3b791e; box-shadow:0 0 0 3px rgba(59,121,30,0.1); background:#fff; }
   .v-form-input:disabled { background:var(--gray-100); color:var(--gray-500); cursor:not-allowed; }
   .v-modal-overlay { position:fixed; inset:0; background:rgba(13,43,30,0.5); display:flex; align-items:center; justify-content:center; z-index:2000; animation:vFadeIn .2s ease; backdrop-filter:blur(4px); }
-  .v-modal { background:#fff; padding:2rem; border-radius:20px; max-width:500px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 24px 80px rgba(0,0,0,0.25); animation:vSlideUp .25s ease; border:1px solid rgba(0,168,76,0.15); }
-  .v-modal-title { font-family:'Montserrat',sans-serif; font-size:1.4rem; font-weight:800; color:#0d2b1e; margin-bottom:6px; }
-  .v-tabs { display:flex; gap:3px; background:rgba(0,168,76,0.06); border-radius:12px; padding:4px; width:fit-content; margin-bottom:22px; }
-  .v-tab { padding:8px 20px; border-radius:9px; border:none; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s; font-family:'Montserrat',sans-serif; color:#5a7a65; background:transparent; }
-  .v-tab.active { background:var(--grad-main); color:#fff; box-shadow:0 3px 10px rgba(0,180,90,.3); }
-  .v-tab:hover:not(.active) { background:rgba(0,168,76,0.1); color:#0d2b1e; }
+  .v-modal { background:#fff; padding:2rem; border-radius:18px; max-width:500px; width:90%; max-height:90vh; overflow-y:auto; box-shadow:0 24px 80px rgba(0,0,0,0.25); animation:vSlideUp .25s ease; border:1px solid rgba(59,121,30,0.15); }
+  .v-modal-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:800; color:#12241B; margin-bottom:6px; }
+  .v-tabs { display:flex; gap:3px; background:#F6F7F1; border:1px solid #E1E6D8; border-radius:12px; padding:4px; width:fit-content; margin-bottom:22px; }
+  .v-tab { padding:8px 20px; border-radius:9px; border:none; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s; font-family:'Plus Jakarta Sans',sans-serif; color:#5C6B60; background:transparent; }
+  .v-tab.active { background:#3b791e; color:#fff; box-shadow:none; }
+  .v-tab:hover:not(.active) { background:rgba(59,121,30,0.1); color:#12241B; }
   .v-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:22px; }
   .v-empty { text-align:center; padding:60px 20px; color:#94a3b8; }
-  .v-empty-icon { font-size:3.5rem; margin-bottom:16px; }
-  .v-empty-title { font-family:'Montserrat',sans-serif; font-size:1.1rem; font-weight:800; color:#5a7a65; margin-bottom:8px; }
-  .v-empty-sub { font-size:13px; line-height:1.6; font-family:'Poppins',sans-serif; }
+  .v-empty-icon { width:56px; height:56px; margin:0 auto 16px; border-radius:16px; display:flex; align-items:center; justify-content:center; background:#f0f5e8; color:#3b791e; }
+  .v-empty-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:1.1rem; font-weight:800; color:#5C6B60; margin-bottom:8px; }
+  .v-empty-sub { font-size:13px; line-height:1.6; font-family:'Plus Jakarta Sans',sans-serif; }
   .v-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-  .v-dot-green { background:#00c853; box-shadow:0 0 6px #00c853; }
+  .v-dot-green { background:#509820; box-shadow:0 0 6px #509820; }
   .v-dot-red { background:#ef4444; box-shadow:0 0 6px #ef4444; }
   .v-dot-orange { background:#f59e0b; box-shadow:0 0 6px #f59e0b; }
   .v-dot-blue { background:#3b82f6; box-shadow:0 0 6px #3b82f6; }
-  .placeholder-pill { display:inline-block; padding:5px 12px; border-radius:8px; background:linear-gradient(90deg,rgba(0,168,76,0.06) 25%,rgba(0,168,76,0.12) 50%,rgba(0,168,76,0.06) 75%); background-size:200% 100%; animation:shimmer 2s infinite; border:1.5px dashed rgba(0,168,76,0.25); color:#5a7a65; font-size:12px; font-weight:700; font-family:'Montserrat',sans-serif; margin-top:4px; }
-  .v-pw-box { margin-top:10px; padding:12px 14px; background:rgba(0,168,76,0.04); border:1.5px solid rgba(0,168,76,0.15); border-radius:12px; font-size:12px; }
-  .v-pw-rule { display:flex; align-items:center; gap:7px; padding:3px 0; font-weight:600; font-family:'Poppins',sans-serif; }
-  .v-pw-rule.pass { color:#00897b; }
+  .placeholder-pill { display:inline-block; padding:5px 12px; border-radius:8px; background:linear-gradient(90deg,rgba(59,121,30,0.06) 25%,rgba(59,121,30,0.12) 50%,rgba(59,121,30,0.06) 75%); background-size:200% 100%; animation:shimmer 2s infinite; border:1.5px dashed rgba(59,121,30,0.25); color:#5C6B60; font-size:12px; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; margin-top:4px; }
+  .v-pw-box { margin-top:10px; padding:12px 14px; background:rgba(59,121,30,0.04); border:1.5px solid rgba(59,121,30,0.15); border-radius:12px; font-size:12px; }
+  .v-pw-rule { display:flex; align-items:center; gap:7px; padding:3px 0; font-weight:600; font-family:'Plus Jakarta Sans',sans-serif; }
+  .v-pw-rule.pass { color:#3b791e; }
   .v-pw-rule.fail { color:#ef4444; }
   @keyframes vFadeIn { from{opacity:0} to{opacity:1} }
   @keyframes vSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -223,7 +224,7 @@ const VSectionTitle = ({ children, icon }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
     <div className="v-section-title-accent" />
     <span className="v-section-title">
-      {icon && <span style={{ color: '#00897b' }}>{icon}</span>}
+      {icon && <span style={{ color: '#3b791e' }}>{icon}</span>}
       {children}
     </span>
   </div>
@@ -239,10 +240,10 @@ const VEmptyState = ({ icon, title, sub }) => (
 
 const VPwBox = ({ errors }) => (
   <div className="v-pw-box">
-    <div style={{ fontWeight: 800, fontSize: 11.5, color: '#5a7a65', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'Montserrat,sans-serif' }}>Password requirements</div>
+    <div style={{ fontWeight: 800, fontSize: 11.5, color: '#5C6B60', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.06em', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Password requirements</div>
     {[['minLength','At least 8 characters'],['uppercase','One uppercase letter (A-Z)'],['lowercase','One lowercase letter (a-z)'],['number','One number (0-9)'],['special','One special character']].map(([k,t]) => (
       <div key={k} className={`v-pw-rule ${errors.includes(k) ? 'fail' : 'pass'}`}>
-        <span style={{ fontSize: 14 }}>{errors.includes(k) ? '✗' : '✓'}</span> {t}
+        <span style={{ display:'inline-flex', alignItems:'center' }}>{errors.includes(k) ? <X size={13} /> : <Check size={13} />}</span> {t}
       </div>
     ))}
   </div>
@@ -252,11 +253,11 @@ const ReadOnlyBanner = ({ message = 'View only — contact your admin to make ch
   <div style={{
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '10px 16px', borderRadius: 12, marginBottom: 18,
-    background: 'linear-gradient(135deg,rgba(59,130,246,0.07),rgba(29,78,216,0.04))',
-    border: '1.5px solid rgba(59,130,246,0.15)',
-    fontSize: 12, fontWeight: 600, color: '#2563eb', fontFamily: 'Poppins,sans-serif',
+    background: '#f0f5e8',
+    border: '1.5px solid #c9dba0',
+    fontSize: 12, fontWeight: 700, color: '#2c5c16', fontFamily: 'Plus Jakarta Sans,sans-serif',
   }}>
-    <Lock size={14} color="#3b82f6" />
+    <Lock size={14} color="#3b791e" />
     {message}
   </div>
 );
@@ -336,7 +337,7 @@ export default function FranchiseeDashboard({ onLogout }) {
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
     { id: 'staff',          label: 'Staff Management',icon: <Users size={20} /> },
-    { id: 'communication',  label: 'Announcement',   icon: <MessageCircle size={20} /> },
+    { id: 'communication',  label: 'Announcement',   icon: <Megaphone size={20} /> },
 
     { id: 'profile',        label: 'Edit Profile',    icon: <User size={20} /> },
     { id: 'logout',         label: 'Logout',          icon: <LogOut size={20} />, action: handleLogout },
@@ -347,80 +348,95 @@ export default function FranchiseeDashboard({ onLogout }) {
   return (
     <div className="franchisee-root">
       <style>{VIBE_CSS}{`
-        .franchisee-root { font-family:'Poppins',sans-serif; display:flex; min-height:100vh; background:var(--grad-bg); }
+        .franchisee-root {
+          font-family:'Plus Jakarta Sans',sans-serif;
+          display:flex;
+          min-height:100vh;
+          background:#F6F7F1;
+          color:#12241B;
+        }
         .fr-sidebar {
-          width:${sidebarCollapsed ? '76px' : '272px'};
-          background:#fff; box-shadow:2px 0 20px rgba(0,140,60,0.08);
+          width:${sidebarCollapsed ? '76px' : '264px'};
+          background:#fff;
+          border-right:1px solid #E1E6D8;
+          box-shadow:none;
           position:fixed; left:0; top:0; height:100vh;
-          transition:width 0.3s ease; z-index:1000; overflow-y:auto; overflow-x:hidden;
+          transition:width 0.25s ease;
+          z-index:1000;
+          overflow-y:auto; overflow-x:hidden;
+          padding:18px 14px;
         }
         .fr-sidebar-header {
-          padding:1.4rem 1rem; border-bottom:1px solid rgba(0,168,76,0.1);
-          display:flex; align-items:center; justify-content:space-between; min-height:72px;
+          padding:4px 6px 18px;
+          display:flex; align-items:center; justify-content:space-between;
+          min-height:56px;
         }
         .fr-logo-mark {
-          width:34px; height:34px; border-radius:10px;
-          background:var(--grad-main); display:flex; align-items:center; justify-content:center;
-          font-weight:900; font-size:16px; color:#fff; font-family:'Montserrat',sans-serif;
-          flex-shrink:0; box-shadow:0 4px 12px rgba(0,180,90,.3);
+          width:40px; height:40px;
+          border-radius:12px;
+          background:#fff;
+          display:flex; align-items:center; justify-content:center;
+          flex-shrink:0;
+          overflow:hidden;
         }
-        .fr-brand { font-family:'Montserrat',sans-serif; font-weight:800; font-size:1.15rem; color:#0d2b1e; white-space:nowrap; }
-        .fr-toggle { background:none; border:none; cursor:pointer; padding:6px; color:#94a3b8; border-radius:8px; transition:all .2s; flex-shrink:0; }
-        .fr-toggle:hover { color:#00897b; background:rgba(0,168,76,0.08); }
-        .fr-nav { padding:1rem 0.5rem; }
-        .fr-nav-section { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:#94a3b8; padding:12px 14px 6px; display:${sidebarCollapsed ? 'none' : 'block'}; font-family:'Montserrat',sans-serif; }
+        .fr-logo-mark img { width:100%; height:100%; object-fit:contain; display:block; }
+        .fr-brand { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:16px; color:#12241B; white-space:nowrap; }
+        .fr-toggle {
+          background:#fff; border:1px solid #E1E6D8; cursor:pointer;
+          width:30px; height:30px; color:#5C6B60; border-radius:9px;
+          transition:all .15s; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+        }
+        .fr-toggle:hover { color:#2c5c16; background:#F6F7F1; border-color:#c9dba0; }
+        .fr-nav { padding:4px 0 0; }
+        .fr-nav-section {
+          font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#9CA89C;
+          padding:12px 10px 6px; display:${sidebarCollapsed ? 'none' : 'block'}; font-family:'Plus Jakarta Sans',sans-serif;
+        }
         .fr-nav-item {
-          display:flex; align-items:center; gap:12px; padding:10px 12px;
-          color:#5a7a65; cursor:pointer; transition:all .2s;
-          border-radius:12px; position:relative; margin:2px 0;
-          font-weight:600; font-size:14px; font-family:'Montserrat',sans-serif;
+          display:flex; align-items:center; gap:12px; padding:10px 12px; color:#5C6B60; cursor:pointer;
+          transition:background .15s ease,color .15s ease; border-radius:12px; position:relative; margin:2px 0;
+          font-weight:500; font-size:14px; font-family:'Plus Jakarta Sans',sans-serif;
         }
-        .fr-nav-item:hover { background:rgba(0,168,76,0.08); color:#0d2b1e; }
-        .fr-nav-item.active { background:linear-gradient(135deg,rgba(0,200,83,0.15),rgba(0,137,123,0.1)); color:#00695c; box-shadow:inset 0 0 0 1.5px rgba(0,137,123,0.2); }
-        .fr-nav-item.active .fr-nav-icon { color:#00897b; }
-        .fr-nav-item.logout { color:#ef4444; margin-top:8px; }
-        .fr-nav-item.logout:hover { background:rgba(239,68,68,0.08); }
-        .fr-nav-icon { flex-shrink:0; display:flex; justify-content:center; width:22px; }
+        .fr-nav-item:hover { background:#F6F7F1; color:#12241B; }
+        .fr-nav-item.active { background:#F6F7F1; color:#2c5c16; box-shadow:none; font-weight:700; }
+        .fr-nav-item.active .fr-nav-icon { color:#3b791e; }
+        .fr-nav-item.logout { color:#c0392b; margin-top:8px; }
+        .fr-nav-item.logout:hover { background:#fdf1f0; }
+        .fr-nav-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; }
         .fr-nav-label { display:${sidebarCollapsed ? 'none' : 'block'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .fr-nav-bar { position:absolute; right:0; top:20%; height:60%; width:3px; border-radius:2px; background:var(--grad-main); }
-        .fr-main { flex:1; margin-left:${sidebarCollapsed ? '76px' : '272px'}; transition:margin-left 0.3s ease; }
+        .fr-nav-bar { position:absolute; right:6px; top:20%; height:60%; width:3px; border-radius:2px; background:#bdd43c; }
+        .fr-main { flex:1; margin-left:${sidebarCollapsed ? '76px' : '264px'}; transition:margin-left 0.25s ease; min-width:0; }
         .fr-topbar {
-          background:rgba(255,255,255,0.9); backdrop-filter:blur(12px);
-          padding:1rem 2rem; box-shadow:0 2px 16px rgba(0,140,60,0.08);
-          display:flex; justify-content:space-between; align-items:center;
-          position:sticky; top:0; z-index:100;
-          border-bottom:1px solid rgba(0,168,76,0.08);
+          background:#fff; padding:16px 30px; box-shadow:none; display:flex; justify-content:space-between; align-items:center;
+          position:sticky; top:0; z-index:100; border-bottom:1px solid #E1E6D8; min-height:72px;
         }
-        .fr-topbar-breadcrumb { font-size:12px; color:#94a3b8; font-weight:600; font-family:'Poppins',sans-serif; }
-        .fr-topbar-title { font-family:'Montserrat',sans-serif; font-size:1.5rem; font-weight:800; color:#0d2b1e; }
-        .fr-user-name { font-weight:700; color:#0d2b1e; font-size:14px; font-family:'Montserrat',sans-serif; }
-        .fr-user-role { font-size:11px; color:#8ca998; font-weight:600; font-family:'Poppins',sans-serif; }
+        .fr-topbar-breadcrumb { font-size:12px; color:#9CA89C; font-weight:600; font-family:'Plus Jakarta Sans',sans-serif; }
+        .fr-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; color:#12241B; margin:0; }
+        .fr-user-name { font-weight:700; color:#12241B; font-size:13px; font-family:'Plus Jakarta Sans',sans-serif; }
+        .fr-user-role { font-size:11.5px; color:#5C6B60; font-weight:500; font-family:'Plus Jakarta Sans',sans-serif; }
         .fr-avatar {
-          width:42px; height:42px; border-radius:14px;
-          background:var(--grad-main); display:flex; align-items:center; justify-content:center;
-          font-size:1rem; font-weight:800; color:#fff; cursor:pointer;
-          transition:all .2s; box-shadow:0 4px 12px rgba(0,180,90,.3);
-          font-family:'Montserrat',sans-serif;
+          width:38px; height:38px; border-radius:12px; background:#12241B; display:flex; align-items:center; justify-content:center;
+          font-size:14px; font-weight:800; color:#bdd43c; cursor:pointer; transition:all .15s; box-shadow:none; font-family:'Plus Jakarta Sans',sans-serif;
         }
-        .fr-avatar:hover { transform:scale(1.08); box-shadow:0 6px 18px rgba(0,180,90,.4); }
-        .fr-content { padding:1.8rem 2rem; }
+        .fr-avatar:hover { transform:translateY(-1px); }
+        .fr-content { padding:24px 30px 36px; max-width:1460px; margin:0 auto; width:100%; }
         @media(max-width:768px){
-          .fr-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
+          .fr-sidebar{width:${sidebarCollapsed ? '0' : '264px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
           .fr-main{margin-left:0;}
-          .fr-topbar,.fr-content{padding:1rem;}
+          .fr-topbar,.fr-content{padding:16px;}
         }
-      `}</style>
+`}</style>
 
       {/* Sidebar */}
       <aside className="fr-sidebar">
         <div className="fr-sidebar-header">
           {!sidebarCollapsed && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="fr-logo-mark">iF</div>
+              <div className="fr-logo-mark"><img src={logo} alt="iFranchise" /></div>
               <span className="fr-brand">iFranchise</span>
             </div>
           )}
-          {sidebarCollapsed && <div className="fr-logo-mark" style={{ margin: '0 auto' }}>iF</div>}
+          {sidebarCollapsed && <div className="fr-logo-mark" style={{ margin: '0 auto' }}><img src={logo} alt="iFranchise" /></div>}
           {!sidebarCollapsed && (
             <button className="fr-toggle" onClick={() => setSidebarCollapsed(true)}><X size={16} /></button>
           )}
@@ -492,9 +508,9 @@ export default function FranchiseeDashboard({ onLogout }) {
       {showLogoutModal && (
         <div className="v-modal-overlay" style={{ zIndex: 3000 }} onClick={() => setShowLogoutModal(false)}>
           <div className="v-modal" style={{ maxWidth: 400, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: 68, height: 68, borderRadius: '20px', background: 'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '2rem', border: '1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
+            <div style={{ width: 68, height: 68, borderRadius: '20px', background: 'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '2rem', border: '1.5px solid rgba(239,68,68,0.15)' }}><LogOut size={28} /></div>
             <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Log out?</h2>
-            <p style={{ color: '#94a3b8', fontSize: 13, margin: '8px 0 24px', lineHeight: 1.6, fontFamily: 'Poppins,sans-serif' }}>You'll need to sign in again to access your account.</p>
+            <p style={{ color: '#94a3b8', fontSize: 13, margin: '8px 0 24px', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>You'll need to sign in again to access your account.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowLogoutModal(false)}>Cancel</button>
               <button className="v-btn v-btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={confirmLogout}>
@@ -512,8 +528,8 @@ const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimum
 const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
 const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmt8     = (d) => d.toISOString().slice(0, 10);
-const FONT     = "'Montserrat', sans-serif";
-const PAL      = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+const FONT     = "'Plus Jakarta Sans', sans-serif";
+const PAL      = ["#509820","#3b791e","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
 
 
 function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand }) {
@@ -557,27 +573,27 @@ function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, 
 
   ];
 
-  const BAR_COLORS = ['#00c853','#00897b','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#b2dfdb','#c8e6c9','#e0f2f1'];
+  const BAR_COLORS = ['#509820','#3b791e','#26a69a','#43a047','#66bb6a','#80cbc4','#a5d6a7','#D4DBC8','#c9dba0','#f0f5e8'];
 
   const maxQty = data
     ? Math.max(1, ...(tab === 'top10' ? data.top10 : tab === 'fast' ? data.fastMoving : data.slowMoving || []).map(p => p.totalQty))
     : 1;
 
   return (
-    <div style={{ background: '#fff', border: '1px solid rgba(0,168,76,0.12)', borderRadius: 22, padding: '22px 24px', boxShadow: '0 2px 20px rgba(0,140,60,0.07)', marginTop: 24 }}>
+    <div style={{ background: '#fff', border: '1px solid rgba(59,121,30,0.12)', borderRadius: 22, padding:'20px 22px', boxShadow: '0 2px 20px rgba(59,121,30,0.07)', marginTop: 24 }}>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#2E7D32,#00897b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#3b791e,#3b791e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <BarChart2 size={18} color="#fff" />
           </div>
           <div>
-            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 15, color: '#0d2b1e' }}>Product Analytics</div>
+            <div style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 800, fontSize: 15, color: '#12241B' }}>Product Analytics</div>
           </div>
         </div>
         <button onClick={fetch_} disabled={loading}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#00695c', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #D4DBC8', background: '#F6F7F1', color: '#2c5c16', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
           <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           {loading ? 'Loading…' : 'Refresh'}
         </button>
@@ -592,22 +608,22 @@ function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, 
             { label: 'Slow Movers',    value: data.slowMoving?.length || 0,  color: '#dc2626', bg: '#fee2e2' },
             { label: 'Avg Sales/Product', value: data.avgQty + ' units', color: '#1e40af', bg: '#dbeafe' },
           ].map((c, i) => (
-            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#f0fdf5', border: '1px solid rgba(0,0,0,0.06)' }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#00695c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#0d2b1e' }}>{c.value}</span>
+            <div key={i} style={{ padding: '6px 14px', borderRadius: 20, background: c.bg || '#F6F7F1', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: c.color || '#2c5c16', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}: </span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: c.color || '#12241B' }}>{c.value}</span>
             </div>
           ))}
         </div>
       )}
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, background: '#f0faf4', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 4, background: '#F6F7F1', borderRadius: 12, padding: 4, marginBottom: 18, flexWrap: 'wrap' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding: '7px 14px', borderRadius: 9, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
-              background: tab === t.id ? 'linear-gradient(135deg,#00c853,#00897b)' : 'transparent',
-              color:      tab === t.id ? '#fff' : '#5a7a65',
-              boxShadow:  tab === t.id ? '0 2px 8px rgba(0,180,90,.28)' : 'none',
+              background: tab === t.id ? 'linear-gradient(135deg,#509820,#3b791e)' : 'transparent',
+              color:      tab === t.id ? '#fff' : '#5C6B60',
+              boxShadow:  tab === t.id ? '0 2px 8px rgba(59,121,30,.28)' : 'none',
             }}>
             {t.label}
           </button>
@@ -616,8 +632,8 @@ function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, 
 
       {/* Loading */}
       {loading && (
-        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13 }}>
-          <RefreshCw size={20} color="#00897b" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
+        <div style={{ padding: '32px 0', textAlign: 'center', color: '#5C6B60', fontSize: 13 }}>
+          <RefreshCw size={20} color="#3b791e" style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
           <div style={{ marginTop: 8 }}>Loading product analytics…</div>
         </div>
       )}
@@ -630,28 +646,28 @@ function ProductAnalyticsPanel({ preset, appliedRange, rangeMode, filterBranch, 
         return (
           <div>
             {/* Column headers */}
-            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #e0f2f1', fontSize: 10, fontWeight: 800, color: '#00897b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, padding: '6px 10px', borderBottom: '2px solid #f0f5e8', fontSize: 10, fontWeight: 800, color: '#3b791e', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
               <span>#</span><span>Product</span><span style={{ textAlign: 'right' }}>Units</span><span style={{ textAlign: 'right' }}>Revenue</span><span style={{ paddingLeft: 8 }}>Sales Bar</span>
             </div>
             {list.map((p, i) => (
               <div key={p.name}
                 style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 180px', gap: 8, alignItems: 'center', padding: '9px 10px', borderBottom: '1px solid #f0f8f0', borderRadius: 8, marginBottom: 2 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f6fef8'}
+                onMouseEnter={e => e.currentTarget.style.background = '#fbfdf6'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: i < 3 ? ['#f59e0b','#94a3b8','#cd7c2e'][i] : '#9ca3af' }}>
                   {i < 3 ? ['1','2','3'][i] : `${i+1}`}
                 </span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                  <div style={{ fontSize: 10, color: '#5a7a65', marginTop: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#12241B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#5C6B60', marginTop: 1 }}>
                     {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(' · ')}
                     {Object.keys(p.branchBreakdown).length > 2 ? ` +${Object.keys(p.branchBreakdown).length - 2} more` : ''}
                   </div>
                 </div>
-                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#0d2b1e' }}>{p.totalQty.toLocaleString()}</span>
-                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#00897b' }}>{fmtPeso(p.totalRevenue)}</span>
+                <span style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#12241B' }}>{p.totalQty.toLocaleString()}</span>
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: '#3b791e' }}>{fmtPeso(p.totalRevenue)}</span>
                 <div style={{ paddingLeft: 8 }}>
-                  <div style={{ height: 10, borderRadius: 5, background: '#f0fdf5', overflow: 'hidden' }}>
+                  <div style={{ height: 10, borderRadius: 5, background: '#F6F7F1', overflow: 'hidden' }}>
                     <div style={{ height: '100%', borderRadius: 5, width: `${(p.totalRevenue / maxR) * 100}%`, background: `${BAR_COLORS[i % BAR_COLORS.length]}`, transition: 'width .4s ease' }} />
                   </div>
                 </div>
@@ -728,10 +744,10 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
   return (
     <div style={{
       background: '#fff',
-      border: '1px solid rgba(0,168,76,0.12)',
+      border: '1px solid rgba(59,121,30,0.12)',
       borderRadius: 18,
       padding: '14px 18px',
-      boxShadow: '0 2px 14px rgba(0,140,60,0.07)',
+      boxShadow: '0 2px 14px rgba(59,121,30,0.07)',
       marginTop: 16,
     }}>
 
@@ -746,10 +762,10 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
             background: '#185FA5', flexShrink: 0,
           }}/>
           <div>
-            <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 14, color: '#0d2b1e' }}>
+            <div style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 800, fontSize: 14, color: '#12241B' }}>
               AI Prescriptive Analysis
             </div>
-            <div style={{ fontSize: 11, color: '#5a7a65' }}>
+            <div style={{ fontSize: 11, color: '#5C6B60' }}>
               Groq · llama-3.3-70b{lastRun && ` · Last run ${lastRun}`}
             </div>
           </div>
@@ -793,10 +809,10 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
       {!analysis && !loading && !error && (
         <div style={{
           padding: '28px 0', textAlign: 'center',
-          border: '1px dashed #b2dfdb', borderRadius: 12,
-          color: '#5a7a65',
+          border: '1px dashed #D4DBC8', borderRadius: 12,
+          color: '#5C6B60',
         }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          <div style={{ width:44, height:44, borderRadius:12, background:"#f0f5e8", color:"#3b791e", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px" }}><Brain size={22} /></div>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
             Ready to analyze your data
           </div>
@@ -815,7 +831,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
           background: '#FCEBEB', border: '1px solid #F7C1C1',
           color: '#791F1F', fontSize: 12, fontWeight: 600,
         }}>
-          ⚠ {error}
+          <span style={{ display:'inline-flex', alignItems:'center', gap:7 }}><AlertTriangle size={14} /> {error}</span>
         </div>
       )}
 
@@ -823,7 +839,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
       {loading && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '28px 0', color: '#5a7a65', fontSize: 13,
+          padding: '28px 0', color: '#5C6B60', fontSize: 13,
         }}>
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none"
             stroke="#185FA5" strokeWidth={2}
@@ -870,19 +886,19 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
               const accent = kpiAccent(i, analysis);
               return (
                 <div key={i} style={{
-                  background: '#f8fffe',
-                  border: '1px solid #e0f2f1',
+                  background: '#fbfdf6',
+                  border: '1px solid #f0f5e8',
                   borderLeft: `3px solid ${accent}`,
                   borderRadius: 10,
                   padding: '9px 12px',
                 }}>
                   <div style={{
                     fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                    letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 4,
+                    letterSpacing: '0.06em', color: '#5C6B60', marginBottom: 4,
                   }}>
                     {card.label}
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0d2b1e', marginBottom: 3 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#12241B', marginBottom: 3 }}>
                     {card.value}
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: accent }}>
@@ -899,7 +915,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
             <>
               <div style={{
                 fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
-                letterSpacing: '0.06em', color: '#5a7a65', marginBottom: 8,
+                letterSpacing: '0.06em', color: '#5C6B60', marginBottom: 8,
               }}>
                 Recommendations
               </div>
@@ -923,7 +939,7 @@ function AIPredictivePanel({ transactions, filterLabel, preset }) {
                       }}>
                         {rec.branch}
                       </div>
-                      <div style={{ fontSize: 12, color: '#0d2b1e', lineHeight: 1.55 }}>
+                      <div style={{ fontSize: 12, color: '#12241B', lineHeight: 1.55 }}>
                         {rec.text}
                       </div>
                     </div>
@@ -1019,10 +1035,10 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
         {linepts.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
         ))}
-        {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#00c853" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
+        {tip && <line x1={tip.x} y1={PT} x2={tip.x} y2={PT + pH} stroke="#509820" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />}
       </svg>
       {tip && (
-        <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
+        <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#12241B", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
           <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
           {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
           {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
@@ -1040,10 +1056,10 @@ function HBarChart({ data = [] }) {
       {data.map((d, i) => (
         <div key={i}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#12241B", fontFamily: FONT }}>{d.label}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
           </div>
-          <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
+          <div style={{ height: 8, borderRadius: 4, background: "#F6F7F1", overflow: "hidden" }}>
             <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
           </div>
         </div>
@@ -1087,8 +1103,8 @@ function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLab
         ))}
         {innerRadius > 0 && (
           <>
-            <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#0d2b1e" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
-            <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5a7a65" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
+            <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#12241B" fontFamily={FONT}>{hov ? Math.round(hov.pct * 100) + "%" : centerLabel || total.toLocaleString()}</text>
+            <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9.5" fill="#5C6B60" fontFamily={FONT}>{hov ? hov.label : (centerSub || "total")}</text>
           </>
         )}
       </svg>
@@ -1099,8 +1115,8 @@ function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLab
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
-                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{s.label}</div>
+                <div style={{ fontSize: 10, color: "#5C6B60", fontFamily: FONT }}>{Math.round(s.pct * 100)}% · {(s.value || 0).toLocaleString()}</div>
               </div>
             </div>
           ))}
@@ -1111,7 +1127,7 @@ function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLab
 }
 
 // ─── SparkBar ─────────────────────────────────────────────────────────────────
-function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+function SparkBar({ values = [], color = "#509820", height = 30 }) {
   if (!values.length) return null;
   const maxV = Math.max(...values, 1);
   return (
@@ -1126,17 +1142,17 @@ function SparkBar({ values = [], color = "#00c853", height = 30 }) {
 // ─── Card wrappers ────────────────────────────────────────────────────────────
 function PanelCard({ children, style: s }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+    <div style={{ background: "#fff", border: '1px solid #E1E6D8', borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(59,121,30,0.07)", ...s }}>
       {children}
     </div>
   );
 }
 
-function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#00c853,#00897b)", action }) {
+function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#509820,#3b791e)", action }) {
   return (
     <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+        <div style={{ width: 33, height: 33, borderRadius: 9, background: C.greenLt, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
           <Icon size={17} color="#fff" />
         </div>
         <div>
@@ -1151,18 +1167,18 @@ function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg
 
 function ChartLabel({ children }) {
   return (
-    <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+    <div style={{ fontSize: 10, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
       {children}
     </div>
   );
 }
 
-function BulletItem({ text, color = "#00897b", size = "normal" }) {
+function BulletItem({ text, color = "#3b791e", size = "normal" }) {
   const fs = size === "small" ? 11 : 12.5;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
       <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: fs === 11 ? 4 : 5 }} />
-      <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
+      <span style={{ fontSize: fs, color: "#12241B", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
     </div>
   );
 }
@@ -1231,7 +1247,7 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
       <div style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            <ChartLabel><BarChart2 size={11} color="#3b791e" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
             {hasData ? (
               <>
                 <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
@@ -1246,7 +1262,7 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
                         ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
                         : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
                       }
-                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5C6B60", fontFamily: FONT }}>{l.label}</span>
                     </div>
                   ))}
                 </div>
@@ -1262,25 +1278,25 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
-                        <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                        <div style={{ fontSize: 12.5, color: "#12241B", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
-              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
-                <BarChart2 size={28} color="#b2dfdb" />
-                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background:"#F6F7F1", borderRadius: 12, border: "1.5px dashed #D4DBC8" }}>
+                <BarChart2 size={28} color="#D4DBC8" />
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5C6B60", fontFamily: FONT }}>No data for selection</div>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
               </div>
             )}
           </div>
 
-          <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+          <div style={{ background: "linear-gradient(160deg,#F6F7F1,#eaf5ec)", border: "1px solid #c9dba0", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-              <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#509820,#3b791e)" }} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#2c5c16", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
             </div>
             {hasData ? (
               <>
@@ -1292,25 +1308,25 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
                     { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
                   ].map((s, i) => (
                     <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
-                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
                       <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
-                      <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                      <div style={{ fontSize: 9, color: "#5C6B60", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
                   {analysisBullets.slice(3).map((text, i) => {
-                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
-                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
-                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#3b791e","#1d4ed8"];
+                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#F6F7F1","#eff6ff"];
+                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#E1E6D8","#bfdbfe"];
                     const dc = dotColors[i % dotColors.length];
                     const bc = bgColors[i % bgColors.length];
                     const bd = bdrColors[i % bdrColors.length];
                     return (
                       <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
-                        <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                        <span style={{ fontSize: 11, color: "#12241B", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
                       </div>
                     );
                   })}
@@ -1318,7 +1334,7 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
               </>
             ) : (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <Info size={22} color="#b2dfdb" />
+                <Info size={22} color="#D4DBC8" />
                 <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
               </div>
             )}
@@ -1326,22 +1342,22 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
-            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
+          <div style={{ background:"#F6F7F1", border: "1px solid #f0f5e8", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><PieChart size={11} color="#3b791e" /> Sales by Category</ChartLabel>
             {catData.length > 0
               ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#D4DBC8", fontFamily: FONT, fontSize: 12 }}>No data</div>
             }
           </div>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
-            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
+          <div style={{ background:"#F6F7F1", border: "1px solid #f0f5e8", borderRadius: 14, padding: "14px 16px" }}>
+            <ChartLabel><Globe size={11} color="#3b791e" /> Top 5 Sales by Branch</ChartLabel>
             {branchData.length > 0
               ? <HBarChart data={branchData.slice(0, 5)} />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#D4DBC8", fontFamily: FONT, fontSize: 12 }}>No data</div>
             }
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
+            <ChartLabel><Activity size={11} color="#3b791e" /> Period Summary</ChartLabel>
             {[
               { label: "Peak Revenue",   value: hasData ? fmtAmt(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
               { label: "Lowest Revenue", value: hasData ? fmtAmt(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
@@ -1350,10 +1366,10 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
                 </div>
-                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
+                <div style={{ fontSize: 10, color: "#5C6B60", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
               </div>
             ))}
           </div>
@@ -1437,10 +1453,10 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
             <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <card.icon size={11} color={card.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
               </div>
               <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
-              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+              <div style={{ fontSize: 10.5, color: "#5C6B60", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
             </div>
           ))}
         </div>
@@ -1455,7 +1471,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
                 </span>
               </div>
               {analysis ? (
-                <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+                <p style={{ fontSize: 12.5, color: "#12241B", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
               ) : (
                 <>
                   {preRunBullets.length > 0
@@ -1471,7 +1487,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
                   {loading && (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                       <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                      <span style={{ fontSize: 12, color: "#5C6B60", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
                     </div>
                   )}
                 </>
@@ -1491,19 +1507,19 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
                       ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
                       low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
                       dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
-                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                    }[a.anomalyType] || { bg: "#fbfdf6", border: "#E1E6D8", label: "Anomaly", labelBg: "#f0f5e8", labelColor: "#2c5c16", dot: "#3b791e" };
                     return (
                       <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
                           <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
                           <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#12241B", fontFamily: FONT }}>{a.branch}</span>
                           {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
                         </div>
                         <BulletItem text={a.finding} color={cfg.dot} size="small" />
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
                           <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
-                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
+                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#12241B", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
                         </div>
                       </div>
                     );
@@ -1517,9 +1533,9 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
             {analysis?.recommendations?.length > 0 ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#509820,#3b791e)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#12241B", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#f0f5e8", color: "#2c5c16", fontFamily: FONT }}>{analysis.recommendations.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {analysis.recommendations.map((rec, i) => {
@@ -1540,7 +1556,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
             ) : (
               <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
                 <Brain size={32} color="#bfdbfe" />
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#12241B", fontFamily: FONT }}>Recommendations will appear here</div>
                 <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
                   {transactions?.length
                     ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
@@ -1609,9 +1625,9 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   const tabSt = (a) => ({
     padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
     cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
-    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-    color:      a ? "#fff" : "#5a7a65",
-    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+    background: a ? '#3b791e' : 'transparent',
+    color:      a ? "#fff" : "#5C6B60",
+    boxShadow:  a ? "0 2px 8px rgba(59,121,30,.28)" : "none",
   });
   const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
 
@@ -1619,7 +1635,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
     const isBuyers = tab === "buyers";
     const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
     if (!list?.length) return (
-      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #E1E6D8", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
     );
     const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
     const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
@@ -1632,7 +1648,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
           {i + 1}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#12241B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
           {!isBuyers && p.branchBreakdown && (
             <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
               {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
@@ -1641,20 +1657,20 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         </div>
         {!isBuyers && (
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
-            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+            <div style={{ fontWeight: 800, fontSize: 11, color: "#12241B", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+            <div style={{ height: 3, borderRadius: 2, background: "#f0f5e8", marginTop: 2 }}>
               <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
             </div>
           </div>
         )}
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#3b791e", fontFamily: FONT }}>
           {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
         </div>
         <div style={{ paddingLeft: 8 }}>
           {isBuyers
-            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+            ? <span style={{ background: "#f0f5e8", color: "#2c5c16", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
             : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#F6F7F1", overflow: "hidden" }}>
                   <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
                 </div>
                 <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
@@ -1682,7 +1698,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
       <div style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
           {[
-            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#12241B", bg: "#F6F7F1",  border: "#E1E6D8",  icon: Layers    },
             { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
             { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
             { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
@@ -1690,7 +1706,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
             <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
                 <s.icon size={11} color={s.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5C6B60", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
               </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
             </div>
@@ -1707,7 +1723,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
               ))}
             </div>
             {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
-              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #f0f5e8", fontSize: 9.5, fontWeight: 800, color: "#3b791e", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
                 <span>#</span><span>Name</span>
                 {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
                 <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
@@ -1716,30 +1732,30 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
             )}
             {loading
               ? <div style={{ padding: "36px 0", textAlign: "center" }}>
-                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
-                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                  <div style={{ width: 28, height: 28, border: "3px solid #E1E6D8", borderTopColor: "#3b791e", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: "#5C6B60", fontFamily: FONT }}>Loading…</div>
                 </div>
               : renderList()
             }
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+            <div style={{ background:"#F6F7F1", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><PieChart size={11} color="#3b791e" /> Revenue Share (Top 5)</ChartLabel>
               {revenuePie.length > 0
                 ? <DonutChartSVG segments={revenuePie} size={120} />
-                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#D4DBC8", fontSize: 12, fontFamily: FONT }}>—</div>
               }
             </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+            <div style={{ background:"#F6F7F1", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><Activity size={11} color="#3b791e" /> Product Velocity</ChartLabel>
               {moverPie.length > 0
                 ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
-                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#D4DBC8", fontSize: 12, fontFamily: FONT }}>—</div>
               }
             </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+            <div style={{ background:"#F6F7F1", border: "1px solid #f0f5e8", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><ShoppingCart size={11} color="#3b791e" /> Stock Recommendations</ChartLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {[
                   { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
@@ -1748,7 +1764,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
                 ].map((r, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
                     <r.icon size={13} color={r.color} />
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#12241B", fontFamily: FONT }}>{r.label}</span>
                     <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
                   </div>
                 ))}
@@ -1791,6 +1807,7 @@ const [archives, setArchives] = useState(() => {
   const [kpiData,    setKpiData]    = useState(null);
   const [kpiLoading, setKpiLoading] = useState(false);
   const [hiddenKpis, setHiddenKpis] = useState({});
+  const [analysisTab, setAnalysisTab] = useState('sales');
 
   const scopedTransactions = useMemo(() => {
   const branch = userBranch.toLowerCase();
@@ -1801,7 +1818,7 @@ const [archives, setArchives] = useState(() => {
 }, [transactions, userBranch]);
 
 
-const tabSt = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+const tabSt = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? '#3b791e' : 'transparent', color: a ? "#fff" : "#5C6B60", boxShadow: a ? "0 2px 8px rgba(59,121,30,.35)" : "none" });
  
   const fetchKpis = useCallback(async () => {
     if (!userBranch) return;
@@ -1988,7 +2005,7 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
  
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         .fr-db-kpi-grid  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
@@ -1996,24 +2013,24 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
         .fr-db-bot-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
         @media(max-width:960px){ .fr-db-kpi-grid{ grid-template-columns:repeat(2,1fr); } }
         @media(max-width:720px){ .fr-db-ins-grid,.fr-db-bot-grid{ grid-template-columns:1fr; } }
-        .fr-db-kpi  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; }
-        .fr-db-kpi:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); }
-        .fr-db-chart { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(0,140,60,0.07); margin-bottom:18px; }
-        .fr-db-ins  { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(0,140,60,0.06); }
-        .fr-db-tab-group { display:flex; gap:3px; background:#f0faf4; border-radius:12px; padding:4px; }
-        .fr-db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5a7a65; cursor:pointer; transition:all .15s; font-family:inherit; }
-        .fr-db-tab.active { background:linear-gradient(135deg,#00c853,#00897b); color:#fff; box-shadow:0 2px 8px rgba(0,180,90,.35); }
-        .fr-db-tab:hover:not(.active) { color:#0d2b1e; background:#ddf5e6; }
-        .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #b2dfdb; background:#f0fdf5; font-size:12px; font-family:inherit; color:#0d2b1e; outline:none; }
-        .fr-db-date:focus { border-color:#00897b; }
-        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#00c853,#00897b); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
-        .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
-        .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#1a4a2e; border-bottom:none; }
-        .fr-db-arc-panel { background:#fff; border:1px solid rgba(0,168,76,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(0,140,60,0.08); margin-bottom:18px; }
-        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #e0f2f1; margin-bottom:8px; background:#f8fffe; }
-        .fr-db-arc-row:hover { background:#e8fdf0; }
+        .fr-db-kpi  { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(59,121,30,0.07); transition:transform .2s,box-shadow .2s; }
+        .fr-db-kpi:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(59,121,30,0.13); }
+        .fr-db-chart { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:22px; padding:22px 24px 16px; box-shadow:0 2px 20px rgba(59,121,30,0.07); margin-bottom:18px; }
+        .fr-db-ins  { background:#fff; border:1px solid rgba(59,121,30,0.12); border-radius:18px; padding:18px 20px; box-shadow:0 2px 12px rgba(59,121,30,0.06); }
+        .fr-db-tab-group { display:flex; gap:3px; background:#F6F7F1; border-radius:12px; padding:4px; }
+        .fr-db-tab { padding:6px 14px; border-radius:9px; border:none; background:transparent; font-size:12px; font-weight:600; color:#5C6B60; cursor:pointer; transition:all .15s; font-family:inherit; }
+        .fr-db-tab.active { background:linear-gradient(135deg,#509820,#3b791e); color:#fff; box-shadow:0 2px 8px rgba(59,121,30,.35); }
+        .fr-db-tab:hover:not(.active) { color:#12241B; background:#f0f5e8; }
+        .fr-db-date { padding:7px 11px; border-radius:9px; border:1.5px solid #D4DBC8; background:#F6F7F1; font-size:12px; font-family:inherit; color:#12241B; outline:none; }
+        .fr-db-date:focus { border-color:#3b791e; }
+        .fr-db-apply { padding:7px 16px; border-radius:9px; border:none; background:linear-gradient(135deg,#509820,#3b791e); color:#fff; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+        .fr-db-tooltip { position:absolute; background:linear-gradient(135deg,#12241B,#2c5c16); color:#fff; border-radius:12px; padding:9px 14px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,0.22); transform:translate(-50%,-100%) translateY(-12px); z-index:10; }
+        .fr-db-tooltip::after { content:''; position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#2c5c16; border-bottom:none; }
+        .fr-db-arc-panel { background:#fff; border:1px solid rgba(59,121,30,0.15); border-radius:18px; padding:22px 24px; box-shadow:0 2px 16px rgba(59,121,30,0.08); margin-bottom:18px; }
+        .fr-db-arc-row   { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:10px; border:1px solid #f0f5e8; margin-bottom:8px; background:#fbfdf6; }
+        .fr-db-arc-row:hover { background:#f0f5e8; }
         .fr-db-arc-btn   { padding:5px 13px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; }
-        .fr-db-view-banner { background:linear-gradient(135deg,#0d2b1e,#1a4a2e); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
+        .fr-db-view-banner { background:linear-gradient(135deg,#12241B,#2c5c16); color:#fff; border-radius:14px; padding:12px 20px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; }
       `}</style>
  
       
@@ -2043,9 +2060,9 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
             const isHidden = !!hiddenKpis[i];
             return (
               <div key={i}
-                style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+                style={{ background: "#fff", border: '1px solid #E1E6D8', borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(59,121,30,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(59,121,30,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(59,121,30,0.07)"; }}>
                   <button
                     onClick={() => setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }))}
                     style={{
@@ -2063,19 +2080,19 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
                   </button>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
-                      <k.icon size={12} color="#00897b" /> {k.label}
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5C6B60", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                      <k.icon size={12} color="#3b791e" /> {k.label}
                     </div>
                     {kpiLoading && k.value == null
-                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#F6F7F1", border: "1.5px dashed #a7f3d0", color: "#5C6B60", display: "inline-block", fontFamily: FONT }}>Loading…</div>
                       : k.value != null
-                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#12241B", letterSpacing: "-0.5px", fontFamily: FONT }}>
                             {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
                           </div>
-                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#F6F7F1", border: "1.5px dashed #a7f3d0", color: "#5C6B60", display: "inline-block", fontFamily: FONT }}>— Pending</div>
                     }
                   </div>
-                  <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+                  <SparkBar values={values.slice(-7)} color="#509820" height={28} />
                 </div>
                 <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
               </div>
@@ -2085,10 +2102,10 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
   
 
       {/* ── Filter + Date toolbar ── */}
-      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ background: "#fff", border: '1px solid #E1E6D8', borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(59,121,30,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
 
         {/* Preset tabs */}
-        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+        <div style={{ display: "flex", gap: 3, background: "#F6F7F1", borderRadius: 10, padding: 3 }}>
           {["day","week","month","year"].map(p => (
             <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewingArchive(null); }}>
               {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -2098,39 +2115,39 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
 
         {/* Custom range */}
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Calendar size={12} color="#5a7a65" />
-          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
-          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00c853,#00897b)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
+          <Calendar size={12} color="#5C6B60" />
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #D4DBC8", background: "#F6F7F1", fontSize: 11, fontFamily: FONT, color: "#12241B", outline: "none" }} />
+          <span style={{ color: "#5C6B60", fontSize: 11, fontFamily: FONT }}>to</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #D4DBC8", background: "#F6F7F1", fontSize: 11, fontFamily: FONT, color: "#12241B", outline: "none" }} />
+          <button onClick={applyCustomRange} style={{ padding: "6px 13px", borderRadius: 8, border: "none", background:"linear-gradient(135deg,#509820,#3b791e)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Apply</button>
         </div>
 
         {/* Archive */}
-        <button onClick={() => setShowArchivePanel(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchivePanel ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+        <button onClick={() => setShowArchivePanel(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #D4DBC8", background: showArchivePanel ? "#f0f5e8" : "#fff", color: "#2c5c16", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
           <Archive size={13} /> Archives
-          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+          {archives.length > 0 && <span style={{ background: "#3b791e", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
         </button>
       </div>
 
       {/* Archive panel */}
       {showArchivePanel && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+        <div style={{ background: "#fff", border: "1px solid rgba(59,121,30,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(59,121,30,0.08)", marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
-              <Archive size={15} color="#00897b" /> Yearly Archives — {userBranch}
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#12241B", display: "flex", alignItems: "center", gap: 7 }}>
+              <Archive size={15} color="#3b791e" /> Yearly Archives — {userBranch}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {!archiveConfirm ? (
                 <>
-                  <input type="number" value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
-                  <button onClick={() => setArchiveConfirm(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                  <input type="number" value={archiveYearInput} onChange={e => setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #D4DBC8", background: "#F6F7F1", fontSize: 12, fontFamily: FONT, color: "#12241B", outline: "none", width: 86 }} />
+                  <button onClick={() => setArchiveConfirm(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background:"linear-gradient(135deg,#509820,#3b791e)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
                     <Plus size={12} /> Archive Year
                   </button>
                 </>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYearInput}?</span>
-                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
+                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #3b791e", background: "#f0f5e8", color: "#2c5c16" }}>Confirm</button>
                   <button onClick={() => setArchiveConfirm(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
                 </div>
               )}
@@ -2139,13 +2156,13 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
           {archives.length === 0
             ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
             : archives.map(a => (
-              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #f0f5e8", marginBottom: 7, background:"#F6F7F1" }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
-                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#12241B", fontFamily: FONT }}>{a.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#5C6B60", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtPeso(a.kpis.totalSales)}</div>
                 </div>
                 <div style={{ display: "flex", gap: 7 }}>
-                  <button onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewingArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewingArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                  <button onClick={() => { setViewingArchive(viewingArchive?.year === a.year ? null : a); setShowArchivePanel(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewingArchive?.year === a.year ? "#3b791e" : "#D4DBC8"}`, background: viewingArchive?.year === a.year ? "#f0f5e8" : "#fbfdf6", color: "#2c5c16" }}>
                     {viewingArchive?.year === a.year ? "Viewing" : "View"}
                   </button>
                   <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
@@ -2157,53 +2174,87 @@ const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values
       )}
  
       
-      {/* ── SECTION 1: SALES TREND ── */}
-      <SalesTrendSection
-        values={values} labels={chartData.labels} kpiData={kpiData}
-        total={total} avg={avg} peak={peak} low={low}
-        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
-        getRangeLabel={getRangeLabel} filterLabel={`${userBranch} — ${getRangeLabel()}`}
-      />
+      {/* Analysis navigation — same dashboard layout language as AdminDashboard */}
+      <div style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:12,
+        background:'#fff', border:'1px solid #E1E6D8', borderRadius:14,
+        padding:'10px 12px', marginBottom:14, boxShadow:'0 1px 8px rgba(50,109,32,.04)',
+        flexWrap:'wrap'
+      }}>
+        <div style={{ display:'flex', gap:3, background:'#F6F7F1', border:'1px solid #E1E6D8', borderRadius:11, padding:4, flexWrap:'wrap' }}>
+          {[
+            { id:'sales', label:'Sales Trend', icon:TrendingUp },
+            { id:'prescriptive', label:'Prescriptive Analysis', icon:Brain },
+            { id:'stock', label:'Sales vs Stocks', icon:Layers },
+          ].map(t => {
+            const active = analysisTab === t.id;
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => setAnalysisTab(t.id)} style={{
+                display:'inline-flex', alignItems:'center', gap:6,
+                height:34, padding:'0 14px', borderRadius:9, border:'none',
+                background:active ? '#3b791e' : 'transparent',
+                color:active ? '#fff' : '#5C6B60', fontSize:12, fontWeight:700,
+                cursor:'pointer', fontFamily:'inherit', boxShadow:'none'
+              }}>
+                <Icon size={13} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize:11, color:'#5C6B60', fontWeight:600 }}>{userBranch} · {getRangeLabel()}</div>
+      </div>
 
-      {/* ── SECTION 2: PRESCRIPTIVE ANALYSIS ── */}
-      <PrescriptiveSection
-        transactions={myTransactions} filterLabel={`${userBranch} — ${getRangeLabel()}`}
-        preset={preset} total={total} values={values} kpiData={kpiData}
-      />
+      {analysisTab === 'sales' && (
+        <SalesTrendSection
+          values={values} labels={chartData.labels} kpiData={kpiData}
+          total={total} avg={avg} peak={peak} low={low}
+          peakLabel={peakLabel} pctChange={pctChange} trending={trending}
+          getRangeLabel={getRangeLabel} filterLabel={`${userBranch} — ${getRangeLabel()}`}
+        />
+      )}
 
-      {/* ── SECTION 3: SALES VS STOCK ── */}
-      <SalesVsStockSection
-        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
-        filterBranch={userBranch} filterBrand={null}
-        selectedBrand={null} total={total}
-      />
+      {analysisTab === 'prescriptive' && (
+        <PrescriptiveSection
+          transactions={myTransactions} filterLabel={`${userBranch} — ${getRangeLabel()}`}
+          preset={preset} total={total} values={values} kpiData={kpiData}
+        />
+      )}
+
+      {analysisTab === 'stock' && (
+        <SalesVsStockSection
+          preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
+          filterBranch={userBranch} filterBrand={null}
+          selectedBrand={null} total={total}
+        />
+      )}
     </div>
   );
 }
 
 const C = {
-  green:"#00897b", greenDk:"#00695c", greenLt:"#e8f5e9", greenMid:"#c8e6c9",
-  teal:"#00c853", ink:"#0d2b1e", muted:"#5a7a65", border:"#d1eedd",
-  bg:"#f0fdf5", white:"#ffffff", warn:"#e65100", warnBg:"#fff3e0",
-  ok:"#2e7d32", okBg:"#e8f5e9",
-  red:"#dc2626", redBg:"#fef2f2",   // ← add these
+  green:"#3b791e", greenDk:"#2c5c16", greenLt:"#f0f5e8", greenMid:"#c9dba0",
+  teal:"#509820", lime:"#bdd43c", limeInk:"#24310C", ink:"#12241B", muted:"#5C6B60",
+  border:"#E1E6D8", bg:"#F6F7F1", white:"#ffffff",
+  warn:"#b45309", warnBg:"#fff7ed", ok:"#2c5c16", okBg:"#f0f5e8",
+  red:"#c0392b", redBg:"#fdf1f0",
 };
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
+  height:38, padding:"0 13px", borderRadius:11,
+  border:`1.5px solid ${C.border}`, background:C.white,
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
 };
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
+  height:38, padding:"0 18px", borderRadius:999,
   border:`1px solid ${C.border}`, background:C.white,
   fontSize:13, fontWeight:700, cursor:"pointer",
   fontFamily:"inherit", whiteSpace:"nowrap",
 };
 const smallBtnSt = {
   display:"inline-flex", alignItems:"center", gap:4,
-  height:28, padding:"0 10px", borderRadius:7,
+  height:28, padding:"0 12px", borderRadius:999,
   fontSize:12, fontWeight:600, cursor:"pointer",
   fontFamily:"inherit", background:C.white,
 };
@@ -2276,7 +2327,7 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
     const active = sort.col === col;
     return (
       <th onClick={()=>{setSort(st=>({col,asc:st.col===col?!st.asc:true}));setPage(0);}}
-        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>
+        style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:active?C.green:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, cursor:"pointer", userSelect:"none", whiteSpace:"nowrap", background:"#F6F7F1", ...s }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}>
           {label} {active?(sort.asc?<SortAscIcon/>:<SortDescIcon/>):<span style={{ opacity:0.25 }}><SortDescIcon/></span>}
         </span>
@@ -2284,7 +2335,7 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
     );
   };
   const ThStatic = ({ label, style:s }) => (
-    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#f0fdf5", ...s }}>{label}</th>
+    <th style={{ padding:"9px 12px", textAlign:"left", fontWeight:800, fontSize:11, color:C.muted, letterSpacing:"0.07em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap", background:"#F6F7F1", ...s }}>{label}</th>
   );
 
   if (!items.length) return <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No items match your filters.</div>;
@@ -2317,7 +2368,7 @@ function ReadOnlyInventoryTable({ items, page, setPage }) {
                     onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ padding:"10px 12px", fontWeight:700, color:C.ink }}>{item.name}</td>
                     <td style={{ padding:"10px 12px" }}>
-                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c" }}>{item.category}</span>
+                      <span style={{ padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:600, background:"#f0f5e8", color:"#2c5c16" }}>{item.category}</span>
                     </td>
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
@@ -2384,6 +2435,7 @@ function FrMenuInventoryContent({ user, brands }) {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus,   setFilterStatus]   = useState("");
   const [page,           setPage]           = useState(0);
+  const [selectedId,     setSelectedId]     = useState(null);
 
   const fetchInventory = useCallback(async () => {
     if (!userBranch) return;
@@ -2397,7 +2449,7 @@ function FrMenuInventoryContent({ user, brands }) {
   }, [userBranch]);
 
   useEffect(() => { if (userBranch) fetchInventory(); }, [fetchInventory, userBranch]);
-  useEffect(() => { setPage(0); }, [searchQuery, filterCategory, filterStatus]);
+  useEffect(() => { setPage(0); setSelectedId(null); }, [searchQuery, filterCategory, filterStatus]);
 
   const categories = useMemo(() => [...new Set(inventory.map(i => i.category).filter(Boolean))].sort(), [inventory]);
 
@@ -2415,79 +2467,135 @@ function FrMenuInventoryContent({ user, brands }) {
   const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
   const totalValue = filteredItems.reduce((s, i) => s + (i.price || 0) * (i.stock || 0), 0);
 
+  const selectedItem = filteredItems.find(i => i.id === selectedId) || null;
   const anyFilter = filterCategory || filterStatus || searchQuery;
   const clearAll  = () => { setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
 
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');`}</style>
+    <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", color:C.ink }}>
+      <style>{`
+        .fr-menu-row:hover { background:#F6F7F1 !important; }
+        @media(max-width:900px){ .fr-menu-master-detail{ grid-template-columns:1fr !important; } .fr-menu-detail{ border-top:1px solid #E1E6D8; } }
+      `}</style>
 
-      <ReadOnlyBanner message="Menu inventory is read-only. Contact your admin to add, edit, or delete items." />
+      <ReadOnlyBanner message="Menu inventory is view-only. You can search, filter, sort, and inspect item details." />
 
-      {/* Stat cards */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:18 }}>
-        {[
-          { label:"Total Items", value:filteredItems.length.toLocaleString(), sub:`of ${inventory.length.toLocaleString()} total`, accent:C.green },
-          { label:"Low Stock",   value:lowCount,                              sub:"Needs attention",    accent:C.warn },
-          { label:"Est. Value",  value:fmtPeso(totalValue),                  sub:"Inventory value",    accent:C.green },
-          { label:"Categories",  value:categories.length,                    sub:"Product types",      accent:"#1565c0" },
-        ].map((s,i)=>(
-          <div key={i} style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:14, padding:"14px 18px", boxShadow:"0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"0.1em", textTransform:"uppercase", color:s.accent, marginBottom:5 }}>{s.label}</div>
-            <div style={{ fontSize:22, fontWeight:800, color:C.ink, lineHeight:1.15 }}>{s.value}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.sub}</div>
+      <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:'hidden', boxShadow:'0 2px 10px rgba(50,109,32,.05)' }}>
+        {/* Flat header copied from the supplied Menu Inventory card layout */}
+        <div style={{ padding:'16px 22px', background:'#fbfcf8', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:34, height:34, borderRadius:10, background:C.greenLt, color:C.green, display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.greenMid}` }}>
+              <StoreIcon size={16} color={C.green}/>
+            </div>
+            <div>
+              <div style={{ fontSize:17, fontWeight:800, color:C.ink }}>Menu Inventory</div>
+              <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{userBranch}</div>
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Filter bar */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.13)`, borderRadius:16, padding:"14px 18px", marginBottom:18, boxShadow:"0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:"1 1 220px", minWidth:180 }}>
-            <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={13}/></div>
-            <input type="text" placeholder="Search items…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft:30 }}/>
-            {searchQuery && <div onClick={()=>setSearchQuery("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", cursor:"pointer", color:C.muted }}><XIcon size={12}/></div>}
+          <div style={{ display:'flex', alignItems:'center', gap:10, fontSize:11, color:C.muted }}>
+            <span>{filteredItems.length} item{filteredItems.length===1?'':'s'}</span>
+            {lowCount > 0 && <span style={{ color:C.warn, fontWeight:700 }}>{lowCount} low stock</span>}
+            <button onClick={fetchInventory} style={{ ...smallBtnSt, height:30, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk }}><RefreshCw size={11}/> Refresh</button>
           </div>
-          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, width:150 }}>
+        </div>
+
+        {/* Filter row copied from MenuBrandCard */}
+        <div style={{ padding:'12px 18px', borderBottom:`1px solid ${C.border}`, display:'flex', gap:6, flexWrap:'wrap', background:'#fbfcf8' }}>
+          <div style={{ position:'relative', flex:'1 1 200px', minWidth:150 }}>
+            <SearchIcon size={11} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:C.muted }}/>
+            <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:27 }}/>
+          </div>
+          <select value={filterCategory} onChange={e=>setFilterCategory(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:150 }}>
             <option value="">All Categories</option>
             {categories.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, width:130 }}>
+          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:120 }}>
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
           </select>
-          <div style={{ flex:1 }}/>
-          <button onClick={fetchInventory} style={{ ...btnSt, gap:6 }}>
-            <RefreshIcon size={13}/> Refresh
-          </button>
+          {anyFilter && <button onClick={clearAll} style={{ ...smallBtnSt, height:30, border:`1px solid ${C.border}`, background:C.white, color:C.muted }}>Clear filters</button>}
         </div>
 
-        {/* Active filter chips */}
-        {anyFilter && (
-          <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:10, paddingTop:10, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:C.muted, fontWeight:600 }}>Active:</span>
-            {searchQuery    && <Chip label={`"${searchQuery}"`} color="#3949ab" bg="#e8eaf6" onRemove={()=>setSearchQuery("")}/>}
-            {filterCategory && <Chip label={filterCategory}     color="#00695c" bg="#e0f2f1" onRemove={()=>setFilterCategory("")}/>}
-            {filterStatus   && <Chip label={filterStatus==="low"?"Low Stock":"In Stock"} color={filterStatus==="low"?C.warn:C.ok} bg={filterStatus==="low"?C.warnBg:C.okBg} onRemove={()=>setFilterStatus("")}/>}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height:24, border:`1px solid ${C.border}`, fontSize:11, color:C.muted, marginLeft:"auto" }}>Clear all</button>
+        {/* Same two-column list/details layout as the supplied Menu Inventory UX */}
+        <div className="fr-menu-master-detail" style={{ display:'grid', gridTemplateColumns:'420px 1fr', minHeight:540, maxHeight:700 }}>
+          <div style={{ borderRight:`1px solid ${C.border}`, overflowY:'auto', maxHeight:700, minHeight:0 }}>
+            {loading ? (
+              <div style={{ padding:'40px 14px', textAlign:'center', color:C.muted, fontSize:12 }}>Loading inventory…</div>
+            ) : filteredItems.length === 0 ? (
+              <div style={{ padding:'40px 14px', textAlign:'center', color:C.muted, fontSize:12 }}>No items found.</div>
+            ) : filteredItems.map(item => {
+              const low = Number(item.stock) <= Number(item.min_stock);
+              const active = item.id === selectedId;
+              const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0)/(Number(item.min_stock)*2))*100)) : (Number(item.stock)>0?100:0);
+              return (
+                <div key={item.id} className="fr-menu-row" onClick={()=>setSelectedId(item.id)} style={{ padding:'11px 14px', cursor:'pointer', borderLeft:`3px solid ${active?C.lime:'transparent'}`, background:active?'#f6f8ef':C.white, borderBottom:`1px solid ${C.bg}` }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.name}</span>
+                    {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:'2px 7px', borderRadius:20, flexShrink:0 }}>LOW</span>}
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', gap:8, fontSize:10.5, color:C.muted, marginTop:3 }}>
+                    <span>{item.category || 'Uncategorized'}</span>
+                    <span style={{ fontWeight:700, color:C.ink }}>{item.stock ?? 0}</span>
+                  </div>
+                  <div style={{ marginTop:6 }}><FrMiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/></div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
 
-      {/* Table card */}
-      <div style={{ background:C.white, border:`1px solid rgba(0,168,76,0.12)`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 18px rgba(0,140,60,0.07)" }}>
-        <div style={{ padding:"11px 18px", background:`linear-gradient(135deg,${C.teal},${C.green})`, display:"flex", justifyContent:"space-between", alignItems:"center", color:C.white }}>
-          <span style={{ fontWeight:800, fontSize:13, display:"flex", alignItems:"center", gap:7 }}>
-            <StoreIcon size={14} color="#fff"/> Menu Inventory — {userBranch}
-          </span>
-          <span style={{ fontSize:12, opacity:0.9 }}>{filteredItems.length.toLocaleString()} items – {lowCount} low stock</span>
+          <div className="fr-menu-detail" style={{ padding:22, overflowY:'auto', maxHeight:700, minHeight:0 }}>
+            {selectedItem ? (() => {
+              const low = Number(selectedItem.stock) <= Number(selectedItem.min_stock);
+              const ingredients = Array.isArray(selectedItem.ingredients) ? selectedItem.ingredients : [];
+              return (
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:18 }}>
+                    <div>
+                      <div style={{ fontSize:18, fontWeight:800, color:C.ink }}>{selectedItem.name}</div>
+                      <div style={{ fontSize:11, color:C.muted, marginTop:4, display:'flex', alignItems:'center', gap:6 }}><StoreIcon size={11} color={C.green}/>{userBranch}</div>
+                    </div>
+                    <span style={{ fontSize:10, fontWeight:800, padding:'4px 9px', borderRadius:20, background:low?C.warnBg:C.okBg, color:low?C.warn:C.ok, border:`1px solid ${low?'#fed7aa':C.greenMid}` }}>{low?'LOW STOCK':'IN STOCK'}</span>
+                  </div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:10, marginBottom:18 }}>
+                    {[
+                      ['Category', selectedItem.category || '—'],
+                      ['Stock', `${selectedItem.stock ?? 0}`],
+                      ['Minimum Stock', `${selectedItem.min_stock ?? 0}`],
+                      ['Price', fmtPeso(selectedItem.price || 0)],
+                    ].map(([label,value])=>(
+                      <div key={label} style={{ background:'#fbfcf8', border:`1px solid ${C.border}`, borderRadius:12, padding:'11px 12px' }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, textTransform:'uppercase', letterSpacing:'.06em', color:C.muted }}>{label}</div>
+                        <div style={{ fontSize:13, fontWeight:800, color:C.ink, marginTop:4 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:16 }}>
+                    <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:'.07em', color:C.muted, marginBottom:10 }}>Ingredients</div>
+                    {ingredients.length === 0 ? (
+                      <div style={{ padding:'28px 0', textAlign:'center', color:C.muted, fontSize:12 }}>No linked ingredients.</div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                        {ingredients.map((ing,idx)=>(
+                          <div key={idx} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 12px', border:`1px solid ${C.border}`, borderRadius:11, background:C.white }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:C.ink }}>{ing.name || ing.ingredient_name || 'Ingredient'}</span>
+                            <span style={{ fontSize:11, fontWeight:700, color:C.greenDk }}>{ing.qty_required ?? ing.quantity ?? '—'} {ing.unit || ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })() : (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:300, color:C.muted, fontSize:12.5, textAlign:'center', padding:20 }}>
+                <div><Box size={28} color={C.green} style={{ marginBottom:10 }}/><br/>Select an item on the left<br/>to view its details and ingredients.</div>
+              </div>
+            )}
+          </div>
         </div>
-        {loading ? (
-          <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700 }}>Loading inventory…</div>
-        ) : (
-          <ReadOnlyInventoryTable items={filteredItems} page={page} setPage={setPage}/>
-        )}
       </div>
     </div>
   );
@@ -2497,23 +2605,23 @@ function FrMenuInventoryContent({ user, brands }) {
    throughout StockInventoryContent (BrandOverviewCard, header gradients) ── */
 function KpiStatCard({ icon, label, value, sub, tone = "green" }) {
   const tones = {
-    green:  { grad: `linear-gradient(135deg,${C.teal},${C.green})`, fg: "#fff" },
-    red:    { grad: `linear-gradient(135deg,#ef5350,${C.red})`,     fg: "#fff" },
-    blue:   { grad: "linear-gradient(135deg,#42a5f5,#1565c0)",      fg: "#fff" },
-    orange: { grad: `linear-gradient(135deg,#fbbf24,${C.warn})`,    fg: "#fff" },
+    green:  { bg:C.greenLt, fg:C.greenDk },
+    red:    { bg:C.redBg, fg:C.red },
+    blue:   { bg:'#eff6ff', fg:'#1d4ed8' },
+    orange: { bg:C.warnBg, fg:C.warn },
   };
   const t = tones[tone] || tones.green;
   return (
     <div style={{
-      background:C.white, border:"1px solid rgba(0,168,76,0.12)", borderRadius:16,
-      padding:"16px 18px", boxShadow:"0 2px 16px rgba(0,140,60,0.07)",
+      background:C.white, border:"1px solid rgba(59,121,30,0.12)", borderRadius:16,
+      padding:"16px 18px", boxShadow:"0 2px 16px rgba(59,121,30,0.07)",
       display:"flex", alignItems:"center", gap:14,
     }}>
       <div style={{
         width:44, height:44, borderRadius:12, flexShrink:0,
-        background:t.grad, color:t.fg,
+        background:t.bg, color:t.fg, border:`1px solid ${tone === "green" ? C.greenMid : C.border}`,
         display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:"0 4px 12px rgba(0,0,0,0.12)",
+        boxShadow:"none",
       }}>
         {icon}
       </div>
@@ -2832,9 +2940,9 @@ function FrStockInventoryContent({ user, brands }) {
   }, [items, hasExpiry]);
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
-        .fr-inv-row:hover { background: #f4fbf7 !important; }
+        .fr-inv-row:hover { background: #F6F7F1 !important; }
       `}</style>
 
       <ReadOnlyBanner message="Stock inventory is read-only. Contact your admin to add, edit, or delete ingredients." />
@@ -2858,8 +2966,8 @@ function FrStockInventoryContent({ user, brands }) {
 
       {/* filter row */}
       <div style={{
-        background: C.white, border: "1px solid rgba(0,168,76,0.12)", borderRadius: 16,
-        padding: "12px 16px", marginBottom: 18, boxShadow: "0 2px 14px rgba(0,140,60,0.06)",
+        background: C.white, border: '1px solid #E1E6D8', borderRadius: 16,
+        padding: "12px 16px", marginBottom: 18, boxShadow: "0 2px 14px rgba(59,121,30,0.06)",
         display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center",
       }}>
         <div style={{ position: "relative", flex: "1 1 220px", minWidth: 160 }}>
@@ -2891,15 +2999,15 @@ function FrStockInventoryContent({ user, brands }) {
       </div>
 
       {/* two-panel card — left: product list, right: FIFO/FEFO queue */}
-      <div style={{ background: C.white, border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 18px rgba(0,140,60,0.07)" }}>
+      <div style={{ background: C.white, border: '1px solid #E1E6D8', borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 18px rgba(59,121,30,0.07)" }}>
         <div style={{
-          padding: "12px 18px", background: `linear-gradient(135deg,${C.teal},${C.green})`,
-          display: "flex", justifyContent: "space-between", alignItems: "center", color: C.white, flexWrap: "wrap", gap: 8,
+          padding: '16px 22px', background:'#fbfcf8', borderBottom:`1px solid ${C.border}`,
+          display:'flex', justifyContent:'space-between', alignItems:'center', color:C.ink, flexWrap:'wrap', gap:8,
         }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 14 }}>
-            <StoreIcon size={15} color="#fff" /> Stock Ingredients — {userBranch}
+            <StoreIcon size={16} color={C.green} /> Stock Inventory — {userBranch}
             {userBrand && (
-              <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(255,255,255,0.18)", padding: "2px 10px", borderRadius: 20 }}>
+              <span style={{ fontSize:11, fontWeight:700, background:C.greenLt, color:C.greenDk, border:`1px solid ${C.greenMid}`, padding:"2px 10px", borderRadius:20 }}>
                 {userBrand}
               </span>
             )}
@@ -3079,7 +3187,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
   const todayRevenue = todaySales.reduce((s, tx) => s + Number(tx.total || 0), 0);
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif", paddingBottom: 48 }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", paddingBottom: 48 }}>
       <style>{`@media print{body>*{display:none!important;}.pos-receipt-print{display:block!important;}}`}</style>
 
       <div className="v-stat-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
@@ -3107,11 +3215,11 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
 
 {!userBranch ? (
   <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
-    <VEmptyState icon="⚠️" title="No branch assigned to your account" sub="Contact your admin to assign a branch." />
+    <VEmptyState icon={<AlertTriangle size={30} />} title="No branch assigned to your account" sub="Contact your admin to assign a branch." />
   </div>
 ) : allProducts.length === 0 ? (
   <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
-    <VEmptyState icon="🏪" title={`No products found for ${userBranch}`} sub="Menu items will appear here once added by admin." />
+    <VEmptyState icon={<Store size={30} />} title={`No products found for ${userBranch}`} sub="Menu items will appear here once added by admin." />
   </div>
 ) : (
   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12 }}>
@@ -3123,21 +3231,21 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           onClick={() => addToCart(product)}
           style={{
             background: '#fff',
-            border: `2px solid ${inCart ? '#00897b' : 'rgba(0,168,76,0.12)'}`,
+            border: `2px solid ${inCart ? '#3b791e' : 'rgba(59,121,30,0.12)'}`,
             borderRadius: 14,
             padding: '14px 12px',
             cursor: 'pointer',
             transition: 'all .15s',
-            boxShadow: inCart ? '0 4px 16px rgba(0,180,90,0.18)' : '0 1px 6px rgba(0,140,60,0.05)',
+            boxShadow: inCart ? '0 4px 16px rgba(59,121,30,0.18)' : '0 1px 6px rgba(59,121,30,0.05)',
             position: 'relative',
           }}
-          onMouseEnter={e => { if (!inCart) e.currentTarget.style.borderColor = '#00c853'; }}
-          onMouseLeave={e => { if (!inCart) e.currentTarget.style.borderColor = 'rgba(0,168,76,0.12)'; }}
+          onMouseEnter={e => { if (!inCart) e.currentTarget.style.borderColor = '#509820'; }}
+          onMouseLeave={e => { if (!inCart) e.currentTarget.style.borderColor = 'rgba(59,121,30,0.12)'; }}
         >
           {inCart && (
             <div style={{
               position: 'absolute', top: 8, right: 8,
-              background: 'var(--grad-main)', color: '#fff',
+              background:'#12241B', color: '#fff',
               borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '2px 8px'
             }}>×{inCart.qty}</div>
           )}
@@ -3150,20 +3258,20 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           ) : (
             <div style={{
               width: '100%', height: 130, borderRadius: 9,
-              background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(0,137,123,0.06))',
+              background: 'linear-gradient(135deg,rgba(0,200,83,0.08),rgba(59,121,30,0.06))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '2rem', marginBottom: 10
-            }}>🛒</div>
+            }}><ShoppingCart size={24} /></div>
           )}
           <div style={{
-            fontWeight: 700, fontSize: 13, color: '#0d2b1e', marginBottom: 4,
+            fontWeight: 700, fontSize: 13, color: '#12241B', marginBottom: 4,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            fontFamily: 'Montserrat,sans-serif'
+            fontFamily: 'Plus Jakarta Sans,sans-serif'
           }}>{product.displayName}</div>
           {product.category && (
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>{product.category}</div>
           )}
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#3b791e', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
             {fmtPeso(product.price)}
           </div>
           {product.stock !== undefined && (
@@ -3182,7 +3290,7 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           <div style={{ position: 'sticky', top: 80 }}>
             <div className="v-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', background: 'var(--grad-dark)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
-                <span style={{ fontWeight: 800, fontSize: 14, fontFamily: 'Montserrat,sans-serif' }}>🛒 Order Cart</span>
+                <span style={{ fontWeight: 800, fontSize: 14, fontFamily: 'Plus Jakarta Sans,sans-serif' }}><ShoppingCart size={15} /> Order Cart</span>
                 {cart.length > 0 && (
                   <button onClick={clearCart} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Clear</button>
                 )}
@@ -3191,41 +3299,41 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
               <div style={{ maxHeight: 280, overflowY: 'auto', padding: cart.length === 0 ? 0 : '8px 0' }}>
                 {cart.length === 0 ? (
                   <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                    <div style={{ fontSize: '2rem', marginBottom: 8 }}>🛒</div>Tap a product to add it
+                    <div style={{ fontSize: '2rem', marginBottom: 8 }}><ShoppingCart size={24} /></div>Tap a product to add it
                   </div>
                 ) : cart.map(item => (
-                  <div key={`${item.source}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: '1px solid rgba(0,168,76,0.08)' }}>
+                  <div key={`${item.source}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: '1px solid rgba(59,121,30,0.08)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0d2b1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Montserrat,sans-serif' }}>{item.displayName}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#12241B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{item.displayName}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>{fmtPeso(item.price)} each</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                      <button onClick={() => updateQty(item.id, item.source, -1)} style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid rgba(0,168,76,0.2)', background: 'rgba(0,168,76,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#0d2b1e' }}>−</button>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: '#0d2b1e', minWidth: 20, textAlign: 'center', fontFamily: 'Montserrat,sans-serif' }}>{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, item.source, +1)} style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid rgba(0,168,76,0.2)', background: 'rgba(0,168,76,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#00897b' }}>+</button>
+                      <button onClick={() => updateQty(item.id, item.source, -1)} style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid rgba(59,121,30,0.2)', background: 'rgba(59,121,30,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#12241B' }}>−</button>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#12241B', minWidth: 20, textAlign: 'center', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, item.source, +1)} style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid rgba(59,121,30,0.2)', background: 'rgba(59,121,30,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#3b791e' }}>+</button>
                     </div>
-                    <div style={{ minWidth: 60, textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(item.price * item.qty)}</div>
+                    <div style={{ minWidth: 60, textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#3b791e', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{fmtPeso(item.price * item.qty)}</div>
                     <button onClick={() => removeFromCart(item.id, item.source)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2, fontSize: 16 }}>×</button>
                   </div>
                 ))}
               </div>
 
-              <div style={{ padding: '14px 18px', borderTop: '1px solid rgba(0,168,76,0.1)' }}>
+              <div style={{ padding: '14px 18px', borderTop: '1px solid rgba(59,121,30,0.1)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', whiteSpace: 'nowrap', fontFamily: 'Montserrat,sans-serif' }}>Discount %</label>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#5C6B60', textTransform: 'uppercase', letterSpacing: '.07em', whiteSpace: 'nowrap', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Discount %</label>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {[0, 5, 10, 15, 20].map(d => (
-                      <button key={d} onClick={() => setDiscountPct(d)} style={{ height: 28, padding: '0 10px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Montserrat,sans-serif', background: discountPct === d ? 'var(--grad-main)' : 'rgba(0,168,76,0.07)', color: discountPct === d ? '#fff' : '#5a7a65' }}>{d}%</button>
+                      <button key={d} onClick={() => setDiscountPct(d)} style={{ height: 28, padding: '0 10px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans,sans-serif', background: discountPct === d ? 'var(--grad-main)' : 'rgba(59,121,30,0.07)', color: discountPct === d ? '#fff' : '#5C6B60' }}>{d}%</button>
                     ))}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'Montserrat,sans-serif' }}>VAT (12%)</label>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: '#5C6B60', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>VAT (12%)</label>
                   <div onClick={() => setVatEnabled(v => !v)} style={{ width: 44, height: 24, borderRadius: 12, cursor: 'pointer', position: 'relative', background: vatEnabled ? 'var(--grad-main)' : '#e0e0e0', transition: 'background .2s' }}>
                     <div style={{ position: 'absolute', top: 3, left: vatEnabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', transition: 'left .2s' }} />
                   </div>
                 </div>
-                <div style={{ background: 'rgba(0,168,76,0.05)', border: '1.5px solid rgba(0,168,76,0.12)', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+                <div style={{ background: 'rgba(59,121,30,0.05)', border: '1.5px solid rgba(59,121,30,0.12)', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', marginBottom: 5 }}>
                     <span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtPeso(subtotal)}</span>
                   </div>
@@ -3239,24 +3347,24 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                       <span>VAT (12%)</span><span style={{ fontWeight: 700 }}>+{fmtPeso(vatAmt)}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, color: '#0d2b1e', fontWeight: 800, paddingTop: 8, borderTop: '1.5px dashed rgba(0,168,76,0.2)', fontFamily: 'Montserrat,sans-serif' }}>
-                    <span>Total</span><span style={{ color: '#00897b' }}>{fmtPeso(totalAmt)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, color: '#12241B', fontWeight: 800, paddingTop: 8, borderTop: '1.5px dashed rgba(59,121,30,0.2)', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
+                    <span>Total</span><span style={{ color: '#3b791e' }}>{fmtPeso(totalAmt)}</span>
                   </div>
                 </div>
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Montserrat,sans-serif' }}>Payment Method</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#5C6B60', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Payment Method</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     {['Cash', 'GCash', 'Card', 'Others'].map(m => (
-                      <button key={m} onClick={() => setPaymentMethod(m)} style={{ flex: 1, height: 32, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Montserrat,sans-serif', background: paymentMethod === m ? 'var(--grad-main)' : 'rgba(0,168,76,0.06)', color: paymentMethod === m ? '#fff' : '#5a7a65' }}>{m}</button>
+                      <button key={m} onClick={() => setPaymentMethod(m)} style={{ flex: 1, height: 32, border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans,sans-serif', background: paymentMethod === m ? 'var(--grad-main)' : 'rgba(59,121,30,0.06)', color: paymentMethod === m ? '#fff' : '#5C6B60' }}>{m}</button>
                     ))}
                   </div>
                 </div>
                 {paymentMethod === 'Cash' && (
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5a7a65', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Montserrat,sans-serif' }}>Cash Received</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#5C6B60', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Cash Received</div>
                     <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} placeholder="0.00" className="v-form-input" style={{ fontSize: 16, fontWeight: 800, textAlign: 'right' }} />
                     {cashReceived !== '' && (
-                      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, textAlign: 'right', color: cashShortfall < 0 ? '#ef4444' : '#00897b', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                      <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, textAlign: 'right', color: cashShortfall < 0 ? '#ef4444' : '#3b791e', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                         {cashShortfall < 0
                           ? <><AlertTriangle size={12} /> Short by {fmtPeso(Math.abs(cashShortfall))}</>
                           : <><Check size={12} /> Change: {fmtPeso(changeDue)}</>}
@@ -3295,12 +3403,12 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           </div>
 
           <div className="v-card">
-            <div style={{ padding: '11px 18px', background: 'var(--grad-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
-              <span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'Montserrat,sans-serif' }}>📋 Transaction History</span>
+            <div style={{ padding: '11px 18px', background:'#f0f5e8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#fff' }}>
+              <span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'Plus Jakarta Sans,sans-serif', display:'inline-flex', alignItems:'center', gap:7 }}><History size={14} /> Transaction History</span>
               <span style={{ fontSize: 12, opacity: 0.9 }}>{filteredTx.length} records</span>
             </div>
             {loadingTx ? (
-              <div style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65' }}>Loading…</div>
+              <div style={{ padding: '52px 0', textAlign: 'center', color: '#5C6B60' }}>Loading…</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="v-table">
@@ -3311,17 +3419,17 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                   </thead>
                   <tbody>
                     {txPageItems.length === 0 ? (
-                      <tr><td colSpan={9} style={{ padding: '52px 0', textAlign: 'center', color: '#5a7a65', fontSize: 13, fontStyle: 'italic' }}>No transactions found.</td></tr>
+                      <tr><td colSpan={9} style={{ padding: '52px 0', textAlign: 'center', color: '#5C6B60', fontSize: 13, fontStyle: 'italic' }}>No transactions found.</td></tr>
                     ) : txPageItems.map(tx => (
                       <tr key={tx.id}>
                         <td style={{ color: '#94a3b8', fontSize: 12 }}>#{tx.id}</td>
-                        <td style={{ color: '#5a7a65', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                        <td style={{ fontWeight: 600, color: '#0d2b1e' }}>{tx.cashier}</td>
-                        <td style={{ color: '#5a7a65' }}>{(tx.items || []).length}</td>
-                        <td style={{ color: '#5a7a65' }}>{fmtPeso(tx.subtotal)}</td>
+                        <td style={{ color: '#5C6B60', fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(tx.created_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                        <td style={{ fontWeight: 600, color: '#12241B' }}>{tx.cashier}</td>
+                        <td style={{ color: '#5C6B60' }}>{(tx.items || []).length}</td>
+                        <td style={{ color: '#5C6B60' }}>{fmtPeso(tx.subtotal)}</td>
                         <td>{tx.discount_pct > 0 ? <span style={{ color: '#f59e0b', fontWeight: 700 }}>−{tx.discount_pct}%</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
                         <td>{tx.vat_enabled ? <span style={{ color: '#3b82f6', fontWeight: 700 }}>+{fmtPeso(tx.vat_amt)}</span> : <span style={{ color: '#94a3b8' }}>—</span>}</td>
-                        <td style={{ fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(tx.total)}</td>
+                        <td style={{ fontWeight: 800, color: '#3b791e', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{fmtPeso(tx.total)}</td>
                         <td>
                           <span className={`v-badge ${tx.payment_method === 'Cash' ? 'v-badge-green' : tx.payment_method === 'GCash' ? 'v-badge-blue' : 'v-badge-purple'}`}>
                             {tx.payment_method}
@@ -3342,20 +3450,20 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
           <div className="v-modal" style={{ width: 380, maxWidth: '95vw' }}>
             <div className="pos-receipt-print">
               <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <div style={{ fontWeight: 900, fontSize: 18, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>iFranchise POS</div>
-                <div style={{ fontSize: 12, color: '#5a7a65', marginTop: 2 }}>{lastReceipt.branch}</div>
-                <div style={{ fontSize: 11, color: '#5a7a65' }}>{lastReceipt.date}</div>
-                <div style={{ fontSize: 11, color: '#5a7a65' }}>Cashier: {lastReceipt.cashier}</div>
+                <div style={{ fontWeight: 900, fontSize: 18, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>iFranchise POS</div>
+                <div style={{ fontSize: 12, color: '#5C6B60', marginTop: 2 }}>{lastReceipt.branch}</div>
+                <div style={{ fontSize: 11, color: '#5C6B60' }}>{lastReceipt.date}</div>
+                <div style={{ fontSize: 11, color: '#5C6B60' }}>Cashier: {lastReceipt.cashier}</div>
               </div>
-              <div style={{ borderTop: '2px dashed rgba(0,168,76,0.2)', borderBottom: '2px dashed rgba(0,168,76,0.2)', padding: '12px 0', marginBottom: 12 }}>
+              <div style={{ borderTop: '2px dashed rgba(59,121,30,0.2)', borderBottom: '2px dashed rgba(59,121,30,0.2)', padding: '12px 0', marginBottom: 12 }}>
                 {(lastReceipt.items || []).map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
                     <span style={{ color: '#374151', fontWeight: 600 }}>{item.name} <span style={{ color: '#94a3b8', fontWeight: 400 }}>×{item.qty}</span></span>
-                    <span style={{ fontWeight: 700, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(item.subtotal)}</span>
+                    <span style={{ fontWeight: 700, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{fmtPeso(item.subtotal)}</span>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 13, marginBottom: 4, display: 'flex', justifyContent: 'space-between', color: '#5a7a65' }}>
+              <div style={{ fontSize: 13, marginBottom: 4, display: 'flex', justifyContent: 'space-between', color: '#5C6B60' }}>
                 <span>Subtotal</span><span style={{ fontWeight: 700 }}>{fmtPeso(lastReceipt.subtotal)}</span>
               </div>
               {lastReceipt.discount_pct > 0 && (
@@ -3368,24 +3476,24 @@ function FrPOSContent({ user, brands: propBrands = [] }) {
                   <span>VAT (12%)</span><span style={{ fontWeight: 700 }}>+{fmtPeso(lastReceipt.vat_amt)}</span>
                 </div>
               )}
-              <div style={{ fontSize: 16, fontWeight: 900, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(0,168,76,0.15)', paddingTop: 8, marginBottom: 8, fontFamily: 'Montserrat,sans-serif' }}>
-                <span style={{ color: '#0d2b1e' }}>TOTAL</span><span style={{ color: '#00897b' }}>{fmtPeso(lastReceipt.total)}</span>
+              <div style={{ fontSize: 16, fontWeight: 900, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(59,121,30,0.15)', paddingTop: 8, marginBottom: 8, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
+                <span style={{ color: '#12241B' }}>TOTAL</span><span style={{ color: '#3b791e' }}>{fmtPeso(lastReceipt.total)}</span>
               </div>
-              <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 2 }}>
-                <span>Payment</span><span style={{ fontWeight: 700, color: '#0d2b1e' }}>{lastReceipt.payment_method}</span>
+              <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5C6B60', marginBottom: 2 }}>
+                <span>Payment</span><span style={{ fontWeight: 700, color: '#12241B' }}>{lastReceipt.payment_method}</span>
               </div>
               {lastReceipt.payment_method === 'Cash' && (
                 <>
-                  <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5a7a65', marginBottom: 2 }}>
+                  <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5C6B60', marginBottom: 2 }}>
                     <span>Cash Received</span><span style={{ fontWeight: 700 }}>{fmtPeso(lastReceipt.cash_received)}</span>
                   </div>
-                  <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5a7a65' }}>
-                    <span>Change</span><span style={{ fontWeight: 800, color: '#00897b', fontFamily: 'Montserrat,sans-serif' }}>{fmtPeso(lastReceipt.change_due)}</span>
+                  <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', color: '#5C6B60' }}>
+                    <span>Change</span><span style={{ fontWeight: 800, color: '#3b791e', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{fmtPeso(lastReceipt.change_due)}</span>
                   </div>
                 </>
               )}
-              {lastReceipt.note && <div style={{ marginTop: 10, fontSize: 12, color: '#5a7a65', fontStyle: 'italic' }}>Note: {lastReceipt.note}</div>}
-              <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: '#5a7a65' }}>Thank you for your purchase! 🎉</div>
+              {lastReceipt.note && <div style={{ marginTop: 10, fontSize: 12, color: '#5C6B60', fontStyle: 'italic' }}>Note: {lastReceipt.note}</div>}
+              <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: '#5C6B60' }}>Thank you for your purchase.</div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
               <button onClick={() => window.print()} className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }}><Receipt size={13} /> Print</button>
@@ -3403,7 +3511,7 @@ function FrReceiptsContent({ user }) {
     <div>
       <ReadOnlyBanner message="Liquidation records for your branch. Contact admin for modifications." />
       <div className="v-card" style={{ padding: '48px 0', textAlign: 'center' }}>
-        <VEmptyState icon="📄" title="Liquidation Records" sub="Your branch liquidation reports will appear here." />
+        <VEmptyState icon={<FileText size={30} />} title="Liquidation Records" sub="Your branch liquidation reports will appear here." />
       </div>
     </div>
   );
@@ -3425,19 +3533,19 @@ function Toast({ toast, onClose }) {
     <div style={{
       position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
       maxWidth:380, padding:"16px 18px", borderRadius:14,
-      background: isErr ? "#fef2f2" : "#f0fdf5",
-      borderLeft: `5px solid ${isErr ? "#dc2626" : "#00897b"}`,
-      border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
+      background: isErr ? "#fef2f2" : "#F6F7F1",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#3b791e"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#D4DBC8"}`,
       borderLeftWidth: 5,
       boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:"'Montserrat',sans-serif",
+      fontFamily:"'Plus Jakarta Sans',sans-serif",
       animation:"toastIn .22s ease",
     }}>
       <div style={{
         flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
         alignItems:"center", justifyContent:"center",
-        background: isErr ? "#dc2626" : "#00897b", color:"#fff",
-        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(0,137,123,0.4)"}`,
+        background: isErr ? "#dc2626" : "#3b791e", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(59,121,30,0.4)"}`,
       }}>
         {isErr
           ? <AlertTriangle size={16}/>
@@ -3447,7 +3555,7 @@ function Toast({ toast, onClose }) {
       </div>
 
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#0d2b1e" }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#12241B" }}>
           {toast.title}
         </div>
         {toast.message && (
@@ -3491,6 +3599,7 @@ function FrReportsContent({ user, transactions = [] }){
   const [deletedReports, setDeletedReports] = useState([]);
   const [retrieving, setRetrieving] = useState(null);
   const [viewSubmittedId, setViewSubmittedId] = useState(null);
+  const [reportTab, setReportTab] = useState('generated');
 
   const PAGE_SIZE = 5;
   const [genPage,  setGenPage]  = useState(0);
@@ -4145,8 +4254,8 @@ const submitReport = async report => {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   if (totalPages <= 1) return null;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
-      <span style={{ fontSize: 12, color: '#5a7a65' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(59,121,30,0.1)', background: '#f9fefb' }}>
+      <span style={{ fontSize: 12, color: '#5C6B60' }}>
         Showing <strong>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)}</strong> of <strong>{total}</strong>
       </span>
       <div style={{ display: 'flex', gap: 4 }}>
@@ -4160,7 +4269,7 @@ const submitReport = async report => {
 };
 
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
     <div className="v-stat-grid">
       <VKpi
         label="Cost of Sales"
@@ -4202,7 +4311,7 @@ const submitReport = async report => {
     
 
       {/* Generate Report Card */}
-      <div className="v-card" style={{ padding: '22px 24px', marginBottom: 20 }}>
+      <div className="v-card" style={{ padding:'20px 22px', marginBottom:16 }}>
         <div className="v-section-head">
           <VSectionTitle icon={<Sparkles size={16} />}>Generate AI Sales Report</VSectionTitle>
         </div>
@@ -4230,7 +4339,7 @@ const submitReport = async report => {
 
         {/* Quick Presets */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Montserrat,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Plus Jakarta Sans,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
           {[
             { label: 'This Week', from: fmt8(new Date(today.getTime() - 7*24*60*60*1000)), to: fmt8(today) },
             { label: 'This Month', from: fmt8(new Date(today.getFullYear(), today.getMonth(), 1)), to: fmt8(today) },
@@ -4243,26 +4352,44 @@ const submitReport = async report => {
         </div>
 
         {aiReport && (
-          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 16, padding: '20px 22px' }}>
+          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 16, padding: '20px 22px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Sparkles size={14} color="#00897b" /> AI Report Preview
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Sparkles size={14} color="#3b791e" /> AI Report Preview
               </div>
-              <span style={{ fontSize: 11, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
+              <span style={{ fontSize: 11, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
             </div>
-            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
+            <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
           </div>
         )}
       </div>
 
+      {/* Sales report navigation — same compact tab layout as AdminDashboard */}
+      <div style={{ display:'flex', gap:3, background:'#F6F7F1', border:'1px solid #E1E6D8', borderRadius:12, padding:4, width:'fit-content', marginBottom:16, flexWrap:'wrap' }}>
+        {[
+          { id:'generated', label:'Generated Reports', icon:FileCheck, count:reports.length },
+          { id:'submitted', label:'Submitted Reports', icon:Send, count:submittedReports.length },
+          { id:'history', label:'Report History', icon:History, count:deletedReports.length },
+        ].map(t => {
+          const Icon = t.icon;
+          const active = reportTab === t.id;
+          return (
+            <button key={t.id} onClick={()=>setReportTab(t.id)} style={{ display:'inline-flex', alignItems:'center', gap:6, height:34, padding:'0 14px', borderRadius:9, border:'none', background:active?'#3b791e':'transparent', color:active?'#fff':'#5C6B60', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <Icon size={13}/>{t.label}<span style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:9.5, background:active?'rgba(255,255,255,.18)':'#fff', border:active?'none':'1px solid #E1E6D8' }}>{t.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Generated Reports Table */}
-      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      {reportTab === 'generated' && (
+      <div className="v-card" style={{ padding:'18px 20px', marginBottom:16 }}>
         <div className="v-section-head">
           <VSectionTitle icon={<FileCheck size={16} />}>Generated Reports</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{reports.length} pending submission</span>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{reports.length} pending submission</span>
         </div>
         {reports.length === 0 ? (
-          <VEmptyState icon="📊" title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
+          <VEmptyState icon={<BarChart2 size={30} />} title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
@@ -4273,10 +4400,10 @@ const submitReport = async report => {
               {reports.slice(genPage * PAGE_SIZE, (genPage + 1) * PAGE_SIZE).map(r => (
                 <React.Fragment key={r.localId}>
                   <tr>
-                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                    <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                       {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
                     </td>
-                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {r.generatedDate}
                     </td>
                     <td>
@@ -4325,9 +4452,9 @@ const submitReport = async report => {
                   {viewReportId === r.id && (
                     <tr>
                       <td colSpan={4} style={{ padding: 0, border: 'none' }}>
-                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                               {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'} — {r.period}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -4339,7 +4466,7 @@ const submitReport = async report => {
                               </button>
                             </div>
                           </div>
-                          <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
+                          <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
                         </div>
                       </td>
                     </tr>
@@ -4353,16 +4480,18 @@ const submitReport = async report => {
           </div>
         )}
       </div>
+      )}
 {/* Submitted Reports */}
-    <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+    {reportTab === 'submitted' && (
+    <div className="v-card" style={{ padding:'18px 20px', marginBottom:16 }}>
       <div className="v-section-head">
         <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
-        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
           {submittedReports.length} submitted to admin
         </span>
       </div>
       {submittedReports.length === 0 ? (
-        <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
+        <VEmptyState icon={<Send size={30} />} title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="v-table">
@@ -4380,16 +4509,16 @@ const submitReport = async report => {
               {submittedReports.slice(subPage * PAGE_SIZE, (subPage + 1) * PAGE_SIZE).map(h => (
                 <React.Fragment key={h.id}>
                   <tr>
-                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                    <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                       REP-{String(h.id).padStart(5, '0')}
                     </td>
-                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 12, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {h.submittedAt}
                     </td>
                     <td>
                       <span className="v-badge v-badge-blue">{h.period}</span>
                     </td>
-                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {h.generatedDate || '—'}
                     </td>
 <td>
@@ -4425,9 +4554,9 @@ const submitReport = async report => {
                   {viewSubmittedId === h.id && (
                     <tr>
                       <td colSpan={6} style={{ padding: 0, border: 'none' }}>
-                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                               REP-{String(h.id).padStart(5, '0')} — {h.period}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -4446,7 +4575,7 @@ const submitReport = async report => {
                             </div>
                           </div>
                           {h.content ? (
-                            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                            <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
                               {h.content}
                             </pre>
                           ) : (
@@ -4467,17 +4596,19 @@ const submitReport = async report => {
         </div>
       )}
     </div>
+    )}
 
       {/* Report History (deleted reports) */}
-      <div className="v-card" style={{ padding: '20px 22px' }}>
+      {reportTab === 'history' && (
+      <div className="v-card" style={{ padding:'18px 20px' }}>
         <div className="v-section-head">
           <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
             {deletedReports.length} deleted · recoverable for 30 days
           </span>
         </div>
         {deletedReports.length === 0 ? (
-          <VEmptyState icon="🗑️" title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
+          <VEmptyState icon={<Trash2 size={30} />} title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
@@ -4500,23 +4631,23 @@ const submitReport = async report => {
 
                   return (
                     <tr key={r.id || r.localId || i}>
-                      <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                         {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
                       </td>
-                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
+                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                         {r.deletedAt}
                       </td>
                       <td><span className="v-badge v-badge-blue">{r.period}</span></td>
-                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                         {r.generatedDate}
                       </td>
                       <td>
                         <span style={{
-                          fontSize: 12, fontWeight: 700, fontFamily: 'Poppins,sans-serif',
+                          fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans,sans-serif',
                           color: isExpiringSoon ? '#ef4444' : '#94a3b8',
                         }}>
                           {daysLeft !== null ? (
-                            isExpiringSoon ? `⚠ ${daysLeft}d left` : `${daysLeft}d left`
+                            isExpiringSoon ? `Expiring · ${daysLeft}d left` : `${daysLeft}d left`
                           ) : '—'}
                         </span>
                       </td>
@@ -4526,14 +4657,14 @@ const submitReport = async report => {
                           onClick={() => retrieveReport(r)}
                           disabled={retrieving === r.id}
                           style={{
-                            background: '#f0fdf5',
-                            color: '#00897b',
-                            border: '1px solid #b2dfdb',
+                            background: '#F6F7F1',
+                            color: '#3b791e',
+                            border: '1px solid #D4DBC8',
                             opacity: retrieving === r.id ? 0.6 : 1,
                           }}
                         >
                           {retrieving === r.id
-                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(0,137,123,0.3)', borderTopColor: '#00897b', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(59,121,30,0.3)', borderTopColor: '#3b791e', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
                             : <><RefreshCw size={12} /> Retrieve</>}
                         </button>
                       </td>
@@ -4546,6 +4677,7 @@ const submitReport = async report => {
           </div>
       )}
       </div>
+      )}
     </div>
   );
 }
@@ -4567,9 +4699,9 @@ function ConfirmDeleteReportModal({ report, deleting, onConfirm, onCancel }) {
   if (!report) return null;
   return (
     <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Poppins,sans-serif", overflow:"hidden" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Plus Jakarta Sans,sans-serif", overflow:"hidden" }}>
         <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
-          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5, fontFamily:"Montserrat,sans-serif" }}>Delete Report</div>
+          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5, fontFamily:"Plus Jakarta Sans,sans-serif" }}>Delete Report</div>
           <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.6 }}>
             Delete the report for <strong>{fmtPeriod(report.period)}</strong>? It will be recoverable for 30 days.
           </div>
@@ -4714,7 +4846,7 @@ const handleEdit = async e => {
         </div>
 
         {staff.length === 0 ? (
-          <VEmptyState icon="👥" title="No staff accounts yet" sub="Create the first staff account for your branch." />
+          <VEmptyState icon={<Users size={30} />} title="No staff accounts yet" sub="Create the first staff account for your branch." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
@@ -4724,13 +4856,13 @@ const handleEdit = async e => {
                   <tr key={s.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--grad-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff', fontSize: 13, fontFamily: 'Montserrat,sans-serif', flexShrink: 0 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background:'#f0f5e8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color:'#bdd43c', fontSize:13, fontFamily:'Plus Jakarta Sans,sans-serif', flexShrink: 0 }}>
                           {(s.name || 'S')[0]}
                         </div>
-                        <strong style={{ color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>{s.name}</strong>
+                        <strong style={{ color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{s.name}</strong>
                       </div>
                     </td>
-                    <td style={{ color: '#5a7a65', fontSize: 13 }}>{s.email}</td>
+                    <td style={{ color: '#5C6B60', fontSize: 13 }}>{s.email}</td>
                     <td>{s.role === 'Manager' ? <span className="v-badge v-badge-orange"><Shield size={10} /> Manager</span> : <span className="v-badge v-badge-blue">Staff</span>}</td>
                     <td><span className="v-badge v-badge-green"><div className="v-dot v-dot-green" style={{ width: 6, height: 6 }} /> {(s.status || 'active').toUpperCase()}</span></td>
                     <td>
@@ -4757,8 +4889,8 @@ const handleEdit = async e => {
       {showAddModal && (
         <div className="v-modal-overlay" onClick={closeModal}>
           <div className="v-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Create Staff Account</h2>
-            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Add a new staff or manager to your branch.</p>
+            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:6 }}><div style={{ width:34, height:34, borderRadius:10, background:"#f0f5e8", color:"#3b791e", display:"flex", alignItems:"center", justifyContent:"center" }}><UserPlus size={16}/></div><h2 className="v-modal-title" style={{ marginBottom:0 }}>Create Staff Account</h2></div>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Add a new staff or manager to your branch.</p>
            <StaffForm onSubmit={handleAdd} isEdit={false} form={form} handleInputChange={handleInputChange} closeModal={closeModal} showPwRules={showPwRules} pwErrors={pwErrors} />
           </div>
         </div>
@@ -4766,8 +4898,8 @@ const handleEdit = async e => {
       {showEditModal && (
         <div className="v-modal-overlay" onClick={closeModal}>
           <div className="v-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="v-modal-title" style={{ marginBottom: 6 }}>Edit Staff Account</h2>
-            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Poppins,sans-serif' }}>Update details for {editingStaff?.name}.</p>
+            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:6 }}><div style={{ width:34, height:34, borderRadius:10, background:"#f0f5e8", color:"#3b791e", display:"flex", alignItems:"center", justifyContent:"center" }}><Pencil size={16}/></div><h2 className="v-modal-title" style={{ marginBottom:0 }}>Edit Staff Account</h2></div>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 22, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Update details for {editingStaff?.name}.</p>
             <StaffForm onSubmit={handleEdit} isEdit={true} form={form} handleInputChange={handleInputChange} closeModal={closeModal} showPwRules={showPwRules} pwErrors={pwErrors} />
           </div>
         </div>
@@ -4795,30 +4927,30 @@ function FrCommunicationContent() {
   });
 
    const C = {
-    border:   'rgba(0,168,76,0.12)',
-    greenMid: 'rgba(0,168,76,0.1)',
+    border:   'rgba(59,121,30,0.12)',
+    greenMid: 'rgba(59,121,30,0.1)',
   };
 
   const bmLabel = {
     display: 'block',
     fontSize: 11.5,
     fontWeight: 700,
-    color: '#5a7a65',
+    color: '#5C6B60',
     textTransform: 'uppercase',
     letterSpacing: '0.07em',
-    fontFamily: 'Montserrat,sans-serif',
+    fontFamily: 'Plus Jakarta Sans,sans-serif',
     marginBottom: 4,
   };
 
   const bmInput = {
     width: '100%',
     padding: '10px 13px',
-    border: '1.5px solid rgba(0,168,76,0.18)',
+    border: '1.5px solid rgba(59,121,30,0.18)',
     borderRadius: 11,
     fontSize: 13.5,
-    fontFamily: 'Poppins,sans-serif',
-    color: '#0d2b1e',
-    background: '#fafffc',
+    fontFamily: 'Plus Jakarta Sans,sans-serif',
+    color: '#12241B',
+    background: '#ffffff',
     outline: 'none',
     display: 'block',
   };
@@ -4951,11 +5083,13 @@ function FrCommunicationContent() {
   // ── Styles (inline, consistent with dashboard tokens) ──
   const commStyles = {
     root: {
-      fontFamily: "'Montserrat', sans-serif",
-      display: "flex", flexDirection: "column", height: "100%",
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display:"flex", flexDirection:"column", minHeight:620,
+      background:"#fff", border:"1px solid #E1E6D8", borderRadius:18,
+      overflow:"hidden", boxShadow:"0 2px 14px rgba(50,109,32,.06)",
     },
     header: {
-      background: "linear-gradient(135deg,#2E7D32,#00897b)",
+      background:"linear-gradient(135deg,#509820,#3b791e)",
       padding: "20px 24px 28px",
       borderRadius: "18px 18px 0 0",
       position: "relative",
@@ -4973,17 +5107,17 @@ function FrCommunicationContent() {
     },
     liveChip: {
       display: "inline-flex", alignItems: "center", gap: 7,
-      background: "rgba(255,255,255,0.18)", borderRadius: 20,
+      background: C.greenLt, borderRadius: 20,
       padding: "5px 11px", border: "1px solid rgba(255,255,255,0.3)",
     },
     liveDot: {
       width: 7, height: 7, borderRadius: "50%",
-      background: "#d4df33", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
+      background: "#bdd43c", boxShadow: "0 0 0 3px rgba(212,223,51,0.3)",
     },
-    liveTxt: { fontSize: 9, fontWeight: 800, color: "#d4df33", letterSpacing: "0.15em" },
+    liveTxt: { fontSize: 9, fontWeight: 800, color: "#bdd43c", letterSpacing: "0.15em" },
     searchBarWrap: {
       display: "flex", alignItems: "center", gap: 8,
-      background: "rgba(255,255,255,0.18)", borderRadius: 12,
+      background: C.greenLt, borderRadius: 12,
       padding: "9px 13px", marginTop: 12,
       border: "1px solid rgba(255,255,255,0.25)",
     },
@@ -5007,17 +5141,17 @@ function FrCommunicationContent() {
     },
     listArea: {
       flex: 1, overflowY: "auto", padding: "20px 20px 24px",
-      background: "#f8fffe",
+      background:"#F6F7F1",
     },
     sectionLabel: {
       display: "flex", alignItems: "center", gap: 8, marginBottom: 14,
     },
     labelAccent: {
       width: 4, height: 16, borderRadius: 2,
-      background: "linear-gradient(135deg,#00897b,#4CAF50)", flexShrink: 0,
+      background: "linear-gradient(135deg,#3b791e,#509820)", flexShrink: 0,
     },
     labelTxt: {
-      fontSize: 11, fontWeight: 800, color: "#0d2b1e",
+      fontSize: 11, fontWeight: 800, color: "#12241B",
       letterSpacing: "0.08em", textTransform: "uppercase",
     },
     card: (pinned) => ({
@@ -5026,7 +5160,7 @@ function FrCommunicationContent() {
       border: `1px solid ${pinned ? "#FFE082" : C.border}`,
       boxShadow: pinned
         ? "0 3px 14px rgba(249,168,37,0.18)"
-        : "0 2px 10px rgba(0,140,60,0.07)",
+        : "0 2px 10px rgba(59,121,30,0.07)",
       overflow: "hidden", cursor: "pointer",
       transition: "transform .15s, box-shadow .15s",
     }),
@@ -5034,7 +5168,7 @@ function FrCommunicationContent() {
       width: 4, flexShrink: 0,
       background: pinned
         ? "linear-gradient(180deg,#F9A825,#FFC107)"
-        : "linear-gradient(180deg,#00897b,#4CAF50)",
+        : "linear-gradient(180deg,#509820,#3b791e)",
     }),
     cardBody: { flex: 1, padding: "13px 15px 11px" },
     cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
@@ -5043,21 +5177,21 @@ function FrCommunicationContent() {
       display: "flex", alignItems: "center", justifyContent: "center",
       background: pinned
         ? "linear-gradient(135deg,#F9A825,#E65100)"
-        : "linear-gradient(135deg,#2E7D32,#00897b)",
+        : "linear-gradient(135deg,#3b791e,#3b791e)",
       fontSize: 13, fontWeight: 900, color: "#fff",
     }),
     cardMeta: { flex: 1, minWidth: 0 },
     cardTitleRow: { display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 3 },
-    cardTitle: { fontSize: 14, fontWeight: 800, color: "#0d2b1e" },
-    cardDate:  { fontSize: 10, color: "#8AAD96", fontFamily: "monospace" },
+    cardTitle: { fontSize: 14, fontWeight: 800, color: "#12241B" },
+    cardDate:  { fontSize: 10, color: "#7A8878", fontFamily: "monospace" },
     cardContent: {
-      fontSize: 12.5, color: "#5a7a65", lineHeight: 1.65, marginTop: 9,
+      fontSize: 12.5, color: "#5C6B60", lineHeight: 1.65, marginTop: 9,
       display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
       overflow: "hidden",
     },
     tapHint: {
       display: "flex", alignItems: "center", gap: 3,
-      marginTop: 7, fontSize: 10, color: "#8AAD96",
+      marginTop: 7, fontSize: 10, color: "#7A8878",
     },
     pinnedBadge: {
       display: "inline-flex", alignItems: "center", gap: 3,
@@ -5066,25 +5200,25 @@ function FrCommunicationContent() {
     },
     recentBadge: {
       background: "#E0F2F1", borderRadius: 6, padding: "2px 6px",
-      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#00695c",
+      border: "1px solid #B2DFDB", fontSize: 8, fontWeight: 800, color: "#2c5c16",
     },
     cardActions: { display: "flex", gap: 5, flexShrink: 0, alignItems: "flex-start" },
     actionBtn: (variant) => ({
       width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
-      background: "#f0fdf5", cursor: "pointer", display: "flex",
+      background: "#F6F7F1", cursor: "pointer", display: "flex",
       alignItems: "center", justifyContent: "center", flexShrink: 0,
-      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#00695c",
+      color: variant === "delete" ? "#e53935" : variant === "pin" ? "#F9A825" : "#2c5c16",
     }),
     emptyState: {
       display: "flex", flexDirection: "column", alignItems: "center",
       padding: "60px 0 40px", gap: 10, textAlign: "center",
     },
     emptyIcon: { fontSize: 40, marginBottom: 4 },
-    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#0d2b1e" },
-    emptySub:   { fontSize: 12, color: "#8AAD96", maxWidth: 260, lineHeight: 1.6 },
+    emptyTitle: { fontSize: 15, fontWeight: 800, color: "#12241B" },
+    emptySub:   { fontSize: 12, color: "#7A8878", maxWidth: 260, lineHeight: 1.6 },
   };
 
-  const emptyIcon = selectedTab === "pinned" ? "🔖" : selectedTab === "recent" ? "🕐" : "📢";
+  const EmptyIcon = selectedTab === "pinned" ? Pin : selectedTab === "recent" ? Clock : Megaphone;
   const emptyTitle =
     searchQuery ? "No results found"
     : selectedTab === "pinned" ? "Nothing pinned yet"
@@ -5099,10 +5233,10 @@ function FrCommunicationContent() {
   return (
     <div style={commStyles.root}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-        .comm-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,140,60,0.12) !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        .comm-card:hover { box-shadow: 0 8px 22px rgba(59,121,30,0.10) !important; }
         .comm-action-btn:hover { opacity: 0.78; }
-        .comm-tab:hover { background: #e8fdf0 !important; color: #00695c !important; }
+        .comm-tab:hover { background: #f0f5e8 !important; color: #2c5c16 !important; }
       `}</style>
 
       {/* ── HEADER ── */}
@@ -5113,7 +5247,7 @@ function FrCommunicationContent() {
         <div style={commStyles.headerTop}>
           <div>
             <div style={commStyles.eyebrow}>IFRANCHISE</div>
-            <div style={commStyles.headerTitle}>Announcements</div>
+            <div style={{ ...commStyles.headerTitle, display:"flex", alignItems:"center", gap:9 }}><Megaphone size={21} /> Announcements</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={commStyles.liveChip}>
@@ -5123,12 +5257,12 @@ function FrCommunicationContent() {
             <button
               onClick={() => { setSearchVisible(v => !v); setSearchQuery(""); }}
               style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: searchVisible ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16 }}>
-              {searchVisible ? "✕" : <Search size={16} color="#fff" />}
+              {searchVisible ? <X size={16} color="#fff" /> : <Search size={16} color="#fff" />}
             </button>
             {isAdminUser(commUser) && (
               <button
                 onClick={() => { setEditing(null); setTitle(""); setContent(""); setModalVisible(true); }}
-                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: C.greenLt, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 <Plus size={14} /> New
               </button>
             )}
@@ -5147,7 +5281,7 @@ function FrCommunicationContent() {
               style={commStyles.searchInput}
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}>✕</button>
+              <button onClick={() => setSearchQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 16, lineHeight: 1 }}><X size={14} /></button>
             )}
           </div>
         )}
@@ -5164,17 +5298,17 @@ function FrCommunicationContent() {
               onClick={() => setSelectedTab(tab)}
               style={{
                 ...commStyles.tabBase,
-                background: active ? "linear-gradient(135deg,#2E7D32,#00897b)" : "#e8f5e9",
-                color: active ? "#fff" : "#5a7a65",
+                background: active ? "linear-gradient(135deg,#3b791e,#3b791e)" : "#f0f5e8",
+                color: active ? "#fff" : "#5C6B60",
                 border: active ? "none" : `1px solid ${C.border}`,
-                boxShadow: active ? "0 2px 8px rgba(0,180,90,0.28)" : "none",
+                boxShadow: active ? "0 2px 8px rgba(59,121,30,0.28)" : "none",
               }}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
               {tabBadge[tab] > 0 && (
                 <span style={{
                   ...commStyles.badge,
                   background: active ? "rgba(255,255,255,0.28)" : C.greenMid,
-                  color: active ? "#fff" : "#2E7D32",
+                  color: active ? "#fff" : "#3b791e",
                 }}>
                   {tabBadge[tab]}
                 </span>
@@ -5198,10 +5332,10 @@ function FrCommunicationContent() {
         </div>
 
         {fetching ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "#5a7a65", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "#5C6B60", fontSize: 13, fontStyle: "italic" }}>Loading announcements…</div>
         ) : filtered.length === 0 ? (
           <div style={commStyles.emptyState}>
-            <div style={commStyles.emptyIcon}>{emptyIcon}</div>
+            <div style={{ ...commStyles.emptyIcon, color:"#3b791e", display:"flex", alignItems:"center", justifyContent:"center" }}><EmptyIcon size={34} /></div>
             <div style={commStyles.emptyTitle}>{emptyTitle}</div>
             <div style={commStyles.emptySub}>{emptySub}</div>
           </div>
@@ -5222,7 +5356,7 @@ function FrCommunicationContent() {
                   <div style={commStyles.cardMeta}>
                     <div style={commStyles.cardTitleRow}>
                       <span style={commStyles.cardTitle}>{item.title}</span>
-                      {pinned  && <span style={commStyles.pinnedBadge}>🔖 PINNED</span>}
+                      {pinned  && <span style={commStyles.pinnedBadge}><Pin size={9} /> PINNED</span>}
                       {recent && !pinned && <span style={commStyles.recentBadge}>NEW</span>}
                     </div>
                     <div style={commStyles.cardDate}>{new Date(item.created_at).toLocaleString()}</div>
@@ -5230,7 +5364,7 @@ function FrCommunicationContent() {
                   {isAdminUser(commUser) && (
                     <div style={commStyles.cardActions} onClick={e => e.stopPropagation()}>
                       <button className="comm-action-btn" style={commStyles.actionBtn("pin")} onClick={() => handlePin(item)} title={pinned ? "Unpin" : "Pin"}>
-                        {pinned ? <span style={{ fontSize: 12 }}>🔖</span> : <span style={{ fontSize: 12 }}>📌</span>}
+                        <Pin size={12} fill={pinned ? "currentColor" : "none"} />
                       </button>
                       <button className="comm-action-btn" style={commStyles.actionBtn("edit")} onClick={() => { handleEdit(item); }} title="Edit">
                         <Pencil size={12} />
@@ -5255,12 +5389,12 @@ function FrCommunicationContent() {
       {/* ── FULL VIEW PANEL ── */}
       {viewingItem && (
         <div onClick={() => setViewingItem(null)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 580, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(59,121,30,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
             {/* gradient header */}
             <div style={{
               background: viewingItem.pinned
                 ? "linear-gradient(135deg,#F9A825,#E65100)"
-                : "linear-gradient(135deg,#2E7D32,#00897b)",
+                : "linear-gradient(135deg,#3b791e,#3b791e)",
               borderRadius: "20px 20px 0 0", padding: "20px 22px 28px",
               position: "relative", overflow: "hidden",
             }}>
@@ -5274,7 +5408,7 @@ function FrCommunicationContent() {
                 </div>
                 <div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
-                    {viewingItem.pinned && <span style={{ background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff", letterSpacing: "0.08em" }}>🔖 PINNED</span>}
+                    {viewingItem.pinned && <span style={{ background: "rgba(255,255,255,0.25)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff", letterSpacing: "0.08em" }}><Pin size={9} /> PINNED</span>}
                     {isRecent(viewingItem) && <span style={{ background: "rgba(255,255,255,0.2)", padding: "2px 8px", borderRadius: 8, fontSize: 9, fontWeight: 900, color: "#fff" }}>NEW</span>}
                   </div>
                   <div style={{ fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.3, letterSpacing: "-0.3px" }}>{viewingItem.title}</div>
@@ -5293,11 +5427,11 @@ function FrCommunicationContent() {
                   <button
                     onClick={() => handlePin(viewingItem)}
                     style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: viewingItem.pinned ? "none" : "1.5px solid #FFE082", background: viewingItem.pinned ? "#F9A825" : "#FFF8E1", color: viewingItem.pinned ? "#fff" : "#F9A825" }}>
-                    {viewingItem.pinned ? "🔖 Unpin" : "📌 Pin"}
+                    <><Pin size={13} fill={viewingItem.pinned ? "currentColor" : "none"} /> {viewingItem.pinned ? "Unpin" : "Pin"}</>
                   </button>
                   <button
                     onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", border: "none", background:"linear-gradient(135deg,#509820,#3b791e)", color: "#fff" }}>
                     <Pencil size={13} /> Edit
                   </button>
                   <button
@@ -5315,10 +5449,10 @@ function FrCommunicationContent() {
       {/* ── CREATE / EDIT MODAL — Admin only ── */}
       {isAdminUser(commUser) && modalVisible && (
         <div onClick={() => setModalVisible(false)} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2500, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", overflow: "hidden" }}>
-            <div style={{ background: "linear-gradient(135deg,#2E7D32,#00897b)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 500, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(59,121,30,0.15)", overflow: "hidden" }}>
+            <div style={{ background:"linear-gradient(135deg,#509820,#3b791e)", padding: "16px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 900, fontSize: 15, color: "#fff" }}>{editing ? "Edit Announcement" : "New Announcement"}</span>
-              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.18)", cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => setModalVisible(false)} style={{ width: 30, height: 30, borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.4)", background: C.greenLt, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={14} />
               </button>
             </div>
@@ -5346,8 +5480,8 @@ function FrCommunicationContent() {
                 />
               </div>
               <div style={{ display: "flex", gap: 10 }}>
-                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(0,180,90,0.35)" }}>
+                <button type="button" onClick={() => setModalVisible(false)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #D4DBC8", background: "#F6F7F1", color: "#5C6B60", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", borderRadius: 10, border: "none", background:"linear-gradient(135deg,#509820,#3b791e)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(59,121,30,0.35)" }}>
                   <Check size={14} /> Save Announcement
                 </button>
               </div>
@@ -5397,22 +5531,22 @@ function FrProfileContent({ user }) {
 
   return (
     <div>
-      <div style={{ background: 'var(--grad-dark)', borderRadius: 20, padding: '28px 28px 20px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 18, background: 'var(--grad-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color: '#fff', fontFamily: 'Montserrat,sans-serif', boxShadow: '0 6px 20px rgba(0,0,0,0.2)', flexShrink: 0 }}>
+      <div style={{ background:'linear-gradient(135deg,#12241B,#2c5c16)', borderRadius:18, padding:'22px 24px', marginBottom:18, display:'flex', alignItems:'center', gap:18, border:'1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background:'#bdd43c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color:'#12241B', fontFamily:'Plus Jakarta Sans,sans-serif', boxShadow:'none', flexShrink: 0 }}>
           {initials}
         </div>
         <div>
-          <div style={{ fontFamily: 'Montserrat,sans-serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>{user?.name}</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 3, fontFamily: 'Poppins,sans-serif' }}>Franchisee · {user?.branch}</div>
+          <div style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>{user?.name}</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 3, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Franchisee · {user?.branch}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <span className="v-badge v-badge-green" style={{ background: 'rgba(0,200,83,0.2)', color: '#a7f3d0' }}>Franchisee</span>
-            {user?.branch && <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.12)', color: '#fff', fontFamily: 'Montserrat,sans-serif' }}>{user.branch}</span>}
+            {user?.branch && <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.12)', color: '#fff', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{user.branch}</span>}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        <div className="v-card" style={{ padding: '22px 24px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))', gap:16 }}>
+        <div className="v-card" style={{ padding:'20px 22px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<User size={16} />}>Personal Information</VSectionTitle>
           </div>
@@ -5433,13 +5567,13 @@ function FrProfileContent({ user }) {
           </form>
         </div>
 
-        <div className="v-card" style={{ padding: '22px 24px' }}>
+        <div className="v-card" style={{ padding:'20px 22px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<Lock size={16} />}>Change Password</VSectionTitle>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(0,168,76,0.06)', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 12, marginBottom: 20 }}>
-            <Shield size={14} color="#00897b" />
-            <span style={{ fontSize: 12, color: '#5a7a65', fontWeight: 600, fontFamily: 'Poppins,sans-serif' }}>OTP will be sent to your email for verification</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background:'#f0f5e8', border:'1px solid #c9dba0', borderRadius: 12, marginBottom: 20 }}>
+            <Shield size={14} color="#3b791e" />
+            <span style={{ fontSize: 12, color: '#5C6B60', fontWeight: 600, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>OTP will be sent to your email for verification</span>
           </div>
           <form onSubmit={handleSubmit}>
             {[['Current Password', 'currentPassword'], ['New Password', 'newPassword'], ['Confirm Password', 'confirmPassword']].map(([label, name]) => (
@@ -5458,10 +5592,10 @@ function FrProfileContent({ user }) {
       {showOtpModal && (
         <div className="v-modal-overlay">
           <div className="v-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: 60, height: 60, borderRadius: 16, background: 'var(--grad-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '1.8rem', boxShadow: '0 6px 20px rgba(0,180,90,.3)' }}>🔐</div>
+            <div style={{ width: 60, height: 60, borderRadius: 16, background:'#f0f5e8', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '1.8rem', boxShadow:'none', color:'#3b791e', border:'1px solid #c9dba0' }}><Lock size={26} /></div>
             <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Verify OTP</h2>
-            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0 20px', fontFamily: 'Poppins,sans-serif' }}>
-              Code sent to <strong style={{ color: '#00897b' }}>{formData.personalEmail || formData.email}</strong>
+            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0 20px', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
+              Code sent to <strong style={{ color: '#3b791e' }}>{formData.personalEmail || formData.email}</strong>
             </p>
             <input
               type="text" placeholder="000000" value={otp}

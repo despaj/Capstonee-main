@@ -266,7 +266,7 @@ router.post("/ai/report", async (req, res) => {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-      body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 1000 }),
+      body: JSON.stringify({ model: "openai/gpt-oss-20b",messages: [{ role: "user", content: prompt }], max_tokens: 1000 }),
     });
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || "Failed to generate report.";
@@ -365,7 +365,7 @@ Return ONLY valid JSON:
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-      body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 1500, temperature: 0.2 }),
+      body: JSON.stringify({ model: "openai/gpt-oss-20b", messages: [{ role: "user", content: prompt }], max_tokens: 1500, temperature: 0.2 }),
     });
     const data   = await response.json();
     const raw    = data.choices?.[0]?.message?.content || "{}";

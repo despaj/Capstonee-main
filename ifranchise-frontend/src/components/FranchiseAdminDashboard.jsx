@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
+import logoIfranchise from "../assets/report/ifranchise-logo.png";
+import logoSync from "../assets/report/franchsync-logo.png";
 import {
   Home, FileCheck, Users, BarChart2, MessageCircle, User,
   LogOut, Search, AlertTriangle, DollarSign, GitBranch,
@@ -17,13 +19,13 @@ import {
 } from 'lucide-react';
 
 const C = {
-  green: '#00897b', greenDk: '#00695c', greenLt: '#e8f5e9', greenMid: '#c8e6c9',
-  teal: '#00c853', ink: '#0d2b1e', muted: '#5a7a65', border: '#d1eedd',
-  bg: '#f0fdf5', white: '#ffffff', warn: '#e65100', warnBg: '#fff3e0',
-  ok: '#2e7d32', okBg: '#e8f5e9',
+  green: "#3b791e", greenDk: "#2c5c16", greenLt: "#f0f5e8", greenMid: "#c9dba0",
+  teal: "#509820", ink: "#12241B", muted: "#5C6B60", border: "#E1E6D8",
+  bg: "#F6F7F1", white: "#ffffff", warn: "#b45309", warnBg: "#fff7ed",
+  ok: "#2c5c16", okBg: "#f0f5e8",
 };
-const FONT = "'Montserrat', sans-serif";
-const PAL  = ["#00c853","#00897b","#26a69a","#43a047","#66bb6a","#f59e0b","#1d4ed8","#7c3aed","#db2777","#ea580c"];
+const FONT = "'Plus Jakarta Sans', sans-serif";
+const PAL  = ["#3b791e","#bdd43c","#2c5c16","#509820","#c9dba0","#d4a63c","#547a46","#89a66f","#7a8e70","#b0be9d"];
 
 const ROLE_LABEL = 'Franchisee Operations Admin';
 
@@ -31,21 +33,22 @@ const ROLE_LABEL = 'Franchisee Operations Admin';
 
 // ─── Shared CSS ───────────────────────────────────────────────────────────────
 const FA_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
+  html, body, #root, button, input, textarea, select, option { font-family:'Plus Jakarta Sans',sans-serif; }
   :root {
-    --g1:#00c853; --g2:#00897b; --g3:#1a4a2e; --g4:#0d2b1e;
-    --green-primary:#2E7D32; --green-dark:#1B5E20; --green-light:#4CAF50;
-    --green-accent:#d4df33; --green-bg:#ccfcc7; --white:#ffffff;
-    --gray-100:#F3F4F6; --gray-200:#E5E7EB; --gray-300:#D1D5DB;
-    --gray-400:#9CA3AF; --gray-500:#6B7280; --gray-600:#4B5563;
-    --gray-700:#374151; --gray-800:#1F2937;
-    --shadow:rgba(46,125,50,0.1); --shadow-strong:rgba(46,125,50,0.2);
-    --card-border:rgba(0,168,76,0.12);
-    --grad-main:linear-gradient(135deg,#00c853,#00897b);
-    --grad-dark:linear-gradient(135deg,#0d2b1e,#1a4a2e);
-    --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
-    --grad-bg:linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%);
+    --g1:#bdd43c; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+    --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
+    --green-accent:#bdd43c; --green-bg:#F6F7F1; --white:#ffffff;
+    --gray-100:#F3F4F1; --gray-200:#E1E6D8; --gray-300:#D4DBC8;
+    --gray-400:#9CA89C; --gray-500:#6B7A65; --gray-600:#4B5A45;
+    --gray-700:#374132; --gray-800:#1F2A1B;
+    --shadow:rgba(50,109,32,0.10); --shadow-strong:rgba(14,59,34,0.20);
+    --card-border:#E1E6D8;
+    --grad-main:linear-gradient(135deg,#509820,#3b791e);
+    --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
+    --grad-gold:linear-gradient(135deg,#e9cd30,#bdd43c);
+    --grad-bg:#F6F7F1;
   }
 `;
 const invLabelSt = {
@@ -54,8 +57,8 @@ const invLabelSt = {
   textTransform:"uppercase", letterSpacing:"0.07em",
 };
 const invInputSt = {
-  height:36, padding:"0 11px", borderRadius:9,
-  border:`1px solid ${C.border}`, background:C.bg,
+  height:36, padding:"0 11px", borderRadius:11,
+  border:`1.5px solid ${C.border}`, background:C.white,
   fontSize:13, color:C.ink, outline:"none",
   fontFamily:"inherit", boxSizing:"border-box", width:"100%",
 };
@@ -79,27 +82,27 @@ const smallBtnSt = {
 
 const btnSt = {
   display:"inline-flex", alignItems:"center", gap:6,
-  height:36, padding:"0 16px", borderRadius:9,
+  height:38, padding:"0 18px", borderRadius:999,
   border:`1px solid ${C.border}`, background:C.white,
   fontSize:13, fontWeight:700, cursor:"pointer",
   fontFamily:"inherit", whiteSpace:"nowrap",
 };
 const btnPrimarySt = {
   ...btnSt,
-  background:`linear-gradient(135deg,${C.teal},${C.green})`,
+  background:C.green,
   color:C.white, border:"none",
-  boxShadow:"0 2px 10px rgba(0,180,90,0.28)",
+  boxShadow:"0 10px 24px rgba(59,121,30,0.22)",
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
 const PAGE_SIZE = 15;
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
-const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPeso = n => "\u20B1" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 
-const fmtAmt_d   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtShort_d = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
+const fmtAmt_d   = (n) => "\u20B1" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort_d = (n) => { if (n >= 1_000_000) return "\u20B1" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "\u20B1" + (n / 1_000).toFixed(0) + "k"; return "\u20B1" + Number(n).toFixed(0); };
  
 // ─── PanelCard ────────────────────────────────────────────────────────────────
 function PanelCard({ children, style: s }) {
@@ -390,7 +393,7 @@ function AlertModal({ message, onClose, type = 'info' }) {
   const Icon = isError ? Trash2 : isSuccess ? Check : Info;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'center' }}>
         <div style={{ width: 52, height: 52, borderRadius: '50%', background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
           <Icon size={22} color={iconColor} />
         </div>
@@ -477,117 +480,154 @@ export default function FranchiseAdminDashboard() {
   const mainNav    = navigation.filter(n => n.section === 'main');
   const accountNav = navigation.filter(n => n.section === 'account');
 
-  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Menu Inventory';
+  const moduleLabel = navigation.find(n => n.id === activeModule)?.label || 'Dashboard';
 
   return (
     <div className="fa-root">
       <style>{FA_CSS}{`
         .fa-root {
-          font-family: 'Poppins', sans-serif;
-          display: flex; min-height: 100vh;
-          background: var(--grad-bg);
+          font-family:'Plus Jakarta Sans',sans-serif;
+          display:flex;
+          min-height:100vh;
+          background:#F6F7F1;
+          background-image:radial-gradient(#E1E6D8 1px, transparent 1px);
+          background-size:22px 22px;
         }
         .fa-sidebar {
-          width: ${sidebarCollapsed ? '76px' : '272px'};
-          background: #fff;
-          box-shadow: 2px 0 20px rgba(0,140,60,0.08);
-          position: fixed; left: 0; top: 0; height: 100vh;
-          transition: width 0.3s ease; z-index: 1000;
-          overflow-y: auto; overflow-x: hidden;
+          width:${sidebarCollapsed ? '76px' : '272px'};
+          background:#fff;
+          box-shadow:1px 0 0 #E1E6D8;
+          position:fixed;
+          top:0; left:0; bottom:0;
+          display:flex;
+          flex-direction:column;
+          padding:18px 14px;
+          overflow-y:auto;
+          overflow-x:hidden;
+          z-index:1000;
+          transition:width .3s ease;
         }
         .fa-sidebar-header {
-          padding: 1.4rem 1rem;
-          border-bottom: 1px solid rgba(0,168,76,0.1);
-          display: flex; align-items: center; justify-content: space-between;
-          min-height: 72px;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          padding:4px 6px 18px;
+          min-height:58px;
         }
-        .fa-logo-mark {
-          width: 34px; height: 34px; border-radius: 10px;
-          background: var(--grad-main);
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 900; font-size: 16px; color: #fff;
-          font-family: 'Montserrat', sans-serif; flex-shrink: 0;
-          box-shadow: 0 4px 12px rgba(0,180,90,.3);
+        .fa-brand { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-weight:800; font-size:16px; white-space:nowrap; }
+        .fa-toggle {
+          background:none;
+          border:1px solid #E1E6D8;
+          border-radius:8px;
+          width:28px;
+          height:28px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          cursor:pointer;
+          color:#5C6B60;
+          flex-shrink:0;
+          transition:background .15s ease,color .15s ease,border-color .15s ease;
         }
-        .fa-brand { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.05rem; color: #0d2b1e; white-space: nowrap; }
-        .fa-role-chip {
-          font-size: 9px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: .06em; padding: 2px 7px; border-radius: 20px;
-          background: linear-gradient(135deg,#e9cd30,#ffa875);
-          color: #3d2000; margin-top: 2px; display: inline-block;
-        }
-        .fa-toggle { background: none; border: none; cursor: pointer; padding: 6px; color: #94a3b8; border-radius: 8px; transition: all .2s; flex-shrink: 0; }
-        .fa-toggle:hover { color: #00897b; background: rgba(0,168,76,0.08); }
-        .fa-nav { padding: 1rem 0.5rem; }
+        .fa-toggle:hover { background:#F6F7F1; color:#2c5c16; border-color:#D4DBC8; }
+        .fa-nav { display:flex; flex-direction:column; gap:2px; padding:0; }
         .fa-nav-section {
-          font-size: 10px; font-weight: 800; text-transform: uppercase;
-          letter-spacing: .1em; color: #94a3b8;
-          padding: 12px 14px 6px;
-          display: ${sidebarCollapsed ? 'none' : 'block'};
-          font-family: 'Montserrat', sans-serif;
+          font-size:10.5px;
+          font-weight:800;
+          letter-spacing:.08em;
+          text-transform:uppercase;
+          color:#9CA89C;
+          padding:12px 10px 6px;
+          display:${sidebarCollapsed ? 'none' : 'block'};
+          font-family:'Plus Jakarta Sans',sans-serif;
         }
         .fa-nav-item {
-          display: flex; align-items: center; gap: 12px;
-          padding: 10px 12px; color: #5a7a65; cursor: pointer;
-          transition: all .2s; border-radius: 12px;
-          position: relative; margin: 2px 0;
-          font-weight: 600; font-size: 14px;
-          font-family: 'Montserrat', sans-serif;
+          font-family:'Plus Jakarta Sans',sans-serif;
+          display:flex;
+          align-items:center;
+          gap:12px;
+          padding:10px 12px;
+          border-radius:12px;
+          color:#5C6B60;
+          cursor:pointer;
+          position:relative;
+          font-size:14px;
+          font-weight:500;
+          transition:background .15s ease,color .15s ease;
+          margin:0;
         }
-        .fa-nav-item:hover { background: rgba(0,168,76,0.08); color: #0d2b1e; }
-        .fa-nav-item.active {
-          background: linear-gradient(135deg,rgba(0,200,83,0.15),rgba(0,137,123,0.1));
-          color: #00695c; box-shadow: inset 0 0 0 1.5px rgba(0,137,123,0.2);
-        }
-        .fa-nav-item.logout { color: #ef4444; margin-top: 8px; }
-        .fa-nav-item.logout:hover { background: rgba(239,68,68,0.08); }
-        .fa-nav-icon { flex-shrink: 0; display: flex; justify-content: center; width: 22px; }
-        .fa-nav-label { display: ${sidebarCollapsed ? 'none' : 'block'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .fa-nav-bar { position: absolute; right: 0; top: 20%; height: 60%; width: 3px; border-radius: 2px; background: var(--grad-main); }
-        .fa-main { flex: 1; margin-left: ${sidebarCollapsed ? '76px' : '272px'}; transition: margin-left 0.3s ease; }
+        .fa-nav-item:hover { background:#F6F7F1; color:#12241B; }
+        .fa-nav-item.active { background:#F6F7F1; color:#2c5c16; box-shadow:none; font-weight:700; }
+        .fa-nav-item.active .fa-nav-icon { color:#3b791e; }
+        .fa-nav-item.logout { color:#c0392b; }
+        .fa-nav-item.logout:hover { background:#fdf1f0; }
+        .fa-nav-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; }
+        .fa-nav-label { display:${sidebarCollapsed ? 'none' : 'block'}; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fa-nav-bar { position:absolute; right:6px; top:20%; height:60%; width:3px; border-radius:2px; background:#bdd43c; }
+        .fa-main { flex:1; min-width:0; margin-left:${sidebarCollapsed ? '76px' : '272px'}; transition:margin-left .3s ease; }
         .fa-topbar {
-          background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
-          padding: 1rem 2rem; box-shadow: 0 2px 16px rgba(0,140,60,0.08);
-          display: flex; justify-content: space-between; align-items: center;
-          position: sticky; top: 0; z-index: 100;
-          border-bottom: 1px solid rgba(0,168,76,0.08);
+          width:100%;
+          background:#fff;
+          box-shadow:none;
+          border-bottom:1px solid #E1E6D8;
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          padding:16px 30px;
+          position:sticky;
+          top:0;
+          z-index:100;
+          box-sizing:border-box;
         }
-        .fa-topbar-breadcrumb { font-size: 12px; color: #94a3b8; font-weight: 600; }
-        .fa-topbar-title { font-family: 'Montserrat', sans-serif; font-size: 1.4rem; font-weight: 800; color: #0d2b1e; }
+        .fa-topbar-title { font-family:'Plus Jakarta Sans',sans-serif; color:#12241B; font-size:22px; font-weight:800; margin:0; }
+        .fa-user-name { font-weight:700; font-size:13px; color:#12241B; text-align:right; font-family:'Plus Jakarta Sans',sans-serif; }
+        .fa-user-role { font-size:11.5px; color:#5C6B60; text-align:right; font-family:'Plus Jakarta Sans',sans-serif; }
         .fa-avatar {
-          width: 42px; height: 42px; border-radius: 14px;
-          background: linear-gradient(135deg,#e9cd30,#ffa875);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 1rem; font-weight: 800; color: #3d2000; cursor: pointer;
-          transition: all .2s; box-shadow: 0 4px 12px rgba(233,205,48,.3);
-          font-family: 'Montserrat', sans-serif;
+          background:#12241B;
+          color:#bdd43c;
+          box-shadow:none;
+          border-radius:12px;
+          width:38px;
+          height:38px;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-weight:700;
+          font-family:'Plus Jakarta Sans',sans-serif;
         }
-        .fa-avatar:hover { transform: scale(1.08); }
-        .fa-content { padding: 1.8rem 2rem; }
+        .fa-content {
+          width:100%;
+          max-width:1400px;
+          margin:0 auto;
+          padding:20px 30px 40px;
+          box-sizing:border-box;
+        }
         @keyframes slideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to{transform:rotate(360deg)} }
+        @media (max-width:900px) {
+          .fa-topbar { padding:14px 18px; }
+          .fa-content { padding:18px; }
+        }
       `}</style>
 
-      {/* ── SIDEBAR ── */}
+      {/* SIDEBAR - AdminDashboard layout, Franchise Admin modules unchanged */}
       <aside className="fa-sidebar">
         <div className="fa-sidebar-header">
           {!sidebarCollapsed && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-              <div className="fa-logo-mark">iF</div>
-              <div style={{ minWidth: 0 }}>
-                <div className="fa-brand">iFranchise</div>
-                {/* <span className="fa-role-chip">{ROLE_LABEL}</span> */}
-              </div>
+            <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+              <img src={logoSync} alt="FranchiSync" style={{ height:50, width:'auto', maxWidth:190, objectFit:'contain' }} />
             </div>
           )}
-          {sidebarCollapsed && <div className="fa-logo-mark" style={{ margin: '0 auto' }}>iF</div>}
+          {sidebarCollapsed && (
+            <img src={logoIfranchise} alt="iFranchise" style={{ height:35, width:'auto', objectFit:'contain', margin:'0 auto', display:'block' }} />
+          )}
           {!sidebarCollapsed && (
             <button className="fa-toggle" onClick={() => setSidebarCollapsed(true)}><X size={16} /></button>
           )}
         </div>
 
         {sidebarCollapsed && (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+          <div style={{ display:'flex', justifyContent:'center', padding:'12px 0' }}>
             <button className="fa-toggle" onClick={() => setSidebarCollapsed(false)}><ChevronRight size={16} /></button>
           </div>
         )}
@@ -596,7 +636,7 @@ export default function FranchiseAdminDashboard() {
           {!sidebarCollapsed && <div className="fa-nav-section">Main Menu</div>}
           {mainNav.map(item => (
             <div key={item.id}
-              className={`fa-nav-item ${activeModule === item.id ? 'active' : ''}`}
+              className={`fa-nav-item${activeModule === item.id ? ' active' : ''}`}
               onClick={() => { if (item.action) item.action(); else setActiveModule(item.id); }}
               title={sidebarCollapsed ? item.label : undefined}>
               <span className="fa-nav-icon">{item.icon}</span>
@@ -604,10 +644,10 @@ export default function FranchiseAdminDashboard() {
               {activeModule === item.id && <span className="fa-nav-bar" />}
             </div>
           ))}
-          {!sidebarCollapsed && <div className="fa-nav-section" style={{ marginTop: 8 }}>Account</div>}
+          {!sidebarCollapsed && <div className="fa-nav-section" style={{ marginTop:8 }}>Account</div>}
           {accountNav.map(item => (
             <div key={item.id}
-              className={`fa-nav-item ${activeModule === item.id ? 'active' : ''} ${item.id === 'logout' ? 'logout' : ''}`}
+              className={`fa-nav-item${item.id === 'logout' ? ' logout' : ''}${activeModule === item.id ? ' active' : ''}`}
               onClick={() => { if (item.action) item.action(); else setActiveModule(item.id); }}
               title={sidebarCollapsed ? item.label : undefined}>
               <span className="fa-nav-icon">{item.icon}</span>
@@ -617,17 +657,14 @@ export default function FranchiseAdminDashboard() {
         </nav>
       </aside>
 
-      {/* ── MAIN ── */}
+      {/* MAIN */}
       <main className="fa-main">
         <div className="fa-topbar">
-          <div>
-           
-            <h1 className="fa-topbar-title">{moduleLabel}</h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, color: '#0d2b1e', fontSize: 14, fontFamily: 'Montserrat,sans-serif' }}>{user?.name}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{ROLE_LABEL} — {user?.branch}</div>
+          <h1 className="fa-topbar-title">{moduleLabel}</h1>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ textAlign:'right' }}>
+              <div className="fa-user-name">{user?.name}</div>
+              <div className="fa-user-role">{ROLE_LABEL} - {user?.branch}</div>
             </div>
             <div className="fa-avatar">{user?.name ? user.name.trim()[0].toUpperCase() : 'F'}</div>
           </div>
@@ -635,30 +672,26 @@ export default function FranchiseAdminDashboard() {
 
         <div className="fa-content">
           {activeModule === 'dashboard'      && <FADashboardContent transactions={transactions} brands={brands} />}
-            {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
-            {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
-            {activeModule === 'mobileOrders'   && <FAMobileOrdersContent user={user} brands={brands} />}
-            {activeModule === 'applications'  && <FAApplicationsContent user={user} alertModal={alertModal} setAlertModal={setAlertModal} />}
-            {activeModule === 'communication' && <FACommunicationContent user={user} brands={brands} />}
-            {activeModule === 'brandBranch'   && <FABrandBranchContent user={user} brands={brands} onBrandsChange={setBrands} />}
-            {activeModule === 'profile'       && <FAProfileContent user={user} />}
+          {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
+          {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
+          {activeModule === 'mobileOrders'   && <FAMobileOrdersContent user={user} brands={brands} />}
+          {activeModule === 'applications'   && <FAApplicationsContent user={user} alertModal={alertModal} setAlertModal={setAlertModal} />}
+          {activeModule === 'communication'  && <FACommunicationContent user={user} brands={brands} />}
+          {activeModule === 'brandBranch'    && <FABrandBranchContent user={user} brands={brands} onBrandsChange={setBrands} />}
+          {activeModule === 'profile'        && <FAProfileContent user={user} />}
         </div>
       </main>
 
-      {/* ── LOGOUT MODAL ── */}
+      {/* Logout function unchanged; visual only */}
       {showLogoutModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowLogoutModal(false)}>
-          <div style={{ background: C.white, borderRadius: 22, padding: '32px 36px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', border: '1px solid rgba(0,168,76,0.15)', animation: 'slideUp .25s ease' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ width: 68, height: 68, borderRadius: 20, background: 'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2rem', border: '1.5px solid rgba(239,68,68,0.15)' }}>🚪</div>
-            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 20, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Log out?</h2>
-            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>You'll need to sign in again to access your account.</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowLogoutModal(false)} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Montserrat,sans-serif' }}>Cancel</button>
-              <button onClick={confirmLogout} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#ef4444,#dc2626)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'Montserrat,sans-serif', boxShadow: '0 4px 14px rgba(239,68,68,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                <LogOut size={14} /> Log out
-              </button>
+        <div style={{ position:'fixed', inset:0, background:'rgba(18,36,27,.48)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:3000, padding:20, backdropFilter:'blur(4px)' }} onClick={() => setShowLogoutModal(false)}>
+          <div style={{ background:'#fff', borderRadius:18, padding:'28px 30px', maxWidth:390, width:'100%', textAlign:'center', boxShadow:'0 24px 64px rgba(18,36,27,.18)', border:'1px solid #E1E6D8', animation:'slideUp .25s ease' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width:52, height:52, borderRadius:14, background:'#fdf1f0', color:'#c0392b', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}><LogOut size={22}/></div>
+            <h2 style={{ fontFamily:FONT, fontSize:18, fontWeight:800, color:'#12241B', marginBottom:7 }}>Log out?</h2>
+            <p style={{ color:'#5C6B60', fontSize:12.5, marginBottom:24, lineHeight:1.6 }}>You'll need to sign in again to access your account.</p>
+            <div style={{ display:'flex', gap:9 }}>
+              <button onClick={() => setShowLogoutModal(false)} style={{ flex:1, height:38, borderRadius:999, border:'1.5px solid #E1E6D8', background:'#F6F7F1', color:'#2c5c16', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:FONT }}>Cancel</button>
+              <button onClick={confirmLogout} style={{ flex:1, height:38, borderRadius:999, border:'none', background:'#c0392b', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:FONT, display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}><LogOut size={14}/> Log out</button>
             </div>
           </div>
         </div>
@@ -991,7 +1024,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
           </div>
         )}
         <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
-          {isBuyers ? p.totalItems?.toLocaleString() : ("₱" + Number(p.totalRevenue||0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
+          {isBuyers ? p.totalItems?.toLocaleString() : ("\u20B1" + Number(p.totalRevenue||0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
         </div>
         <div style={{ paddingLeft: 8 }}>
           {isBuyers
@@ -1298,6 +1331,63 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
 }
 
 // ---------DASHBOARD------------------
+function FADashboardEmptyState({ message }) {
+  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+}
+
+function FADashboardLineGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = React.useState(null);
+  const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const x = i => labels.length <= 1 ? PL + pW / 2 : PL + (i / (labels.length - 1)) * pW;
+  const y = v => PT + pH - (Number(v || 0) / max) * pH;
+  const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid = [0,.25,.5,.75,1];
+  if (!labels.length || !values.length) return <FADashboardEmptyState message="No revenue data for the selected period." />;
+  return (
+    <div style={{ position:"relative", width:"100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
+        {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
+          <g key={i}>
+            <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
+            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort_d(max*g)}</text>
+          </g>
+        )})}
+        <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {safeValues.map((v,i)=>(
+          <g key={i}>
+            <circle cx={x(i)} cy={y(v)} r={hover===i?5:3.5} fill="#fff" stroke="#3b791e" strokeWidth="2.5" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}} />
+            <rect x={x(i)-10} y={PT} width="20" height={pH} fill="transparent" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} />
+          </g>
+        ))}
+        {tickIdx.map(i => <text key={i} x={x(i)} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>)}
+      </svg>
+      {hover != null && (
+        <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
+          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>{fmtAmt_d(safeValues[hover])}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FADashboardRankBars({ data = [] }) {
+  if (!data.length) return <FADashboardEmptyState message="No branch sales data for the selected period." />;
+  const max = Math.max(...data.map(d=>d.value),1);
+  return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
+    {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
+        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt_d(d.value)}</strong>
+      </div>
+      <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
+    </div>)}
+  </div>;
+}
+
 function FADashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
   const fmt8  = (d) => d.toISOString().slice(0, 10);
@@ -1325,6 +1415,8 @@ function FADashboardContent({ transactions, brands: propBrands = [] }) {
  
   const [kpiData,    setKpiData]    = React.useState(null);
   const [kpiLoading, setKpiLoading] = React.useState(false);
+  const [analysisTab, setAnalysisTab] = React.useState("sales");
+  const [hiddenKpis, setHiddenKpis] = React.useState({});
  
   React.useEffect(() => {
     const fn = (e) => {
@@ -1442,231 +1534,191 @@ function FADashboardContent({ transactions, brands: propBrands = [] }) {
     setViewingArchive(null);
   };
  
-  // ── Shared dropdown/filter styles ──
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:400, background:"#fff", border:"1px solid #b2dfdb", borderRadius:11, boxShadow:"0 8px 28px rgba(0,0,0,0.10)", maxHeight:220, overflowY:"auto" };
-  const optSt  = (a) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:a?"#00695c":"#0d2b1e", fontWeight:a?700:500, background:a?"#e0f2f1":"transparent", display:"flex", alignItems:"center", gap:8, fontFamily:FONT });
-  const filterInputSt = { height:36, padding:"0 11px", borderRadius:9, border:"1px solid #b2dfdb", background:"#f0fdf5", fontSize:13, color:"#0d2b1e", outline:"none", fontFamily:FONT, boxSizing:"border-box", width:"100%" };
-  const tabSt  = (a) => ({ padding:"6px 13px", borderRadius:9, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT, transition:"all .15s", background:a?"linear-gradient(135deg,#00c853,#00897b)":"transparent", color:a?"#fff":"#5a7a65", boxShadow:a?"0 2px 8px rgba(0,180,90,.35)":"none" });
- 
+  // UI-only derived values. They use the SAME Franchise Admin transactions already loaded above.
+  const filteredTransactions = React.useMemo(() => {
+    let txList = Array.isArray(transactions) ? transactions : [];
+    if (filterBranch) txList = txList.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = txList.filter(tx => bn.includes(tx.branch));
+    }
+    const now = new Date();
+    return txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (preset === "day") return d.toDateString() === now.toDateString();
+      if (preset === "week") { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === "year") return d.getFullYear() === now.getFullYear();
+      if (rangeMode === "custom" && appliedRange) { const f = new Date(appliedRange.from); const t = new Date(appliedRange.to); return d >= f && d <= t; }
+      return true;
+    });
+  }, [transactions, filterBranch, filterBrand, selectedBrand, preset, rangeMode, appliedRange]);
+
+  const actualRevenue = React.useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
+  const transactionCount = viewingArchive ? null : filteredTransactions.length;
+  const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
+  const activeBranchCount = viewingArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+  const branchPerformance = React.useMemo(() => {
+    if (viewingArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const branch = tx.branch || "Unassigned";
+      grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewingArchive]);
+
+  const branchProfitability = React.useMemo(() => {
+    if (viewingArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+      const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
+      let cogs = Number(tx?.cogs ?? tx?.total_cogs ?? tx?.cost_of_goods ?? tx?.cost_of_goods_sold ?? 0);
+      if (!Number.isFinite(cogs)) cogs = 0;
+      if (cogs === 0) {
+        let items = tx?.items;
+        if (typeof items === "string") { try { items = JSON.parse(items); } catch { items = []; } }
+        if (Array.isArray(items)) {
+          const itemCogs = items.reduce((sum, item) => {
+            const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+            const unitCost = Number(item?.cost ?? item?.unit_cost ?? item?.unitCost ?? item?.purchase_cost ?? 0) || 0;
+            const lineCogs = Number(item?.cogs ?? item?.total_cost ?? item?.cost_total ?? 0) || 0;
+            return sum + (lineCogs > 0 ? lineCogs : unitCost * qty);
+          }, 0);
+          if (itemCogs > 0) cogs = itemCogs;
+        }
+      }
+      if (!grouped[branch]) grouped[branch] = { branch, revenue:0, cogs:0, transactions:0, hasCogs:false };
+      grouped[branch].revenue += revenue;
+      grouped[branch].cogs += cogs;
+      grouped[branch].transactions += 1;
+      if (cogs > 0 || tx?.cogs != null || tx?.total_cogs != null || tx?.cost_of_goods != null || tx?.cost_of_goods_sold != null) grouped[branch].hasCogs = true;
+    });
+    return Object.values(grouped).map(row => {
+      const grossProfit = row.revenue - row.cogs;
+      const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
+      const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
+      return { ...row, grossProfit, margin, avgOrder };
+    }).sort((a,b) => (b.grossProfit-a.grossProfit) || (b.revenue-a.revenue));
+  }, [filteredTransactions, viewingArchive]);
+
+  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:400, background:"#fff", border:"1px solid #E1E6D8", borderRadius:11, boxShadow:"0 8px 28px rgba(18,36,27,0.10)", maxHeight:220, overflowY:"auto" };
+  const optSt = (a) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:a?"#2c5c16":"#12241B", fontWeight:a?700:500, background:a?"#F0F5E8":"transparent", display:"flex", alignItems:"center", gap:8, fontFamily:FONT });
+  const filterInputSt = { height:36, padding:"0 11px", borderRadius:9, border:"1px solid #E1E6D8", background:"#fff", fontSize:13, color:"#12241B", outline:"none", fontFamily:FONT, boxSizing:"border-box", width:"100%" };
+  const tabSt = (a) => ({ padding:"6px 13px", borderRadius:9, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT, transition:"all .15s", background:a?"#3b791e":"transparent", color:a?"#fff":"#5C6B60", boxShadow:"none" });
+
   return (
-    <div style={{ fontFamily: FONT }}>
+    <div style={{ fontFamily:FONT }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
-        *, *::before, *::after { box-sizing: border-box; }
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        *, *::before, *::after { box-sizing:border-box; }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @media (max-width:1050px) { .fa-dashboard-main-grid { grid-template-columns:1fr !important; } }
       `}</style>
- 
-      {/* ── Archive viewing banner ── */}
+
       {viewingArchive && (
-        <div style={{ background:"linear-gradient(135deg,#0d2b1e,#1a4a2e)", color:"#fff", borderRadius:14, padding:"12px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ display:"flex", alignItems:"center", gap:8, fontWeight:700, fontSize:14, fontFamily:FONT }}>
-            <Archive size={16}/> Viewing Archive: {viewingArchive.year}
-            <span style={{ opacity:0.6, fontSize:12, fontWeight:400 }}>— saved {viewingArchive.savedAt}</span>
-          </span>
-          <button onClick={() => setViewingArchive(null)} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", color:"#fff", borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, fontFamily:FONT }}>
-            <X size={12}/> Exit Archive View
-          </button>
+        <div style={{ background:"linear-gradient(135deg,#12241B,#2c5c16)", color:"#fff", borderRadius:14, padding:"12px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+          <span style={{ display:"flex", alignItems:"center", gap:8, fontWeight:700, fontSize:14 }}><Archive size={16}/> Viewing Archive: {viewingArchive.year}<span style={{ opacity:.65, fontSize:12, fontWeight:400 }}>- saved {viewingArchive.savedAt}</span></span>
+          <button onClick={() => setViewingArchive(null)} style={{ background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.28)", color:"#fff", borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, fontFamily:FONT }}><X size={12}/> Exit Archive View</button>
         </div>
       )}
- 
-      {/* ── KPI Cards ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:14, marginBottom:18, animation:"fadeUp .35s ease" }}>
-        {[
-          { label:"Sales Revenue",  value:kpiData?.salesRevenue,  icon:TrendingUp   },
-          { label:"Sales Profit",   value:kpiData?.salesProfit,   icon:BarChart2    },
-          { label:"Cost of Sales",  value:kpiData?.cogs,          icon:Package      },
-          { label:"Total Sales",    value:kpiData?.totalSales,    icon:ShoppingCart },
-        ].map((k, i) => (
-          <div key={i}
-            style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.12)", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(0,140,60,0.07)", position:"relative", overflow:"hidden", transition:"transform .2s, box-shadow .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 8px 28px rgba(0,140,60,0.13)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 2px 14px rgba(0,140,60,0.07)"; }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-              <div>
-                <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.08em", color:"#5a7a65", marginBottom:5, display:"flex", alignItems:"center", gap:5, fontFamily:FONT }}>
-                  <k.icon size={12} color="#00897b"/> {k.label}
+
+      {analysisTab === "sales" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))", gap:14, marginBottom:18, animation:"fadeUp .35s ease" }}>
+          {[
+            { label:"Revenue", value:viewingArchive ? (viewingArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? kpiData?.totalSales ?? actualRevenue), icon:TrendingUp, format:"money", note:"Actual sales in selected period" },
+            { label:"Transactions", value:transactionCount, icon:ShoppingCart, format:"count", note:"Completed sales records" },
+            { label:"Average Sale", value:viewingArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon:BarChart2, format:"money", note:"Revenue per transaction" },
+            { label:"Active Branches", value:activeBranchCount, icon:Store, format:"count", note:"Branches with recorded sales" },
+          ].map((k,i) => {
+            const isHidden = !!hiddenKpis[i];
+            return (
+              <div key={i} style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)", position:"relative", overflow:"hidden", transition:"transform .2s,box-shadow .2s" }} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px rgba(50,109,32,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 14px rgba(50,109,32,.06)";}}>
+                <button onClick={()=>setHiddenKpis(prev=>({...prev,[i]:!prev[i]}))} title={isHidden?"Show value":"Hide value"} style={{ position:"absolute", top:14, right:14, background:"none", border:"none", cursor:"pointer", color:"#3b791e", opacity:.6, padding:2, display:"flex", alignItems:"center" }}>
+                  {!isHidden ? <Eye size={15}/> : <Eye size={15} style={{opacity:.35}}/>}
+                </button>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", color:"#5C6B60", marginBottom:5, display:"flex", alignItems:"center", gap:5 }}><k.icon size={12} color="#3b791e"/> {k.label}</div>
+                    {kpiLoading && k.value == null ? <div style={{fontSize:12,fontWeight:700,color:"#5C6B60"}}>Loading...</div> : k.value != null ? <div style={{fontSize:22,fontWeight:800,color:"#12241B",letterSpacing:"-.5px"}}>{!isHidden ? (k.format==="money"?fmtAmt_d(k.value):Number(k.value).toLocaleString()) : (k.format==="money"?"\u20B1\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":"\u2022\u2022\u2022\u2022")}</div> : <div style={{fontSize:12,fontWeight:700,color:"#7A887B"}}>- Pending</div>}
+                  </div>
+                  <SparkBar values={values.slice(-7)} color="#3b791e" height={28}/>
                 </div>
-                {kpiLoading && k.value == null
-                  ? <div style={{ fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:9, background:"#f0fdf5", border:"1.5px dashed #a7f3d0", color:"#5a7a65", display:"inline-block", fontFamily:FONT }}>Loading…</div>
-                  : k.value != null
-                    ? <div style={{ fontSize:22, fontWeight:800, color:"#0d2b1e", letterSpacing:"-0.5px", fontFamily:FONT }}>{fmtAmt_d(k.value)}</div>
-                    : <div style={{ fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:9, background:"#f0fdf5", border:"1.5px dashed #a7f3d0", color:"#5a7a65", display:"inline-block", fontFamily:FONT }}>— Pending</div>
-                }
+                <div style={{fontSize:10.5,fontWeight:600,color:"#7A887B"}}>{k.note}</div>
+                <div style={{fontSize:9.5,fontWeight:600,color:"#A7B0A5",marginTop:3}}>{getRangeLabel()} - {filterLabel}</div>
               </div>
-              <SparkBar values={values.slice(-7)} color="#00c853" height={28}/>
-            </div>
-            <span style={{ fontSize:10.5, fontWeight:600, color:"#94a3b8", fontFamily:FONT }}>{getRangeLabel()} · {filterLabel}</span>
-          </div>
-        ))}
-      </div>
- 
-      {/* ── Filter + Date toolbar ── */}
-      <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.12)", borderRadius:14, padding:"12px 16px", marginBottom:14, boxShadow:"0 1px 8px rgba(0,140,60,0.05)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
- 
-        {/* Brand dropdown */}
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:14, padding:"12px 16px", marginBottom:14, boxShadow:"0 1px 8px rgba(50,109,32,.04)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
         <div ref={brandRef} style={{ position:"relative", minWidth:170 }}>
-          <div onClick={() => { setBrandDropOpen(v=>!v); setBrandQ(""); }}
-            style={{ ...filterInputSt, display:"flex", alignItems:"center", gap:7, cursor:"pointer", paddingRight:26, userSelect:"none", color:filterBrand?"#0d2b1e":"#5a7a65" }}>
-            <Globe size={12} color="#00897b"/>
-            <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
-            <ChevronDown size={10} style={{ position:"absolute", right:8, color:"#5a7a65" }}/>
+          <div onClick={()=>{setBrandDropOpen(v=>!v);setBrandQ("");}} style={{...filterInputSt,display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingRight:26,userSelect:"none",color:filterBrand?"#12241B":"#5C6B60"}}>
+            <Globe size={12} color="#3b791e"/><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{selectedBrand?selectedBrand.name:"All Brands"}</span><ChevronDown size={10} style={{position:"absolute",right:8,color:"#5C6B60"}}/>
           </div>
-          {brandDropOpen && (
-            <div style={dropSt}>
-              <div style={{ padding:"6px 8px", borderBottom:"1px solid #b2dfdb", position:"sticky", top:0, background:"#fff" }}>
-                <div style={{ position:"relative" }}>
-                  <Search size={10} style={{ position:"absolute", left:7, top:"50%", transform:"translateY(-50%)", color:"#5a7a65" }}/>
-                  <input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search…" onClick={e=>e.stopPropagation()} style={{ ...filterInputSt, height:28, fontSize:11, paddingLeft:24 }}/>
-                </div>
-              </div>
-              <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
-              {filteredBrands.map(b => (
-                <div key={b.id} style={optSt(filterBrand===b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
-                  <Store size={12} color="#00897b"/> {b.name}
-                  <span style={{ marginLeft:"auto", fontSize:10, color:"#5a7a65" }}>{(b.branches||[]).length} branches</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {brandDropOpen && <div style={dropSt}>
+            <div style={{padding:"6px 8px",borderBottom:"1px solid #E1E6D8",position:"sticky",top:0,background:"#fff"}}><div style={{position:"relative"}}><Search size={10} style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"#5C6B60"}}/><input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search..." onClick={e=>e.stopPropagation()} style={{...filterInputSt,height:28,fontSize:11,paddingLeft:24}}/></div></div>
+            <div style={optSt(!filterBrand)} onMouseDown={()=>{setFilterBrand(null);setFilterBranch(null);setBrandDropOpen(false);}}>All Brands</div>
+            {filteredBrands.map(b=><div key={b.id} style={optSt(filterBrand===b.id)} onMouseDown={()=>{setFilterBrand(b.id);setFilterBranch(null);setBrandDropOpen(false);setBrandQ("");}}><Store size={12} color="#3b791e"/>{b.name}<span style={{marginLeft:"auto",fontSize:10,color:"#5C6B60"}}>{(b.branches||[]).length} branches</span></div>)}
+          </div>}
         </div>
- 
-        {/* Branch dropdown */}
-        <div ref={branchRef} style={{ position:"relative", minWidth:180, opacity:filterBrand?1:0.45 }}>
-          <div onClick={() => { if(filterBrand){ setBranchDropOpen(v=>!v); setBranchQ(""); } }}
-            style={{ ...filterInputSt, display:"flex", alignItems:"center", gap:7, cursor:filterBrand?"pointer":"not-allowed", paddingRight:26, userSelect:"none", color:filterBranch?"#0d2b1e":"#5a7a65" }}>
-            <Store size={12} color={filterBrand?"#00897b":"#5a7a65"}/>
-            <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontSize:12 }}>{filterBranch||(filterBrand?"All Branches":"Select brand first")}</span>
-            {filterBrand && <ChevronDown size={10} style={{ position:"absolute", right:8, color:"#5a7a65" }}/>}
+
+        <div ref={branchRef} style={{position:"relative",minWidth:180,opacity:filterBrand?1:.45}}>
+          <div onClick={()=>{if(filterBrand){setBranchDropOpen(v=>!v);setBranchQ("");}}} style={{...filterInputSt,display:"flex",alignItems:"center",gap:7,cursor:filterBrand?"pointer":"not-allowed",paddingRight:26,userSelect:"none",color:filterBranch?"#12241B":"#5C6B60"}}>
+            <Store size={12} color={filterBrand?"#3b791e":"#5C6B60"}/><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{filterBranch||(filterBrand?"All Branches":"Select brand first")}</span>{filterBrand&&<ChevronDown size={10} style={{position:"absolute",right:8,color:"#5C6B60"}}/>}
           </div>
-          {branchDropOpen && filterBrand && (
-            <div style={dropSt}>
-              <div style={{ padding:"6px 8px", borderBottom:"1px solid #b2dfdb", position:"sticky", top:0, background:"#fff" }}>
-                <div style={{ position:"relative" }}>
-                  <Search size={10} style={{ position:"absolute", left:7, top:"50%", transform:"translateY(-50%)", color:"#5a7a65" }}/>
-                  <input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search…" onClick={e=>e.stopPropagation()} style={{ ...filterInputSt, height:28, fontSize:11, paddingLeft:24 }}/>
-                </div>
-              </div>
-              <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
-              {filteredBranches.map(br => (
-                <div key={br} style={optSt(filterBranch===br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
-                  <Store size={11} color="#00897b"/> {br}
-                </div>
-              ))}
-            </div>
-          )}
+          {branchDropOpen&&filterBrand&&<div style={dropSt}>
+            <div style={{padding:"6px 8px",borderBottom:"1px solid #E1E6D8",position:"sticky",top:0,background:"#fff"}}><div style={{position:"relative"}}><Search size={10} style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"#5C6B60"}}/><input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search..." onClick={e=>e.stopPropagation()} style={{...filterInputSt,height:28,fontSize:11,paddingLeft:24}}/></div></div>
+            <div style={optSt(!filterBranch)} onMouseDown={()=>{setFilterBranch(null);setBranchDropOpen(false);}}>All Branches</div>
+            {filteredBranches.map(br=><div key={br} style={optSt(filterBranch===br)} onMouseDown={()=>{setFilterBranch(br);setBranchDropOpen(false);setBranchQ("");}}><Store size={11} color="#3b791e"/>{br}</div>)}
+          </div>}
         </div>
- 
-        {/* Active filter chips */}
-        {(filterBrand || filterBranch) && (
-          <>
-            {filterBrand && !filterBranch && (
-              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c", border:"1px solid #b2dfdb", cursor:"pointer", fontFamily:FONT }}
-                onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
-                <Store size={10}/> {selectedBrand?.name} <X size={9}/>
-              </span>
-            )}
-            {filterBranch && (
-              <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, background:"#e0f2f1", color:"#00695c", border:"1px solid #b2dfdb", cursor:"pointer", fontFamily:FONT }}
-                onClick={() => setFilterBranch(null)}>
-                <Store size={10}/> {filterBranch} <X size={9}/>
-              </span>
-            )}
-            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding:"3px 9px", borderRadius:20, border:"1px solid #d1d5db", background:"#f9fafb", color:"#6b7280", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>Clear</button>
-          </>
-        )}
- 
-        <div style={{ width:1, height:24, background:"#e0ede2", margin:"0 4px" }}/>
- 
-        {/* Preset tabs */}
-        <div style={{ display:"flex", gap:3, background:"#f0faf4", borderRadius:10, padding:3 }}>
-          {["day","week","month","year"].map(p => (
-            <button key={p} style={tabSt(rangeMode==="preset" && preset===p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewingArchive(null); }}>
-              {p.charAt(0).toUpperCase()+p.slice(1)}
-            </button>
-          ))}
-        </div>
- 
-        {/* Custom date range */}
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <Calendar size={12} color="#5a7a65"/>
-          <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} max={customTo} style={{ padding:"6px 9px", borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontSize:11, fontFamily:FONT, color:"#0d2b1e", outline:"none" }}/>
-          <span style={{ color:"#5a7a65", fontSize:11, fontFamily:FONT }}>to</span>
-          <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding:"6px 9px", borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontSize:11, fontFamily:FONT, color:"#0d2b1e", outline:"none" }}/>
-          <button onClick={applyCustomRange} style={{ padding:"6px 13px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#00c853,#00897b)", color:"#fff", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>Apply</button>
-        </div>
- 
-        {/* Archives button */}
-        <button onClick={() => setShowArchivePanel(v=>!v)} style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:9, border:"1.5px solid #b2dfdb", background:showArchivePanel?"#e0f2f1":"#fff", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-          <Archive size={13}/> Archives
-          {archives.length > 0 && <span style={{ background:"#00897b", color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, fontWeight:800 }}>{archives.length}</span>}
-        </button>
+
+        {(filterBrand||filterBranch)&&<>
+          {filterBrand&&!filterBranch&&<span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:700,background:"#F0F5E8",color:"#2c5c16",border:"1px solid #D9E4CF",cursor:"pointer"}} onClick={()=>{setFilterBrand(null);setFilterBranch(null);}}><Store size={10}/>{selectedBrand?.name}<X size={9}/></span>}
+          {filterBranch&&<span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:700,background:"#F0F5E8",color:"#2c5c16",border:"1px solid #D9E4CF",cursor:"pointer"}} onClick={()=>setFilterBranch(null)}><Store size={10}/>{filterBranch}<X size={9}/></span>}
+          <button onClick={()=>{setFilterBrand(null);setFilterBranch(null);}} style={{padding:"3px 9px",borderRadius:20,border:"1px solid #E1E6D8",background:"#fff",color:"#6B7A65",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>Clear</button>
+        </>}
+
+        <div style={{width:1,height:24,background:"#E1E6D8",margin:"0 4px"}}/>
+        <div style={{display:"flex",gap:3,background:"#F6F7F1",borderRadius:10,padding:3}}>{["day","week","month","year"].map(p=><button key={p} style={tabSt(rangeMode==="preset"&&preset===p)} onClick={()=>{setRangeMode("preset");setPreset(p);setViewingArchive(null);}}>{p.charAt(0).toUpperCase()+p.slice(1)}</button>)}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><Calendar size={12} color="#5C6B60"/><input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} max={customTo} style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:11,fontFamily:FONT,color:"#12241B",outline:"none"}}/><span style={{color:"#5C6B60",fontSize:11}}>to</span><input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:11,fontFamily:FONT,color:"#12241B",outline:"none"}}/><button onClick={applyCustomRange} style={{padding:"6px 13px",borderRadius:999,border:"none",background:"#3b791e",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>Apply</button></div>
+        <button onClick={()=>setShowArchivePanel(v=>!v)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:999,border:"1px solid #E1E6D8",background:showArchivePanel?"#F0F5E8":"#fff",color:"#2c5c16",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}><Archive size={13}/> Archives{archives.length>0&&<span style={{background:"#3b791e",color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:800}}>{archives.length}</span>}</button>
       </div>
- 
-      {/* ── Archive panel ── */}
-      {showArchivePanel && (
-        <div style={{ background:"#fff", border:"1px solid rgba(0,168,76,0.15)", borderRadius:16, padding:"18px 20px", boxShadow:"0 2px 16px rgba(0,140,60,0.08)", marginBottom:16 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-            <div style={{ fontFamily:FONT, fontWeight:800, fontSize:14, color:"#0d2b1e", display:"flex", alignItems:"center", gap:7 }}>
-              <Archive size={15} color="#00897b"/> Yearly Archives
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {!archiveConfirm ? (
-                <>
-                  <input type="number" value={archiveYearInput} onChange={e=>setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding:"6px 9px", borderRadius:8, border:"1.5px solid #b2dfdb", background:"#f0fdf5", fontSize:12, fontFamily:FONT, color:"#0d2b1e", outline:"none", width:86 }}/>
-                  <button onClick={() => setArchiveConfirm(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#2E7D32,#00897b)", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-                    <Plus size={12}/> Archive Year
-                  </button>
-                </>
-              ) : (
-                <div style={{ display:"flex", alignItems:"center", gap:8, background:"#fef9c3", border:"1.5px solid #fde68a", borderRadius:9, padding:"6px 12px" }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:"#92400e", fontFamily:FONT }}>Archive {archiveYearInput}?</span>
-                  <button onClick={saveArchive} style={{ padding:"4px 11px", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT, border:"1px solid #00897b", background:"#e0f2f1", color:"#00695c" }}>Confirm</button>
-                  <button onClick={() => setArchiveConfirm(false)} style={{ padding:"4px 11px", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT, border:"1px solid #d1d5db", background:"#f9fafb", color:"#6b7280" }}>Cancel</button>
-                </div>
-              )}
-            </div>
-          </div>
-          {archives.length === 0
-            ? <div style={{ padding:"20px 0", textAlign:"center", color:"#94a3b8", fontSize:13, fontFamily:FONT }}>No archives yet.</div>
-            : archives.map(a => (
-              <div key={a.year} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 13px", borderRadius:9, border:"1px solid #e0f2f1", marginBottom:7, background:"#f8fffe" }}>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:13, color:"#0d2b1e", fontFamily:FONT }}>{a.label}</div>
-                  <div style={{ fontSize:10.5, color:"#5a7a65", marginTop:2, fontFamily:FONT }}>Saved: {a.savedAt} · Total: {fmtAmt_d(a.kpis.totalSales)}</div>
-                </div>
-                <div style={{ display:"flex", gap:7 }}>
-                  <button onClick={() => { setViewingArchive(viewingArchive?.year===a.year?null:a); setShowArchivePanel(false); }} style={{ padding:"4px 11px", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT, border:`1px solid ${viewingArchive?.year===a.year?"#00897b":"#b2dfdb"}`, background:viewingArchive?.year===a.year?"#e0f2f1":"#f8fffe", color:"#00695c" }}>
-                    {viewingArchive?.year===a.year?"Viewing":"View"}
-                  </button>
-                  <button onClick={() => deleteArchive(a.year)} style={{ padding:"4px 11px", borderRadius:7, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT, border:"1px solid #fecaca", background:"#fff", color:"#ef4444" }}>Delete</button>
-                </div>
-              </div>
-            ))
-          }
+
+      {showArchivePanel&&(
+        <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:16,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap"}}><div style={{fontWeight:800,fontSize:14,color:"#12241B",display:"flex",alignItems:"center",gap:7}}><Archive size={15} color="#3b791e"/> Yearly Archives</div><div style={{display:"flex",alignItems:"center",gap:8}}>{!archiveConfirm?<><input type="number" value={archiveYearInput} onChange={e=>setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:12,fontFamily:FONT,color:"#12241B",outline:"none",width:86}}/><button onClick={()=>setArchiveConfirm(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:999,border:"none",background:"#3b791e",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}><Plus size={12}/> Archive Year</button></>:<div style={{display:"flex",alignItems:"center",gap:8,background:"#fffaf0",border:"1px solid #fde68a",borderRadius:9,padding:"6px 12px"}}><span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>Archive {archiveYearInput}?</span><button onClick={saveArchive} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #3b791e",background:"#F0F5E8",color:"#2c5c16"}}>Confirm</button><button onClick={()=>setArchiveConfirm(false)} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #E1E6D8",background:"#fff",color:"#6B7A65"}}>Cancel</button></div>}</div></div>
+          {archives.length===0?<div style={{padding:"20px 0",textAlign:"center",color:"#7A887B",fontSize:13}}>No archives yet.</div>:archives.map(a=><div key={a.year} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 13px",borderRadius:9,border:"1px solid #E7EEE4",marginBottom:7,background:"#FBFDF9"}}><div><div style={{fontWeight:800,fontSize:13,color:"#12241B"}}>{a.label}</div><div style={{fontSize:10.5,color:"#5C6B60",marginTop:2}}>Saved: {a.savedAt} - Total: {fmtAmt_d(a.kpis.totalSales)}</div></div><div style={{display:"flex",gap:7}}><button onClick={()=>{setViewingArchive(viewingArchive?.year===a.year?null:a);setShowArchivePanel(false);}} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #D4DBC8",background:viewingArchive?.year===a.year?"#F0F5E8":"#fff",color:"#2c5c16"}}>{viewingArchive?.year===a.year?"Viewing":"View"}</button><button onClick={()=>deleteArchive(a.year)} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #f2c9c4",background:"#fff",color:"#c0392b"}}>Delete</button></div></div>)}
         </div>
       )}
- 
-      {/* ── SECTION 1: SALES TREND (rich admin UI) ── */}
-      <SalesTrendSection
-        values={values} labels={chartData.labels} kpiData={kpiData}
-        total={total} avg={avg} peak={peak} low={low}
-        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
-        getRangeLabel={getRangeLabel} filterLabel={filterLabel}
-      />
- 
-      {/* ── SECTION 2: AI PRESCRIPTIVE (rich admin UI) ── */}
-      <PrescriptiveSection
-        transactions={transactions} filterLabel={filterLabel}
-        preset={preset} total={total} values={values} kpiData={kpiData}
-      />
- 
-      {/* ── SECTION 3: SALES VS STOCK (rich admin UI) ── */}
-      <SalesVsStockSection
-        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
-        filterBranch={filterBranch} filterBrand={filterBrand}
-        selectedBrand={selectedBrand} total={total}
-      />
+
+      <div style={{background:"#fff",border:"1px solid #DCE9DB",borderRadius:"14px 14px 0 0",marginTop:16,marginBottom:18,padding:"0 20px",display:"flex",alignItems:"stretch",gap:8,overflowX:"auto"}}>
+        {[
+          {id:"sales",label:"Sales Trend",icon:TrendingUp},
+          {id:"prescriptive",label:"Prescriptive Analysis",icon:Brain},
+          {id:"stock",label:"Sales vs Stock",icon:Package},
+        ].map(t=><button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{position:"relative",minWidth:170,padding:"17px 16px 15px",border:"none",background:"transparent",color:analysisTab===t.id?"#3b791e":"#94a3b8",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:FONT,display:"flex",alignItems:"center",justifyContent:"center",gap:7,whiteSpace:"nowrap"}}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#bdd43c"}}/>}</button>)}
+      </div>
+
+      {analysisTab==="sales"&&<>
+        <div className="fa-dashboard-main-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)",gap:16,marginBottom:16}}>
+          <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Revenue Trend</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3}}>Actual revenue movement - {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt_d(viewingArchive?(viewingArchive?.kpis?.totalSales??total):actualRevenue)}</div></div></div><FADashboardLineGraph labels={chartData.labels} values={values}/></div>
+          <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><FADashboardRankBars data={branchPerformance}/></div>
+        </div>
+
+        <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",marginBottom:18,boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16,flexWrap:"wrap"}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Profitability</div><div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>Revenue, gross profit, margin and transaction efficiency by branch</div></div>{!viewingArchive&&<div style={{textAlign:"right"}}><div style={{fontSize:9.5,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Branches analyzed</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{branchProfitability.length.toLocaleString()}</div></div>}</div>
+          {branchProfitability.length>0?<div style={{overflowX:"auto",border:"1px solid #E7EEE4",borderRadius:13}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:820,fontFamily:FONT}}><thead><tr style={{background:"#F6FAF3"}}>{[{label:"Branch",align:"left"},{label:"Revenue",align:"right"},{label:"Gross Profit",align:"right"},{label:"Margin",align:"center"},{label:"Transactions",align:"center"},{label:"Avg. Order",align:"right"}].map(h=><th key={h.label} style={{padding:"11px 13px",textAlign:h.align,fontSize:9.5,color:"#71806F",fontWeight:800,textTransform:"uppercase",letterSpacing:".065em",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"}}>{h.label}</th>)}</tr></thead><tbody>{branchProfitability.map((row,index)=>{const has=row.hasCogs;const mc=!has?"#94a3b8":row.margin>=40?"#15803d":row.margin>=25?"#3b791e":row.margin>=15?"#d97706":"#dc2626";const mb=!has?"#f8fafc":row.margin>=40?"#ecfdf5":row.margin>=25?"#f0f5e8":row.margin>=15?"#fffbeb":"#fef2f2";const bd=index===branchProfitability.length-1?"none":"1px solid #EEF3EC";return <tr key={row.branch} style={{background:index%2===0?"#fff":"#FBFDF9"}}><td style={{padding:"12px 13px",borderBottom:bd}}><div style={{display:"flex",alignItems:"center",gap:9}}><span style={{width:24,height:24,borderRadius:8,background:"#F0F5E8",color:"#3b791e",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{index+1}</span><span style={{fontSize:11.5,fontWeight:800,color:"#12241B",whiteSpace:"nowrap"}}>{row.branch}</span></div></td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:"#183126",whiteSpace:"nowrap",borderBottom:bd}}>{fmtAmt_d(row.revenue)}</td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:has?"#1d4ed8":"#94a3b8",whiteSpace:"nowrap",borderBottom:bd}}>{has?fmtAmt_d(row.grossProfit):"-"}</td><td style={{padding:"12px 13px",textAlign:"center",borderBottom:bd}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:60,padding:"4px 8px",borderRadius:20,background:mb,color:mc,fontSize:10.5,fontWeight:800,whiteSpace:"nowrap"}}>{has?`${row.margin.toFixed(1)}%`:"No COGS"}</span></td><td style={{padding:"12px 13px",textAlign:"center",fontSize:11.5,fontWeight:700,color:"#334155",borderBottom:bd}}>{row.transactions.toLocaleString()}</td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:"#3b791e",whiteSpace:"nowrap",borderBottom:bd}}>{fmtAmt_d(row.avgOrder)}</td></tr>})}</tbody></table></div>:<FADashboardEmptyState message={viewingArchive?"Branch profitability is not stored in this archived snapshot.":"No branch transaction data is available for the selected filter."}/>} 
+        </div>
+
+        <SalesTrendSection values={values} labels={chartData.labels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel}/>
+      </>}
+
+      {analysisTab==="prescriptive"&&<PrescriptiveSection transactions={transactions} filterLabel={filterLabel} preset={preset} total={total} values={values} kpiData={kpiData}/>} 
+      {analysisTab==="stock"&&<SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total}/>} 
     </div>
   );
 }
@@ -1844,7 +1896,7 @@ function Pagination({ page, setPage, total, pageSize }) {
 function DeleteHistoryPanel({ history, onRestore, onClose }) {
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Montserrat,sans-serif" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:C.white, borderRadius:20, padding:"28px 32px", width:"100%", maxWidth:780, maxHeight:"82vh", display:"flex", flexDirection:"column", boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:"1px solid rgba(0,168,76,0.15)", fontFamily:"Plus Jakarta Sans,sans-serif" }}>
 
         {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
@@ -2040,31 +2092,37 @@ function InventoryTable({ items, onEdit, onDelete, confirmDeleteId, setConfirmDe
   );
 }
 
-///MENU INVENTORY
+///MENU INVENTORY — FRANCHISE ADMIN VIEW-ONLY
 function FAMenuInventoryContent({ user, brands: propBrands = [] }) {
-  const userBranch = user?.branch || "";
+  const brandList = propBrands.length > 0 ? propBrands : [];
 
-  const brandList   = propBrands.length > 0 ? propBrands : [];
   const allBranches = useMemo(() => {
     const out = [];
     brandList.forEach(b => (b.branches || []).forEach(br => {
       const name = typeof br === "string" ? br : br.name;
-      if (!out.find(x => x.branch === name)) out.push({ brand: b.name, branch: name });
+      if (name && !out.find(x => x.branch === name)) out.push({ brand: b.name, branch: name });
     }));
     return out;
   }, [brandList]);
 
+  const branchToBrand = useMemo(() => {
+    const map = {};
+    allBranches.forEach(x => { map[x.branch] = x.brand; });
+    return map;
+  }, [allBranches]);
+
   const [inventory,      setInventory]      = useState([]);
   const [loading,        setLoading]        = useState(false);
   const [filterBrand,    setFilterBrand]    = useState(null);
-  const [filterBranch,   setFilterBranch]   = useState(null);
+  const [filterBranch,   setFilterBranch]   = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus,   setFilterStatus]   = useState("");
   const [searchQuery,    setSearchQuery]    = useState("");
-  const [page,           setPage]           = useState(0);
-  const [expandedRows,   setExpanded]       = useState({});
-  const [sort,           setSort]           = useState({ col: "name", asc: true });
+  const [activeScreen,   setActiveScreen]   = useState("brands");
+  const [selectedItemId, setSelectedItemId] = useState(null);
 
+  // IMPORTANT: Franchise Admin keeps the same data source / GET call.
+  // This module is UI-only + view-only. No POST, PUT, PATCH, DELETE, restore, or import actions.
   const fetchInventory = useCallback(async (branch) => {
     setLoading(true);
     try {
@@ -2072,242 +2130,481 @@ function FAMenuInventoryContent({ user, brands: propBrands = [] }) {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory${q}`);
       const d   = await res.json();
       setInventory(Array.isArray(d) ? d : []);
-    } catch { setInventory([]); }
-    finally { setLoading(false); }
+    } catch {
+      setInventory([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     fetchInventory(filterBranch || undefined);
   }, [filterBranch, fetchInventory]);
 
-  useEffect(() => { setPage(0); }, [searchQuery, filterBrand, filterBranch, filterCategory, filterStatus]);
+  useEffect(() => {
+    setSelectedItemId(null);
+  }, [filterBrand, filterBranch, filterCategory, filterStatus, searchQuery]);
 
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter(i => {
-      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-      if (filterBranch) { if (i.branch !== filterBranch) return false; }
-      else if (filterBrand) {
-        const b = brandList.find(x => x.id === filterBrand);
-        if (b) { const names = (b.branches || []).map(br => typeof br === "string" ? br : br.name); if (!names.includes(i.branch)) return false; }
-      }
-      if (filterCategory && i.category !== filterCategory) return false;
-      if (filterStatus === "low" && Number(i.stock) >  Number(i.min_stock)) return false;
-      if (filterStatus === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
-      return true;
-    });
-  }, [inventory, searchQuery, filterBrand, filterBranch, filterCategory, filterStatus, brandList]);
+  const selectedBrandObj = useMemo(
+    () => brandList.find(b => b.id === filterBrand) || null,
+    [brandList, filterBrand]
+  );
+
+  const selectedBrandBranchNames = useMemo(() => {
+    if (!selectedBrandObj) return [];
+    return (selectedBrandObj.branches || [])
+      .map(br => typeof br === "string" ? br : br.name)
+      .filter(Boolean);
+  }, [selectedBrandObj]);
 
   const filteredCategories = useMemo(() => {
-    if (filterBrand) {
-      const brand = brandList.find(b => b.id === filterBrand);
-      return brand?.categories || [];
-    }
+    if (selectedBrandObj?.categories?.length) return selectedBrandObj.categories;
     if (filterBranch) {
-      const brand = brandList.find(b =>
+      const ownerBrand = brandList.find(b =>
         (b.branches || []).some(br => (typeof br === "string" ? br : br.name) === filterBranch)
       );
-      return brand?.categories || [];
+      return ownerBrand?.categories || [];
     }
     return [...new Set(brandList.flatMap(b => b.categories || []).filter(Boolean))].sort();
-  }, [filterBrand, filterBranch, brandList]);
+  }, [selectedBrandObj, filterBranch, brandList]);
 
-  const lowCount   = filteredItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length;
-  const totalValue = filteredItems.reduce((s, i) => s + (i.price || 0) * (i.stock || 0), 0);
+  const normalizedItems = useMemo(() => inventory.map(item => ({
+    ...item,
+    is_low: Number(item.stock || 0) <= Number(item.min_stock || 0),
+  })), [inventory]);
 
-  const sorted = useMemo(() => {
-    return [...filteredItems].sort((a, b) => {
-      let va = a[sort.col] ?? "", vb = b[sort.col] ?? "";
-      if (typeof va === "string") va = va.toLowerCase();
-      if (typeof vb === "string") vb = vb.toLowerCase();
-      return sort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
-    });
-  }, [filteredItems, sort]);
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
 
-  const pageItems = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    return normalizedItems
+      .filter(item => {
+        if (filterBrand) {
+          if (!selectedBrandBranchNames.includes(item.branch)) return false;
+        }
+        if (filterBranch && item.branch !== filterBranch) return false;
+        if (filterCategory && item.category !== filterCategory) return false;
+        if (filterStatus === "low" && !item.is_low) return false;
+        if (filterStatus === "ok" && item.is_low) return false;
 
-  const anyFilter = filterBrand || filterBranch || filterCategory || filterStatus || searchQuery;
-  const clearAll  = () => { setFilterBrand(null); setFilterBranch(null); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
+        if (q) {
+          const haystack = [item.name, item.category, item.branch, branchToBrand[item.branch]]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
 
-  const Th = ({ col, label, style: s }) => {
-    const active = sort.col === col;
+        return true;
+      })
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [
+    normalizedItems,
+    filterBrand,
+    selectedBrandBranchNames,
+    filterBranch,
+    filterCategory,
+    filterStatus,
+    searchQuery,
+    branchToBrand,
+  ]);
+
+  const selectedItem = useMemo(
+    () => filteredItems.find(item => item.id === selectedItemId) || null,
+    [filteredItems, selectedItemId]
+  );
+
+  const openBrand = (brandId) => {
+    setFilterBrand(brandId);
+    setFilterBranch("");
+    setFilterCategory("");
+    setFilterStatus("");
+    setSearchQuery("");
+    setSelectedItemId(null);
+    setActiveScreen("inventory");
+  };
+
+  const goBackToBrands = () => {
+    setActiveScreen("brands");
+    setFilterBrand(null);
+    setFilterBranch("");
+    setFilterCategory("");
+    setFilterStatus("");
+    setSearchQuery("");
+    setSelectedItemId(null);
+  };
+
+  const clearFilters = () => {
+    setFilterBranch("");
+    setFilterCategory("");
+    setFilterStatus("");
+    setSearchQuery("");
+  };
+
+  const menuInputSt = {
+    height: 30,
+    padding: "0 10px",
+    borderRadius: 9,
+    border: `1px solid ${C.border}`,
+    background: C.white,
+    fontSize: 11,
+    color: C.ink,
+    outline: "none",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+  };
+
+  const fontImport = (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+      .fa-menu-card-button { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+      .fa-menu-card-button:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(50,109,32,.12) !important; border-color: ${C.greenMid} !important; }
+      .fa-menu-item-row { transition: background .15s ease, border-color .15s ease; }
+      .fa-menu-item-row:hover { background: ${C.bg} !important; }
+      .fa-menu-input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(59,121,30,0.10); }
+    `}</style>
+  );
+
+  const ViewOnlyNotice = () => (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 9,
+      background: "#fbfcf8", border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: "10px 13px", marginBottom: 16,
+      color: C.muted,
+    }}>
+      <Info size={15} color={C.green} />
+      <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+        <strong style={{ color: C.ink }}>View-only access.</strong> Franchise Admin can browse, search, filter, and inspect menu inventory data, but cannot add, edit, delete, restore, or import items.
+      </div>
+    </div>
+  );
+
+  const ItemDetailPanel = ({ item }) => {
+    if (!item) return null;
+
+    const ingredients = Array.isArray(item.ingredients) ? item.ingredients : [];
+    const low = item.is_low;
+    const canMake = item.available_stock ?? item.stock ?? "—";
+
     return (
-      <th onClick={() => { setSort(st => ({ col, asc: st.col === col ? !st.asc : true })); setPage(0); }}
-        style={{ padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 11, color: active ? C.green : C.muted, letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", background: "#f0fdf5", ...s }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          {label} {active ? (sort.asc ? <SortAscIcon /> : <SortDescIcon />) : <span style={{ opacity: 0.25 }}><SortDescIcon /></span>}
-        </span>
-      </th>
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {item.name}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+              <StoreIcon size={11} color={C.green} /> {item.branch || "No branch"}
+            </div>
+          </div>
+          <span style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 800,
+            padding: "4px 9px", borderRadius: 20,
+            background: low ? C.warnBg : C.okBg,
+            color: low ? C.warn : C.ok,
+            border: `1px solid ${low ? "#fed7aa" : C.greenMid}`,
+          }}>
+            {low ? "LOW STOCK" : "IN STOCK"}
+          </span>
+        </div>
+
+        {item.image_url && (
+          <img
+            src={item.image_url}
+            alt={item.name}
+            style={{ width: "100%", maxWidth: 300, height: 170, objectFit: "cover", borderRadius: 12, border: `1px solid ${C.border}`, marginBottom: 14 }}
+            onError={e => { e.currentTarget.style.display = "none"; }}
+          />
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10, marginBottom: 16 }}>
+          <div style={{ background: low ? C.warnBg : C.okBg, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Can Make / Stock</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: low ? C.warn : C.ink }}>{canMake}</div>
+          </div>
+          <div style={{ background: C.greenLt, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Price</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.greenDk }}>{fmtPeso(item.price || 0)}</div>
+          </div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Category</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category || "—"}</div>
+          </div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 9.5, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Minimum Stock</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>{item.min_stock ?? "—"}</div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>
+          Ingredients
+        </div>
+        {ingredients.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", padding: "12px 0" }}>No ingredients linked.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ingredients.map((ing, idx) => (
+              <span key={`${ing.id || ing.name || "ingredient"}-${idx}`} style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "5px 11px", borderRadius: 20,
+                fontSize: 12, fontWeight: 600,
+                background: C.white, color: C.ink,
+                border: `1px solid ${C.border}`,
+              }}>
+                <span style={{ color: C.green, fontWeight: 700 }}>{ing.name || ing.ingredient_name || "Ingredient"}</span>
+                <span style={{ color: C.muted }}>×</span>
+                <span style={{ fontWeight: 800, color: C.greenDk }}>{ing.qty_required ?? ing.quantity ?? "—"}</span>
+                {(ing.unit || ing.measurement_unit) && (
+                  <span style={{ fontSize: 11, color: C.muted, background: C.bg, padding: "1px 6px", borderRadius: 20 }}>
+                    {ing.unit || ing.measurement_unit}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     );
   };
 
-  const ThStatic = ({ label, style: s }) => (
-    <th style={{ padding: "9px 12px", textAlign: "left", fontWeight: 800, fontSize: 11, color: C.muted, letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f0fdf5", ...s }}>{label}</th>
-  );
+  // Admin-style first screen: brand overview cards, matching the provided Menu Inventory UX.
+  if (activeScreen === "brands" && brandList.length > 0) {
+    return (
+      <div style={{ fontFamily: FONT, color: C.ink }}>
+        {fontImport}
+        <ViewOnlyNotice />
+
+        {loading && inventory.length === 0 ? (
+          <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 14, fontWeight: 700 }}>Loading menu inventory…</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+            {brandList.map(brand => {
+              const branchNames = (brand.branches || []).map(br => typeof br === "string" ? br : br.name).filter(Boolean);
+              const brandItems = normalizedItems.filter(item => branchNames.includes(item.branch));
+              const lowCount = brandItems.filter(item => item.is_low).length;
+
+              return (
+                <button
+                  key={brand.id}
+                  type="button"
+                  className="fa-menu-card-button"
+                  onClick={() => openBrand(brand.id)}
+                  style={{
+                    textAlign: "left", width: "100%", padding: 0, appearance: "none",
+                    background: C.white, border: `1px solid ${C.border}`, borderRadius: 18,
+                    overflow: "hidden", boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  <div style={{ padding: "18px 18px 15px", borderBottom: `1px solid ${C.border}`, background: "#fbfcf8", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 12, background: C.ink, color: "#bdd43c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <StoreIcon size={19} color="#bdd43c" />
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{brand.name}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{branchNames.length} branch{branchNames.length === 1 ? "" : "es"}</div>
+                    </div>
+                    <div style={{ width: 30, height: 30, borderRadius: 9, background: C.bg, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.greenDk }}>
+                      <ChevronRight size={13} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", padding: "16px 18px" }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Items</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: C.ink, marginTop: 3 }}>{brandItems.length}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>Low</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: lowCount ? "#c0392b" : C.green, marginTop: 3 }}>{lowCount}</div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const currentBrandName = selectedBrandObj?.name || "All Menu Items";
+  const branchOptions = selectedBrandObj
+    ? selectedBrandBranchNames
+    : allBranches.map(x => x.branch);
+  const lowCount = filteredItems.filter(item => item.is_low).length;
+  const hasActiveFilters = Boolean(searchQuery || filterBranch || filterCategory || filterStatus);
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: FONT, color: C.ink }}>
+      {fontImport}
+      <ViewOnlyNotice />
 
-      {/* View-only notice */}
-      <div style={{ background: "linear-gradient(135deg,rgba(233,205,48,0.12),rgba(255,168,117,0.08))", border: "1.5px solid rgba(233,205,48,0.3)", borderRadius: 12, padding: "10px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10 }}>
-        <Info size={16} color="#8a6a00" />
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#5d4400" }}>
-          View-only access — You can browse and filter inventory but cannot add, edit, or delete items.
-        </span>
-      </div>
-
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 18 }}>
-        {[
-          { label: "Showing",    value: filteredItems.length.toLocaleString(), sub: `of ${inventory.length.toLocaleString()} total`, accent: C.green },
-          { label: "Low Stock",  value: lowCount,                              sub: "Needs reorder",      accent: C.warn },
-          { label: "Est. Value", value: fmtPeso(totalValue),                  sub: "Filtered selection", accent: C.green },
-          { label: "Categories", value: filteredCategories.length,            sub: "Product types",      accent: "#1565c0" },
-        ].map((s, i) => (
-          <div key={i} style={{ background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 6px rgba(0,140,60,0.05)" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: s.accent, marginBottom: 5 }}>{s.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{s.sub}</div>
+      <div style={{
+        background: C.white, border: `1px solid ${C.border}`,
+        borderRadius: 18, overflow: "hidden",
+        boxShadow: "0 2px 10px rgba(50,109,32,.05)",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Flat header, same Menu/Stock Inventory visual language */}
+        <div style={{
+          padding: "16px 22px", background: "#fbfcf8",
+          borderBottom: `1px solid ${C.border}`,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          color: C.ink, flexWrap: "wrap", gap: 10,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {brandList.length > 0 && (
+              <button
+                type="button"
+                onClick={goBackToBrands}
+                title="Back to all brands"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 34, height: 34, borderRadius: 9,
+                  border: `1px solid ${C.border}`, background: C.white,
+                  color: C.greenDk, cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 18, lineHeight: 1 }}>←</span>
+              </button>
+            )}
+            {!brandList.length && <StoreIcon size={17} color={C.green} />}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentBrandName}</div>
+              <div style={{ fontSize: 10.5, color: C.muted, marginTop: 2 }}>Menu Inventory</div>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* Filter bar */}
-      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.13)`, borderRadius: 16, padding: "14px 18px", marginBottom: 18, boxShadow: "0 1px 8px rgba(0,140,60,0.05)" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
-            <div style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: C.muted }}><SearchIcon size={13} /></div>
-            <input type="text" placeholder="Search name, category, branch…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ ...invInputSt, paddingLeft: 30 }} />
-            {searchQuery && <div onClick={() => setSearchQuery("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: C.muted }}><XIcon size={12} /></div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: C.muted }}>{filteredItems.length} item{filteredItems.length === 1 ? "" : "s"}{lowCount > 0 ? ` · ${lowCount} low` : ""}</span>
+            <span style={{
+              fontSize: 10, fontWeight: 800, color: C.greenDk,
+              background: C.greenLt, border: `1px solid ${C.greenMid}`,
+              padding: "4px 9px", borderRadius: 20,
+            }}>VIEW ONLY</span>
+          </div>
+        </div>
+
+        {/* Filters only — no Add/Edit/Delete/Import/Delete History */}
+        <div style={{
+          padding: "12px 18px", borderBottom: `1px solid ${C.border}`,
+          display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center",
+          background: "#fbfcf8",
+        }}>
+          <div style={{ position: "relative", flex: "1 1 180px", minWidth: 145 }}>
+            <div style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: C.muted }}><SearchIcon size={11} /></div>
+            <input
+              className="fa-menu-input"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search item…"
+              style={{ ...menuInputSt, width: "100%", paddingLeft: 25 }}
+            />
           </div>
 
-          <BrandBranchFilter
-            brands={brandList}
-            activeBrand={filterBrand}
-            activeBranch={filterBranch}
-            onChangeBrand={id => { setFilterBrand(id); setFilterBranch(null); setFilterCategory(""); }}
-            onChangeBranch={val => { setFilterBranch(val); setFilterCategory(""); }}
-          />
-
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ ...invInputSt, width: 150 }}>
-            <option value="">All Categories</option>
-            {filteredCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          <select
+            className="fa-menu-input"
+            value={filterBranch}
+            onChange={e => setFilterBranch(e.target.value)}
+            style={{ ...menuInputSt, width: 155 }}
+          >
+            <option value="">All Branches</option>
+            {branchOptions.map(branch => <option key={branch} value={branch}>{branch}</option>)}
           </select>
 
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...invInputSt, width: 130 }}>
+          <select
+            className="fa-menu-input"
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+            style={{ ...menuInputSt, width: 145 }}
+          >
+            <option value="">All Categories</option>
+            {filteredCategories.map(category => <option key={category} value={category}>{category}</option>)}
+          </select>
+
+          <select
+            className="fa-menu-input"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            style={{ ...menuInputSt, width: 112 }}
+          >
             <option value="">All Status</option>
             <option value="low">Low Stock</option>
             <option value="ok">In Stock</option>
           </select>
-        </div>
 
-        {/* Active filter chips */}
-        {anyFilter && (
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}`, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Active:</span>
-            {searchQuery     && <Chip label={`"${searchQuery}"`}                                           color="#3949ab" bg="#e8eaf6" onRemove={() => setSearchQuery("")} />}
-            {filterBrand && !filterBranch && <Chip label={brandList.find(b => b.id === filterBrand)?.name} color={C.greenDk} bg={C.greenLt} onRemove={() => { setFilterBrand(null); setFilterBranch(null); }} />}
-            {filterBranch    && <Chip label={filterBranch}                                                  color="#00695c" bg="#e0f7fa" onRemove={() => setFilterBranch(null)} />}
-            {filterCategory  && <Chip label={filterCategory}                                               color="#00695c" bg="#e0f2f1" onRemove={() => setFilterCategory("")} />}
-            {filterStatus    && <Chip label={filterStatus === "low" ? "Low Stock" : "In Stock"} color={filterStatus === "low" ? C.warn : C.ok} bg={filterStatus === "low" ? C.warnBg : C.okBg} onRemove={() => setFilterStatus("")} />}
-            <button onClick={clearAll} style={{ ...smallBtnSt, height: 24, border: `1px solid ${C.border}`, fontSize: 11, color: C.muted, marginLeft: "auto" }}>Clear all</button>
-          </div>
-        )}
-      </div>
-
-      {/* Table card */}
-      <div style={{ background: C.white, border: `1px solid rgba(0,168,76,0.12)`, borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 18px rgba(0,140,60,0.07)" }}>
-        <div style={{ padding: "11px 18px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", justifyContent: "space-between", alignItems: "center", color: C.white }}>
-          <span style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 7 }}>
-            <StoreIcon size={14} color="#fff" /> Menu Inventory
-          </span>
-          <span style={{ fontSize: 12, opacity: 0.9 }}>{filteredItems.length.toLocaleString()} items · {lowCount} low stock · View-only</span>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              style={{
+                height: 30, padding: "0 11px", borderRadius: 999,
+                border: `1px solid ${C.border}`, background: C.white,
+                color: C.muted, fontSize: 11, fontWeight: 700,
+                fontFamily: "inherit", cursor: "pointer",
+              }}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
         {loading ? (
-          <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 14, fontWeight: 700 }}>Loading inventory…</div>
-        ) : filteredItems.length === 0 ? (
-          <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 13, fontStyle: "italic" }}>No items match your filters.</div>
+          <div style={{ padding: "52px 0", textAlign: "center", color: C.muted, fontSize: 14, fontWeight: 700 }}>Loading menu inventory…</div>
         ) : (
-          <div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr>
-                    <Th col="name"      label="Item Name"  style={{ minWidth: 160 }} />
-                    <Th col="category"  label="Category"   style={{ minWidth: 110 }} />
-                    <Th col="branch"    label="Branch"     style={{ minWidth: 130 }} />
-                    <Th col="stock"     label="Stock"      style={{ minWidth: 80 }} />
-                    <Th col="min_stock" label="Min Stock"  style={{ minWidth: 80 }} />
-                    <Th col="cost"      label="Cost"       style={{ minWidth: 90 }} />
-                    <Th col="price"     label="Price"      style={{ minWidth: 90 }} />
-                    <ThStatic           label="Ingredients" style={{ minWidth: 140 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map(item => {
-                    const low        = Number(item.stock) <= Number(item.min_stock);
-                    const ingredients = item.ingredients || [];
-                    const isExpanded  = expandedRows[item.id];
-                    return (
-                      <React.Fragment key={item.id}>
-                        <tr style={{ borderBottom: isExpanded ? "none" : `1px solid #f2faf5` }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#fafffe"}
-                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                          <td style={{ padding: "10px 12px", fontWeight: 700, color: C.ink }}>{item.name}</td>
-                          <td style={{ padding: "10px 12px" }}>
-                            <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: "#e0f2f1", color: "#00695c" }}>{item.category}</span>
-                          </td>
-                          <td style={{ padding: "10px 12px", color: C.muted, fontSize: 12 }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><StoreIcon size={11} color={C.green} /> {item.branch}</span>
-                          </td>
-                          <td style={{ padding: "10px 12px" }}>
-                            <span style={{ color: low ? C.warn : C.ink, fontWeight: low ? 700 : 500, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                              {item.stock}
-                              {low && <span style={{ background: "#fff3e0", color: C.warn, fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 20 }}>⚠️ LOW</span>}
-                            </span>
-                          </td>
-                          <td style={{ padding: "10px 12px", color: C.muted }}>{item.min_stock}</td>
-                          <td style={{ padding: "10px 12px", color: C.muted }}>{fmtPeso(item.cost || 0)}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700, color: C.green }}>{fmtPeso(item.price)}</td>
-                          <td style={{ padding: "10px 12px" }}>
-                            {ingredients.length === 0 ? (
-                              <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>—</span>
-                            ) : (
-                              <button onClick={() => setExpanded(p => ({ ...p, [item.id]: !p[item.id] }))}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: isExpanded ? C.greenMid : C.greenLt, color: C.greenDk, border: `1px solid ${C.greenMid}`, cursor: "pointer" }}>
-                                {ingredients.length} ingredient{ingredients.length !== 1 ? "s" : ""}
-                                <ChevronIcon size={10} dir={isExpanded ? "up" : "down"} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                        {isExpanded && ingredients.length > 0 && (
-                          <tr style={{ borderBottom: `1px solid #f2faf5` }}>
-                            <td colSpan={8} style={{ padding: "0 12px 12px 12px", background: "#f9fefb" }}>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "10px 14px", background: C.greenLt, borderRadius: 10, border: `1px solid ${C.greenMid}` }}>
-                                <span style={{ fontSize: 11, fontWeight: 800, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em", width: "100%", marginBottom: 4 }}>
-                                  Ingredients required per unit:
-                                </span>
-                                {ingredients.map((ing, idx) => (
-                                  <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: C.white, color: C.ink, border: `1px solid ${C.border}` }}>
-                                    <span style={{ color: C.green, fontWeight: 700 }}>{ing.name}</span>
-                                    <span style={{ color: C.muted }}>×</span>
-                                    <span style={{ fontWeight: 800, color: C.greenDk }}>{ing.qty_required}</span>
-                                    {ing.unit && <span style={{ fontSize: 11, color: C.muted, background: C.bg, padding: "1px 6px", borderRadius: 20 }}>{ing.unit}</span>}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(300px,420px) minmax(0,1fr)", minHeight: 540, maxHeight: 700 }}>
+            {/* Left: menu item list */}
+            <div style={{ borderRight: `1px solid ${C.border}`, overflowY: "auto", maxHeight: 700, minHeight: 0 }}>
+              {filteredItems.length === 0 ? (
+                <div style={{ padding: "32px 14px", textAlign: "center", color: C.muted, fontSize: 12 }}>No menu items found.</div>
+              ) : filteredItems.map(item => {
+                const active = item.id === selectedItemId;
+                const low = item.is_low;
+                const currentStock = Number(item.stock || 0);
+                const minStock = Number(item.min_stock || 0);
+                const stockPct = minStock > 0 ? Math.min(100, Math.round((currentStock / (minStock * 2)) * 100)) : (currentStock > 0 ? 100 : 0);
+
+                return (
+                  <div
+                    key={item.id}
+                    className="fa-menu-item-row"
+                    onClick={() => setSelectedItemId(item.id)}
+                    style={{
+                      padding: "11px 14px", cursor: "pointer",
+                      borderLeft: `3px solid ${active ? "#bdd43c" : "transparent"}`,
+                      background: active ? "#f6f8ef" : C.white,
+                      borderBottom: `1px solid ${C.bg}`,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: active ? 800 : 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                      {low && <span style={{ fontSize: 9, fontWeight: 800, color: C.warn, background: C.warnBg, padding: "1px 6px", borderRadius: 4, flexShrink: 0 }}>LOW</span>}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.branch || "No branch"}</span>
+                      <span style={{ color: C.greenDk, fontWeight: 700, flexShrink: 0 }}>{fmtPeso(item.price || 0)}</span>
+                    </div>
+                    <div style={{ marginTop: 6, height: 4, borderRadius: 20, background: "#eef6f1", overflow: "hidden" }}>
+                      <div style={{ width: `${stockPct}%`, height: "100%", borderRadius: 20, background: low ? C.warn : C.green }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE} />
+
+            {/* Right: details only */}
+            <div style={{ padding: 20, overflowY: "auto", maxHeight: 700, minHeight: 0 }}>
+              {selectedItem ? (
+                <ItemDetailPanel item={selectedItem} />
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, color: C.muted, fontSize: 12.5, textAlign: "center", padding: 20 }}>
+                  <div>
+                    <Eye size={20} color={C.green} style={{ marginBottom: 8 }} />
+                    <br />Select an item on the left<br />to view its details and ingredients.
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -2315,11 +2612,12 @@ function FAMenuInventoryContent({ user, brands: propBrands = [] }) {
   );
 }
 
+
 function DeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
   const isBrand = target.type === "brand";
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
         <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <Trash2 size={22} color="#dc2626" />
         </div>
@@ -2448,7 +2746,7 @@ function FAStockInventoryContent({ user, brands: propBrands = [] }) {
 
   /* ── render ── */
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
       {/* View-only notice */}
       <div style={{
@@ -2467,7 +2765,7 @@ function FAStockInventoryContent({ user, brands: propBrands = [] }) {
         {[
           { label: "Total Ingredients", value: items.length.toLocaleString(),                                                                              sub: "Registered",    accent: C.green    },
           { label: "Low Stock Alerts",  value: lowCount,                                                                                                   sub: "Needs reorder", accent: "#e65100" },
-          { label: "Total Stock Value", value: "₱" + Number(totalValue).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), sub: "Cost basis",     accent: "#1565c0" },
+          { label: "Total Stock Value", value: "\u20B1" + Number(totalValue).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), sub: "Cost basis",     accent: "#1565c0" },
         ].map((s, i) => (
           <div key={i} style={{
             background: C.white, border: "1px solid rgba(0,168,76,0.13)",
@@ -2602,7 +2900,7 @@ function FAStockInventoryContent({ user, brands: propBrands = [] }) {
                         </td>
                         <td style={{ padding: "10px 12px", color: C.muted }}>{item.min_stock}</td>
                         <td style={{ padding: "10px 12px", fontWeight: 700, color: C.green }}>
-                          ₱{Number(item.cost_per_unit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {"\u20B1"}{Number(item.cost_per_unit || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     );
@@ -2623,7 +2921,7 @@ function ImportLoadingModal({ visible, progress }) {
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3500, padding:20, backdropFilter:"blur(6px)" }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ background:C.white, borderRadius:22, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Montserrat,sans-serif", textAlign:"center" }}>
+      <div style={{ background:C.white, borderRadius:22, padding:"32px 36px", width:"100%", maxWidth:380, boxShadow:"0 28px 70px rgba(0,0,0,0.22)", border:`1px solid ${C.greenMid}`, fontFamily:"Plus Jakarta Sans,sans-serif", textAlign:"center" }}>
         <div style={{ width:64, height:64, borderRadius:"50%", background:C.greenLt, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 18px" }}>
           <UploadIcon size={30} color={C.green}/>
         </div>
@@ -2668,7 +2966,7 @@ function UIModal({ modal, onClose, onConfirm }) {
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:3000, padding:20, backdropFilter:"blur(4px)" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${hc.border}`, fontFamily:"Montserrat,sans-serif", overflow:"hidden" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:C.white, borderRadius:20, width:"100%", maxWidth:440, boxShadow:"0 24px 64px rgba(0,0,0,0.18)", border:`1px solid ${hc.border}`, fontFamily:"Plus Jakarta Sans,sans-serif", overflow:"hidden" }}>
         {/* Header */}
         <div style={{ background:hc.bg, padding:"20px 24px 16px", borderBottom:`1px solid ${hc.border}`, display:"flex", alignItems:"flex-start", gap:13 }}>
           <div style={{ flexShrink:0, marginTop:1 }}>{iconMap[type]}</div>
@@ -2960,7 +3258,7 @@ function ReceiptSlip({ order }) {
   return (
     <div className="receipt-page" style={{
       width:"8.5in", height:"4.25in", padding:"0.28in 0.4in", boxSizing:"border-box",
-      fontFamily:"'Courier New', Courier, monospace", color:"#000", background:"#fff",
+      fontFamily:FONT, color:"#000", background:"#fff",
       display:"flex", flexDirection:"column" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", borderBottom:"1px dashed #000", paddingBottom:6, marginBottom:6 }}>
         <div>
@@ -3043,7 +3341,7 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", zIndex:2500, display:"flex", justifyContent:"flex-end", animation:"overlayIn .18s ease" }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Montserrat',sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
+        style={{ width:460, maxWidth:"94vw", height:"100%", background:C.white, boxShadow:"-12px 0 40px rgba(0,0,0,0.18)", display:"flex", flexDirection:"column", fontFamily:"'Plus Jakarta Sans',sans-serif", animation:"drawerIn .22s cubic-bezier(.2,.8,.2,1)" }}>
 
         {/* Header */}
         <div style={{ padding:"18px 22px", background:`linear-gradient(135deg,${C.teal},${C.green})`, color:"#fff", flexShrink:0 }}>
@@ -3474,17 +3772,17 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   ];
 
   if (loadingData) return (
-    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
+    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Loading orders…</div>
   );
   if (error) return (
-    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+    <div style={{ padding:40, textAlign:"center", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
       <div style={{ color:"#dc2626", marginBottom:12 }}>{error}</div>
       <button onClick={fetchOrders} style={{ padding:"8px 20px", borderRadius:8, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, cursor:"pointer" }}>Retry</button>
     </div>
   );
 
   return (
-    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
+    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -3626,7 +3924,7 @@ function FAApplicationConfirmModal({ app, onConfirm, onClose, deleting }) {
           width: "100%", maxWidth: 420,
           boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
           border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
+          fontFamily: "Plus Jakarta Sans, sans-serif",
         }}
       >
         <div style={{
@@ -4025,7 +4323,7 @@ function FAApplicationsContent({ user, applications: initialApps }) {
             display: "flex", flexDirection: "column",
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
           }}
         >
           {/* Header */}
@@ -4155,11 +4453,11 @@ function FAApplicationsContent({ user, applications: initialApps }) {
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
             maxHeight: "90vh", overflowY: "auto",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
           }}>
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontFamily: "Montserrat,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
+              <h2 style={{ fontFamily: "Plus Jakarta Sans,sans-serif", fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>
                 Application Details
               </h2>
               <button onClick={() => setViewApp(null)} style={{
@@ -4271,7 +4569,7 @@ function FAApplicationsContent({ user, applications: initialApps }) {
                       <Section title="Business Interest">
                         <Field label="Extent of Involvement"  value={viewApp.involvement}    full />
                         <Field label="Equity Owned (%)"       value={viewApp.equity} />
-                        <Field label="Cash Investment (₱)"    value={viewApp.investment ? `₱${Number(viewApp.investment).toLocaleString()}` : null} />
+                        <Field label={"Cash Investment (\u20B1)"}    value={viewApp.investment ? `\u20B1${Number(viewApp.investment).toLocaleString()}` : null} />
                         <Field label="Source of Funds"        value={viewApp.fundSource} />
                         <Field label="Other Businesses"       value={viewApp.otherBusiness}  full />
                         <Field label="Preferred Location"     value={viewApp.location}       full />
@@ -4319,7 +4617,7 @@ function FAApplicationsContent({ user, applications: initialApps }) {
                       <Section title="Employment Information">
                         <Field label="Employment Type"    value={viewApp.employmentType} />
                         <Field label="Years w/ Employer"  value={viewApp.yearsEmployer?.toString()} />
-                        <Field label="Monthly Income"     value={viewApp.income ? `₱${Number(viewApp.income).toLocaleString()}` : null} />
+                        <Field label="Monthly Income"     value={viewApp.income ? `\u20B1${Number(viewApp.income).toLocaleString()}` : null} />
                         <Field label="Position"           value={viewApp.position} />
                         <Field label="Company Name"       value={viewApp.employerName}      full />
                         <Field label="Business Address"   value={viewApp.businessAddress}   full />
@@ -4443,7 +4741,7 @@ function FAApplicationsContent({ user, applications: initialApps }) {
             width: "100%", maxWidth: 420,
             boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
             border: "1px solid rgba(0,168,76,0.15)",
-            fontFamily: "Montserrat, sans-serif",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
           }}>
             <div style={{
               display: "flex", justifyContent: "space-between",
@@ -4535,7 +4833,7 @@ function FAApplicationsContent({ user, applications: initialApps }) {
       )}
 
       {/* ── Main content ── */}
-      <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
 
         {/* Stat cards */}
         <div style={{
@@ -4843,7 +5141,7 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 500, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Create Franchisee Account</h2>
+          <h2 style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>Create Franchisee Account</h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
         </div>
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Creating account for: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong></p>
@@ -5110,23 +5408,23 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
   const getInitials = (t = '') => t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
 
   const tabs = [
-    { key: 'all', label: 'All', count: merged.length },
-    { key: 'recent', label: 'Recent', count: merged.filter(a => new Date(a.created_at) >= sevenDaysAgo).length },
-    { key: 'pinned', label: 'Pinned', count: pinnedIds.size },
-    { key: 'deleteHistory', label: '🗑 Delete History', count: deleteHistory.length },
+    { key: 'all', label: 'All', count: merged.length, icon: Megaphone },
+    { key: 'recent', label: 'Recent', count: merged.filter(a => new Date(a.created_at) >= sevenDaysAgo).length, icon: Clock },
+    { key: 'pinned', label: 'Pinned', count: pinnedIds.size, icon: Pin },
+    { key: 'deleteHistory', label: 'Delete History', count: deleteHistory.length, icon: Trash2 },
   ];
 
   const isDeletingConfirmTarget = confirmModal && deletingId === confirmModal.itemId;
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* Toast */}
       <Toast toast={toast} onClose={closeToast} />
 
       {/* Confirm modal */}
       {confirmModal && (
         <div onClick={() => !isDeletingConfirmTarget && setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'center' }}>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><Trash2 size={22} color="#dc2626" /></div>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Delete Announcement?</h2>
             {confirmModal.itemName && <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.6, marginBottom: 24 }}>You are about to delete <strong>"{confirmModal.itemName}"</strong>.</p>}
@@ -5147,9 +5445,14 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
       {/* Header card */}
       <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', padding: '20px 24px 22px', borderRadius: '18px 18px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.25em', marginBottom: 4 }}>IFRANCHISE</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.4px' }}>Announcements</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Megaphone size={20} color="#fff" strokeWidth={2.1} />
+          </div>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.25em', marginBottom: 4 }}>IFRANCHISE</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.4px' }}>Announcements</div>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.18)', borderRadius: 20, padding: '5px 11px', border: '1px solid rgba(255,255,255,0.3)' }}>
@@ -5165,12 +5468,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 7, padding: '14px 20px', background: '#fff', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
-        {tabs.map(({ key, label, count }) => {
+        {tabs.map(({ key, label, count, icon: TabIcon }) => {
           const active = selectedTab === key;
           const isDel = key === 'deleteHistory';
           return (
             <button key={key} onClick={() => setSelectedTab(key)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 20, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: active ? 'none' : `1px solid ${isDel ? '#fecaca' : C.border}`, transition: 'all .15s', background: active ? (isDel ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#2E7D32,#00897b)') : isDel ? '#fee2e2' : '#e8f5e9', color: active ? '#fff' : isDel ? '#dc2626' : '#5a7a65', boxShadow: active ? '0 2px 8px rgba(0,180,90,0.28)' : 'none' }}>
+              <TabIcon size={11} strokeWidth={2.2} />
               {label}
               {count > 0 && <span style={{ padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 800, background: active ? 'rgba(255,255,255,0.28)' : isDel ? '#fecaca' : C.greenMid, color: active ? '#fff' : isDel ? '#dc2626' : '#2E7D32' }}>{count}</span>}
             </button>
@@ -5216,13 +5520,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 3 }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: '#0d2b1e' }}>{item.title}</span>
-                        {item.pinned && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#FFF8E1', borderRadius: 6, padding: '2px 6px', border: '1px solid #FFE082', fontSize: 8, fontWeight: 800, color: '#F9A825' }}>🔖 PINNED</span>}
+                        {item.pinned && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#FFF8E1', borderRadius: 6, padding: '2px 6px', border: '1px solid #FFE082', fontSize: 8, fontWeight: 800, color: '#F9A825' }}><Pin size={9} fill="currentColor" strokeWidth={2.2} /> PINNED</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: '#8AAD96', fontFamily: 'monospace' }}>{new Date(item.created_at).toLocaleString()}</div>
+                      <div style={{ fontSize: 10, color: '#8AAD96', fontFamily: FONT }}>{new Date(item.created_at).toLocaleString()}</div>
                       <div style={{ fontSize: 12.5, color: '#5a7a65', lineHeight: 1.65, marginTop: 9, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.content}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 5, flexShrink: 0, alignItems: 'flex-start' }} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => handlePin(item)} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F9A825' }}>{item.pinned ? '🔖' : '📌'}</button>
+                      <button onClick={() => handlePin(item)} title={item.pinned ? 'Unpin announcement' : 'Pin announcement'} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${item.pinned ? '#FFE082' : C.border}`, background: item.pinned ? '#FFF8E1' : '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.pinned ? '#F9A825' : C.green }}><Pin size={13} fill={item.pinned ? 'currentColor' : 'none'} strokeWidth={2.2} /></button>
                       <button onClick={() => { setEditing(item); setTitle(item.title); setContent(item.content); setImageUrl(item.image_url || ''); setImageError(false); setModalVisible(true); }}
                         style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`, background: '#f0fdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00695c' }}><Pencil size={12} /></button>
                       <button onClick={() => handleDelete(item)} disabled={deletingId === item.id}
@@ -5244,13 +5548,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
             <div style={{ background: 'linear-gradient(135deg,#2E7D32,#00897b)', borderRadius: '20px 20px 0 0', padding: '20px 22px 28px' }}>
               <button onClick={() => setViewingItem(null)} style={{ position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 10, border: '1.5px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.2)', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button>
               <div style={{ fontSize: 19, fontWeight: 900, color: '#fff', lineHeight: 1.3 }}>{viewingItem.title}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 4, fontFamily: 'monospace' }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 4, fontFamily: FONT }}>{new Date(viewingItem.created_at).toLocaleString()}</div>
             </div>
             <div style={{ padding: '22px 24px 28px' }}>
               {viewingItem.image_url && <div style={{ marginBottom: 18, borderRadius: 14, overflow: 'hidden', border: `1px solid ${C.border}` }}><img src={viewingItem.image_url} alt="" style={{ width: '100%', maxHeight: 280, objectFit: 'cover', display: 'block' }} onError={e => e.target.style.display = 'none'} /></div>}
               <p style={{ fontSize: 14.5, color: '#1A3A2A', lineHeight: 1.75, margin: 0 }}>{viewingItem.content}</p>
               <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap' }}>
-                <button onClick={() => handlePin(viewingItem)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: viewingItem.pinned ? 'none' : '1.5px solid #FFE082', background: viewingItem.pinned ? '#F9A825' : '#FFF8E1', color: viewingItem.pinned ? '#fff' : '#F9A825' }}>{viewingItem.pinned ? '🔖 Unpin' : '📌 Pin'}</button>
+                <button onClick={() => handlePin(viewingItem)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: viewingItem.pinned ? 'none' : '1.5px solid #FFE082', background: viewingItem.pinned ? '#F9A825' : '#FFF8E1', color: viewingItem.pinned ? '#fff' : '#F9A825' }}><Pin size={13} fill={viewingItem.pinned ? 'currentColor' : 'none'} strokeWidth={2.2} /> {viewingItem.pinned ? 'Unpin' : 'Pin'}</button>
                 <button onClick={() => { setEditing(viewingItem); setTitle(viewingItem.title); setContent(viewingItem.content); setImageUrl(viewingItem.image_url || ''); setModalVisible(true); setViewingItem(null); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff' }}><Pencil size={13} /> Edit</button>
                 <button onClick={() => { handleDelete(viewingItem); setViewingItem(null); }} disabled={deletingId === viewingItem.id}
                   style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 11, fontSize: 13, fontWeight: 700, cursor: deletingId === viewingItem.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', border: '1.5px solid #fecaca', background: '#fee2e2', color: '#dc2626', opacity: deletingId === viewingItem.id ? 0.6 : 1 }}>
@@ -5283,7 +5587,7 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
                 <label style={bmLabel}>Image URL (optional)</label>
                 <input type="url" placeholder="https://example.com/image.jpg" value={imageUrl} onChange={e => { setImageUrl(e.target.value); setImageError(false); }} disabled={saving} style={{ ...bmInput, marginTop: 4 }} />
                 {imageUrl && !imageError && <div style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}` }}><img src={imageUrl} alt="Preview" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }} onError={() => setImageError(true)} /></div>}
-                {imageUrl && imageError && <div style={{ marginTop: 8, padding: '9px 12px', background: '#fee2e2', borderRadius: 10, border: '1px solid #fecaca', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>⚠ Could not load image.</div>}
+                {imageUrl && imageError && <div style={{ marginTop: 8, padding: '9px 12px', background: '#fee2e2', borderRadius: 10, border: '1px solid #fecaca', fontSize: 12, color: '#dc2626', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}><AlertTriangle size={14} strokeWidth={2.2} /> Could not load image.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" onClick={() => setModalVisible(false)} disabled={saving} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>Cancel</button>
@@ -5501,7 +5805,7 @@ function BmModal({ title, onClose, onSubmit, submitting, children }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 520, boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Montserrat,sans-serif" }}>{title}</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0d2b1e", margin: 0, fontFamily: "Plus Jakarta Sans,sans-serif" }}>{title}</h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid #b2dfdb", background: "#e0f2f1", cursor: "pointer", color: "#00695c", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
         </div>
         <form onSubmit={onSubmit}>
@@ -5544,7 +5848,7 @@ function Toast({ toast, onClose }) {
       border: `1px solid ${isErr ? "#fecaca" : "#b2dfdb"}`,
       borderLeftWidth: 5,
       boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-      fontFamily:"'Montserrat',sans-serif",
+      fontFamily:"'Plus Jakarta Sans',sans-serif",
       animation:"toastIn .22s ease",
     }}>
       <div style={{
@@ -5605,7 +5909,7 @@ function BrandDeleteConfirmModal({ target, onConfirm, onClose, deleting }) {
           width: "100%", maxWidth: 420,
           boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
           border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
+          fontFamily: "Plus Jakarta Sans, sans-serif",
         }}
       >
         <div style={{
@@ -5665,7 +5969,7 @@ function BrandDeleteHistoryPanel({ history, onRestore, restoringId, onClose }) {
   const fmt = (d) => new Date(d).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, backdropFilter: "blur(4px)" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Montserrat, sans-serif" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: "28px 32px", width: "100%", maxWidth: 580, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: "1px solid rgba(0,168,76,0.15)", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: "#0d2b1e", margin: 0 }}>Delete History</h2>
@@ -6123,8 +6427,8 @@ function FABrandBranchContent({ user, brands: propBrands, onBrandsChange }) {
   const tdSt = { padding: "11px 12px", borderBottom: "1px solid #f0f8f0", verticalAlign: "middle", overflow: "hidden" };
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
-      <style>{`.bm-root * { font-family:'Montserrat',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <style>{`.bm-root * { font-family:'Plus Jakarta Sans',sans-serif !important; box-sizing:border-box; } .bm-stat { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; padding:20px 22px; box-shadow:0 2px 14px rgba(0,140,60,0.07); transition:transform .2s,box-shadow .2s; } .bm-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,140,60,0.13); } .bm-brand-card { background:#fff; border:1px solid rgba(0,168,76,0.12); border-radius:18px; box-shadow:0 2px 14px rgba(0,140,60,0.07); margin-bottom:24px; overflow:hidden; } .bm-brand-header { background:linear-gradient(135deg,#2E7D32,#00897b); color:#fff; padding:16px 22px; display:flex; align-items:center; justify-content:space-between; } .bm-input { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; } .bm-input:focus { border-color:#00897b; box-shadow:0 0 0 2px rgba(0,137,123,0.12); } .bm-select { width:100%; padding:9px 12px; border-radius:10px; border:1.5px solid #b2dfdb; font-size:13px; color:#0d2b1e; background:#f0fdf5; font-family:inherit; outline:none; appearance:none; cursor:pointer; } .bm-branch-tr:hover td { background:#f6fef8 !important; } .bm-branch-tr:last-child td { border-bottom:none !important; } @keyframes bm-spin { to { transform: rotate(360deg); } }`}</style>
       <div className="bm-root">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 28 }}>
           {[
@@ -6359,7 +6663,7 @@ function FAProfileContent({ user }) {
   );
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {alertModal && <AlertModal message={alertModal.message} type={alertModal.type} onClose={() => setAlertModal(null)} />}
 
       {/* Account overview */}
@@ -6456,13 +6760,13 @@ function FAProfileContent({ user }) {
           <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
             <div style={{ textAlign: 'center', marginBottom: 22 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', fontSize: '1.6rem' }}>🔑</div>
-              <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', marginBottom: 6 }}>Verify OTP</h2>
+              <h2 style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', marginBottom: 6 }}>Verify OTP</h2>
               <p style={{ fontSize: 13, color: C.muted }}>Code sent to <strong style={{ color: '#0d2b1e' }}>{formData.personalEmail || formData.email}</strong></p>
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={bmLabel}>Enter 6-Digit OTP</label>
               <input type="text" placeholder="000000" value={otp} onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setOtpError(''); }} maxLength={6} autoFocus
-                style={{ ...bmInput, marginTop: 6, fontSize: 24, textAlign: 'center', letterSpacing: '0.6rem', fontFamily: 'monospace' }} />
+                style={{ ...bmInput, marginTop: 6, fontSize: 24, textAlign: 'center', letterSpacing: '0.6rem', fontFamily: FONT }} />
             </div>
             {otpError && <div style={{ padding: '10px 14px', background: '#fee2e2', borderRadius: 10, border: '1.5px solid #fecaca', color: '#dc2626', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>{otpError}</div>}
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -6481,7 +6785,7 @@ function FAProfileContent({ user }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
           <div style={{ background: C.white, borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#d1fae5,#6ee7b7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2.2rem' }}>✅</div>
-            <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 22, fontWeight: 800, color: '#0d2b1e', marginBottom: 10 }}>Password Changed!</h2>
+            <h2 style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 22, fontWeight: 800, color: '#0d2b1e', marginBottom: 10 }}>Password Changed!</h2>
             <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7 }}>Your password has been updated successfully. Redirecting to login…</p>
           </div>
         </div>
@@ -6490,7 +6794,7 @@ function FAProfileContent({ user }) {
       {/* Confirm Modal */}
       {confirmModal && (
         <div onClick={() => setConfirmModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20, backdropFilter: 'blur(4px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Montserrat, sans-serif', textAlign: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)', fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'center' }}>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>↩</div>
             <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0d2b1e', marginBottom: 8 }}>Discard Changes?</h2>
             <p style={{ fontSize: 13, color: '#5a7a65', lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>

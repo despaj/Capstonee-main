@@ -7,7 +7,7 @@ import {
 
 const C = {
   green:"#3b791e", greenDk:"#2c5c16", greenLt:"#f0f5e8", greenMid:"#c9dba0",
-  teal:"#509820", lime:"#bdd43c", limeInk:"#24310C", ink:"#12241B", muted:"#5C6B60", border:"#E1E6D8",
+  teal:"#509820", lime:"#cac055", limeInk:"#24310C", ink:"#24700d", muted:"#5C6B60", border:"#E1E6D8",
   bg:"#F6F7F1", white:"#ffffff", warn:"#b45309", warnBg:"#fff7ed",
   ok:"#2c5c16", okBg:"#f0f5e8", red:"#c0392b", redBg:"#fdf1f0",
   amber:"#d97706", amberBg:"#fff7ed", amberBorder:"#fed7aa",

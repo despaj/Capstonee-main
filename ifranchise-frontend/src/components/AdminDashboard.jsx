@@ -32,9 +32,9 @@ const C = {
   greenDk:    "#2c5c16",
   greenMid:   "#c9dba0", 
   teal:       "#509820",
-  lime:       "#bdd43c",  
+  lime:       "#48b328",  
   limeInk:    "#24310C",   
-  ink:        "#12241B",
+  ink:        "#b3a941",
   muted:      "#5C6B60",  
   border:     "#E1E6D8", 
   bg:         "#F6F7F1", 
@@ -312,137 +312,1226 @@ const bmLabel = {
   marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em",
 };
 
-
 function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
   const [open, setOpen] = useState(false);
+  const [liveNotif, setLiveNotif] = useState(null);
+  const [readCounts, setReadCounts] = useState({});
+
   const wrapRef = useRef(null);
+  const previousCountsRef = useRef({});
+  const initializedRef = useRef(false);
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+
+    const handler = (e) => {
+      if (
+        wrapRef.current &&
+        !wrapRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+
+    return () =>
+      document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const totalCount = notifications.reduce((s, n) => s + n.count, 0);
+  /*
+  ========================================================
+  LIVE NOTIFICATION DETECTOR
+  ========================================================
+  */
+
+  useEffect(() => {
+    if (!notifications) return;
+
+    const currentCounts = {};
+
+    notifications.forEach((n) => {
+      currentCounts[n.id] = n.count || 0;
+    });
+
+    /*
+      Initial load:
+      store existing counts but don't show a splash.
+    */
+    if (!initializedRef.current) {
+      previousCountsRef.current = currentCounts;
+      initializedRef.current = true;
+      return;
+    }
+
+    let newNotification = null;
+
+    for (const n of notifications) {
+      const previousCount =
+        previousCountsRef.current[n.id] || 0;
+
+      const currentCount =
+        n.count || 0;
+
+      if (currentCount > previousCount) {
+        newNotification = n;
+        break;
+      }
+    }
+
+    previousCountsRef.current = currentCounts;
+
+    if (newNotification) {
+      setLiveNotif(newNotification);
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+
+      toastTimerRef.current = setTimeout(() => {
+        setLiveNotif(null);
+      }, 5000);
+    }
+  }, [notifications]);
+
+  /*
+  ========================================================
+  CLEAN TIMER
+  ========================================================
+  */
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  /*
+  ========================================================
+  READ / UNREAD NOTIFICATION COUNTS
+  ========================================================
+
+  Clicking a notification marks the CURRENT count for that
+  notification as read. Only newly-added counts appear again.
+  */
+
+  useEffect(() => {
+    setReadCounts((prev) => {
+      const next = { ...prev };
+      const currentById = new Map(
+        (Array.isArray(notifications) ? notifications : []).map((n) => [
+          n.id,
+          Number(n.count || 0),
+        ])
+      );
+
+      let changed = false;
+
+      // If a notification disappeared completely, reset its read count
+      // so a future occurrence starts as unread again.
+      Object.keys(next).forEach((id) => {
+        if (!currentById.has(id)) {
+          if (next[id] !== 0) {
+            next[id] = 0;
+            changed = true;
+          }
+          return;
+        }
+
+        const currentCount = currentById.get(id);
+        const readCount = Number(next[id] || 0);
+
+        // If the server count decreased after an item was resolved,
+        // keep the remembered read count within the current total.
+        if (readCount > currentCount) {
+          next[id] = currentCount;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [notifications]);
+
+  const markNotificationAsRead = (notification) => {
+    if (!notification?.id) return;
+
+    setReadCounts((prev) => ({
+      ...prev,
+      [notification.id]: Number(notification.count || 0),
+    }));
+  };
+
+  const visibleNotifications = (Array.isArray(notifications) ? notifications : [])
+    .map((n) => {
+      const currentCount = Number(n.count || 0);
+      const alreadyRead = Number(readCounts[n.id] || 0);
+      const unreadCount = Math.max(currentCount - alreadyRead, 0);
+
+      return {
+        ...n,
+        unreadCount,
+      };
+    })
+    .filter((n) => n.unreadCount > 0);
+
+  const totalCount = visibleNotifications.reduce(
+    (sum, n) => sum + n.unreadCount,
+    0
+  );
 
   return (
-    <div ref={wrapRef} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        title="Notifications"
-        style={{
-          position: "relative", width: 42, height: 42, borderRadius: 14,
-          border: `1px solid ${open ? "rgba(0,168,76,0.4)" : "rgba(0,168,76,0.15)"}`,
-          background: open ? "rgba(0,168,76,0.08)" : "#fff",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "all .15s", boxShadow: "0 2px 8px rgba(0,140,60,0.06)",
-          flexShrink: 0,
-        }}
-      >
-        <Bell size={19} color={open ? "#00897b" : "#5a7a65"} />
-        {totalCount > 0 && (
-          <span style={{
-            position: "absolute", top: -4, right: -4,
-            minWidth: 18, height: 18, borderRadius: 9, padding: "0 4px",
-            background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff",
-            fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center",
-            border: "2px solid #fff", fontFamily: "'Montserrat',sans-serif",
-          }}>
-            {totalCount > 99 ? "99+" : totalCount}
-          </span>
-        )}
-      </button>
+    <>
+      {/* ====================================================
+          LIVE NOTIFICATION SPLASH
+          TOP RIGHT
+      ==================================================== */}
 
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 10px)", right: 0, width: 340, maxHeight: 440,
-          background: "#fff", borderRadius: 16, border: "1px solid rgba(0,168,76,0.15)",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.16)", overflow: "hidden", zIndex: 3000,
-          fontFamily: "'Montserrat',sans-serif", display: "flex", flexDirection: "column",
-        }}>
-          <div style={{
-            padding: "14px 18px", background: "linear-gradient(135deg,#2E7D32,#00897b)",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#fff" }}>Notifications</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>
-                {totalCount > 0 ? `${totalCount} item${totalCount !== 1 ? "s" : ""} need attention` : "You're all caught up"}
-              </div>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-              title="Refresh"
+      {liveNotif && (
+        <div
+          className="franchisync-live-toast"
+          onClick={() => {
+            markNotificationAsRead(liveNotif);
+            onNavigate(liveNotif);
+            setLiveNotif(null);
+          }}
+        >
+          {/* ICON */}
+
+          <div className="franchisync-toast-icon">
+            <liveNotif.icon
+              size={19}
+              strokeWidth={2.2}
+              color="#2E7D32"
+            />
+          </div>
+
+          {/* CONTENT */}
+
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            <div
               style={{
-                width: 28, height: 28, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.4)",
-                background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
               }}
             >
-              <RefreshCw size={13} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
-            </button>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+
+                  color: "#2E7D32",
+
+                  textTransform: "uppercase",
+                  letterSpacing: ".5px",
+
+                  background: "#EDF7EF",
+
+                  border:
+                    "1px solid #B9DDBF",
+
+                  borderRadius: 20,
+
+                  padding: "3px 7px",
+                }}
+              >
+                New
+              </span>
+
+              <div
+                style={{
+                  fontSize: 13.5,
+                  fontWeight: 800,
+
+                  color: "#234329",
+
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {liveNotif.title}
+              </div>
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+
+                fontSize: 12,
+                fontWeight: 500,
+
+                color: "#5F6D63",
+
+                lineHeight: 1.5,
+
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {liveNotif.message}
+            </div>
+
+            <div
+              style={{
+                marginTop: 7,
+
+                fontSize: 10.5,
+                fontWeight: 700,
+
+                color: "#2E7D32",
+              }}
+            >
+              Click to view
+            </div>
           </div>
 
-          <div style={{ overflowY: "auto", flex: 1 }}>
-            {loading && notifications.length === 0 ? (
-              <div style={{ padding: "40px 0", textAlign: "center", color: "#5a7a65", fontSize: 13 }}>Loading…</div>
-            ) : notifications.length === 0 ? (
-              <div style={{ padding: "40px 20px", textAlign: "center" }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                  <Check size={20} color="#059669" />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#0d2b1e" }}>Nothing needs your attention</div>
-                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>New alerts will show up here.</div>
-              </div>
-            ) : notifications.map((n) => (
-              <div
-                key={n.id}
-                onClick={() => { onNavigate(n); setOpen(false); }}
-                style={{
-                  display: "flex", gap: 12, padding: "13px 18px", cursor: "pointer",
-                  borderBottom: "1px solid #f0f8f0", alignItems: "flex-start",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f6fef8"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, background: n.bg,
-                  border: `1px solid ${n.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <n.icon size={16} color={n.color} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <span style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e" }}>{n.title}</span>
-                      <span style={{
-                        flexShrink: 0,
-                        minWidth: 20,
-                        height: 20,
-                        padding: "0 6px",
-                        borderRadius: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        lineHeight: 1,
-                        background: n.bg,
-                        color: n.color,
-                        border: `1px solid ${n.border}`,
-                        boxSizing: "border-box",
-                      }}>
-                        {n.count > 99 ? "99+" : n.count}
-                      </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#5a7a65", marginTop: 2, lineHeight: 1.45 }}>{n.message}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* CLOSE */}
+
+          <button
+            type="button"
+            className="franchisync-toast-close"
+            title="Close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLiveNotif(null);
+            }}
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+
+          {/* AUTO CLOSE PROGRESS */}
+
+          <div className="franchisync-toast-progress" />
         </div>
       )}
-    </div>
+
+      {/* ====================================================
+          YOUR ORIGINAL NOTIFICATION BELL
+      ==================================================== */}
+
+      <div
+        ref={wrapRef}
+        style={{
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={() => setOpen((v) => !v)}
+          title="Notifications"
+          style={{
+            position: "relative",
+
+            width: 42,
+            height: 42,
+
+            borderRadius: 11,
+
+            border: `1px solid ${
+              open
+                ? "#2E7D32"
+                : "#B9DDBF"
+            }`,
+
+            background: open
+              ? "#E8F5EA"
+              : "#EDF7EF",
+
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+
+            cursor: "pointer",
+
+            transition:
+              "all .2s ease",
+
+            boxShadow: open
+              ? "0 4px 14px rgba(46,125,50,.14)"
+              : "0 2px 8px rgba(46,125,50,.07)",
+
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor =
+              "#2E7D32";
+
+            e.currentTarget.style.background =
+              "#E8F5EA";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor =
+              open
+                ? "#2E7D32"
+                : "#B9DDBF";
+
+            e.currentTarget.style.background =
+              open
+                ? "#E8F5EA"
+                : "#EDF7EF";
+          }}
+        >
+          <Bell
+            size={19}
+            color="#2E7D32"
+            strokeWidth={2.1}
+          />
+
+          {totalCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+
+                top: -5,
+                right: -5,
+
+                minWidth: 19,
+                height: 19,
+
+                borderRadius: 10,
+
+                padding: "0 4px",
+
+                background:
+                  "linear-gradient(135deg,#ef4444,#dc2626)",
+
+                color: "#fff",
+
+                fontSize: 10,
+                fontWeight: 800,
+
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+
+                border: "2px solid #fff",
+
+                fontFamily:
+                  "'Montserrat',sans-serif",
+
+                boxShadow:
+                  "0 2px 6px rgba(220,38,38,.22)",
+              }}
+            >
+              {totalCount > 99
+                ? "99+"
+                : totalCount}
+            </span>
+          )}
+        </button>
+
+        {/* ==================================================
+            DROPDOWN
+        ================================================== */}
+
+        {open && (
+          <div
+            className="franchisync-notification-dropdown"
+            style={{
+              position: "absolute",
+
+              top:
+                "calc(100% + 10px)",
+
+              right: 0,
+
+              width: 370,
+
+              height: 430,
+
+              maxWidth:
+                "calc(100vw - 30px)",
+
+              background: "#fff",
+
+              borderRadius: 13,
+
+              border:
+                "1px solid #C7E0CB",
+
+              boxShadow:
+                "0 18px 45px rgba(15,23,42,.15)",
+
+              overflow: "hidden",
+
+              zIndex: 3000,
+
+              fontFamily:
+                "'Montserrat',sans-serif",
+
+              display: "flex",
+              flexDirection: "column",
+
+              animation:
+                "franchisyncDropdown .22s ease-out",
+            }}
+          >
+            {/* HEADER */}
+
+            <div
+              style={{
+                padding: "15px 18px",
+
+                background:
+                  "linear-gradient(135deg,#256529,#2E7D32)",
+
+                display: "flex",
+
+                justifyContent:
+                  "space-between",
+
+                alignItems: "center",
+
+                flexShrink: 0,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 14,
+
+                    color: "#fff",
+                  }}
+                >
+                  Notifications
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 11,
+
+                    color:
+                      "rgba(255,255,255,.78)",
+
+                    marginTop: 3,
+                  }}
+                >
+                  {totalCount > 0
+                    ? `${totalCount} ${
+                        totalCount !== 1
+                          ? "notifications"
+                          : "notification"
+                      } require attention`
+                    : "You're all caught up"}
+                </div>
+              </div>
+
+              {/* REFRESH */}
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRefresh();
+                }}
+                title="Refresh"
+                style={{
+                  width: 30,
+                  height: 30,
+
+                  borderRadius: 8,
+
+                  border:
+                    "1px solid rgba(255,255,255,.45)",
+
+                  background:
+                    "rgba(255,255,255,.15)",
+
+                  color: "#fff",
+
+                  cursor: "pointer",
+
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+
+                  flexShrink: 0,
+
+                  transition:
+                    "all .2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background =
+                    "#fff";
+
+                  e.currentTarget.style.color =
+                    "#2E7D32";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background =
+                    "rgba(255,255,255,.15)";
+
+                  e.currentTarget.style.color =
+                    "#fff";
+                }}
+              >
+                <RefreshCw
+                  size={13}
+                  style={{
+                    animation: loading
+                      ? "notificationSpin .8s linear infinite"
+                      : "none",
+                  }}
+                />
+              </button>
+            </div>
+
+            {/* ==================================================
+                VERTICAL NOTIFICATION LIST
+            ================================================== */}
+
+            <div
+              className="franchisync-notification-scroll"
+              style={{
+                overflowY: "auto",
+                overflowX: "hidden",
+
+                flex: 1,
+
+                minHeight: 0,
+
+                background: "#fff",
+              }}
+            >
+              {loading &&
+              notifications.length === 0 ? (
+                <div
+                  style={{
+                    padding: "45px 0",
+
+                    textAlign: "center",
+
+                    color: "#5A7A65",
+
+                    fontSize: 13,
+                  }}
+                >
+                  <RefreshCw
+                    size={20}
+                    color="#2E7D32"
+                    style={{
+                      marginBottom: 9,
+
+                      animation:
+                        "notificationSpin .8s linear infinite",
+                    }}
+                  />
+
+                  <div>
+                    Loading notifications...
+                  </div>
+                </div>
+              ) : visibleNotifications.length ===
+                0 ? (
+                /* EMPTY */
+
+                <div
+                  style={{
+                    padding:
+                      "45px 20px",
+
+                    textAlign:
+                      "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+
+                      borderRadius: 10,
+
+                      background:
+                        "#EDF7EF",
+
+                      border:
+                        "1px solid #B9DDBF",
+
+                      display: "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+
+                      margin:
+                        "0 auto 11px",
+                    }}
+                  >
+                    <Check
+                      size={20}
+                      color="#2E7D32"
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 13,
+
+                      fontWeight: 700,
+
+                      color: "#243128",
+                    }}
+                  >
+                    Nothing needs your attention
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 11.5,
+
+                      color: "#829087",
+
+                      marginTop: 4,
+                    }}
+                  >
+                    New alerts will show up here.
+                  </div>
+                </div>
+              ) : (
+                visibleNotifications.map(
+                  (n, index) => (
+                    <div
+                      key={n.id}
+
+                      /*
+                      =========================================
+                      CLICK SPECIFIC NOTIFICATION
+                      =========================================
+
+                      This keeps your original redirect logic.
+
+                      onNavigate(n) receives the selected
+                      notification and your parent component
+                      decides which module to open.
+                      */
+
+                      onClick={() => {
+                        markNotificationAsRead(n);
+                        onNavigate(n);
+                        setOpen(false);
+                      }}
+
+                      style={{
+                        display: "flex",
+
+                        gap: 12,
+
+                        padding:
+                          "14px 18px",
+
+                        cursor:
+                          "pointer",
+
+                        borderBottom:
+                          index !==
+                          visibleNotifications.length -
+                            1
+                            ? "1px solid #EEF3EF"
+                            : "none",
+
+                        alignItems:
+                          "flex-start",
+
+                        background:
+                          "#fff",
+
+                        transition:
+                          "background .18s ease, transform .18s ease",
+                      }}
+                      onMouseEnter={(
+                        e
+                      ) => {
+                        e.currentTarget.style.background =
+                          "#F5FAF6";
+
+                        e.currentTarget.style.transform =
+                          "translateX(2px)";
+                      }}
+                      onMouseLeave={(
+                        e
+                      ) => {
+                        e.currentTarget.style.background =
+                          "#fff";
+
+                        e.currentTarget.style.transform =
+                          "translateX(0)";
+                      }}
+                    >
+                      {/* ICON */}
+
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+
+                          borderRadius: 9,
+
+                          // Uniform FranchiSync icon style
+                          background:
+                            "#EDF7EF",
+
+                          border:
+                            "1px solid #B9DDBF",
+
+                          display: "flex",
+
+                          alignItems:
+                            "center",
+
+                          justifyContent:
+                            "center",
+
+                          flexShrink: 0,
+                        }}
+                      >
+                        <n.icon
+                          size={17}
+                          strokeWidth={2}
+                          color="#2E7D32"
+                        />
+                      </div>
+
+                      {/* DETAILS */}
+
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+
+                            justifyContent:
+                              "space-between",
+
+                            alignItems:
+                              "flex-start",
+
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+
+                              fontSize: 12.75,
+
+                              color:
+                                "#243128",
+
+                              lineHeight: 1.4,
+
+                              overflow:
+                                "hidden",
+
+                              textOverflow:
+                                "ellipsis",
+
+                              whiteSpace:
+                                "nowrap",
+                            }}
+                          >
+                            {n.title}
+                          </span>
+
+                          {n.count > 0 && (
+                            <span
+                              style={{
+                                flexShrink:
+                                  0,
+
+                                minWidth:
+                                  22,
+
+                                height: 21,
+
+                                padding:
+                                  "0 6px",
+
+                                borderRadius:
+                                  6,
+
+                                display:
+                                  "flex",
+
+                                alignItems:
+                                  "center",
+
+                                justifyContent:
+                                  "center",
+
+                                fontSize:
+                                  10,
+
+                                fontWeight:
+                                  800,
+
+                                lineHeight:
+                                  1,
+
+                                background:
+                                  "#EDF7EF",
+
+                                color:
+                                  "#2E7D32",
+
+                                border:
+                                  "1px solid #B9DDBF",
+
+                                boxSizing:
+                                  "border-box",
+                              }}
+                            >
+                              {n.unreadCount >
+                              99
+                                ? "99+"
+                                : n.unreadCount}
+                            </span>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 11.75,
+
+                            color:
+                              "#65736A",
+
+                            marginTop: 4,
+
+                            lineHeight:
+                              1.45,
+                          }}
+                        >
+                          {n.message}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================
+            STYLE / MOTION
+        ==================================================== */}
+
+        <style>
+          {`
+
+            /* ================================
+               DROPDOWN
+            ================================= */
+
+            @keyframes franchisyncDropdown {
+              0% {
+                opacity: 0;
+                transform: translateY(-7px) scale(.98);
+              }
+
+              100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+            }
+
+
+            /* ================================
+               TOP RIGHT LIVE SPLASH
+            ================================= */
+
+            .franchisync-live-toast {
+              position: fixed;
+
+              top: 22px;
+              right: 24px;
+
+              width: 410px;
+              max-width: calc(100vw - 32px);
+
+              min-height: 88px;
+
+              padding: 16px 17px;
+
+              background: #FFFDF3;
+
+              border: 1.5px solid #2E7D32;
+
+              border-radius: 13px;
+
+              box-shadow:
+                0 16px 45px rgba(15,23,42,.18),
+                0 3px 10px rgba(46,125,50,.08);
+
+              z-index: 99999;
+
+              display: flex;
+
+              align-items: flex-start;
+
+              gap: 13px;
+
+              box-sizing: border-box;
+
+              font-family:
+                'Montserrat',
+                sans-serif;
+
+              cursor: pointer;
+
+              overflow: hidden;
+
+              animation:
+                franchisyncLiveSplash
+                .52s
+                cubic-bezier(.22,1,.36,1);
+            }
+
+
+            .franchisync-live-toast:hover {
+              background: #FFFBEA;
+
+              box-shadow:
+                0 18px 48px rgba(15,23,42,.21),
+                0 4px 14px rgba(46,125,50,.10);
+
+              transform: translateY(2px);
+            }
+
+
+            .franchisync-toast-icon {
+              width: 40px;
+              height: 40px;
+
+              border-radius: 9px;
+
+              background: #EDF7EF;
+
+              border: 1px solid #2E7D32;
+
+              display: flex;
+
+              align-items: center;
+              justify-content: center;
+
+              flex-shrink: 0;
+
+              box-shadow:
+                0 3px 8px rgba(46,125,50,.08);
+            }
+
+
+            .franchisync-toast-close {
+              width: 27px;
+              height: 27px;
+
+              border: none;
+
+              border-radius: 7px;
+
+              background: transparent;
+
+              color: #59675D;
+
+              display: flex;
+
+              align-items: center;
+              justify-content: center;
+
+              cursor: pointer;
+
+              flex-shrink: 0;
+
+              transition:
+                background .18s ease,
+                color .18s ease;
+            }
+
+
+            .franchisync-toast-close:hover {
+              background: rgba(46,125,50,.08);
+
+              color: #2E7D32;
+            }
+
+
+            @keyframes franchisyncLiveSplash {
+
+              0% {
+                opacity: 0;
+
+                transform:
+                  translateX(65px)
+                  translateY(-12px)
+                  scale(.92);
+              }
+
+              55% {
+                opacity: 1;
+
+                transform:
+                  translateX(-7px)
+                  translateY(0)
+                  scale(1.015);
+              }
+
+              75% {
+                transform:
+                  translateX(3px)
+                  translateY(0)
+                  scale(.997);
+              }
+
+              100% {
+                opacity: 1;
+
+                transform:
+                  translateX(0)
+                  translateY(0)
+                  scale(1);
+              }
+            }
+
+
+            /* ================================
+               5 SECOND PROGRESS BAR
+            ================================= */
+
+            .franchisync-toast-progress {
+              position: absolute;
+
+              left: 0;
+              bottom: 0;
+
+              height: 3px;
+
+              background:
+                linear-gradient(
+                  90deg,
+                  #2E7D32,
+                  #66A96B
+                );
+
+              animation:
+                franchisyncToastProgress
+                5s
+                linear forwards;
+            }
+
+
+            @keyframes franchisyncToastProgress {
+
+              0% {
+                width: 100%;
+              }
+
+              100% {
+                width: 0%;
+              }
+            }
+
+
+            /* ================================
+               SCROLLBAR
+            ================================= */
+
+            .franchisync-notification-scroll {
+              scrollbar-width: thin;
+
+              scrollbar-color:
+                #A8D1AE
+                #F2F7F3;
+
+              overscroll-behavior:
+                contain;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar {
+              width: 7px;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-track {
+              background:
+                #F2F7F3;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-thumb {
+              background:
+                #A8D1AE;
+
+              border-radius:
+                10px;
+
+              border:
+                2px solid #F2F7F3;
+            }
+
+
+            .franchisync-notification-scroll::-webkit-scrollbar-thumb:hover {
+              background:
+                #2E7D32;
+            }
+
+
+            /* ================================
+               REFRESH
+            ================================= */
+
+            @keyframes notificationSpin {
+
+              from {
+                transform:
+                  rotate(0deg);
+              }
+
+              to {
+                transform:
+                  rotate(360deg);
+              }
+            }
+
+
+            /* ================================
+               MOBILE
+            ================================= */
+
+            @media (max-width: 600px) {
+
+              .franchisync-live-toast {
+
+                top: 12px;
+
+                left: 12px;
+                right: 12px;
+
+                width: auto;
+
+                max-width: none;
+              }
+            }
+
+          `}
+        </style>
+      </div>
+    </>
   );
 }
 export default function AdminDashboard() {
@@ -560,34 +1649,43 @@ const confirmLogout = async () => {
 
 const fetchNotifications = useCallback(async () => {
   setNotifLoading(true);
+
   try {
-    const [appsRes, reportsRes, lowStockRes] = await Promise.all([
+    const [appsRes, reportsRes, ingredientsRes] = await Promise.all([
       fetch(`${process.env.REACT_APP_API_URL}/applications`),
       fetch(`${process.env.REACT_APP_API_URL}/reports?status=submitted`),
-      fetch(`${process.env.REACT_APP_API_URL}/notifications/low-stock-items`), 
+      // Use the exact same source as Head Office Inventory.
+      fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
     ]);
 
-    const apps      = appsRes.ok      ? await appsRes.json()      : [];
-    const reports    = reportsRes.ok   ? await reportsRes.json()   : [];
-    const lowStock   = lowStockRes.ok  ? await lowStockRes.json()  : [];
+    const apps = appsRes.ok ? await appsRes.json() : [];
+    const reports = reportsRes.ok ? await reportsRes.json() : [];
+    const ingredients = ingredientsRes.ok ? await ingredientsRes.json() : [];
 
-    const pendingApps    = Array.isArray(apps) ? apps.filter(a => a.status === "pending") : [];
+    const pendingApps = Array.isArray(apps)
+      ? apps.filter(a => String(a.status || "").toLowerCase() === "pending")
+      : [];
+
     const pendingReports = Array.isArray(reports) ? reports : [];
-    const lowStockItems  = Array.isArray(lowStock) ? lowStock : [];
+
+    // Keep this aligned with Head Office Inventory's low-stock rule.
+    const lowStockItems = Array.isArray(ingredients)
+      ? ingredients.filter(item => Number(item?.stock ?? 0) <= Number(item?.min_stock ?? 0))
+      : [];
 
     const items = [];
 
     if (pendingApps.length > 0) {
       items.push({
         id: "applications",
-        module: "Applications",
+        module: "applications",
         title: "Pending Applications",
         message: `${pendingApps.length} application${pendingApps.length !== 1 ? "s" : ""} awaiting review`,
         count: pendingApps.length,
         icon: FileCheck,
-        bg: "#fef9c3",
-        color: "#92400e",
-        border: "#fde68a",
+        bg: "#f0f5e8",
+        color: "#3b791e",
+        border: "#c9dba0",
       });
     }
 
@@ -599,39 +1697,64 @@ const fetchNotifications = useCallback(async () => {
         message: `${pendingReports.length} report${pendingReports.length !== 1 ? "s" : ""} waiting for approval`,
         count: pendingReports.length,
         icon: FileText,
-        bg: "#dbeafe",
-        color: "#1e40af",
-        border: "#93c5fd",
+        bg: "#f0f5e8",
+        color: "#3b791e",
+        border: "#c9dba0",
       });
     }
 
-if (lowStockItems.length > 0) {
-  // Group items by brand + branch
-  const grouped = {};
-  lowStockItems.forEach(item => {
-    const key = `${item.brand || "Unknown Brand"}|${item.branch || "Unknown Branch"}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(item);
-  });
+    if (lowStockItems.length > 0) {
+      // Group by brand + branch so the notification list stays readable.
+      const grouped = {};
 
-  Object.entries(grouped).forEach(([key, groupItems]) => {
-    const [brand, branch] = key.split("|");
-    const names = groupItems.slice(0, 3).map(i => i.name).join(", ");
+      lowStockItems.forEach(item => {
+        const brandName = item.brand || "Unknown Brand";
+        const branchName = item.branch || "Head Office";
+        const key = `${brandName}|${branchName}`;
 
-    items.push({
-      id: `low-stock-${key}`,
-      module: "stockInventory", 
-      title: `${brand} ${branch} — Low Stock`,
-      message: groupItems.length <= 3
-        ? `${names} running low`
-        : `${names} and ${groupItems.length - 3} more running low`,
-      count: groupItems.length,
-      icon: AlertTriangle,
-      bg: "#fee2e2", color: "#dc2626", border: "#fecaca",
-      navParams: { brand, branch, filterLowStock: true },
-    });
-  });
-}
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+      });
+
+      Object.entries(grouped).forEach(([key, groupItems]) => {
+        const [brandName, branchName] = key.split("|");
+
+        // Include units in the preview so the user knows how each item is measured.
+        const preview = groupItems
+          .slice(0, 3)
+          .map(item => `${item.name || "Unnamed Product"} (${item.unit || "units"})`)
+          .join(", ");
+
+        let stockMessage;
+        if (groupItems.length === 1) {
+          stockMessage = `${preview} is running low.`;
+        } else if (groupItems.length <= 3) {
+          stockMessage = `${preview} are running low.`;
+        } else {
+          stockMessage = `${preview} and ${groupItems.length - 3} more are running low.`;
+        }
+
+        items.push({
+          id: `head-office-low-stock-${brandName}-${branchName}`,
+          module: "stockInventory",
+          title: `${brandName} — Low Stock`,
+          // Keep push/live notification concise. Full per-item quantities are inside Head Office Inventory.
+          message: `${stockMessage} Suggested restock: View more inside items.`,
+          count: groupItems.length,
+          icon: AlertTriangle,
+          bg: "#fffdf3",
+          color: "#3b791e",
+          border: "#bdd43c",
+          suggestion: "Suggested restock: View more inside items.",
+          lowStockItems: groupItems,
+          navParams: {
+            brand: brandName,
+            branch: branchName,
+            filterLowStock: true,
+          },
+        });
+      });
+    }
 
     setNotifications(items);
   } catch (err) {
@@ -648,23 +1771,6 @@ useEffect(() => {
   const interval = setInterval(fetchNotifications, 60000);
   return () => clearInterval(interval);
 }, [fetchNotifications, user?.id]);
-useEffect(() => {
-  if (!user?.id) return;
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 60000);
-  return () => clearInterval(interval);
-}, [fetchNotifications, user?.id]);
-
-useEffect(() => {
-  fetchNotifications();
-  const interval = setInterval(fetchNotifications, 60000); // refresh every 60s
-  return () => clearInterval(interval);
-}, [fetchNotifications]);
-  useEffect(() => {
-    fetchNotifications();
-    const t = setInterval(fetchNotifications, 60000); // refresh every minute
-    return () => clearInterval(t);
-  }, [fetchNotifications]);
   const [applications, setApplications] = useState([]);
   useEffect(() => {
   fetchApplications();
@@ -1413,6 +2519,7 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
 function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
+  transactionCount = 0, averageTransaction = 0, branchPerformance = [],
 }) {
   const panelRef = useRef(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -1425,74 +2532,43 @@ function SalesTrendSection({
   );
 
   const catData = useMemo(() => {
-    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
-    if (!total) return [];
-    // Use the selected brand's own category list (set in Brand & Branch
-    // management) so Coffee Spot never shows Medicine/Equipment, etc.
-    const cats = selectedBrandObj?.categories?.length
-      ? selectedBrandObj.categories
-      : ["General"];
-    // Weighted so the first-listed category gets the biggest share, tapering off.
-    const weights   = cats.map((_, i) => Math.pow(0.72, i));
-    const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
-    return cats.map((label, i) => ({
-      label,
-      value: Math.round(total * (weights[i] / weightSum)),
-    }));
-  }, [kpiData, total, selectedBrandObj]);
+    return Array.isArray(kpiData?.categoryBreakdown) ? kpiData.categoryBreakdown : [];
+  }, [kpiData]);
 
   const brandBreakdownData = useMemo(() => {
-    if (kpiData?.brandBreakdown?.length) return kpiData.brandBreakdown;
-    if (!total || !brands?.length) return [];
-    const totalWeight = brands.reduce((s, b) => s + (b.branches?.length || 1), 0) || 1;
-    return brands
-      .map(b => ({ label: b.name, value: Math.round(total * ((b.branches?.length || 1) / totalWeight)) }))
-      .sort((a, b) => b.value - a.value);
-  }, [kpiData, total, brands]);
+    return Array.isArray(kpiData?.brandBreakdown) ? kpiData.brandBreakdown : [];
+  }, [kpiData]);
 
   const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
   const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
 const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
 
   const branchData = useMemo(() => {
-    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
-    if (!total) return [];
-    return [
-      { label: "Main Branch", value: Math.round(total * 0.30) },
-      { label: "Alabang",     value: Math.round(total * 0.22) },
-      { label: "BGC",         value: Math.round(total * 0.18) },
-      { label: "Makati",      value: Math.round(total * 0.16) },
-      { label: "Ortigas",     value: Math.round(total * 0.14) },
-    ];
-  }, [kpiData, total]);
+    if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
+    return branchPerformance.slice(0, 6);
+  }, [kpiData, branchPerformance]);
 
   const gpLine = useMemo(() => {
-    if (kpiData?.gpSeries?.length === values.length) return kpiData.gpSeries;
-    // Fallback estimate — only used when backend hasn't supplied real GP% data
-    return values.map((v, i) => {
-      const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
-      return parseFloat(base.toFixed(1));
-    });
+    return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
   }, [kpiData, values]);
 
   const priorYearValues = useMemo(() => {
-    if (kpiData?.priorYearValues?.length === values.length) return kpiData.priorYearValues;
-    return values.map(v => v * 0.72);
+    return kpiData?.priorYearValues?.length === values.length ? kpiData.priorYearValues : [];
   }, [kpiData, values]);
 
-  const isGpEstimated  = !(kpiData?.gpSeries?.length === values.length);
-  const isPyEstimated  = !(kpiData?.priorYearValues?.length === values.length);
+  const hasGpData = gpLine.length === values.length && values.length > 0;
+  const hasPriorYearData = priorYearValues.length === values.length && values.length > 0;
 
   const hasData = total > 0;
-  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
-  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
-  const avgOrder    = kpiData?.avgOrder ?? avg;
+  const grossProfit = kpiData?.salesProfit ?? null;
+  const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
+  const avgOrder    = kpiData?.avgOrder ?? averageTransaction ?? 0;
 
   const analysisBullets = useMemo(() => {
     if (!hasData) return [];
     const bullets = [];
     bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
-    bullets.push(`Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
+    if (grossProfit != null) bullets.push(`Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`);
     bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
     bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
     bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
@@ -1596,12 +2672,12 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
             <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
             {hasData ? (
               <>
-                <ComboChart barData={[values, priorYearValues]} lineData={gpLine} labels={labels} height={220} />
+                <ComboChart barData={hasPriorYearData ? [values, priorYearValues] : [values]} lineData={hasGpData ? gpLine : []} labels={labels} height={220} />
                 <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
                   {[
-                    { color: PAL[0], label: "Sales CY" },
-                    { color: PAL[1], label: isPyEstimated ? "Sales PY (est.)" : "Sales PY" },
-                    { color: "#1d4ed8", label: isGpEstimated ? "Gross Profit % (est.)" : "Gross Profit % (CY)", line: true },
+                    { color: PAL[0], label: "Sales — selected period" },
+                    ...(hasPriorYearData ? [{ color: PAL[1], label: "Prior-year sales" }] : []),
+                    ...(hasGpData ? [{ color: "#1d4ed8", label: "Gross Profit %", line: true }] : []),
                   ].map((l, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {l.line
@@ -1615,7 +2691,7 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                   {[
                     { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
                     { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
                   ].map((card, i) => (
                     <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
@@ -1711,7 +2787,7 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
   );
 }
 
-function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, labels = [], kpiData }) {
   const [analysis, setAnalysis] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -1739,11 +2815,11 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     finally { setLoading(false); }
   };
 
-  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
-  const projChg = analysis?.projectedChange  ?? 5.2;
-  const peakDay = analysis?.peakDay         ?? "Thursday";
-  const slowDay = analysis?.slowestDay      ?? "Sunday";
-  const conf    = analysis?.confidence      ?? (total ? 72 : null);
+  const projRev = analysis?.projectedRevenue ?? null;
+  const projChg = analysis?.projectedChange ?? null;
+  const peakDay = analysis?.peakDay ?? null;
+  const slowDay = analysis?.slowestDay ?? null;
+  const conf = analysis?.confidence ?? null;
 
   const typeStyle = (type) => ({
     success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
@@ -1754,12 +2830,11 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
   const preRunBullets = useMemo(() => {
     if (!total) return [];
     return [
-      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
-      `Estimated 7-day projected revenue: ${projRev ? fmtAmt(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
-      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
-      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
-    ].filter(Boolean);
-  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
+      `${transactions?.length?.toLocaleString() ?? 0} transaction records are available to the AI service.`,
+      `Recorded revenue represented by the selected dashboard series is ${fmtAmt(total)}.`,
+      `The evidence charts below show the historical values supplied for analysis. AI forecasts only appear after Run AI Analysis is completed.`,
+    ];
+  }, [total, transactions]);
 
   // ── Print (opens the offscreen report layout in a new tab) ─────────────
   const handlePrint = () => {
@@ -1861,22 +2936,32 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
 
       {/* ── Live dashboard view (unchanged, compact) ── */}
       <div style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
-            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
-            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
-            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
-          ].map((card, i) => (
-            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <card.icon size={11} color={card.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,.8fr)", gap: 16, marginBottom: 20 }}>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>Historical Revenue Evidence</div>
+                <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, fontFamily:FONT }}>Actual dashboard series used as evidence for the AI analysis</div>
               </div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
-              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+              <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20, background:"#eff6ff", color:"#1d4ed8", fontFamily:FONT }}>SOURCE DATA</span>
             </div>
-          ))}
+            <DashboardLineGraph labels={labels} values={values} height={210} />
+          </div>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>AI Output Evidence</div>
+            <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, marginBottom:12, fontFamily:FONT }}>Forecast fields stay empty until the AI returns them</div>
+            {analysis ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {[
+                  ["Projected 7-Day Revenue", projRev != null ? fmtAmt(projRev) : "Not returned"],
+                  ["Projected Change", projChg != null ? `${projChg >= 0 ? "+" : ""}${Number(projChg).toFixed(1)}%` : "Not returned"],
+                  ["Peak Day", peakDay || "Not returned"],
+                  ["Slowest Day", slowDay || "Not returned"],
+                  ["Confidence", conf != null ? `${conf}%` : "Not returned"],
+                ].map(([label,value]) => <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"9px 10px", borderRadius:9, background:"#f8fbff", border:"1px solid #e5edf8" }}><span style={{fontSize:10.5,color:"#64748b",fontWeight:700}}>{label}</span><strong style={{fontSize:11,color:"#1e3a5f",textAlign:"right"}}>{value}</strong></div>)}
+              </div>
+            ) : <div style={{ minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", border:"1px dashed #bfdbfe", borderRadius:10, background:"#f8fbff", color:"#64748b", fontSize:11.5, textAlign:"center", padding:18 }}>Run AI Analysis to generate forecast evidence and recommendations.</div>}
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
@@ -2138,6 +3223,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
 
 function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
   const [data,    setData]    = useState(null);
+  const [inventoryRows, setInventoryRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [tab,     setTab]     = useState("top10");
 
@@ -2153,9 +3239,14 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
         if (names.length) params.set("branches", names.join(","));
       }
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
-      const json = await res.json();
+      const [analyticsRes, inventoryRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
+        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+      ]);
+      const json = analyticsRes.ok ? await analyticsRes.json() : {};
+      const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
       setData(json);
+      setInventoryRows(Array.isArray(inventoryJson) ? inventoryJson : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
@@ -2168,6 +3259,41 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   const totalSKUs = data?.totalProducts ?? 0;
   const fastCount = fast.length;
   const slowCount = slow.length;
+
+  const stockEvidence = useMemo(() => {
+    const norm = v => String(v || "").trim().toLowerCase();
+    const combined = [...top10, ...fast, ...slow];
+    const byName = new Map();
+    combined.forEach(p => {
+      const key = norm(p?.name);
+      if (key && !byName.has(key)) byName.set(key, p);
+    });
+
+    let periodDays = 30;
+    if (rangeMode === "preset") periodDays = preset === "day" ? 1 : preset === "week" ? 7 : preset === "year" ? 365 : 30;
+    else if (appliedRange?.from && appliedRange?.to) {
+      periodDays = Math.max(1, Math.ceil((new Date(appliedRange.to + "T23:59:59") - new Date(appliedRange.from + "T00:00:00")) / 864e5));
+    }
+
+    return [...byName.values()].map(p => {
+      const inv = inventoryRows.find(i => norm(i?.name) === norm(p?.name) && (!filterBranch || i?.branch === filterBranch));
+      if (!inv) return null;
+      const stock = Number(inv.stock ?? 0);
+      const reorder = Number(inv.min_stock ?? 0);
+      const sold = Number(p.totalQty ?? 0);
+      const dailySales = sold > 0 ? sold / periodDays : 0;
+      const daysLeft = dailySales > 0 ? stock / dailySales : null;
+      const ratio = sold > 0 ? stock / sold : null;
+      let status = "OK", recommendation = "Monitor";
+      if (stock <= reorder || (daysLeft != null && daysLeft < 14)) { status = "CRITICAL"; recommendation = "Restock urgently"; }
+      else if ((daysLeft != null && daysLeft > 90) || (ratio != null && ratio > 3)) { status = "OVERSTOCK"; recommendation = "Reduce ordering / promote"; }
+      else if (daysLeft != null && daysLeft < 30) { status = "WATCH"; recommendation = "Reorder soon"; }
+      return { name:p.name, stock, reorder, sold, daysLeft, ratio, status, recommendation, unit:inv.unit || "units" };
+    }).filter(Boolean).slice(0, 10);
+  }, [top10, fast, slow, inventoryRows, preset, rangeMode, appliedRange, filterBranch]);
+
+  const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
+  const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
 
   const revenuePie = top10.slice(0, 5).map((p, i) => ({
     label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
@@ -2260,6 +3386,23 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         }
       />
       <div style={{ padding: "18px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Days of Stock Remaining</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:9}}>{stockEvidence.map((r,i)=><div key={r.name} style={{display:"grid",gridTemplateColumns:"130px 1fr 48px",alignItems:"center",gap:9}}><span title={r.name} style={{fontSize:10.5,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span><div style={{height:10,borderRadius:4,background:"#edf8f0",position:"relative",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.daysLeft||0)/maxDaysLeft)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#22c55e",borderRadius:4}}/></div><strong style={{fontSize:10.5,textAlign:"right",color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</strong></div>)}</div> : <DashboardEmptyState message="No matched sales + inventory records for this filter." />}
+            <div style={{display:"flex",gap:14,marginTop:14,fontSize:9.5,color:"#64748b"}}><span><b style={{color:"#ef4444"}}>14d</b> critical</span><span><b style={{color:"#f59e0b"}}>30d</b> reorder watch</span></div>
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Stock-to-Sales Ratio by Product</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:10}}>{stockEvidence.map(r=><div key={r.name}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:4}}><span title={r.name} style={{fontSize:10.5,fontWeight:700,color:"#263b2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span><span style={{fontSize:10.5,fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a"}}>{r.ratio==null?"—":`×${r.ratio.toFixed(1)}`}</span></div><div style={{height:6,borderRadius:99,background:"#edf8f0",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.ratio||0)/maxRatio)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a",borderRadius:99}}/></div></div>)}</div> : <DashboardEmptyState message="No stock-to-sales ratio can be calculated for this filter." />}
+          </div>
+        </div>
+
+        {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+        </div>}
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
           {[
             { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
@@ -2442,6 +3585,94 @@ function InfoModal({ modal, onClose, onConfirm }) {
   );
 }
 
+
+
+function DashboardLineGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
+  const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W - PL - PR, pH = H - PT - PB;
+  const x = i => labels.length <= 1 ? PL + pW / 2 : PL + (i / (labels.length - 1)) * pW;
+  const y = v => PT + pH - (Number(v || 0) / max) * pH;
+  const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid = [0,.25,.5,.75,1];
+
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No revenue data for the selected period." />;
+
+  return (
+    <div style={{ position:"relative", width:"100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
+        {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
+          <g key={i}>
+            <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
+            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort(max*g)}</text>
+          </g>
+        )})}
+        <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {safeValues.map((v,i)=>(
+          <g key={i}>
+            <circle cx={x(i)} cy={y(v)} r={hover===i?5:3.5} fill="#fff" stroke="#3b791e" strokeWidth="2.5" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}} />
+            <rect x={x(i)-10} y={PT} width="20" height={pH} fill="transparent" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} />
+          </g>
+        ))}
+        {tickIdx.map(i => <text key={i} x={x(i)} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>)}
+      </svg>
+      {hover != null && (
+        <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
+          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>
+          {fmtAmt(safeValues[hover])}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardBarGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
+  const W = 760, H = height, PL = 46, PR = 16, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W-PL-PR, pH = H-PT-PB;
+  const gap = 6;
+  const bw = Math.max(4, (pW / Math.max(labels.length,1)) - gap);
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid=[0,.25,.5,.75,1];
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No transaction data for the selected period." />;
+  return (
+    <div style={{position:"relative", width:"100%"}}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Transaction volume chart">
+        {grid.map((g,i)=>{const yy=PT+pH-g*pH;return <g key={i}><line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5"/><text x={PL-8} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{Math.round(max*g)}</text></g>})}
+        {safeValues.map((v,i)=>{
+          const slot=pW/Math.max(labels.length,1); const xx=PL+i*slot+(slot-bw)/2; const hh=(v/max)*pH; const yy=PT+pH-hh;
+          return <rect key={i} x={xx} y={yy} width={bw} height={Math.max(hh,1)} rx="4" fill={hover===i?"#2c5c16":"#c9dba0"} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}/>
+        })}
+        {tickIdx.map(i=>{const slot=pW/Math.max(labels.length,1);return <text key={i} x={PL+i*slot+slot/2} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>})}
+      </svg>
+      {hover != null && <div style={{position:"absolute",top:8,right:10,background:"#12241B",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:11,fontWeight:700,pointerEvents:"none"}}><div style={{opacity:.7,fontSize:9.5,marginBottom:2}}>{labels[hover]}</div>{safeValues[hover].toLocaleString()} transactions</div>}
+    </div>
+  );
+}
+
+function DashboardEmptyState({ message }) {
+  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+}
+
+function DashboardRankBars({ data = [] }) {
+  if (!data.length) return <DashboardEmptyState message="No branch sales data for the selected period." />;
+  const max = Math.max(...data.map(d=>d.value),1);
+  return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
+    {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
+        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
+      </div>
+      <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
+    </div>)}
+  </div>;
+}
+
 function DashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
 
@@ -2476,6 +3707,7 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [toast, setToast] = useState(null);
 
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
+  const [analysisTab, setAnalysisTab] = useState("sales");
 
   useEffect(() => {
     const fn = (e) => {
@@ -2602,6 +3834,44 @@ const filteredTransactions = useMemo(() => {
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
   const trending  = Number(pctChange) >= 0;
 
+  const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
+  const transactionCount = viewArchive ? null : filteredTransactions.length;
+  const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
+  const activeBranchCount = viewArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+
+  const transactionCountSeries = useMemo(() => {
+    if (viewArchive || !chartLabels.length) return [];
+    const counts = Object.fromEntries(chartLabels.map(label => [label, 0]));
+    const now = new Date();
+    const isCustom = rangeMode === "custom" && appliedRange;
+    let customFromDate = null;
+    if (isCustom) customFromDate = new Date(appliedRange.from + "T00:00:00");
+
+    filteredTransactions.forEach(tx => {
+      const d = new Date(tx.created_at);
+      let label;
+      if (isCustom) {
+        const wi = Math.max(0, Math.floor((d - customFromDate) / (7 * 864e5)));
+        label = `W${wi + 1}`;
+      } else if (preset === "day") label = `${d.getHours()}:00`;
+      else if (preset === "week") label = d.toLocaleDateString("en-US", { weekday: "short" });
+      else if (preset === "month") label = `D${d.getDate()}`;
+      else if (preset === "year") label = d.toLocaleDateString("en-US", { month: "short" });
+      if (label in counts) counts[label] += 1;
+    });
+    return chartLabels.map(label => counts[label] || 0);
+  }, [filteredTransactions, chartLabels, preset, rangeMode, appliedRange, viewArchive]);
+
+  const branchPerformance = useMemo(() => {
+    if (viewArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const branch = tx.branch || "Unassigned";
+      grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewArchive]);
+
 const saveArchive = () => {
   const year = parseInt(archiveYear);
   if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
@@ -2714,13 +3984,13 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-      {/* ── KPI Cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+      {/* ── KPI Cards: Sales Trend tab only ── */}
+      {analysisTab === "sales" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
-          { label: "Sales Revenue", value: kpiData?.salesRevenue,  icon: TrendingUp   },
-          { label: "Sales Profit",  value: kpiData?.salesProfit,   icon: BarChart2    },
-          { label: "Cost of Sales", value: kpiData?.cogs,          icon: Package      },
-          { label: "Total Sales",   value: kpiData?.totalSales,    icon: ShoppingCart },
+          { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
+          { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
+          { label: "Average Sale", value: viewArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
+          { label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
         ].map((k, i) => {
           const isHidden = !!hiddenKpis[i];
           return (
@@ -2752,18 +4022,19 @@ const applyCustomRange = async () => {
                     ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
                     : k.value != null
                       ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
-                          {!isHidden ? fmtAmt(k.value) : "₱••••••••"}
+                          {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
                         </div>
                       : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
                   }
                 </div>
                 <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
               </div>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</span>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT, marginTop: 3 }}>{getRangeLabel()} · {filterLabel}</div>
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -2931,27 +4202,30 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-     {/* ── SECTION 1: SALES TREND ── */}
-      <SalesTrendSection
-        values={values} labels={chartData.labels} kpiData={kpiData}
-        total={total} avg={avg} peak={peak} low={low}
-        peakLabel={peakLabel} pctChange={pctChange} trending={trending}
-        getRangeLabel={getRangeLabel} filterLabel={filterLabel}
-        filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList}
-      /> 
+      {/* ── Analysis workspace tabs ── */}
+      <div style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:"14px 14px 0 0", marginTop:16, marginBottom:18, padding:"0 20px", display:"flex", alignItems:"stretch", gap:8, overflowX:"auto" }}>
+        {[
+          { id:"sales", label:"Sales Trend", icon:TrendingUp },
+          { id:"prescriptive", label:"Prescriptive Analysis", icon:Brain },
+          { id:"stock", label:"Sales vs Stock", icon:Package },
+        ].map(t => <button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{ position:"relative", minWidth:170, padding:"17px 16px 15px", border:"none", background:"transparent", color:analysisTab===t.id?"#139a43":"#94a3b8", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT, display:"flex", alignItems:"center", justifyContent:"center", gap:7, whiteSpace:"nowrap" }}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#22a447"}}/>}</button>)}
+      </div>
 
-      <PrescriptiveSection
-        transactions={filteredTransactions}
-        filterLabel={filterLabel}
-        preset={preset} total={total} values={values} kpiData={kpiData}
-      />
+      {analysisTab === "sales" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
+            <DashboardLineGraph labels={chartLabels} values={values} />
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
+        </div>
+        <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", marginBottom:18, boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:10}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Transaction Volume</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3}}>Number of completed transactions per interval</div></div>{!viewArchive&&<span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{filteredTransactions.length.toLocaleString()} total</span>}</div><DashboardBarGraph labels={chartLabels} values={transactionCountSeries}/></div>
+        <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} />
+      </>}
 
-      {/* ── SECTION 3: SALES VS STOCK ── */}
-      <SalesVsStockSection
-        preset={preset} appliedRange={appliedRange} rangeMode={rangeMode}
-        filterBranch={filterBranch} filterBrand={filterBrand}
-        selectedBrand={selectedBrand} total={total}
-      />
+      {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
+
+      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} />}
 
       <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
 
@@ -4214,7 +5488,7 @@ function FranchiseeInventoryContent({ user, brands: propBrands = [] }) {
         @keyframes spin { to { transform: rotate(360deg); } }
         .fr-brand-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
         .fr-brand-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(50,109,32,.12) !important; border-color: #c9dba0 !important; }
-        .fr-product-row { transition: background .12s ease, border-color .12s ease; }
+        .fr-product-row { transition: background .12s ease, border-color .12s ea se; }
         .fr-product-row:hover { background:#f8faf5 !important; }
       `}</style>
 
@@ -13441,3 +14715,4 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
+
