@@ -42,7 +42,8 @@ router.get("/inventory", async (req, res) => {
 
     const items = await Promise.all(result.rows.map(async item => {
       const ings = await pool.query(
-        `SELECT pi.quantity AS qty_required, pi.unit AS recipe_unit, i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit
+        `SELECT pi.quantity AS qty_required, pi.unit AS unit, pi.unit AS recipe_unit,
+                i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit
         FROM product_ingredients pi
         JOIN ingredients i ON i.id = pi.ingredient_id
         WHERE pi.inventory_id = $1`,
