@@ -1297,7 +1297,7 @@ const handleAddItem = async e => {
       const d = await res.json();
       if (d.success) {
         if (formData.ingredients && formData.ingredients.length > 0) {
-          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
+          const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
             method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({
               ingredients: formData.ingredients.map(ing => ({
@@ -1307,6 +1307,12 @@ const handleAddItem = async e => {
               }))
             })
           });
+          const ingData = await ingRes.json();
+          if (!ingData.success) {
+            showToast("error", "Ingredients not saved", ingData.error || "The item was added but its ingredients failed to save.");
+            setSaving(false);
+            return;
+          }
         }
         await refetch();
         await fetchActivityLog();
@@ -1340,7 +1346,7 @@ const handleAddItem = async e => {
       });
       const d = await res.json();
       if (d.success) {
-        await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
+        const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
           method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({
             ingredients: (formData.ingredients||[]).map(ing => ({
@@ -1350,6 +1356,12 @@ const handleAddItem = async e => {
             }))
           })
         });
+        const ingData = await ingRes.json();
+        if (!ingData.success) {
+          showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
+          setSaving(false);
+          return;
+        }
 
         const changed = [];
         if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
@@ -1462,8 +1474,9 @@ const openEditModal = item => {
 
   const openAddModal = () => {
     const branch = isAdmin ? "" : userBranch;
+    const brandName = selectedBrandObj ? selectedBrandObj.name : "";
     setFormData({ ...emptyForm(), branch });
-    fetchStockItems(branch);
+    fetchStockItems(branch, brandName);   // ← now passes brand too
     setFormBrandId(selectedBrandObj ? String(selectedBrandObj.id) : "");
     setShowAddModal(true);
   };
@@ -1493,9 +1506,19 @@ const openEditModal = item => {
   const removeIngredient = idx => setFormData(f=>({...f, ingredients:f.ingredients.filter((_,i)=>i!==idx)}));
   const updateIngQty     = (idx,qty) => setFormData(f=>({...f, ingredients:f.ingredients.map((ing,i)=>i===idx?{...ing,qty_required:parseFloat(qty)||0}:ing)}));
 
-const ingFiltered = stockItems.filter(s =>
-  !ingSearch || s.name.toLowerCase().includes(ingSearch.toLowerCase())
-);
+  const ingFiltered = stockItems.filter(s => {
+    if (ingSearch && !s.name.toLowerCase().includes(ingSearch.toLowerCase())) return false;
+
+    if (formData.branch) return s.branch === formData.branch;
+
+    // No branch chosen yet (e.g. admin hasn't picked one) — fall back to brand.
+    const brandName = formBrandId
+      ? brandList.find(b => String(b.id) === String(formBrandId))?.name
+      : (filterBrandName || "");
+    if (brandName) return s.brand === brandName;
+
+    return true;
+  });
 
   const importExcel = e => {
     const file = e.target.files[0];

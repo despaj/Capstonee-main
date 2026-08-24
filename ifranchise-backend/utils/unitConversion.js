@@ -1,24 +1,28 @@
-// Converts a quantity from one unit to another, as long as both units
-// belong to the same measurement group (weight, volume, or count).
 const UNIT_GROUPS = {
-  g:      { base: "kg",      factor: 0.001 },
-  kg:     { base: "kg",      factor: 1 },
-  ml:     { base: "liters",  factor: 0.001 },
-  liters: { base: "liters",  factor: 1 },
-  pcs:    { base: "pcs",     factor: 1 },
+  // weight
+  g:      { base: "g",  factor: 1 },
+  kg:     { base: "g",  factor: 1000 },
+  // volume
+  ml:     { base: "ml", factor: 1 },
+  liters: { base: "ml", factor: 1000 },
+  tbsp:   { base: "ml", factor: 15 },
+  tsp:    { base: "ml", factor: 5 },
+  cups:   { base: "ml", factor: 240 },
+  // count — each unit is its own base; only convertible to itself
+  pcs:     { base: "pcs",     factor: 1 },
+  bottles: { base: "bottles", factor: 1 },
+  packs:   { base: "packs",   factor: 1 },
+  bags:    { base: "bags",    factor: 1 },
+  boxes:   { base: "boxes",   factor: 1 },
+  cans:    { base: "cans",    factor: 1 },
 };
 
 function convertUnit(quantity, fromUnit, toUnit) {
-  if (fromUnit === toUnit) return quantity;
-
+  if (!fromUnit || !toUnit || fromUnit === toUnit) return quantity;
   const from = UNIT_GROUPS[fromUnit];
-  const to = UNIT_GROUPS[toUnit];
-  if (!from || !to || from.base !== to.base) {
-    throw new Error(`Cannot convert incompatible units: ${fromUnit} -> ${toUnit}`);
-  }
-
-  const inBaseUnit = quantity * from.factor;
-  return inBaseUnit / to.factor;
+  const to   = UNIT_GROUPS[toUnit];
+  if (!from || !to || from.base !== to.base) return quantity; // incompatible/unknown units — never throw, just skip conversion
+  return (quantity * from.factor) / to.factor;
 }
 
-module.exports = { convertUnit };
+module.exports = { convertUnit, UNIT_GROUPS };

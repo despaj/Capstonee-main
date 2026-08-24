@@ -12,7 +12,12 @@ function computeAvailability(ingredients) {
 
   for (const ing of ingredients) {
     const stock = parseFloat(ing.stock) || 0;
-    const qtyRequired = convertUnit(parseFloat(ing.qty_required) || 0, ing.recipe_unit, ing.ingredient_unit);
+    let qtyRequired;
+    try {
+      qtyRequired = convertUnit(parseFloat(ing.qty_required) || 0, ing.recipe_unit || ing.ingredient_unit, ing.ingredient_unit);
+    } catch {
+      qtyRequired = parseFloat(ing.qty_required) || 0; // fall back to raw qty if conversion fails
+    }
     if (qtyRequired <= 0) continue;
 
     const portions = Math.floor(stock / qtyRequired);
@@ -28,7 +33,6 @@ function computeAvailability(ingredients) {
     lowIngredients,
   };
 }
-
 router.get("/inventory", async (req, res) => {
   try {
     const { branch } = req.query;
@@ -56,6 +60,7 @@ router.get("/inventory", async (req, res) => {
 
     res.json(items);
   } catch (err) {
+    console.error("GET /inventory error:", err);
     res.status(500).json({ error: "Failed to fetch inventory" });
   }
 });
@@ -206,6 +211,47 @@ router.get("/inventory/:id/ingredients", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch product ingredients" });
+  }
+});
+
+router.post("/inventory/:id/ingredients", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { ingredients } = req.body; // [{ ingredient_id, quantity, unit }]
+
+    await client.query("BEGIN");
+
+    const check = await client.query("SELECT id FROM inventory WHERE id=$1", [req.params.id]);
+    if (check.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    // Replace the full ingredient list for this product
+    await client.query("DELETE FROM product_ingredients WHERE inventory_id=$1", [req.params.id]);
+
+    if (Array.isArray(ingredients) && ingredients.length > 0) {
+      const values = [];
+      const params = [];
+      ingredients.forEach((ing, i) => {
+        const base = i * 4;
+        values.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4})`);
+        params.push(req.params.id, ing.ingredient_id, parseFloat(ing.quantity) || 0, ing.unit || ing.recipe_unit || "pcs");
+      });
+      await client.query(
+        `INSERT INTO product_ingredients (inventory_id, ingredient_id, quantity, unit) VALUES ${values.join(",")}`,
+        params
+      );
+    }
+
+    await client.query("COMMIT");
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /inventory/:id/ingredients error:", err);
+    res.status(500).json({ error: "Failed to save ingredients" });
+  } finally {
+    client.release();
   }
 });
 
