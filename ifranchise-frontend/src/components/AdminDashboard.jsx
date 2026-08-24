@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -2369,17 +2371,21 @@ function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLab
   const R = size / 2, cx = R, cy = R;
   const outerR = R - 4, innerR = outerR * innerRadius;
   const total  = segments.reduce((s, d) => s + (d.value || 0), 0) || 1;
-  let cum = 0;
+let cum = 0;
   const slices = segments.map((seg, i) => {
-    const pct = (seg.value || 0) / total;
+    let pct = (seg.value || 0) / total;
     const sa  = cum * 2 * Math.PI - Math.PI / 2;
     cum += pct;
-    const ea  = cum * 2 * Math.PI - Math.PI / 2;
+    let ea  = cum * 2 * Math.PI - Math.PI / 2;
+
+   
+    if (pct >= 0.9999) ea -= 0.0001;
+
     const x1  = cx + outerR * Math.cos(sa), y1 = cy + outerR * Math.sin(sa);
     const x2  = cx + outerR * Math.cos(ea), y2 = cy + outerR * Math.sin(ea);
     const ix1 = cx + innerR * Math.cos(ea), iy1 = cy + innerR * Math.sin(ea);
     const ix2 = cx + innerR * Math.cos(sa), iy2 = cy + innerR * Math.sin(sa);
-    const large = pct > 0.5 ? 1 : 0;
+    const large = (ea - sa) > Math.PI ? 1 : 0;
     const mid   = sa + (ea - sa) / 2;
     return { ...seg, path: `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} 0 ${ix2} ${iy2} Z`, mid, pct, color: seg.color || PAL[i % PAL.length] };
   });
@@ -2519,7 +2525,8 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
 function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
-  transactionCount = 0, averageTransaction = 0, branchPerformance = [],
+  transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
+  branchProfitability = [],
 }) {
   const panelRef = useRef(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -2536,8 +2543,12 @@ function SalesTrendSection({
   }, [kpiData]);
 
   const brandBreakdownData = useMemo(() => {
-    return Array.isArray(kpiData?.brandBreakdown) ? kpiData.brandBreakdown : [];
-  }, [kpiData]);
+    if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
+      return kpiData.brandBreakdown;
+    }
+    return brandPerformance;
+  }, [kpiData, brandPerformance]);
+  
 
   const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
   const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
@@ -2547,6 +2558,110 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
     if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
     return branchPerformance.slice(0, 6);
   }, [kpiData, branchPerformance]);
+
+  const branchAttentionItems = useMemo(() => {
+    const rows = Array.isArray(branchProfitability)
+      ? branchProfitability.filter(row => Number(row?.revenue || 0) > 0)
+      : [];
+
+    if (!rows.length) return [];
+
+    const items = [];
+    const usedBranches = new Set();
+
+    const addItem = (row, config) => {
+      if (!row?.branch || usedBranches.has(row.branch) || items.length >= 5) return;
+      usedBranches.add(row.branch);
+      items.push({
+        branch: row.branch,
+        ...config,
+      });
+    };
+
+    // 1. Data quality comes first. A 100% margin caused by zero COGS should
+    //    never be presented as a genuine high-margin success.
+    rows
+      .filter(row => Number(row.cogs || 0) <= 0)
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "DATA CHECK",
+          tone: "info",
+          title: "Verify cost data",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin with no recorded COGS.`,
+          action: "Confirm transaction cost-of-goods data before interpreting profitability.",
+        });
+      });
+
+    // 2. Low-margin branches need management attention.
+    rows
+      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) < 25)
+      .sort((a, b) => Number(a.margin || 0) - Number(b.margin || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "MARGIN WATCH",
+          tone: "warning",
+          title: "Margin requires review",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin on ${fmtAmt(row.revenue)} revenue.`,
+          action: "Review product costs, pricing, discounts and sales mix.",
+        });
+      });
+
+    // 3. High-margin branches may be good candidates for controlled growth.
+    rows
+      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) >= 40)
+      .sort((a, b) => Number(b.margin || 0) - Number(a.margin || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "GROWTH OPPORTUNITY",
+          tone: "success",
+          title: "Strong margin performance",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.avgOrder)} average order.`,
+          action: "Assess whether sales volume can be increased while preserving current margins.",
+        });
+      });
+
+    // 4. Flag branches whose transaction volume is materially below the group.
+    const avgTransactions =
+      rows.reduce((sum, row) => sum + Number(row.transactions || 0), 0) /
+      Math.max(rows.length, 1);
+
+    rows
+      .filter(row =>
+        Number(row.transactions || 0) > 0 &&
+        Number(row.transactions || 0) < Math.max(2, avgTransactions * 0.5)
+      )
+      .sort((a, b) => Number(a.transactions || 0) - Number(b.transactions || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "LOW VOLUME",
+          tone: "neutral",
+          title: "Low transaction activity",
+          detail: `${Number(row.transactions || 0).toLocaleString()} transaction${Number(row.transactions || 0) === 1 ? "" : "s"} · ${fmtAmt(row.avgOrder)} average order.`,
+          action: "Review traffic, local demand and branch-level selling activity.",
+        });
+      });
+
+    // 5. If space remains, surface one stable branch as a positive benchmark.
+    rows
+      .filter(row =>
+        Number(row.cogs || 0) > 0 &&
+        Number(row.margin || 0) >= 25 &&
+        Number(row.margin || 0) < 40
+      )
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "STABLE",
+          tone: "healthy",
+          title: "Healthy operating range",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.revenue)} revenue.`,
+          action: "Maintain performance and monitor for changes in cost or transaction volume.",
+        });
+      });
+
+    return items.slice(0, 5);
+  }, [branchProfitability]);
 
   const gpLine = useMemo(() => {
     return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
@@ -2774,12 +2889,175 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
               : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
             }
           </div>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
-            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
-            {branchData.length > 0
-              ? <HBarChart data={branchData.slice(0, 5)} />
-              : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
-            }
+          <div style={{
+            background: "#f8fffe",
+            border: "1px solid #e0f2f1",
+            borderRadius: 14,
+            padding: "18px 20px"
+          }}>
+            <ChartLabel>
+              <Target size={11} color="#00897b" />
+              Branch Attention & Opportunities
+            </ChartLabel>
+
+            <div style={{
+              fontSize: 10.5,
+              color: "#789086",
+              lineHeight: 1.5,
+              marginTop: -3,
+              marginBottom: 12,
+              fontFamily: FONT
+            }}>
+              Priority observations from branch profitability and transaction data
+            </div>
+
+            {branchAttentionItems.length > 0 ? (
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8
+              }}>
+                {branchAttentionItems.map((item, index) => {
+                  const tone = {
+                    info: {
+                      bg: "#eff6ff",
+                      border: "#bfdbfe",
+                      accent: "#2563eb",
+                      badgeBg: "#dbeafe",
+                      badgeText: "#1e40af",
+                    },
+                    warning: {
+                      bg: "#fffbeb",
+                      border: "#fde68a",
+                      accent: "#d97706",
+                      badgeBg: "#fef3c7",
+                      badgeText: "#92400e",
+                    },
+                    success: {
+                      bg: "#ecfdf5",
+                      border: "#a7f3d0",
+                      accent: "#059669",
+                      badgeBg: "#d1fae5",
+                      badgeText: "#047857",
+                    },
+                    neutral: {
+                      bg: "#f8fafc",
+                      border: "#e2e8f0",
+                      accent: "#64748b",
+                      badgeBg: "#f1f5f9",
+                      badgeText: "#475569",
+                    },
+                    healthy: {
+                      bg: "#f0f5e8",
+                      border: "#c9dba0",
+                      accent: "#3b791e",
+                      badgeBg: "#e8f0dd",
+                      badgeText: "#2c5c16",
+                    },
+                  }[item.tone] || {
+                    bg: "#f8fafc",
+                    border: "#e2e8f0",
+                    accent: "#64748b",
+                    badgeBg: "#f1f5f9",
+                    badgeText: "#475569",
+                  };
+
+                  return (
+                    <div
+                      key={`${item.branch}-${index}`}
+                      style={{
+                        background: tone.bg,
+                        border: `1px solid ${tone.border}`,
+                        borderLeft: `3px solid ${tone.accent}`,
+                        borderRadius: 10,
+                        padding: "9px 10px"
+                      }}
+                    >
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        marginBottom: 5
+                      }}>
+                        <div style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          color: "#102a1c",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          fontFamily: FONT
+                        }}>
+                          {item.branch}
+                        </div>
+
+                        <span style={{
+                          flexShrink: 0,
+                          fontSize: 8.5,
+                          fontWeight: 800,
+                          letterSpacing: ".05em",
+                          textTransform: "uppercase",
+                          padding: "2px 6px",
+                          borderRadius: 20,
+                          background: tone.badgeBg,
+                          color: tone.badgeText,
+                          fontFamily: FONT
+                        }}>
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: "#334155",
+                        lineHeight: 1.45,
+                        fontFamily: FONT
+                      }}>
+                        {item.title}
+                      </div>
+
+                      <div style={{
+                        fontSize: 10,
+                        color: "#64748b",
+                        lineHeight: 1.5,
+                        marginTop: 2,
+                        fontFamily: FONT
+                      }}>
+                        {item.detail}
+                      </div>
+
+                      <div style={{
+                        fontSize: 9.7,
+                        fontWeight: 700,
+                        color: tone.accent,
+                        lineHeight: 1.45,
+                        marginTop: 4,
+                        fontFamily: FONT
+                      }}>
+                        {item.action}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{
+                height: 130,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#94a3b8",
+                fontFamily: FONT,
+                fontSize: 11.5,
+                textAlign: "center",
+                lineHeight: 1.6,
+                padding: 16
+              }}>
+                No branch profitability observations are available for this filter.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2820,6 +3098,32 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
   const peakDay = analysis?.peakDay ?? null;
   const slowDay = analysis?.slowestDay ?? null;
   const conf = analysis?.confidence ?? null;
+
+  // Prescriptive anomaly groups.
+  // "ghost_sales" is the backend's existing anomalyType for a branch that
+  // recorded sales while one or more inventory items are already at zero stock.
+  const ghostStockAnomalies = useMemo(() => {
+    const rows = Array.isArray(analysis?.stockAnomalies)
+      ? analysis.stockAnomalies
+      : [];
+
+    return rows.filter((a) => {
+      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+      return type === "ghost_sales" || type === "ghost_stock";
+    });
+  }, [analysis]);
+
+  // Preserve the other anomaly types instead of removing existing functionality.
+  const otherStockAnomalies = useMemo(() => {
+    const rows = Array.isArray(analysis?.stockAnomalies)
+      ? analysis.stockAnomalies
+      : [];
+
+    return rows.filter((a) => {
+      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+      return type !== "ghost_sales" && type !== "ghost_stock";
+    });
+  }, [analysis]);
 
   const typeStyle = (type) => ({
     success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
@@ -2997,33 +3301,297 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
               )}
             </div>
 
-            {analysis?.stockAnomalies?.length > 0 && (
+            {/* Ghost Stock Anomalies Across Branches — directly under AI Summary */}
+            {analysis && (
+              <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 14, padding: "14px 15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: ghostStockAnomalies.length > 0 ? 10 : 0, flexWrap: "wrap" }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: "#dc2626",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontFamily: FONT
+                  }}>
+                    Ghost Stock Anomalies Across Branches
+                  </span>
+
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                    color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b",
+                    fontFamily: FONT
+                  }}>
+                    {ghostStockAnomalies.length}
+                  </span>
+                </div>
+
+                <div style={{
+                  marginBottom: 11,
+                  padding: "10px 12px",
+                  borderRadius: 9,
+                  background: "#fff7f7",
+                  border: "1px solid #fee2e2",
+                  fontSize: 11.5,
+                  color: "#7f1d1d",
+                  lineHeight: 1.6,
+                  fontFamily: FONT
+                }}>
+                  <strong>What is a ghost stock anomaly?</strong>{" "}
+                  A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+                </div>
+
+                {ghostStockAnomalies.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {ghostStockAnomalies.map((a, i) => {
+                      const severity = String(a?.severity || "critical").toLowerCase();
+                      const severityColor =
+                        severity === "critical"
+                          ? "#dc2626"
+                          : severity === "warning"
+                            ? "#d97706"
+                            : "#2563eb";
+
+                      return (
+                        <div
+                          key={`${a?.branch || "branch"}-${i}`}
+                          style={{
+                            background: "linear-gradient(145deg,#fff7f7,#fef2f2)",
+                            border: "1px solid #fecaca",
+                            borderLeft: `4px solid ${severityColor}`,
+                            borderRadius: 12,
+                            padding: "13px 14px"
+                          }}
+                        >
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                            marginBottom: 8,
+                            flexWrap: "wrap"
+                          }}>
+                            <AlertTriangle size={13} color={severityColor} />
+
+                            <span style={{
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                              background: "#fee2e2",
+                              color: "#991b1b",
+                              textTransform: "uppercase",
+                              fontFamily: FONT
+                            }}>
+                              Ghost Stock
+                            </span>
+
+                            <span style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: "#0d2b1e",
+                              fontFamily: FONT
+                            }}>
+                              {a?.branch || "Unknown Branch"}
+                            </span>
+
+                            <span style={{
+                              marginLeft: "auto",
+                              fontSize: 9,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                              background: severity === "critical" ? "#fee2e2" : severity === "warning" ? "#fef3c7" : "#dbeafe",
+                              color: severity === "critical" ? "#991b1b" : severity === "warning" ? "#92400e" : "#1e40af",
+                              textTransform: "uppercase",
+                              fontFamily: FONT
+                            }}>
+                              {severity}
+                            </span>
+                          </div>
+
+                          <BulletItem
+                            text={a?.finding || "Sales activity was detected while related inventory is already recorded at zero stock."}
+                            color={severityColor}
+                            size="small"
+                          />
+
+                          <div style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 7,
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            background: "rgba(255,255,255,0.78)",
+                            border: "1px solid #fecaca",
+                            marginTop: 7
+                          }}>
+                            <CheckCircle size={12} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
+                            <span style={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: "#0d2b1e",
+                              lineHeight: 1.55,
+                              fontFamily: FONT
+                            }}>
+                              {a?.action || "Verify the branch's physical stock, reconcile recent sales against inventory movements, and correct the stock record before further replenishment decisions."}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    padding: "10px 11px",
+                    borderRadius: 9,
+                    background: "#f8fafc",
+                    border: "1px dashed #cbd5e1"
+                  }}>
+                    <CheckCircle size={14} color="#059669" />
+                    <span style={{
+                      fontSize: 11.5,
+                      color: "#64748b",
+                      lineHeight: 1.55,
+                      fontFamily: FONT
+                    }}>
+                      No ghost stock anomaly was detected in the branches included in this analysis.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Preserve non-ghost stock/sales anomalies below the ghost-stock section */}
+            {analysis && otherStockAnomalies.length > 0 && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Stock vs Sales Anomalies</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626", fontFamily: FONT }}>{analysis.stockAnomalies.length}</span>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#d97706" }} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: "#92400e",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontFamily: FONT
+                  }}>
+                    Other Stock vs Sales Anomalies
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    fontFamily: FONT
+                  }}>
+                    {otherStockAnomalies.length}
+                  </span>
                 </div>
+
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {analysis.stockAnomalies.map((a, i) => {
+                  {otherStockAnomalies.map((a, i) => {
                     const cfg = {
-                      ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
-                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
-                      dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
-                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                      low_stock_no_reorder: {
+                        bg: "#fffbeb",
+                        border: "#fde68a",
+                        label: "Not Reordering",
+                        labelBg: "#fef3c7",
+                        labelColor: "#92400e",
+                        dot: "#d97706"
+                      },
+                      dead_stock: {
+                        bg: "#eff6ff",
+                        border: "#bfdbfe",
+                        label: "Dead Stock",
+                        labelBg: "#dbeafe",
+                        labelColor: "#1e40af",
+                        dot: "#2563eb"
+                      },
+                    }[a?.anomalyType] || {
+                      bg: "#f8fffe",
+                      border: "#d1eedd",
+                      label: "Anomaly",
+                      labelBg: "#e0f2f1",
+                      labelColor: "#00695c",
+                      dot: "#00897b"
+                    };
+
                     return (
-                      <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
-                          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
-                          {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
+                      <div key={i} style={{
+                        background: cfg.bg,
+                        border: `1px solid ${cfg.border}`,
+                        borderRadius: 12,
+                        padding: "13px 14px"
+                      }}>
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginBottom: 7,
+                          flexWrap: "wrap"
+                        }}>
+                          <span style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: cfg.dot,
+                            display: "inline-block"
+                          }} />
+                          <span style={{
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            padding: "2px 7px",
+                            borderRadius: 20,
+                            background: cfg.labelBg,
+                            color: cfg.labelColor,
+                            textTransform: "uppercase",
+                            fontFamily: FONT
+                          }}>
+                            {cfg.label}
+                          </span>
+                          <span style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "#0d2b1e",
+                            fontFamily: FONT
+                          }}>
+                            {a?.branch || "Unknown Branch"}
+                          </span>
                         </div>
-                        <BulletItem text={a.finding} color={cfg.dot} size="small" />
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
-                          <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
-                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
-                        </div>
+
+                        <BulletItem text={a?.finding} color={cfg.dot} size="small" />
+
+                        {a?.action && (
+                          <div style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 6,
+                            padding: "7px 9px",
+                            borderRadius: 7,
+                            background: "rgba(255,255,255,0.65)",
+                            border: `1px solid ${cfg.border}`,
+                            marginTop: 6
+                          }}>
+                            <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                            <span style={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: "#0d2b1e",
+                              lineHeight: 1.55,
+                              fontFamily: FONT
+                            }}>
+                              {a.action}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -3145,34 +3713,178 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
             )}
           </div>
 
-          {/* Anomalies */}
-          {analysis?.stockAnomalies?.length > 0 && (
+          {/* Ghost Stock Anomalies Across Branches */}
+          {analysis && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
                 <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Stock vs Sales Anomalies</span>
-                <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#991b1b" }}>
-                  {analysis.stockAnomalies.length}
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  Ghost Stock Anomalies Across Branches
+                </span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                  color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b"
+                }}>
+                  {ghostStockAnomalies.length}
                 </span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {analysis.stockAnomalies.map((a, i) => {
-                  const cfg = {
-                    ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales" },
-                    low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
-                    dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
-                  }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
-                  return (
-                    <div key={i} style={{ background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: 12, padding: "16px 18px" }}>
+
+              <div style={{
+                marginBottom: 14,
+                padding: "11px 13px",
+                borderRadius: 9,
+                background: "#fff7f7",
+                border: "1px solid #fee2e2",
+                fontSize: 12.5,
+                color: "#7f1d1d",
+                lineHeight: 1.65
+              }}>
+                <strong>What is a ghost stock anomaly?</strong>{" "}
+                A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+              </div>
+
+              {ghostStockAnomalies.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {ghostStockAnomalies.map((a, i) => (
+                    <div
+                      key={`${a?.branch || "branch"}-${i}`}
+                      style={{
+                        background: "#fef2f2",
+                        border: "1.5px solid #fecaca",
+                        borderLeft: "5px solid #dc2626",
+                        borderRadius: 12,
+                        padding: "16px 18px"
+                      }}
+                    >
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20, background: "#fff", textTransform: "uppercase" }}>{cfg.label}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>{a.branch}</span>
-                        {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 20, background: "#fee2e2", color: "#991b1b" }}>CRITICAL</span>}
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fff",
+                          color: "#991b1b",
+                          textTransform: "uppercase"
+                        }}>
+                          Ghost Stock
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>
+                          {a?.branch || "Unknown Branch"}
+                        </span>
+                        <span style={{
+                          marginLeft: "auto",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                          textTransform: "uppercase"
+                        }}>
+                          {a?.severity || "critical"}
+                        </span>
                       </div>
-                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>{a.finding}</p>
-                      <div style={{ fontSize: 13, fontWeight: 600, background: "rgba(255,255,255,0.7)", borderRadius: 8, padding: "9px 12px" }}>
-                        → {a.action}
+
+                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                        {a?.finding || "Sales activity was detected while related inventory is recorded at zero stock."}
+                      </p>
+
+                      <div style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        background: "rgba(255,255,255,0.7)",
+                        borderRadius: 8,
+                        padding: "9px 12px"
+                      }}>
+                        → {a?.action || "Verify physical stock, reconcile inventory movements, and correct the branch stock record."}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: 13,
+                  color: "#64748b",
+                  background: "#f8fafc",
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: 10,
+                  padding: "12px 14px"
+                }}>
+                  No ghost stock anomaly was detected in the branches included in this analysis.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preserve other stock/sales anomalies in exported reports */}
+          {analysis && otherStockAnomalies.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#d97706" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  Other Stock vs Sales Anomalies
+                </span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#fef3c7",
+                  color: "#92400e"
+                }}>
+                  {otherStockAnomalies.length}
+                </span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {otherStockAnomalies.map((a, i) => {
+                  const cfg = {
+                    low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
+                    dead_stock: { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
+                  }[a?.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
+
+                  return (
+                    <div key={i} style={{
+                      background: cfg.bg,
+                      border: `1.5px solid ${cfg.border}`,
+                      borderRadius: 12,
+                      padding: "16px 18px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fff",
+                          textTransform: "uppercase"
+                        }}>
+                          {cfg.label}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>
+                          {a?.branch || "Unknown Branch"}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                        {a?.finding}
+                      </p>
+
+                      {a?.action && (
+                        <div style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 8,
+                          padding: "9px 12px"
+                        }}>
+                          → {a.action}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3221,7 +3933,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
   );
 }
 
-function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
+function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total, transactions = [] }) {
   const [data,    setData]    = useState(null);
   const [inventoryRows, setInventoryRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -3261,36 +3973,272 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   const slowCount = slow.length;
 
   const stockEvidence = useMemo(() => {
-    const norm = v => String(v || "").trim().toLowerCase();
-    const combined = [...top10, ...fast, ...slow];
-    const byName = new Map();
-    combined.forEach(p => {
-      const key = norm(p?.name);
-      if (key && !byName.has(key)) byName.set(key, p);
-    });
+    /*
+      Build the stock charts from the SAME filtered transaction records used by
+      the dashboard instead of relying only on top10/fast/slow lists.
 
+      This fixes the empty charts when a sold product exists in transactions
+      and inventory but was omitted from one of the analytics summary arrays.
+    */
+
+    const normalizeName = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, "");
+
+    const normalizeText = (value) =>
+      String(value || "").trim().toLowerCase();
+
+    const parseItems = (raw) => {
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    // Number of days represented by the current dashboard filter.
     let periodDays = 30;
-    if (rangeMode === "preset") periodDays = preset === "day" ? 1 : preset === "week" ? 7 : preset === "year" ? 365 : 30;
-    else if (appliedRange?.from && appliedRange?.to) {
-      periodDays = Math.max(1, Math.ceil((new Date(appliedRange.to + "T23:59:59") - new Date(appliedRange.from + "T00:00:00")) / 864e5));
+
+    if (rangeMode === "preset") {
+      periodDays =
+        preset === "day"
+          ? 1
+          : preset === "week"
+            ? 7
+            : preset === "year"
+              ? 365
+              : 30;
+    } else if (appliedRange?.from && appliedRange?.to) {
+      periodDays = Math.max(
+        1,
+        Math.ceil(
+          (
+            new Date(appliedRange.to + "T23:59:59") -
+            new Date(appliedRange.from + "T00:00:00")
+          ) / 864e5
+        )
+      );
     }
 
-    return [...byName.values()].map(p => {
-      const inv = inventoryRows.find(i => norm(i?.name) === norm(p?.name) && (!filterBranch || i?.branch === filterBranch));
-      if (!inv) return null;
-      const stock = Number(inv.stock ?? 0);
-      const reorder = Number(inv.min_stock ?? 0);
-      const sold = Number(p.totalQty ?? 0);
-      const dailySales = sold > 0 ? sold / periodDays : 0;
-      const daysLeft = dailySales > 0 ? stock / dailySales : null;
-      const ratio = sold > 0 ? stock / sold : null;
-      let status = "OK", recommendation = "Monitor";
-      if (stock <= reorder || (daysLeft != null && daysLeft < 14)) { status = "CRITICAL"; recommendation = "Restock urgently"; }
-      else if ((daysLeft != null && daysLeft > 90) || (ratio != null && ratio > 3)) { status = "OVERSTOCK"; recommendation = "Reduce ordering / promote"; }
-      else if (daysLeft != null && daysLeft < 30) { status = "WATCH"; recommendation = "Reorder soon"; }
-      return { name:p.name, stock, reorder, sold, daysLeft, ratio, status, recommendation, unit:inv.unit || "units" };
-    }).filter(Boolean).slice(0, 10);
-  }, [top10, fast, slow, inventoryRows, preset, rangeMode, appliedRange, filterBranch]);
+    /*
+      Aggregate actual units sold from the already-filtered transactions.
+      Store both an ID key and a normalized-name key because older transaction
+      rows may not consistently contain the inventory/ingredient ID.
+    */
+    const soldById = new Map();
+    const soldByName = new Map();
+
+    (Array.isArray(transactions) ? transactions : []).forEach((tx) => {
+      const txBranch = normalizeText(tx?.branch);
+
+      parseItems(tx?.items).forEach((item) => {
+        const qty = Number(
+          item?.qty ??
+          item?.quantity ??
+          item?.quantity_sold ??
+          0
+        );
+
+        if (!Number.isFinite(qty) || qty <= 0) return;
+
+        const itemId =
+          item?.ingredient_id ??
+          item?.inventory_id ??
+          item?.product_id ??
+          item?.id ??
+          null;
+
+        const itemName =
+          item?.name ??
+          item?.product_name ??
+          item?.item_name ??
+          item?.title ??
+          "";
+
+        /*
+          Include branch in the name key where possible so two branches selling
+          products with the same name don't accidentally share sales quantities.
+        */
+        const nameKey = normalizeName(itemName);
+
+        if (itemId != null && itemId !== "") {
+          const idKey = `${txBranch}|${String(itemId)}`;
+          soldById.set(idKey, (soldById.get(idKey) || 0) + qty);
+
+          // Compatibility key for rows where inventory has no branch.
+          const globalIdKey = `|${String(itemId)}`;
+          soldById.set(globalIdKey, (soldById.get(globalIdKey) || 0) + qty);
+        }
+
+        if (nameKey) {
+          const branchNameKey = `${txBranch}|${nameKey}`;
+          soldByName.set(
+            branchNameKey,
+            (soldByName.get(branchNameKey) || 0) + qty
+          );
+
+          // Compatibility key for inventory records without a branch value.
+          const globalNameKey = `|${nameKey}`;
+          soldByName.set(
+            globalNameKey,
+            (soldByName.get(globalNameKey) || 0) + qty
+          );
+        }
+      });
+    });
+
+    const selectedBranchNames =
+      filterBrand && selectedBrand
+        ? (selectedBrand.branches || [])
+            .map((br) => typeof br === "string" ? br : br?.name)
+            .filter(Boolean)
+        : [];
+
+    const inventoryInScope = (Array.isArray(inventoryRows) ? inventoryRows : [])
+      .filter((inv) => {
+        const invBranch = String(inv?.branch || "").trim();
+        const invBrand = normalizeText(inv?.brand);
+
+        if (filterBranch) {
+          return invBranch === filterBranch;
+        }
+
+        if (filterBrand && selectedBrand) {
+          const branchMatches =
+            selectedBranchNames.length === 0 ||
+            selectedBranchNames.includes(invBranch);
+
+          const brandMatches =
+            !invBrand ||
+            invBrand === normalizeText(selectedBrand?.name);
+
+          return branchMatches && brandMatches;
+        }
+
+        return true;
+      });
+
+    const rows = inventoryInScope
+      .map((inv) => {
+        const invBranch = normalizeText(inv?.branch);
+        const invName = normalizeName(inv?.name);
+
+        const invId =
+          inv?.id ??
+          inv?.ingredient_id ??
+          inv?.inventory_id ??
+          null;
+
+        let sold = 0;
+
+        if (invId != null && invId !== "") {
+          sold =
+            soldById.get(`${invBranch}|${String(invId)}`) ??
+            soldById.get(`|${String(invId)}`) ??
+            0;
+        }
+
+        // Fallback to normalized product name for older transactions.
+        if (sold <= 0 && invName) {
+          sold =
+            soldByName.get(`${invBranch}|${invName}`) ??
+            soldByName.get(`|${invName}`) ??
+            0;
+        }
+
+        /*
+          These two charts are sales-vs-stock charts, so only products that
+          actually have sales in the selected period are meaningful.
+        */
+        if (!(sold > 0)) return null;
+
+        const stock = Number(inv?.stock ?? 0);
+        const reorder = Number(
+          inv?.min_stock ??
+          inv?.reorder_point ??
+          inv?.minimum_stock ??
+          0
+        );
+
+        const dailySales = sold / Math.max(periodDays, 1);
+        const daysLeft = dailySales > 0 ? stock / dailySales : null;
+        const ratio = sold > 0 ? stock / sold : null;
+
+        let status = "OK";
+        let recommendation = "Monitor stock level";
+
+        if (
+          stock <= reorder ||
+          (daysLeft != null && daysLeft < 14)
+        ) {
+          status = "CRITICAL";
+          recommendation = "Restock urgently";
+        } else if (
+          (daysLeft != null && daysLeft > 90) ||
+          (ratio != null && ratio > 3)
+        ) {
+          status = "OVERSTOCK";
+          recommendation = "Reduce ordering / promote";
+        } else if (
+          daysLeft != null &&
+          daysLeft < 30
+        ) {
+          status = "WATCH";
+          recommendation = "Reorder soon";
+        }
+
+        return {
+          id: invId,
+          name: inv?.name || "Unnamed Product",
+          branch: inv?.branch || "Unassigned",
+          brand: inv?.brand || "",
+          stock,
+          reorder,
+          sold,
+          daysLeft,
+          ratio,
+          status,
+          recommendation,
+          unit: inv?.unit || "units",
+        };
+      })
+      .filter(Boolean);
+
+    /*
+      Put the products with the greatest sales first, while still keeping
+      critical items visible near the top.
+    */
+    rows.sort((a, b) => {
+      const priority = {
+        CRITICAL: 0,
+        WATCH: 1,
+        OK: 2,
+        OVERSTOCK: 3,
+      };
+
+      const p = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+      return p !== 0 ? p : b.sold - a.sold;
+    });
+
+    return rows.slice(0, 10);
+  }, [
+    transactions,
+    inventoryRows,
+    preset,
+    rangeMode,
+    appliedRange,
+    filterBranch,
+    filterBrand,
+    selectedBrand,
+  ]);
 
   const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
   const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
@@ -3789,14 +4737,38 @@ if (isCustom) {
   return { labels, values };
 }
 
-  let grouped = {};
-  if (preset === "day")   filtered.forEach(tx => { const h = new Date(tx.created_at).getHours(); const l = `${h}:00`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-  else if (preset === "week")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{weekday:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-  else if (preset === "month") filtered.forEach(tx => { const l = `D${new Date(tx.created_at).getDate()}`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-  else if (preset === "year")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{month:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
+const groupedMap = new Map();
+  const addToGroup = (key, label, amount) => {
+    const prev = groupedMap.get(key) || { label, sortKey: key, value: 0 };
+    prev.value += amount;
+    groupedMap.set(key, prev);
+  };
 
-  const labels = Object.keys(grouped);
-  return { labels, values: labels.map(l => grouped[l]) };
+  if (preset === "day") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getHours(), `${d.getHours()}:00`, Number(tx.total||0));
+    });
+  } else if (preset === "week") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getDay(), d.toLocaleDateString("en-US",{weekday:"short"}), Number(tx.total||0));
+    });
+  } else if (preset === "month") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getDate(), `D${d.getDate()}`, Number(tx.total||0));
+    });
+  } else if (preset === "year") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getMonth(), d.toLocaleDateString("en-US",{month:"short"}), Number(tx.total||0));
+    });
+  }
+
+  const sortedGroups = Array.from(groupedMap.values()).sort((a,b) => a.sortKey - b.sortKey);
+  const labels = sortedGroups.map(e => e.label);
+  return { labels, values: sortedGroups.map(e => e.value) };
 }, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
 
 const filteredTransactions = useMemo(() => {
@@ -3830,7 +4802,7 @@ const filteredTransactions = useMemo(() => {
   const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
   const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
   const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
-  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : "—";
+ const peakLabel = values.length ? chartLabels[values.indexOf(peak)] : "—";
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
   const trending  = Number(pctChange) >= 0;
 
@@ -3871,6 +4843,105 @@ const filteredTransactions = useMemo(() => {
     });
     return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
+
+  const branchProfitability = useMemo(() => {
+    if (viewArchive) return [];
+
+    const grouped = {};
+
+    filteredTransactions.forEach((tx) => {
+      const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+      const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
+
+      let cogs = Number(
+        tx?.cogs ??
+        tx?.total_cogs ??
+        tx?.cost_of_goods ??
+        tx?.cost_of_goods_sold ??
+        0
+      );
+
+      if (!Number.isFinite(cogs)) cogs = 0;
+
+      if (cogs === 0) {
+        let items = tx?.items;
+        if (typeof items === "string") {
+          try { items = JSON.parse(items); } catch { items = []; }
+        }
+
+        if (Array.isArray(items)) {
+          const itemCogs = items.reduce((sum, item) => {
+            const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+            const unitCost = Number(
+              item?.cost ??
+              item?.unit_cost ??
+              item?.unitCost ??
+              item?.purchase_cost ??
+              0
+            ) || 0;
+            const lineCogs = Number(
+              item?.cogs ??
+              item?.total_cost ??
+              item?.cost_total ??
+              0
+            ) || 0;
+
+            return sum + (lineCogs > 0 ? lineCogs : unitCost * qty);
+          }, 0);
+
+          if (itemCogs > 0) cogs = itemCogs;
+        }
+      }
+
+      if (!grouped[branch]) {
+        grouped[branch] = {
+          branch,
+          revenue: 0,
+          cogs: 0,
+          transactions: 0,
+          hasCogs: false,
+        };
+      }
+
+      grouped[branch].revenue += revenue;
+      grouped[branch].cogs += cogs;
+      grouped[branch].transactions += 1;
+
+      if (
+        cogs > 0 ||
+        tx?.cogs != null ||
+        tx?.total_cogs != null ||
+        tx?.cost_of_goods != null ||
+        tx?.cost_of_goods_sold != null
+      ) {
+        grouped[branch].hasCogs = true;
+      }
+    });
+
+    return Object.values(grouped)
+      .map((row) => {
+        const grossProfit = row.revenue - row.cogs;
+        const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
+        const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
+
+        return { ...row, grossProfit, margin, avgOrder };
+      })
+      .sort((a, b) =>
+        (b.grossProfit - a.grossProfit) ||
+        (b.revenue - a.revenue)
+      );
+  }, [filteredTransactions, viewArchive]);
+
+  const brandPerformance = useMemo(() => {
+    if (viewArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const brand = tx.brand || "Unassigned";
+      grouped[brand] = (grouped[brand] || 0) + Number(tx.total || tx.total_amount || 0);
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewArchive]);
+  
 
 const saveArchive = () => {
   const year = parseInt(archiveYear);
@@ -4219,13 +5290,247 @@ const applyCustomRange = async () => {
           </div>
           <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
         </div>
-        <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", marginBottom:18, boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:10}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Transaction Volume</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3}}>Number of completed transactions per interval</div></div>{!viewArchive&&<span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{filteredTransactions.length.toLocaleString()} total</span>}</div><DashboardBarGraph labels={chartLabels} values={transactionCountSeries}/></div>
-        <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} />
+        <div style={{
+          background:"#fff",
+          border:"1px solid #E1E6D8",
+          borderRadius:18,
+          padding:"18px 20px",
+          marginBottom:18,
+          boxShadow:"0 2px 14px rgba(50,109,32,.06)"
+        }}>
+          <div style={{
+            display:"flex",
+            justifyContent:"space-between",
+            alignItems:"flex-start",
+            gap:12,
+            marginBottom:16,
+            flexWrap:"wrap"
+          }}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>
+                  Branch Profitability
+                </div>
+                {!viewArchive && (
+                  <span style={{
+                    fontSize:9.5,fontWeight:800,padding:"3px 8px",
+                    borderRadius:20,background:"#ecfdf5",color:"#15803d",
+                    border:"1px solid #bbf7d0",letterSpacing:".04em"
+                  }}>
+                    API DATA
+                  </span>
+                )}
+              </div>
+              <div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>
+                Revenue, gross profit, margin and transaction efficiency by branch
+              </div>
+            </div>
+
+            {!viewArchive && (
+              <div style={{textAlign:"right"}}>
+                <div style={{
+                  fontSize:9.5,color:"#7A887B",fontWeight:700,
+                  textTransform:"uppercase",letterSpacing:".06em"
+                }}>
+                  Branches analyzed
+                </div>
+                <div style={{
+                  fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2
+                }}>
+                  {branchProfitability.length.toLocaleString()}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {branchProfitability.length > 0 ? (
+            <div style={{
+              overflowX:"auto",
+              border:"1px solid #E7EEE4",
+              borderRadius:13
+            }}>
+              <table style={{
+                width:"100%",
+                borderCollapse:"collapse",
+                minWidth:820,
+                fontFamily:FONT
+              }}>
+                <thead>
+                  <tr style={{background:"#F6FAF3"}}>
+                    {[
+                      { label:"Branch", align:"left" },
+                      { label:"Revenue", align:"right" },
+                      { label:"Gross Profit", align:"right" },
+                      { label:"Margin", align:"center" },
+                      { label:"Transactions", align:"center" },
+                      { label:"Avg. Order", align:"right" },
+                    ].map((h) => (
+                      <th key={h.label} style={{
+                        padding:"11px 13px",
+                        textAlign:h.align,
+                        fontSize:9.5,
+                        color:"#71806F",
+                        fontWeight:800,
+                        textTransform:"uppercase",
+                        letterSpacing:".065em",
+                        borderBottom:"1px solid #DDE8DA",
+                        whiteSpace:"nowrap"
+                      }}>
+                        {h.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {branchProfitability.map((row, index) => {
+                    const hasProfitData = row.hasCogs;
+                    const marginColor = !hasProfitData
+                      ? "#94a3b8"
+                      : row.margin >= 40
+                        ? "#15803d"
+                        : row.margin >= 25
+                          ? "#3b791e"
+                          : row.margin >= 15
+                            ? "#d97706"
+                            : "#dc2626";
+
+                    const marginBg = !hasProfitData
+                      ? "#f8fafc"
+                      : row.margin >= 40
+                        ? "#ecfdf5"
+                        : row.margin >= 25
+                          ? "#f0f5e8"
+                          : row.margin >= 15
+                            ? "#fffbeb"
+                            : "#fef2f2";
+
+                    const borderBottom = index === branchProfitability.length - 1
+                      ? "none"
+                      : "1px solid #EEF3EC";
+
+                    return (
+                      <tr key={row.branch} style={{
+                        background:index % 2 === 0 ? "#fff" : "#FBFDF9"
+                      }}>
+                        <td style={{padding:"12px 13px",borderBottom}}>
+                          <div style={{display:"flex",alignItems:"center",gap:9}}>
+                            <span style={{
+                              width:24,height:24,borderRadius:8,
+                              background:"#F0F5E8",color:"#3b791e",
+                              display:"inline-flex",alignItems:"center",
+                              justifyContent:"center",fontSize:10,
+                              fontWeight:800,flexShrink:0
+                            }}>
+                              {index + 1}
+                            </span>
+                            <span style={{
+                              fontSize:11.5,fontWeight:800,color:"#12241B",
+                              whiteSpace:"nowrap"
+                            }}>
+                              {row.branch}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,color:"#183126",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {fmtAmt(row.revenue)}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,
+                          color:hasProfitData ? "#1d4ed8" : "#94a3b8",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {hasProfitData ? fmtAmt(row.grossProfit) : "—"}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",
+                          textAlign:"center",
+                          borderBottom
+                        }}>
+                          <span style={{
+                            display:"inline-flex",
+                            alignItems:"center",
+                            justifyContent:"center",
+                            minWidth:60,
+                            padding:"4px 8px",
+                            borderRadius:20,
+                            background:marginBg,
+                            color:marginColor,
+                            border:`1px solid ${marginColor}25`,
+                            fontSize:10.5,
+                            fontWeight:800,
+                            whiteSpace:"nowrap"
+                          }}>
+                            {hasProfitData ? `${row.margin.toFixed(1)}%` : "No COGS"}
+                          </span>
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"center",
+                          fontSize:11.5,fontWeight:700,color:"#334155",
+                          borderBottom
+                        }}>
+                          {row.transactions.toLocaleString()}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,color:"#3b791e",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {fmtAmt(row.avgOrder)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{
+              minHeight:180,display:"flex",alignItems:"center",
+              justifyContent:"center",border:"1px dashed #D7E1D4",
+              borderRadius:12,background:"#FAFCF8",color:"#7A887B",
+              fontSize:12,fontWeight:600,textAlign:"center",padding:20
+            }}>
+              {viewArchive
+                ? "Branch profitability is not stored in this archived dashboard snapshot."
+                : "No branch transaction data is available for the selected filter."}
+            </div>
+          )}
+
+          {!viewArchive &&
+            branchProfitability.length > 0 &&
+            branchProfitability.some(row => !row.hasCogs) && (
+              <div style={{
+                marginTop:10,display:"flex",alignItems:"flex-start",gap:7,
+                padding:"9px 11px",borderRadius:9,background:"#fffaf0",
+                border:"1px solid #fde68a",color:"#92400e",
+                fontSize:10.5,lineHeight:1.55
+              }}>
+                <Info size={13} style={{flexShrink:0,marginTop:1}} />
+                <span>
+                  Gross Profit and Margin show “No COGS” when the transaction API
+                  has no cost-of-goods value. Revenue, Transactions and Avg. Order
+                  still come directly from the API.
+                </span>
+              </div>
+            )}
+        </div>
+      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
       </>}
 
       {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
 
-      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} />}
+      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} transactions={filteredTransactions} />}
 
       <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
 
@@ -14715,4 +16020,5 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
+
 
