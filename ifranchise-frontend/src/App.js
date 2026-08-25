@@ -6,6 +6,7 @@ import IPharmaForm from './components/iPharmaForm';
 import AdminDashboard from './components/AdminDashboard';
 import ApplyFranchise from './components/ApplyFranchise';
 import Receipts from './components/Receipts';
+import ReschedulePage from "./components/ReschedulePage";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/apply-franchise" element={<ApplyFranchise/>} />
           <Route path="/receipts" element={<Receipts />} />
+          <Route path="/reschedule/:token" element={<ReschedulePage />} />
         </Routes>
       </div>
     </Router>

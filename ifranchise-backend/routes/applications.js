@@ -359,21 +359,13 @@ router.put("/applications/:id/reschedule-options", async (req, res) => {
   }
 });
 
-// ── Public: look up an appointment by token (for the reschedule landing page) ──
 router.get("/public/appointments/:token", async (req, res) => {
   try {
     const { token } = req.params;
-    let result = await pool.query(
-      `SELECT name, appointment_date, appointment_location, appointment_status
-       FROM applications WHERE appointment_token=$1`,
-      [token]
-    );
+    const cols = `name, appointment_date, appointment_location, appointment_status, reschedule_option_a, reschedule_option_b`;
+    let result = await pool.query(`SELECT ${cols} FROM applications WHERE appointment_token=$1`, [token]);
     if (result.rows.length === 0) {
-      result = await pool.query(
-        `SELECT name, appointment_date, appointment_location, appointment_status
-         FROM ipharma_applications WHERE appointment_token=$1`,
-        [token]
-      );
+      result = await pool.query(`SELECT ${cols} FROM ipharma_applications WHERE appointment_token=$1`, [token]);
     }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Invalid or expired link" });
@@ -544,6 +536,20 @@ router.post("/public/appointments/:token/select-option", async (req, res) => {
         </div>`,
       attachments: [{ filename: "interview.ics", content: Buffer.from(ics).toString("base64") }],
     });
+
+    if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+      await resend.emails.send({
+        from: "Franchisync <noreply@franchisync.business>",
+        to: process.env.ADMIN_NOTIFICATION_EMAIL,
+        subject: `Interview Time Confirmed — ${updatedApp.name}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #2E7D32;">Client Confirmed a Reschedule</h2>
+            <p><strong>${updatedApp.name}</strong> (${updatedApp.email}) chose Option ${option.toUpperCase()}.</p>
+            <p><strong>New interview time:</strong> ${fmtDate}</p>
+          </div>`
+      });
+    }
 
     res.json({ success: true, appointmentDate: chosenDate, name: updatedApp.name });
   } catch (err) {
