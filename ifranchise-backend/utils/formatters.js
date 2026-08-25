@@ -45,6 +45,20 @@ const rowToApplication = (row) => ({
   idType:           row.id_type,
   idImage:          row.id_image,
   letterOfIntent:   row.letter_of_intent,
+  createdAt:        row.created_at,
+  appointmentDate:     row.appointment_date,
+  appointmentLocation: row.appointment_location,
+  appointmentNotes:    row.appointment_notes,
+  appointmentStatus:   row.appointment_status,
+  appointmentToken:    row.appointment_token,
+  appointmentDate:     row.appointment_date,
+  appointmentLocation: row.appointment_location,
+  appointmentNotes:    row.appointment_notes,
+  appointmentStatus:   row.appointment_status,
+  appointmentToken:    row.appointment_token,
+  rescheduleOptionA:   row.reschedule_option_a,
+  rescheduleOptionB:   row.reschedule_option_b,
+  rescheduleOptionC:   row.reschedule_option_c,
 });
 
 module.exports = { rowToApplication };

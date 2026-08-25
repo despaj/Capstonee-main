@@ -82,13 +82,15 @@ const VALID_ID_TYPES = [
 const MAX_LOI_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 
 const uploadLoi = async (file) => {
-  const path = `loi/${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
-  const { error } = await supabase.storage
-    .from("application-documents")
-    .upload(path, file, { contentType: "application/pdf" });
-  if (error) throw error;
-  const { data } = supabase.storage.from("application-documents").getPublicUrl(path);
-  return data.publicUrl;
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${process.env.REACT_APP_API_URL}/api/upload-loi`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  const { url } = await res.json();
+  return url;
 };
 
 const capitalize = (v) => v.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
@@ -820,18 +822,22 @@ const runVerification = async () => {
       return raw;
     };
 
-  let frontImgUrl = frontImg;
-    try {
-      const blob = await (await fetch(frontImg)).blob();
-      const path = `id-images/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-      const { error } = await supabase.storage.from("application-documents").upload(path, blob, { contentType: "image/jpeg" });
-      if (!error) {
-        const { data } = supabase.storage.from("application-documents").getPublicUrl(path);
-        frontImgUrl = data.publicUrl;
-      }
-    } catch (err) {
-      console.error("ID image upload failed, falling back to base64:", err);
-    }
+let frontImgUrl = frontImg;
+try {
+  const blob = await (await fetch(frontImg)).blob();
+  const formData = new FormData();
+  formData.append("file", blob, "id-front.jpg");
+  const res = await fetch(`${process.env.REACT_APP_API_URL}/api/upload-id-image`, {
+    method: "POST",
+    body: formData,
+  });
+  if (res.ok) {
+    const { url } = await res.json();
+    frontImgUrl = url;
+  }
+} catch (err) {
+  console.error("ID image upload failed, falling back to base64:", err);
+}
 
     const merged = { ...ocrResult, ...editedOcr };
     const { address, ...mergedWithoutAddress } = merged;

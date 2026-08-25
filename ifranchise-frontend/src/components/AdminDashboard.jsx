@@ -1,4 +1,4 @@
-//this is the franchisync design
+
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ import {
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon, HistoryIcon,
   Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
-  Brain, PieChart, LineChart, ShieldCheck, Bell, Printer
+  Brain, PieChart, LineChart, ShieldCheck, Bell, Printer, CalendarClock,
 } from 'lucide-react';
 
 const C = {
@@ -34,9 +34,9 @@ const C = {
   greenDk:    "#2c5c16",
   greenMid:   "#c9dba0", 
   teal:       "#509820",
-  lime:         "#d8cb39",
+  lime:       "#48b328",  
   limeInk:    "#24310C",   
-  ink:       "#438d2c", 
+  ink:        "#b3a941",
   muted:      "#5C6B60",  
   border:     "#E1E6D8", 
   bg:         "#F6F7F1", 
@@ -1784,7 +1784,7 @@ useEffect(() => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
       const data = await response.json();
-      setApplications(data);
+      setApplications(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching applications:', error);
       alert('Failed to load applications');
@@ -2526,7 +2526,7 @@ function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
   transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
-  branchProfitability = [], categoryPerformance = [],
+  branchProfitability = [],
 }) {
   const panelRef = useRef(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -2539,11 +2539,8 @@ function SalesTrendSection({
   );
 
   const catData = useMemo(() => {
-    if (Array.isArray(kpiData?.categoryBreakdown) && kpiData.categoryBreakdown.length) {
-      return kpiData.categoryBreakdown;
-    }
-    return Array.isArray(categoryPerformance) ? categoryPerformance : [];
-  }, [kpiData, categoryPerformance]);
+    return Array.isArray(kpiData?.categoryBreakdown) ? kpiData.categoryBreakdown : [];
+  }, [kpiData]);
 
   const brandBreakdownData = useMemo(() => {
     if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
@@ -2713,8 +2710,8 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
         <head>
           <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             html, body { margin: 0; background: #ffffff !important; }
             @media print { @page { margin: 14mm; } button { display: none !important; } }
           </style>
@@ -2884,33 +2881,13 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
         </div>
 
         {/* Period Summary column removed — 2-column spaced layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "stretch" }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
            <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
-            {categoryPanelData.length > 0 ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                  <DonutChartSVG
-                    segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))}
-                    size={150}
-                    centerLabel={hasData ? fmtShort(categoryPanelData.reduce((s, d) => s + (d.value || 0), 0)) : "—"}
-                    centerSub="total"
-                    showLegend={false}
-                  />
-                </div>
-                <div style={{ height: 1, background: "#e0f2f1", margin: "2px 0 14px" }} />
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-                  {isFiltered ? "Category Breakdown" : "Brand Breakdown"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <HBarChart data={categoryPanelData.slice(0, 8).map(d => ({ label: d.label, value: d.value }))} />
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, minHeight: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12, textAlign: "center", padding: "0 10px" }}>
-                {isFiltered ? "No category data available for this brand/branch yet." : "No data"}
-              </div>
-            )}
+            {categoryPanelData.length > 0
+              ? <DonutChartSVG segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={150} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
           </div>
           <div style={{
             background: "#f8fffe",
@@ -3174,8 +3151,8 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
         <head>
           <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             html, body { margin: 0; background: #ffffff !important; }
             @media print { @page { margin: 14mm; } button { display: none !important; } }
           </style>
@@ -4263,6 +4240,9 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
     selectedBrand,
   ]);
 
+  const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
+  const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
+
   const revenuePie = top10.slice(0, 5).map((p, i) => ({
     label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
     value: p.totalRevenue,
@@ -4354,6 +4334,18 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         }
       />
       <div style={{ padding: "18px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Days of Stock Remaining</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:9}}>{stockEvidence.map((r,i)=><div key={r.name} style={{display:"grid",gridTemplateColumns:"130px 1fr 48px",alignItems:"center",gap:9}}><span title={r.name} style={{fontSize:10.5,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span><div style={{height:10,borderRadius:4,background:"#edf8f0",position:"relative",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.daysLeft||0)/maxDaysLeft)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#22c55e",borderRadius:4}}/></div><strong style={{fontSize:10.5,textAlign:"right",color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</strong></div>)}</div> : <DashboardEmptyState message="No matched sales + inventory records for this filter." />}
+            <div style={{display:"flex",gap:14,marginTop:14,fontSize:9.5,color:"#64748b"}}><span><b style={{color:"#ef4444"}}>14d</b> critical</span><span><b style={{color:"#f59e0b"}}>30d</b> reorder watch</span></div>
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Stock-to-Sales Ratio by Product</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:10}}>{stockEvidence.map(r=><div key={r.name}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:4}}><span title={r.name} style={{fontSize:10.5,fontWeight:700,color:"#263b2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span><span style={{fontSize:10.5,fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a"}}>{r.ratio==null?"—":`×${r.ratio.toFixed(1)}`}</span></div><div style={{height:6,borderRadius:99,background:"#edf8f0",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.ratio||0)/maxRatio)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a",borderRadius:99}}/></div></div>)}</div> : <DashboardEmptyState message="No stock-to-sales ratio can be calculated for this filter." />}
+          </div>
+        </div>
+
         {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
@@ -4364,6 +4356,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
             { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
             { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
             { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+           { label: "Avg Units Sold / Product", value: data?.avgQty ? `${Number(data.avgQty).toLocaleString()} units` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
           ].map((s, i) => (
             <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
@@ -4664,18 +4657,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
   const [analysisTab, setAnalysisTab] = useState("sales");
 
-  // Menu/product catalogue rows, used to look up each sold item's category.
-  // Category lives on the menu item record from /inventory (e.g. "Beverage",
-  // "Pastry") — NOT on /ingredients, which is raw stock components (sugar,
-  // milk, etc.) with no category field at all.
-  const [catalogueRows, setCatalogueRows] = useState([]);
-  useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/inventory`)
-      .then(r => r.json())
-      .then(d => setCatalogueRows(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, []);
-
   useEffect(() => {
     const fn = (e) => {
       if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
@@ -4960,64 +4941,6 @@ const filteredTransactions = useMemo(() => {
     });
     return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
-
-  // Category breakdown, computed client-side from the same filtered
-  // transactions used everywhere else on this dashboard. Category comes
-  // straight from each menu item's `category` field on catalogueRows
-  // (fetched from /inventory) — matched to each sold line item first by
-  // product id, falling back to normalized branch+name for older
-  // transactions that may not have stored the inventory id.
-  const categoryPerformance = useMemo(() => {
-    if (viewArchive) return [];
-
-    const normalizeName = (value) =>
-      String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/&/g, "and")
-        .replace(/[^a-z0-9]+/g, "");
-
-    // Build id -> category and "branch|name" -> category lookups from the menu/inventory rows.
-    const categoryById = new Map();
-    const categoryByBranchName = new Map();
-
-    catalogueRows.forEach(row => {
-      const category = row?.category;
-      if (!category) return;
-      if (row?.id != null) categoryById.set(String(row.id), category);
-      const nameKey = `${normalizeName(row?.branch)}|${normalizeName(row?.name)}`;
-      categoryByBranchName.set(nameKey, category);
-    });
-
-    const grouped = {};
-    filteredTransactions.forEach(tx => {
-      let items = tx?.items;
-      if (typeof items === "string") {
-        try { items = JSON.parse(items); } catch { items = []; }
-      }
-      if (!Array.isArray(items)) return;
-
-      const txBranchKey = normalizeName(tx?.branch);
-
-      items.forEach(item => {
-        const itemId =
-          item?.inventory_id ?? item?.menu_item_id ?? item?.product_id ?? item?.id ?? null;
-        const itemName =
-          item?.name ?? item?.product_name ?? item?.item_name ?? item?.title ?? "";
-
-        const category =
-          (itemId != null ? categoryById.get(String(itemId)) : null) ||
-          categoryByBranchName.get(`${txBranchKey}|${normalizeName(itemName)}`) ||
-          "Uncategorized";
-
-        const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-        const price = Number(item?.price ?? item?.unit_price ?? 0) || 0;
-        const lineTotal = Number(item?.total ?? item?.line_total ?? (qty * price)) || 0;
-        grouped[category] = (grouped[category] || 0) + lineTotal;
-      });
-    });
-    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewArchive, catalogueRows]);
   
 
 const saveArchive = () => {
@@ -5113,7 +5036,7 @@ const applyCustomRange = async () => {
   return (
     <div style={{ fontFamily: FONT }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -5132,8 +5055,8 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-      {/* ── KPI Cards: always visible across all analysis tabs ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+      {/* ── KPI Cards: Sales Trend tab only ── */}
+      {analysisTab === "sales" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
           { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
           { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
@@ -5182,7 +5105,7 @@ const applyCustomRange = async () => {
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -5602,7 +5525,7 @@ const applyCustomRange = async () => {
               </div>
             )}
         </div>
-      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} categoryPerformance={categoryPerformance} />
+      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
       </>}
 
       {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
@@ -8139,6 +8062,10 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);    
   const [processingId, setProcessingId] = useState(null);
+  const [scheduleApp, setScheduleApp] = useState(null);
+  const [rescheduleApp, setRescheduleApp] = useState(null);
+
+  const [now, setNow] = useState(Date.now())
 
   const handleDelete = (id) => {
   const app = applications.find(a => a.id === id);
@@ -8161,11 +8088,19 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
+const normalizeApp = (row) => ({
+  ...row,
+  appointmentDate:     row.appointment_date     ?? row.appointmentDate,
+  appointmentLocation: row.appointment_location ?? row.appointmentLocation,
+  appointmentNotes:    row.appointment_notes    ?? row.appointmentNotes,
+  appointmentStatus:   row.appointment_status   ?? row.appointmentStatus,
+});
+
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
       const data = await res.json();
-      setApplications(Array.isArray(data) ? data : []);
+      setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
     }
@@ -8493,6 +8428,11 @@ const handlePrintApplication = (app) => {
   }, []);
 
   useEffect(() => {
+  const tick = setInterval(() => setNow(Date.now()), 15000); // check every 15s
+  return () => clearInterval(tick);
+}, []);
+
+  useEffect(() => {
   if (!alertModal) return;
   const timer = setTimeout(() => {
     setAlertModal(null);
@@ -8576,6 +8516,83 @@ const handleReject = async (id) => {
   }
 };
 
+const interviewPending = (app) => {
+  if (!app.appointmentDate) return false;
+  const interviewEndsAt = new Date(app.appointmentDate).getTime() + 1 * 60 * 1000;
+  return now < interviewEndsAt;
+};
+
+const handleSendScheduleOptions = async (app, { optionADate, optionBDate, optionCDate }) => {
+  if (processingId) return;
+  setProcessingId(app.id);
+  setAlertModal({ title: "Sending interview options…", type: "loading" });
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        optionADate, optionBDate, optionCDate,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setAlertModal({ title: "Failed to send options", message: data.error || "Please try again.", type: "error" });
+      return;
+    }
+
+    if (app.email) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-schedule-options`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: app.email, name: app.name, optionADate, optionBDate, optionCDate, token: data.appointmentToken }),
+      });
+    }
+
+    const normalizedApp = normalizeApp(data.application);
+    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, ...normalizedApp } : a));
+    setViewApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    setMenuApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    await fetchActivityLog();
+    setScheduleApp(null);
+    setAlertModal({ title: "Interview options sent", type: "success" });
+  } catch {
+    setAlertModal({ title: "Failed to send options", message: "Please try again.", type: "error" });
+  } finally {
+    setProcessingId(null);
+  }
+};
+
+// ⚠️ TEMPORARY — testing only, remove once the client-facing reschedule page exists
+const handleTestRequestReschedule = async (app) => {
+  if (!app.appointmentToken) {
+    setAlertModal({ title: "No appointment token", message: "Schedule an interview first.", type: "error" });
+    return;
+  }
+  setAlertModal({ title: "Simulating client reschedule request…", type: "loading" });
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setAlertModal({ title: "Failed", message: data.error || "Please try again.", type: "error" });
+      return;
+    }
+    await fetchApplications();
+    setViewApp(prev => prev ? { ...prev, appointmentStatus: "reschedule_requested" } : prev);
+    await fetchActivityLog();
+    setAlertModal({ title: "Reschedule request simulated", type: "success" });
+  } catch {
+    setAlertModal({ title: "Failed", message: "Please try again.", type: "error" });
+  }
+};
+
 const confirmDeleteApplication = async () => {
   if (!deleteTarget) return;
   setDeleting(true);
@@ -8654,9 +8671,10 @@ const handleRestoreApplication = async (entry) => {
   // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
     const map = {
-      pending:  { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
-      approved: { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
-      rejected: { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
+      pending:   { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
+      scheduled: { bg: "rgba(37,99,235,0.1)",   color: "#2563eb" },
+      approved:  { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
+      rejected:  { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
     };
     const s = map[status] || map["pending"];
     return (
@@ -9085,49 +9103,90 @@ const handleRestoreApplication = async (entry) => {
                 )}
               </div>
             </div>
+{viewApp.appointmentDate && (
+  <Section title="Interview Appointment">
+    <Field
+      label="Date & Time"
+      value={new Date(viewApp.appointmentDate).toLocaleString("en-PH", {
+        dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
+      })}
+    />
+    <Field
+      label="Status"
+      value={
+        viewApp.appointmentStatus === "reschedule_requested"
+          ? "Reschedule Requested"
+          : interviewPending(viewApp) ? "Awaiting / In Progress" : "Completed"
+      }
+    />
+    <Field label="Location / Mode" value={viewApp.appointmentLocation} full />
+    <Field label="Notes" value={viewApp.appointmentNotes} full />
+  </Section>
+)}
+{/* ⚠️ TEMPORARY TEST BUTTON REMOVED — redundant now that the real button
+    below does the same thing without a disabled lock */}
                 </>
               );
             })()}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
-              <button
-                onClick={async () => { await handleReject(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "rejected" } : prev); }}
-                disabled={viewApp.status === "rejected" || processingId !== null}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
-                  color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
-                  fontSize: 13, fontWeight: 700,
-                  cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  opacity: viewApp.status === "rejected" ? 0.6 : 1,
-                }}
-              >
-                <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
-              </button>
-              <button
-                onClick={async () => {
-                  await handleApproveAndCreateAccount(viewApp);
-                  setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
-                }}
-                disabled={processingId !== null}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: "linear-gradient(135deg,#00c853,#00897b)",
-                  color: "#fff",
-                  fontSize: 13, fontWeight: 700,
-                  cursor: processingId !== null ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
-                  opacity: processingId !== null ? 0.6 : 1,
-                }}
-              >
-                <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
-              </button>
+<div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
+{interviewPending(viewApp) || !viewApp.appointmentDate ? (
+  <button
+    onClick={() => setScheduleApp(viewApp)}
+    disabled={processingId !== null}
+    style={{
+      display: "flex", alignItems: "center", gap: 7,
+      padding: "10px 22px", borderRadius: 10,
+      border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+      color: "#00695c", fontSize: 13, fontWeight: 700,
+      cursor: processingId !== null ? "not-allowed" : "pointer",
+      fontFamily: "inherit",
+    }}
+  >
+    <CalendarClock size={15} /> {viewApp.appointmentDate ? "Resend Interview Options" : "Send Interview Options"}
+  </button>
+) : (
+                <>
+                  <button
+                    onClick={async () => { await handleReject(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "rejected" } : prev); }}
+                    disabled={viewApp.status === "rejected" || processingId !== null}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 22px", borderRadius: 10, border: "none",
+                      background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                      color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      opacity: viewApp.status === "rejected" ? 0.6 : 1,
+                    }}
+                  >
+                    <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleApproveAndCreateAccount(viewApp);
+                      setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
+                    }}
+                    disabled={processingId !== null}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 22px", borderRadius: 10, border: "none",
+                      background: "linear-gradient(135deg,#00c853,#00897b)",
+                      color: "#fff",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: processingId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
+                      opacity: processingId !== null ? 0.6 : 1,
+                    }}
+                  >
+                    <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                  </button>
+                </>
+              )}
             </div>
-          </div>
+            </div>
         </div>
          </>
       )}
@@ -9313,10 +9372,11 @@ const handleRestoreApplication = async (entry) => {
             {/* Status */}
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
               style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
             </select>
 
             {/* Franchise Interest */}
@@ -9464,6 +9524,12 @@ const handleRestoreApplication = async (entry) => {
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <StatusBadge status={app.status} />
+                      {app.appointmentDate && (
+                        <div style={{ fontSize: 11, color: app.appointmentStatus === "reschedule_requested" ? "#d97706" : "#5a7a65", marginTop: 4 }}>
+                          {app.appointmentStatus === "reschedule_requested" ? "Reschedule requested" : `Interview: ${new Date(app.appointmentDate).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" })}`}
+                        </div>
+
+                      )}
                     </td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -9496,9 +9562,126 @@ const handleRestoreApplication = async (entry) => {
             </table>
           </div>
         </div>
-      
+
+{scheduleApp && (
+  <ScheduleOptionsModal
+    applicant={scheduleApp}
+    sending={processingId === scheduleApp.id}
+    onClose={() => { if (processingId === null) setScheduleApp(null); }}
+    onSend={(fields) => handleSendScheduleOptions(scheduleApp, fields)}
+  />
+)}
       </div>
     </>
+  );
+}
+
+function ScheduleOptionsModal({ applicant, onClose, onSend, sending }) {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.optionADate.value || !form.optionBDate.value || !form.optionCDate.value) return;
+    onSend({
+      optionADate: new Date(form.optionADate.value).toISOString(),
+      optionBDate: new Date(form.optionBDate.value).toISOString(),
+      optionCDate: new Date(form.optionCDate.value).toISOString(),
+    });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            Send Interview Time Options
+          </h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+          Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Option A — Date & Time</label>
+            <input name="optionADate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Option B — Date & Time</label>
+            <input name="optionBDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={bmLabel}>Option C — Date & Time</label>
+            <input name="optionCDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
+            The applicant will get an email with all three times and picks whichever works for them — no separate confirmation step needed from you.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={sending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending ? "Sending…" : "Send Options"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RescheduleOptionsModal({ applicant, onClose, onSend, sending }) {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.optionADate.value || !form.optionBDate.value) return;
+    onSend({
+      optionADate: new Date(form.optionADate.value).toISOString(),
+      optionBDate: new Date(form.optionBDate.value).toISOString(),
+    });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            Send Reschedule Options
+          </h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+          Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Option A — Date & Time</label>
+            <input name="optionADate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={bmLabel}>Option B — Date & Time</label>
+            <input name="optionBDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
+            The applicant gets an email with both options and picks the one that works for them.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={sending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending ? "Sending…" : "Send Options"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -16085,6 +16268,5 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
-
 
 
