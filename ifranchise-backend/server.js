@@ -40,6 +40,7 @@ app.use("/", require("./routes/dashboard"));
 app.use("/", require("./routes/activityLogs"));
 app.use("/", require("./routes/paymongo"));
 app.use("/", require("./routes/psgc"));
+app.use("/", require("./routes/uploads"));
 
 app.get("/", (req, res) => res.send("Franchise Backend is Running"));
 

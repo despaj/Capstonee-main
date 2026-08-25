@@ -3,6 +3,10 @@ const router = express.Router();
 const pool = require("../db");
 const { rowToApplication } = require("../utils/formatters");
 const { logActivity } = require("../utils/activityLogger");
+const crypto = require("crypto");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
+const { buildICS } = require("../utils/ics");
 
 router.post("/check-duplicate", async (req, res) => {
   const { email, mobile } = req.body;
@@ -26,7 +30,7 @@ router.get("/applications", async (req, res) => {
     const result = await pool.query(`
       SELECT
         'ip-' || id::text AS id,
-          name, NULL AS first_name, NULL AS last_name, NULL AS middle_initial, NULL AS suffix,
+        name, NULL AS first_name, NULL AS last_name, NULL AS middle_initial, NULL AS suffix,
         email, phone, 'iPharma Mart' AS franchise,
         status, date, address, dob, civil_status,
         spouse_name, spouse_occupation, spouse_dob, dependents,
@@ -38,7 +42,9 @@ router.get("/applications", async (req, res) => {
         NULL AS employment_type, NULL AS years_employer, NULL AS income,
         NULL AS employer_name, NULL AS business_address,
         NULL AS position, NULL AS business_nature,
-        id_type, created_at
+        id_type, created_at,
+        appointment_date, appointment_location, appointment_notes,
+        appointment_status, appointment_token
       FROM ipharma_applications
 
       UNION ALL
@@ -56,7 +62,9 @@ router.get("/applications", async (req, res) => {
         payment_mode, gender, nationality,
         employment_type, years_employer, income,
         employer_name, business_address, position, business_nature,
-        id_type, created_at
+        id_type, created_at,
+        appointment_date, appointment_location, appointment_notes,
+        appointment_status, appointment_token
       FROM applications
 
       ORDER BY created_at DESC
@@ -220,6 +228,327 @@ router.put("/applications/:id/status", async (req, res) => {
   } catch (err) {
     console.error("Error updating status:", err);
     res.status(500).json({ success: false, error: "Failed to update status" });
+  }
+});
+
+router.post("/send-appointment", async (req, res) => {
+  const { to, name, appointmentDate, appointmentLocation, appointmentNotes, rescheduleToken, isReschedule } = req.body;
+  try {
+    const fmtDate = new Date(appointmentDate).toLocaleString("en-PH", {
+      dateStyle: "long", timeStyle: "short", timeZone: "Asia/Manila",
+    });
+    const rescheduleLink = `${process.env.FRONTEND_URL}/reschedule/${rescheduleToken}`;
+
+    await resend.emails.send({
+      from: "Franchisync <noreply@franchisync.business>",
+      to,
+      subject: isReschedule
+        ? "Your Franchisync Interview Has Been Rescheduled"
+        : "Your Franchisync Interview is Scheduled!",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">Your Franchise Interview is Scheduled!</h2>
+          <p>Hi ${name},</p>
+          <div style="background: #E8F5E9; padding: 15px; margin: 15px 0;">
+            <p><strong>Date:</strong> ${fmtDate}</p>
+            ${appointmentLocation ? `<p><strong>Location:</strong> ${appointmentLocation}</p>` : ""}
+            ${appointmentNotes ? `<p><strong>Notes:</strong> ${appointmentNotes}</p>` : ""}
+          </div>
+          <p>Need to change or cancel this schedule?</p>
+          <p><a href="${rescheduleLink}" style="display:inline-block;padding:10px 20px;background:#2E7D32;color:#fff;text-decoration:none;border-radius:8px;">Cancel / Request Reschedule</a></p>
+        </div>`
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Resend error:", err);
+    res.status(500).json({ error: "Failed to send appointment email" });
+  }
+});
+
+router.put("/applications/:id/appointment", async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+    const {
+      appointmentDate, appointmentLocation, appointmentNotes,
+      performed_by, role, latitude, longitude,
+    } = req.body;
+
+    if (!appointmentDate) {
+      return res.status(400).json({ success: false, error: "appointmentDate is required" });
+    }
+
+    const before = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+    const oldApp = before.rows[0];
+    const isReschedule = !!oldApp.appointment_date;
+
+    const token = crypto.randomBytes(24).toString("hex");
+
+    const result = await pool.query(
+      `UPDATE ${sourceTable}
+      SET appointment_date=$1, appointment_location=$2, appointment_notes=$3,
+          appointment_status='scheduled', appointment_token=$4, status='scheduled'
+      WHERE id=$5 RETURNING *`,
+      [appointmentDate, appointmentLocation || null, appointmentNotes || null, token, id]
+    );
+
+    const updatedApp = rowToApplication(result.rows[0]);
+
+    await logActivity(
+      isReschedule ? "reschedule_appointment" : "schedule_appointment",
+      updatedApp.name,
+      performed_by || "System",
+      { appointment: { from: oldApp.appointment_date, to: appointmentDate, location: appointmentLocation || null } },
+      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications",
+      latitude, longitude, role || "Unknown"
+    );
+
+    res.json({ success: true, message: "Appointment scheduled", application: updatedApp, appointmentToken: token, isReschedule });
+  } catch (err) {
+    console.error("Error scheduling appointment:", err);
+    res.status(500).json({ success: false, error: "Failed to schedule appointment" });
+  }
+});
+
+router.put("/applications/:id/reschedule-options", async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+    const { optionADate, optionBDate, performed_by, role, latitude, longitude } = req.body;
+
+    if (!optionADate || !optionBDate) {
+      return res.status(400).json({ success: false, error: "Both optionADate and optionBDate are required" });
+    }
+
+    const before = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+    const oldApp = before.rows[0];
+
+    const token = oldApp.appointment_token || crypto.randomBytes(24).toString("hex");
+
+    const result = await pool.query(
+      `UPDATE ${sourceTable}
+       SET reschedule_option_a=$1, reschedule_option_b=$2,
+           appointment_status='options_sent', appointment_token=$3
+       WHERE id=$4 RETURNING *`,
+      [optionADate, optionBDate, token, id]
+    );
+
+    const updatedApp = rowToApplication(result.rows[0]);
+
+    await logActivity(
+      "send_reschedule_options",
+      updatedApp.name,
+      performed_by || "System",
+      { optionA: optionADate, optionB: optionBDate },
+      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications",
+      latitude, longitude, role || "Unknown"
+    );
+
+    res.json({ success: true, application: updatedApp, appointmentToken: token });
+  } catch (err) {
+    console.error("Error sending reschedule options:", err);
+    res.status(500).json({ success: false, error: "Failed to send reschedule options" });
+  }
+});
+
+// ── Public: look up an appointment by token (for the reschedule landing page) ──
+router.get("/public/appointments/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    let result = await pool.query(
+      `SELECT name, appointment_date, appointment_location, appointment_status
+       FROM applications WHERE appointment_token=$1`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      result = await pool.query(
+        `SELECT name, appointment_date, appointment_location, appointment_status
+         FROM ipharma_applications WHERE appointment_token=$1`,
+        [token]
+      );
+    }
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Invalid or expired link" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch appointment" });
+  }
+});
+
+// ── Public: client clicks "Cancel / Request Reschedule" in the email ──
+router.post("/public/appointments/:token/reschedule-request", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    let sourceTable = "applications";
+    let existing = await pool.query(`SELECT * FROM applications WHERE appointment_token=$1`, [token]);
+    if (existing.rows.length === 0) {
+      sourceTable = "ipharma_applications";
+      existing = await pool.query(`SELECT * FROM ipharma_applications WHERE appointment_token=$1`, [token]);
+    }
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Invalid or expired link" });
+    }
+    const app = existing.rows[0];
+
+    if (app.appointment_status === "reschedule_requested") {
+      return res.json({ success: true, alreadyRequested: true, name: app.name });
+    }
+
+    await pool.query(
+      `UPDATE ${sourceTable} SET appointment_status='reschedule_requested' WHERE appointment_token=$1`,
+      [token]
+    );
+
+    await logActivity(
+      "reschedule_requested",
+      app.name,
+      "Applicant (self-service)",
+      { appointment_date: app.appointment_date },
+      req, app.franchise || (sourceTable === "ipharma_applications" ? "iPharma Mart" : null), "Applications"
+    );
+
+    res.json({ success: true, name: app.name });
+  } catch (err) {
+    console.error("Error requesting reschedule:", err);
+    res.status(500).json({ success: false, error: "Failed to submit reschedule request" });
+  }
+});
+
+router.post("/send-reschedule-options", async (req, res) => {
+  const { to, name, optionADate, optionBDate, token } = req.body;
+  try {
+    const fmt = (d) => new Date(d).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Manila" });
+    const link = (opt) => `${process.env.FRONTEND_URL}/reschedule/${token}?option=${opt}`;
+
+    await resend.emails.send({
+      from: "Franchisync <noreply@franchisync.business>",
+      to,
+      subject: "Please Choose a New Interview Time",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">Choose Your New Interview Time</h2>
+          <p>Hi ${name},</p>
+          <p>Please pick one of the following available times:</p>
+          <div style="margin: 15px 0;">
+            <a href="${link("a")}" style="display:block;padding:12px 20px;background:#E8F5E9;color:#1b5e20;text-decoration:none;border-radius:8px;margin-bottom:10px;border:1px solid #a5d6a7;">
+              Option A: ${fmt(optionADate)}
+            </a>
+            <a href="${link("b")}" style="display:block;padding:12px 20px;background:#E8F5E9;color:#1b5e20;text-decoration:none;border-radius:8px;border:1px solid #a5d6a7;">
+              Option B: ${fmt(optionBDate)}
+            </a>
+          </div>
+          <p style="font-size:12px;color:#666;">Clicking a time takes you to a confirmation page — nothing is booked until you confirm there.</p>
+        </div>`
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Resend error:", err);
+    res.status(500).json({ error: "Failed to send reschedule options email" });
+  }
+});
+
+router.get("/public/appointments/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const cols = `name, appointment_date, appointment_location, appointment_status, reschedule_option_a, reschedule_option_b`;
+    let result = await pool.query(`SELECT ${cols} FROM applications WHERE appointment_token=$1`, [token]);
+    if (result.rows.length === 0) {
+      result = await pool.query(`SELECT ${cols} FROM ipharma_applications WHERE appointment_token=$1`, [token]);
+    }
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Invalid or expired link" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch appointment" });
+  }
+});
+
+router.post("/public/appointments/:token/select-option", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { option } = req.body; // "a" | "b"
+    if (!["a", "b"].includes(option)) {
+      return res.status(400).json({ success: false, error: "Invalid option" });
+    }
+
+    let sourceTable = "applications";
+    let existing = await pool.query(`SELECT * FROM applications WHERE appointment_token=$1`, [token]);
+    if (existing.rows.length === 0) {
+      sourceTable = "ipharma_applications";
+      existing = await pool.query(`SELECT * FROM ipharma_applications WHERE appointment_token=$1`, [token]);
+    }
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Invalid or expired link" });
+    }
+    const app = existing.rows[0];
+
+    if (app.appointment_status !== "options_sent") {
+      return res.status(400).json({ success: false, error: "No pending reschedule options for this appointment" });
+    }
+
+    const chosenDate = option === "a" ? app.reschedule_option_a : app.reschedule_option_b;
+    if (!chosenDate) {
+      return res.status(400).json({ success: false, error: "Selected option is unavailable" });
+    }
+
+    const result = await pool.query(
+      `UPDATE ${sourceTable}
+       SET appointment_date=$1, appointment_status='scheduled',
+           reschedule_option_a=NULL, reschedule_option_b=NULL, status='scheduled'
+       WHERE appointment_token=$2 RETURNING *`,
+      [chosenDate, token]
+    );
+    const updatedApp = result.rows[0];
+
+    await logActivity(
+      "reschedule_confirmed",
+      updatedApp.name,
+      "Applicant (self-service)",
+      { chosenOption: option, appointment_date: chosenDate },
+      req, updatedApp.franchise || (sourceTable === "ipharma_applications" ? "iPharma Mart" : null), "Applications"
+    );
+
+    const fmtDate = new Date(chosenDate).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Manila" });
+    const ics = buildICS({
+      title: `Franchise Interview — ${updatedApp.name}`,
+      start: new Date(chosenDate),
+      durationMinutes: 60,
+      location: updatedApp.appointment_location || "",
+      description: "Your franchise interview appointment.",
+    });
+
+    await resend.emails.send({
+      from: "Franchisync <noreply@franchisync.business>",
+      to: updatedApp.email,
+      subject: "Your Interview is Confirmed!",
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2 style="color: #2E7D32;">You're All Set!</h2>
+          <p>Hi ${updatedApp.name},</p>
+          <p>Your interview is confirmed for:</p>
+          <div style="background:#E8F5E9;padding:15px;margin:15px 0;">
+            <p><strong>Date:</strong> ${fmtDate}</p>
+          </div>
+          <p>A calendar invite is attached.</p>
+        </div>`,
+      attachments: [{ filename: "interview.ics", content: Buffer.from(ics).toString("base64") }],
+    });
+
+    res.json({ success: true, appointmentDate: chosenDate, name: updatedApp.name });
+  } catch (err) {
+    console.error("Error selecting reschedule option:", err);
+    res.status(500).json({ success: false, error: "Failed to confirm selection" });
   }
 });
 

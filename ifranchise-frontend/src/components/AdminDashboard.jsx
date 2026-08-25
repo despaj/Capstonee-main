@@ -26,7 +26,7 @@ import {
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight, XIcon, HistoryIcon,
   Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, SearchIcon,
-  Brain, PieChart, LineChart, ShieldCheck, Bell, Printer
+  Brain, PieChart, LineChart, ShieldCheck, Bell, Printer, CalendarClock,
 } from 'lucide-react';
 
 const C = {
@@ -1785,7 +1785,7 @@ useEffect(() => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
       const data = await response.json();
-      setApplications(data);
+      setApplications(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Error fetching applications:', error);
       alert('Failed to load applications');
@@ -8152,6 +8152,10 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);    
   const [processingId, setProcessingId] = useState(null);
+  const [scheduleApp, setScheduleApp] = useState(null);
+  const [rescheduleApp, setRescheduleApp] = useState(null);
+
+  const [now, setNow] = useState(Date.now())
 
   const handleDelete = (id) => {
   const app = applications.find(a => a.id === id);
@@ -8174,11 +8178,19 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   } catch (err) { console.error("Failed to fetch orders activity log:", err); }
 }, []);
 
+const normalizeApp = (row) => ({
+  ...row,
+  appointmentDate:     row.appointment_date     ?? row.appointmentDate,
+  appointmentLocation: row.appointment_location ?? row.appointmentLocation,
+  appointmentNotes:    row.appointment_notes    ?? row.appointmentNotes,
+  appointmentStatus:   row.appointment_status   ?? row.appointmentStatus,
+});
+
   const fetchApplications = async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/applications`);
       const data = await res.json();
-      setApplications(Array.isArray(data) ? data : []);
+      setApplications(Array.isArray(data) ? data.map(normalizeApp) : []);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
     }
@@ -8506,6 +8518,11 @@ const handlePrintApplication = (app) => {
   }, []);
 
   useEffect(() => {
+  const tick = setInterval(() => setNow(Date.now()), 15000); // check every 15s
+  return () => clearInterval(tick);
+}, []);
+
+  useEffect(() => {
   if (!alertModal) return;
   const timer = setTimeout(() => {
     setAlertModal(null);
@@ -8589,6 +8606,116 @@ const handleReject = async (id) => {
   }
 };
 
+const interviewPending = (app) => {
+  if (!app.appointmentDate) return false;
+  const interviewEndsAt = new Date(app.appointmentDate).getTime() + 1 * 60 * 1000;
+  return now < interviewEndsAt;
+};
+
+const handleScheduleAppointment = async (app, { appointmentDate, appointmentLocation, appointmentNotes }) => {
+  if (processingId) return;
+  setProcessingId(app.id);
+  setAlertModal({ title: "Scheduling interview…", type: "loading" });
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/appointment`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        appointmentDate, appointmentLocation, appointmentNotes,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setAlertModal({ title: "Failed to schedule appointment", message: data.error || "Please try again.", type: "error" });
+      return;
+    }
+
+    if (app.email) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-appointment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: app.email,
+          name: app.name,
+          appointmentDate, appointmentLocation, appointmentNotes,
+          rescheduleToken: data.appointmentToken,
+          isReschedule: data.isReschedule,
+        }),
+      });
+    }
+
+    const normalizedApp = normalizeApp(data.application);
+    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, ...normalizedApp } : a));
+    setViewApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    setMenuApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    await fetchActivityLog();
+    setScheduleApp(null);
+    setAlertModal({ title: "Interview scheduled & emailed", type: "success" });
+  } catch {
+    setAlertModal({ title: "Failed to schedule appointment", message: "Please try again.", type: "error" });
+  } finally {
+    setProcessingId(null);
+  }
+};
+
+const handleSendRescheduleOptions = async (app, { optionADate, optionBDate }) => {
+  if (processingId) return;
+  setProcessingId(app.id);
+  setAlertModal({ title: "Sending reschedule options…", type: "loading" });
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/reschedule-options`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        optionADate, optionBDate,
+        performed_by: user?.name || "System",
+        role: user?.role || "Unknown",
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setAlertModal({ title: "Failed to send options", message: data.error || "Please try again.", type: "error" });
+      return;
+    }
+
+    if (app.email) {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-reschedule-options`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: app.email, name: app.name, optionADate, optionBDate, token: data.appointmentToken }),
+      });
+    }
+
+    const normalizedApp = normalizeApp(data.application);
+    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, ...normalizedApp } : a));
+    setViewApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    setMenuApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
+    await fetchActivityLog();
+    setRescheduleApp(null);
+    setAlertModal({ title: "Reschedule options sent", type: "success" });
+  } catch {
+    setAlertModal({ title: "Failed to send options", message: "Please try again.", type: "error" });
+  } finally {
+    setProcessingId(null);
+  }
+};
+
+const handleTestQuickSchedule = (app) => {
+  const inFiveMin = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  handleScheduleAppointment(app, {
+    appointmentDate: inFiveMin,
+    appointmentLocation: "Test Location — Google Meet",
+    appointmentNotes: "This is a test appointment for email testing.",
+  });
+};
 const confirmDeleteApplication = async () => {
   if (!deleteTarget) return;
   setDeleting(true);
@@ -8667,9 +8794,10 @@ const handleRestoreApplication = async (entry) => {
   // ── Status badge ─────────────────────────────────────────────────────────
   const StatusBadge = ({ status }) => {
     const map = {
-      pending:  { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
-      approved: { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
-      rejected: { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
+      pending:   { bg: "rgba(245,158,11,0.1)",  color: "#d97706" },
+      scheduled: { bg: "rgba(37,99,235,0.1)",   color: "#2563eb" },
+      approved:  { bg: "rgba(16,185,129,0.1)",  color: "#059669" },
+      rejected:  { bg: "rgba(239,68,68,0.1)",   color: "#dc2626" },
     };
     const s = map[status] || map["pending"];
     return (
@@ -9098,49 +9226,121 @@ const handleRestoreApplication = async (entry) => {
                 )}
               </div>
             </div>
+            {viewApp.appointmentDate && (
+  <Section title="Interview Appointment">
+    <Field
+      label="Date & Time"
+      value={new Date(viewApp.appointmentDate).toLocaleString("en-PH", {
+        dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila",
+      })}
+    />
+    <Field
+      label="Status"
+      value={
+        viewApp.appointmentStatus === "reschedule_requested"
+          ? "Reschedule Requested"
+          : interviewPending(viewApp) ? "Awaiting / In Progress" : "Completed"
+      }
+    />
+    <Field label="Location / Mode" value={viewApp.appointmentLocation} full />
+    <Field label="Notes" value={viewApp.appointmentNotes} full />
+  </Section>
+)}
+{viewApp.appointmentDate && viewApp.appointmentStatus !== "reschedule_requested" && (
+  <button
+    onClick={() => handleTestRequestReschedule(viewApp)}
+    style={{
+      display: "flex", alignItems: "center", gap: 6,
+      padding: "6px 12px", borderRadius: 8,
+      border: "1.5px dashed #f59e0b", background: "#fffbeb",
+      color: "#b45309", fontSize: 11, fontWeight: 700,
+      cursor: "pointer", fontFamily: "inherit", marginBottom: 20,
+    }}
+  >
+    🧪 [TEST] Simulate Client Reschedule Request
+  </button>
+)}
                 </>
               );
             })()}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
-              <button
-                onClick={async () => { await handleReject(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "rejected" } : prev); }}
-                disabled={viewApp.status === "rejected" || processingId !== null}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
-                  color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
-                  fontSize: 13, fontWeight: 700,
-                  cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  opacity: viewApp.status === "rejected" ? 0.6 : 1,
-                }}
-              >
-                <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
-              </button>
-              <button
-                onClick={async () => {
-                  await handleApproveAndCreateAccount(viewApp);
-                  setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
-                }}
-                disabled={processingId !== null}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: "linear-gradient(135deg,#00c853,#00897b)",
-                  color: "#fff",
-                  fontSize: 13, fontWeight: 700,
-                  cursor: processingId !== null ? "not-allowed" : "pointer",
-                  fontFamily: "inherit",
-                  boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
-                  opacity: processingId !== null ? 0.6 : 1,
-                }}
-              >
-                <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
-              </button>
+<div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
+{viewApp.appointmentStatus === "reschedule_requested" ? (
+  <button
+    onClick={() => setRescheduleApp(viewApp)}
+    disabled={processingId !== null}
+    style={{
+      display: "flex", alignItems: "center", gap: 7,
+      padding: "10px 22px", borderRadius: 10, border: "none",
+      background: "linear-gradient(135deg,#2E7D32,#00897b)",
+      color: "#fff", fontSize: 13, fontWeight: 700,
+      cursor: processingId !== null ? "not-allowed" : "pointer",
+      fontFamily: "inherit",
+    }}
+  >
+    <CalendarClock size={15} /> Send Reschedule Options
+  </button>
+) : interviewPending(viewApp) || !viewApp.appointmentDate ? (
+  <button
+    onClick={() => setScheduleApp(viewApp)}
+    disabled={processingId !== null || !!viewApp.appointmentDate}
+    style={{
+      display: "flex", alignItems: "center", gap: 7,
+      padding: "10px 22px", borderRadius: 10,
+      border: "1.5px solid #b2dfdb",
+      background: viewApp.appointmentDate ? "#f0f0f0" : "#e0f2f1",
+      color: viewApp.appointmentDate ? "#9e9e9e" : "#00695c",
+      fontSize: 13, fontWeight: 700,
+      cursor: (processingId !== null || viewApp.appointmentDate) ? "not-allowed" : "pointer",
+      fontFamily: "inherit",
+      opacity: viewApp.appointmentDate ? 0.65 : 1,
+    }}
+  >
+    <CalendarClock size={15} />
+    {viewApp.appointmentDate ? "Interview Scheduled" : "Schedule Interview"}
+  </button>
+) : (
+                <>
+                  <button
+                    onClick={async () => { await handleReject(viewApp.id); setViewApp(prev => prev ? { ...prev, status: "rejected" } : prev); }}
+                    disabled={viewApp.status === "rejected" || processingId !== null}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 22px", borderRadius: 10, border: "none",
+                      background: viewApp.status === "rejected" ? "#e0e0e0" : "linear-gradient(135deg,#ef4444,#dc2626)",
+                      color: viewApp.status === "rejected" ? "#9e9e9e" : "#fff",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: (viewApp.status === "rejected" || processingId !== null) ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      opacity: viewApp.status === "rejected" ? 0.6 : 1,
+                    }}
+                  >
+                    <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleApproveAndCreateAccount(viewApp);
+                      setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
+                    }}
+                    disabled={processingId !== null}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "10px 22px", borderRadius: 10, border: "none",
+                      background: "linear-gradient(135deg,#00c853,#00897b)",
+                      color: "#fff",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: processingId !== null ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
+                      opacity: processingId !== null ? 0.6 : 1,
+                    }}
+                  >
+                    <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                  </button>
+                </>
+              )}
             </div>
-          </div>
+            </div>
         </div>
          </>
       )}
@@ -9326,10 +9526,11 @@ const handleRestoreApplication = async (entry) => {
             {/* Status */}
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
               style={{ padding:"9px 12px", borderRadius:10, border:"1.5px solid #b2dfdb", fontSize:13, background:"#f0fdf5", fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
             </select>
 
             {/* Franchise Interest */}
@@ -9477,6 +9678,12 @@ const handleRestoreApplication = async (entry) => {
                     </td>
                     <td style={{ padding: "12px 14px" }}>
                       <StatusBadge status={app.status} />
+                      {app.appointmentDate && (
+                        <div style={{ fontSize: 11, color: app.appointmentStatus === "reschedule_requested" ? "#d97706" : "#5a7a65", marginTop: 4 }}>
+                          {app.appointmentStatus === "reschedule_requested" ? "Reschedule requested" : `Interview: ${new Date(app.appointmentDate).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" })}`}
+                        </div>
+
+                      )}
                     </td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -9509,9 +9716,138 @@ const handleRestoreApplication = async (entry) => {
             </table>
           </div>
         </div>
-      
+      {scheduleApp && (
+  <AppointmentModal
+    applicant={scheduleApp}
+    sending={processingId === scheduleApp.id}
+    onClose={() => { if (processingId === null) setScheduleApp(null); }}
+    onSchedule={(fields) => handleScheduleAppointment(scheduleApp, fields)}
+  />
+)}
+
+{rescheduleApp && (
+  <RescheduleOptionsModal
+    applicant={rescheduleApp}
+    sending={processingId === rescheduleApp.id}
+    onClose={() => { if (processingId === null) setRescheduleApp(null); }}
+    onSend={(fields) => handleSendRescheduleOptions(rescheduleApp, fields)}
+  />
+)}
       </div>
     </>
+  );
+}
+
+function AppointmentModal({ applicant, onClose, onSchedule, sending }) {
+  const initialLocal = applicant?.appointmentDate
+    ? new Date(applicant.appointmentDate).toISOString().slice(0, 16)
+    : "";
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.appointmentDate.value) return;
+    onSchedule({
+      appointmentDate: new Date(form.appointmentDate.value).toISOString(),
+      appointmentLocation: form.appointmentLocation.value,
+      appointmentNotes: form.appointmentNotes.value,
+    });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            {applicant?.appointmentDate ? "Reschedule Interview" : "Schedule Interview"}
+          </h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+          Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Date & Time</label>
+            <input name="appointmentDate" type="datetime-local" required defaultValue={initialLocal} style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Location / Mode</label>
+            <input name="appointmentLocation" type="text" placeholder="e.g. Head office, Google Meet link" defaultValue={applicant?.appointmentLocation} style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={bmLabel}>Notes (optional)</label>
+            <textarea name="appointmentNotes" rows={3} defaultValue={applicant?.appointmentNotes} style={{ ...bmInput, marginTop: 4, resize: "vertical", fontFamily: "inherit" }} />
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
+            The applicant will be emailed the date and a link to request a reschedule.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={sending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending ? "Sending…" : "Send Schedule"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RescheduleOptionsModal({ applicant, onClose, onSend, sending }) {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.optionADate.value || !form.optionBDate.value) return;
+    onSend({
+      optionADate: new Date(form.optionADate.value).toISOString(),
+      optionBDate: new Date(form.optionBDate.value).toISOString(),
+    });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
+            Send Reschedule Options
+          </h2>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={15} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+          Applicant: <strong style={{ color: '#0d2b1e' }}>{applicant?.name}</strong>
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={bmLabel}>Option A — Date & Time</label>
+            <input name="optionADate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={bmLabel}>Option B — Date & Time</label>
+            <input name="optionBDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
+            The applicant gets an email with both options and picks the one that works for them.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={sending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+              {sending ? "Sending…" : "Send Options"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
