@@ -1,7 +1,10 @@
+
+//apply here the whole dashboard logic and content
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
+import html2canvas from "html2canvas";
 import StockInventoryContent from "./StockInventoryContent";
 import ReceiptPrintTemplate from "./ReceiptPrintTemplate";
 import logoIfranchise from "../assets/report/ifranchise-logo.png";
@@ -100,48 +103,68 @@ const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs
 
 const fmtPeso = n => "\u20B1" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
+const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
+const fmtPeso1 = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmt8     = (d) => d.toISOString().slice(0, 10);
+
 
 const fmtAmt_d   = (n) => "\u20B1" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtShort_d = (n) => { if (n >= 1_000_000) return "\u20B1" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "\u20B1" + (n / 1_000).toFixed(0) + "k"; return "\u20B1" + Number(n).toFixed(0); };
- 
-// ─── PanelCard ────────────────────────────────────────────────────────────────
-function PanelCard({ children, style: s }) {
+const fmtShort_d = (n) => { if (n >= 1_000_000) return "\u20B1" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "\u20B1" + (n / 1_000).toFixed(0) + "k"; return "\u20B1" + Number(n).toFixed(0); };function PanelCard({ children, style: s }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, overflow: "hidden", boxShadow: "0 2px 16px rgba(0,140,60,0.07)", ...s }}>
+    <div style={{
+      background:"#fff", border:`1px solid ${C.border}`, borderRadius:20,
+      overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,0.05)",
+      transition:"box-shadow .25s ease, transform .25s ease",
+      ...s,
+    }}>
       {children}
     </div>
   );
-}
- 
-// ─── CardHeader ───────────────────────────────────────────────────────────────
-function CardHeader({ icon: Icon, title, sub, gradient = "linear-gradient(135deg,#2E7D32,#00897b)", action }) {
+}function CardHeader({ icon: Icon, title, sub, gradient, action }) {
+  if (gradient) {
+    return (
+      <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
+            <Icon size={17} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
+            {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+          </div>
+        </div>
+        {action}
+      </div>
+    );
+  }
   return (
-    <div style={{ background: gradient, padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 33, height: 33, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid rgba(255,255,255,0.28)" }}>
-          <Icon size={17} color="#fff" />
+    <div style={{
+      padding:"16px 20px", display:"flex", justifyContent:"space-between",
+      alignItems:"center", borderBottom:`1px solid ${C.border}`, background:"#fff",
+    }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{
+          width:34, height:34, borderRadius:10, background:C.ink,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <Icon size={16} color={C.lime} />
         </div>
         <div>
-          <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#fff" }}>{title}</div>
-          {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{sub}</div>}
+          <div style={{ fontFamily:FONT, fontWeight:800, fontSize:14, color:C.ink, letterSpacing:"-0.01em" }}>{title}</div>
+          {sub && <div style={{ fontSize:10.5, color:C.muted, marginTop:1 }}>{sub}</div>}
         </div>
       </div>
       {action}
     </div>
   );
-}
- 
-// ─── ChartLabel ───────────────────────────────────────────────────────────────
-function ChartLabel({ children }) {
+}function ChartLabel({ children }) {
   return (
     <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
       {children}
     </div>
   );
-}
- 
-// ─── BulletItem ───────────────────────────────────────────────────────────────
-function BulletItem({ text, color = "#00897b", size = "normal" }) {
+}function BulletItem({ text, color = "#00897b", size = "normal" }) {
   const fs = size === "small" ? 11 : 12.5;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
@@ -149,10 +172,7 @@ function BulletItem({ text, color = "#00897b", size = "normal" }) {
       <span style={{ fontSize: fs, color: "#0d2b1e", lineHeight: 1.6, fontFamily: FONT }}>{text}</span>
     </div>
   );
-}
- 
-// ─── SparkBar ─────────────────────────────────────────────────────────────────
-function SparkBar({ values = [], color = "#00c853", height = 30 }) {
+}function SparkBar({ values = [], color = "#00c853", height = 30 }) {
   if (!values.length) return null;
   const maxV = Math.max(...values, 1);
   return (
@@ -162,12 +182,9 @@ function SparkBar({ values = [], color = "#00c853", height = 30 }) {
       ))}
     </div>
   );
-}
- 
-// ─── ComboChart ───────────────────────────────────────────────────────────────
-function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
-  const [tip, setTip] = React.useState(null);
-  const ref = React.useRef(null);
+}function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) {
+  const [tip, setTip] = useState(null);
+  const ref = useRef(null);
   const W = 700, H = height, PL = 56, PR = 48, PT = 16, PB = 32;
   const pW = W - PL - PR, pH = H - PT - PB;
   const barSeries = Array.isArray(barData[0]) ? barData : [barData];
@@ -176,7 +193,7 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
   const minLine = Math.min(...(lineData || []), 0);
   const n = labels.length;
   const bW = Math.min(22, (pW / Math.max(n, 1)) - 6);
- 
+
   const linepts = (lineData || []).map((v, i) => ({
     x: PL + (i / Math.max(n - 1, 1)) * pW,
     y: PT + pH - ((v - minLine) / (maxLine - minLine || 1)) * pH,
@@ -190,8 +207,8 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
       linePath += ` C ${cx} ${linepts[i].y}, ${cx} ${linepts[i + 1].y}, ${linepts[i + 1].x} ${linepts[i + 1].y}`;
     }
   }
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PT + pH * (1 - t), label: fmtShort_d(t * maxBar) }));
- 
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => ({ y: PT + pH * (1 - t), label: fmtShort(t * maxBar) }));
+
   const handleMove = (e) => {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
@@ -204,18 +221,18 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
     });
     setTip({ i: best, x: PL + (best / Math.max(n - 1, 1)) * pW, label: labels[best] });
   };
- 
+
   return (
     <div style={{ position: "relative", cursor: "crosshair" }} onMouseMove={handleMove} onMouseLeave={() => setTip(null)}>
       <svg ref={ref} style={{ width: "100%", display: "block", overflow: "visible" }} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <defs>
           {barSeries.map((_, si) => (
-            <linearGradient key={si} id={`fa_cbg${si}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient key={si} id={`cbg${si}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={PAL[si]} stopOpacity="0.92" />
               <stop offset="100%" stopColor={PAL[si]} stopOpacity="0.55" />
             </linearGradient>
           ))}
-          <linearGradient id="fa_clgLine" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id="clgLine" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#1d4ed8" /><stop offset="100%" stopColor="#7c3aed" />
           </linearGradient>
         </defs>
@@ -234,14 +251,14 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
             const x  = groupX - ((barSeries.length / 2 - si) * (bW + 2)) - bW / 2;
             return (
               <rect key={`${i}-${si}`} x={x} y={PT + pH - bH} width={bW} height={bH} rx="4"
-                fill={`url(#fa_cbg${si})`} opacity={tip?.i === i ? 1 : 0.82} />
+                fill={`url(#cbg${si})`} opacity={tip?.i === i ? 1 : 0.82} />
             );
           });
         })}
         {labels.map((lbl, i) => (
           <text key={i} x={PL + (i / Math.max(n - 1, 1)) * pW} y={H - 4} textAnchor="middle" fontSize="10" fill="#6b9070" fontFamily={FONT}>{lbl}</text>
         ))}
-        {linePath && <path d={linePath} fill="none" stroke="url(#fa_clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
+        {linePath && <path d={linePath} fill="none" stroke="url(#clgLine)" strokeWidth="2.5" strokeLinecap="round" />}
         {linepts.map((p, i) => (
           <circle key={i} cx={p.x} cy={p.y} r={tip?.i === i ? 5 : 3} fill="#1d4ed8" stroke="#fff" strokeWidth="2" />
         ))}
@@ -250,16 +267,13 @@ function ComboChart({ barData = [], lineData = [], labels = [], height = 200 }) 
       {tip && (
         <div style={{ position: "absolute", bottom: 36, left: `${(tip.x / W) * 100}%`, transform: "translateX(-50%)", background: "#0d2b1e", color: "#fff", borderRadius: 10, padding: "8px 12px", pointerEvents: "none", whiteSpace: "nowrap", fontSize: 11, fontFamily: FONT, boxShadow: "0 4px 16px rgba(0,0,0,0.22)", zIndex: 10 }}>
           <div style={{ fontWeight: 800, marginBottom: 3, color: "#a7f3d0" }}>{tip.label}</div>
-          {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort_d(s[tip.i] || 0)}</div>)}
+          {barSeries.map((s, si) => <div key={si} style={{ color: PAL[si] }}>{fmtShort(s[tip.i] || 0)}</div>)}
           {lineData?.[tip.i] != null && <div style={{ color: "#93c5fd" }}>GP%: {lineData[tip.i].toFixed(1)}%</div>}
         </div>
       )}
     </div>
   );
-}
- 
-// ─── HBarChart ────────────────────────────────────────────────────────────────
-function HBarChart({ data = [] }) {
+}function HBarChart({ data = [] }) {
   const maxV = Math.max(...data.map(d => d.value), 1);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -267,7 +281,7 @@ function HBarChart({ data = [] }) {
         <div key={i}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{d.label}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort_d(d.value)}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: PAL[i % PAL.length], fontFamily: FONT }}>{fmtShort(d.value)}</span>
           </div>
           <div style={{ height: 8, borderRadius: 4, background: "#f0fdf5", overflow: "hidden" }}>
             <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})`, width: `${(d.value / maxV) * 100}%`, transition: "width .6s ease" }} />
@@ -276,25 +290,26 @@ function HBarChart({ data = [] }) {
       ))}
     </div>
   );
-}
- 
-// ─── DonutChartSVG ────────────────────────────────────────────────────────────
-function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
-  const [hover, setHover] = React.useState(null);
+}function DonutChartSVG({ segments = [], size = 140, innerRadius = 0.6, centerLabel = "", centerSub = "", showLegend = true }) {
+  const [hover, setHover] = useState(null);
   const R = size / 2, cx = R, cy = R;
   const outerR = R - 4, innerR = outerR * innerRadius;
   const total  = segments.reduce((s, d) => s + (d.value || 0), 0) || 1;
-  let cum = 0;
+let cum = 0;
   const slices = segments.map((seg, i) => {
-    const pct = (seg.value || 0) / total;
+    let pct = (seg.value || 0) / total;
     const sa  = cum * 2 * Math.PI - Math.PI / 2;
     cum += pct;
-    const ea  = cum * 2 * Math.PI - Math.PI / 2;
+    let ea  = cum * 2 * Math.PI - Math.PI / 2;
+
+   
+    if (pct >= 0.9999) ea -= 0.0001;
+
     const x1  = cx + outerR * Math.cos(sa), y1 = cy + outerR * Math.sin(sa);
     const x2  = cx + outerR * Math.cos(ea), y2 = cy + outerR * Math.sin(ea);
     const ix1 = cx + innerR * Math.cos(ea), iy1 = cy + innerR * Math.sin(ea);
     const ix2 = cx + innerR * Math.cos(sa), iy2 = cy + innerR * Math.sin(sa);
-    const large = pct > 0.5 ? 1 : 0;
+    const large = (ea - sa) > Math.PI ? 1 : 0;
     const mid   = sa + (ea - sa) / 2;
     return { ...seg, path: `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} 0 ${ix2} ${iy2} Z`, mid, pct, color: seg.color || PAL[i % PAL.length] };
   });
@@ -467,7 +482,7 @@ export default function FranchiseAdminDashboard() {
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',            icon: <Home size={20} />,        section: 'main' },
-    { id: 'inventory',      label: 'Menu Inventory',        icon: <Box size={20} />,         section: 'main' },
+    { id: 'inventory',      label: 'Product Catalogue',        icon: <Box size={20} />,         section: 'main' },
     { id: 'stockInventory', label: 'Stock Inventory',       icon: <Layers size={20} />,      section: 'main' },
     { id: 'mobileOrders',   label: 'View Mobile Orders',    icon: <Package size={20} />,     section: 'main' },
     { id: 'applications',  label: 'Applications',  icon: <FileCheck size={20} />,     section: 'main' },
@@ -738,77 +753,280 @@ const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size}
 const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
 
-function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending, getRangeLabel, filterLabel }) {
-  const catData = React.useMemo(() => {
-    if (kpiData?.categoryBreakdown?.length) return kpiData.categoryBreakdown;
-    if (!total) return [];
-    return [
-      { label: "Medicine",    value: Math.round(total * 0.28) },
-      { label: "Supplements", value: Math.round(total * 0.22) },
-      { label: "Coffee",      value: Math.round(total * 0.18) },
-      { label: "Vitamins",    value: Math.round(total * 0.14) },
-      { label: "Equipment",   value: Math.round(total * 0.10) },
-      { label: "Other",       value: Math.round(total * 0.08) },
-    ];
-  }, [kpiData, total]);
- 
-  const branchData = React.useMemo(() => {
-    if (kpiData?.branchBreakdown?.length) return kpiData.branchBreakdown.slice(0, 5);
-    if (!total) return [];
-    return [
-      { label: "Main Branch", value: Math.round(total * 0.30) },
-      { label: "Alabang",     value: Math.round(total * 0.22) },
-      { label: "BGC",         value: Math.round(total * 0.18) },
-      { label: "Makati",      value: Math.round(total * 0.16) },
-      { label: "Ortigas",     value: Math.round(total * 0.14) },
-    ];
-  }, [kpiData, total]);
- 
-  const gpLine = React.useMemo(() => values.map((v, i) => {
-    const base = 35 + (i / Math.max(values.length - 1, 1)) * 10 + (Math.sin(i) * 5);
-    return parseFloat(base.toFixed(1));
-  }), [values]);
- 
+function SalesTrendSection({
+  values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
+  getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
+  transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
+  branchProfitability = [], categoryPerformance = [],
+}) {
+  const panelRef = useRef(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const isFiltered = !!(filterBrand || filterBranch);
+
+ const selectedBrandObj = useMemo(
+    () => brands.find(b => String(b.id) === String(filterBrand)),
+    [brands, filterBrand]
+  );
+
+  const catData = useMemo(() => {
+    if (Array.isArray(kpiData?.categoryBreakdown) && kpiData.categoryBreakdown.length) {
+      return kpiData.categoryBreakdown;
+    }
+    return Array.isArray(categoryPerformance) ? categoryPerformance : [];
+  }, [kpiData, categoryPerformance]);
+
+  const brandBreakdownData = useMemo(() => {
+    if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
+      return kpiData.brandBreakdown;
+    }
+    return brandPerformance;
+  }, [kpiData, brandPerformance]);
+  
+
+  const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
+  const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
+const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
+
+  const branchData = useMemo(() => {
+    if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
+    return branchPerformance.slice(0, 6);
+  }, [kpiData, branchPerformance]);
+
+  const branchAttentionItems = useMemo(() => {
+    const rows = Array.isArray(branchProfitability)
+      ? branchProfitability.filter(row => Number(row?.revenue || 0) > 0)
+      : [];
+
+    if (!rows.length) return [];
+
+    const items = [];
+    const usedBranches = new Set();
+
+    const addItem = (row, config) => {
+      if (!row?.branch || usedBranches.has(row.branch) || items.length >= 5) return;
+      usedBranches.add(row.branch);
+      items.push({
+        branch: row.branch,
+        ...config,
+      });
+    };
+
+    // 1. Data quality comes first. A 100% margin caused by zero COGS should
+    //    never be presented as a genuine high-margin success.
+    rows
+      .filter(row => Number(row.cogs || 0) <= 0)
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "DATA CHECK",
+          tone: "info",
+          title: "Verify cost data",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin with no recorded COGS.`,
+          action: "Confirm transaction cost-of-goods data before interpreting profitability.",
+        });
+      });
+
+    // 2. Low-margin branches need management attention.
+    rows
+      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) < 25)
+      .sort((a, b) => Number(a.margin || 0) - Number(b.margin || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "MARGIN WATCH",
+          tone: "warning",
+          title: "Margin requires review",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin on ${fmtAmt(row.revenue)} revenue.`,
+          action: "Review product costs, pricing, discounts and sales mix.",
+        });
+      });
+
+    // 3. High-margin branches may be good candidates for controlled growth.
+    rows
+      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) >= 40)
+      .sort((a, b) => Number(b.margin || 0) - Number(a.margin || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "GROWTH OPPORTUNITY",
+          tone: "success",
+          title: "Strong margin performance",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.avgOrder)} average order.`,
+          action: "Assess whether sales volume can be increased while preserving current margins.",
+        });
+      });
+
+    // 4. Flag branches whose transaction volume is materially below the group.
+    const avgTransactions =
+      rows.reduce((sum, row) => sum + Number(row.transactions || 0), 0) /
+      Math.max(rows.length, 1);
+
+    rows
+      .filter(row =>
+        Number(row.transactions || 0) > 0 &&
+        Number(row.transactions || 0) < Math.max(2, avgTransactions * 0.5)
+      )
+      .sort((a, b) => Number(a.transactions || 0) - Number(b.transactions || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "LOW VOLUME",
+          tone: "neutral",
+          title: "Low transaction activity",
+          detail: `${Number(row.transactions || 0).toLocaleString()} transaction${Number(row.transactions || 0) === 1 ? "" : "s"} · ${fmtAmt(row.avgOrder)} average order.`,
+          action: "Review traffic, local demand and branch-level selling activity.",
+        });
+      });
+
+    // 5. If space remains, surface one stable branch as a positive benchmark.
+    rows
+      .filter(row =>
+        Number(row.cogs || 0) > 0 &&
+        Number(row.margin || 0) >= 25 &&
+        Number(row.margin || 0) < 40
+      )
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+      .forEach(row => {
+        addItem(row, {
+          status: "STABLE",
+          tone: "healthy",
+          title: "Healthy operating range",
+          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.revenue)} revenue.`,
+          action: "Maintain performance and monitor for changes in cost or transaction volume.",
+        });
+      });
+
+    return items.slice(0, 5);
+  }, [branchProfitability]);
+
+  const gpLine = useMemo(() => {
+    return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
+  }, [kpiData, values]);
+
+  const priorYearValues = useMemo(() => {
+    return kpiData?.priorYearValues?.length === values.length ? kpiData.priorYearValues : [];
+  }, [kpiData, values]);
+
+  const hasGpData = gpLine.length === values.length && values.length > 0;
+  const hasPriorYearData = priorYearValues.length === values.length && values.length > 0;
+
   const hasData = total > 0;
-  const grossProfit = kpiData?.salesProfit ?? Math.round(total * 0.38);
-  const txCount     = kpiData?.txCount ?? values.reduce((s, v) => s + Math.round(v / 450), 0);
-  const avgOrder    = kpiData?.avgOrder ?? avg;
- 
-  const analysisBullets = React.useMemo(() => {
+  const grossProfit = kpiData?.salesProfit ?? null;
+  const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
+  const avgOrder    = kpiData?.avgOrder ?? averageTransaction ?? 0;
+
+  const analysisBullets = useMemo(() => {
     if (!hasData) return [];
     const bullets = [];
-    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt_d(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
-    bullets.push(`Gross profit stands at ${fmtAmt_d(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? total)) * 100)}% margin.`);
-    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt_d(avgOrder)}.`);
+    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
+    if (grossProfit != null) bullets.push(`Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`);
+    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
     bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
-    bullets.push(`Peak revenue of ${fmtAmt_d(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt_d(peak - avg)}.`);
-    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt_d(low)} — significantly below average, consider investigating that interval.`);
-    if (catData.length) {
-      const topCat = catData[0];
-      bullets.push(`${topCat.label} is the top-performing category at ${fmtShort_d(topCat.value)} (${Math.round((topCat.value / total) * 100)}% of revenue).`);
+    bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
+    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
+    if (categoryPanelData.length) {
+      const top = categoryPanelData[0];
+      bullets.push(`${top.label} is the top-performing ${isFiltered ? "category" : "brand"} at ${fmtShort(top.value)} (${Math.round((top.value / total) * 100)}% of revenue).`);
     }
     if (branchData.length) {
       const topBranch = branchData[0];
-      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort_d(topBranch.value)}.`);
+      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
     }
     return bullets;
-  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, catData, branchData, kpiData, getRangeLabel, filterLabel]);
- 
+  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, categoryPanelData, branchData, kpiData, getRangeLabel, filterLabel, isFiltered]);
+
+  // ── Print ──
+  const handlePrint = () => {
+    if (!panelRef.current) return;
+    const printContents = panelRef.current.innerHTML;
+    const win = window.open("", "_blank");
+    if (!win) { alert("Please allow pop-ups to print this report."); return; }
+    win.document.write(`
+      <html>
+        <head>
+          <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; background: #ffffff !important; }
+            @media print { @page { margin: 14mm; } button { display: none !important; } }
+          </style>
+        </head>
+        <body>${printContents}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  // ── Download PDF ──
+  const handleDownloadPDF = async () => {
+    if (!panelRef.current) return;
+    setPdfBusy(true);
+    try {
+      const margin = 30;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth    = pdf.internal.pageSize.getWidth();
+      const pageHeight   = pdf.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - margin * 2;
+
+      const canvas = await html2canvas(panelRef.current, {
+        scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: panelRef.current.scrollWidth,
+      });
+      const imgData      = canvas.toDataURL("image/png");
+      const imgHeight     = (canvas.height * contentWidth) / canvas.width;
+      const pageContentH  = pageHeight - margin * 2 - 20;
+      const totalPages    = Math.max(1, Math.ceil(imgHeight / pageContentH));
+
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const yOffset = margin - page * pageContentH;
+        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+        pdf.setDrawColor(224, 242, 241);
+        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
+      }
+      pdf.save(`Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("Could not generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`} />
-      <div style={{ padding: "18px 20px" }}>
+      <CardHeader
+        icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`}
+        action={
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={handlePrint}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+              <Printer size={13} /> Print
+            </button>
+            <button onClick={handleDownloadPDF} disabled={pdfBusy}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+              {pdfBusy ? "Preparing…" : "Download PDF"}
+            </button>
+          </div>
+        }
+      />
+      <div ref={panelRef} style={{ padding: "18px 20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend · CURRENT YEAR vs PAST YEAR with Gross Profit %</ChartLabel>
+            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
             {hasData ? (
               <>
-                <ComboChart barData={[values, values.map(v => v * 0.72)]} lineData={gpLine} labels={labels} height={220} />
+                <ComboChart barData={hasPriorYearData ? [values, priorYearValues] : [values]} lineData={hasGpData ? gpLine : []} labels={labels} height={220} />
                 <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
                   {[
-                    { color: PAL[0], label: "Sales CY" },
-                    { color: PAL[1], label: "Sales PY" },
-                    { color: "#1d4ed8", label: "Gross Profit % (CY)", line: true },
+                    { color: PAL[0], label: "Sales — selected period" },
+                    ...(hasPriorYearData ? [{ color: PAL[1], label: "Prior-year sales" }] : []),
+                    ...(hasGpData ? [{ color: "#1d4ed8", label: "Gross Profit %", line: true }] : []),
                   ].map((l, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       {l.line
@@ -821,8 +1039,8 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                   {[
-                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt_d(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    { label: "Gross Profit",  text: `Gross profit stands at ${fmtAmt_d(grossProfit)}, a ${Math.round((grossProfit / (kpiData?.totalSales ?? (total || 1))) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
                     { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
                   ].map((card, i) => (
                     <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
@@ -840,12 +1058,14 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
             ) : (
               <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
                 <BarChart2 size={28} color="#b2dfdb" />
-                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT }}>No data for selection</div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
+                  No data found for {getRangeLabel()}
+                </div>
                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
               </div>
             )}
           </div>
- 
+
           <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
@@ -855,10 +1075,10 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
                   {[
-                    { label: "Peak",    value: fmtAmt_d(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    { label: "Low",     value: fmtAmt_d(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-                    { label: "Average", value: fmtAmt_d(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,      sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                    { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                    { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                    { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
                   ].map((s, i) => (
                     <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
                       <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
@@ -893,243 +1113,205 @@ function SalesTrendSection({ values, labels, kpiData, total, avg, peak, low, pea
             )}
           </div>
         </div>
- 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
-            <ChartLabel><PieChart size={11} color="#00897b" /> Sales by Category</ChartLabel>
-            {catData.length > 0
-              ? <DonutChartSVG segments={catData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={130} centerLabel={hasData ? fmtShort_d(total) : "—"} centerSub="total" />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
-            }
-          </div>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "14px 16px" }}>
-            <ChartLabel><Globe size={11} color="#00897b" /> Top 5 Sales by Branch</ChartLabel>
-            {branchData.length > 0
-              ? <HBarChart data={branchData.slice(0, 5)} />
-              : <div style={{ height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
-            }
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <ChartLabel><Activity size={11} color="#00897b" /> Period Summary</ChartLabel>
-            {[
-              { label: "Peak Revenue",   value: hasData ? fmtAmt_d(peak) : "—", sub: `on ${peakLabel}`,                            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-              { label: "Lowest Revenue", value: hasData ? fmtAmt_d(low)  : "—", sub: "Period minimum",                             color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-              { label: "Period Average", value: hasData ? fmtAmt_d(avg)  : "—", sub: `${labels.length} data points`,               color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-              { label: "Trend",          value: hasData ? `${trending?"+":""}${pctChange}%` : "—", sub: trending?"Upward trend":"Downward trend", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
-            ].map((s, i) => (
-              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: "9px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
-                </div>
-                <div style={{ fontSize: 10, color: "#5a7a65", fontFamily: FONT, textAlign: "right" }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </PanelCard>
-  );
-}
 
-function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total }) {
-  const [data,    setData]    = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
-  const [tab,     setTab]     = React.useState("top10");
- 
-  const fetchData = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (rangeMode === "preset") params.set("preset", preset);
-      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
-      else params.set("preset", "month");
-      if (filterBranch) params.set("branch", filterBranch);
-      else if (filterBrand && selectedBrand) {
-        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-        if (names.length) params.set("branches", names.join(","));
-      }
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`);
-      const json = await res.json();
-      setData(json);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
- 
-  React.useEffect(() => { fetchData(); }, [fetchData]);
- 
-  const top10     = data?.top10 ?? [];
-  const fast      = data?.fastMoving ?? [];
-  const slow      = data?.slowMoving ?? [];
-  const totalSKUs = data?.totalProducts ?? 0;
-  const fastCount = fast.length;
-  const slowCount = slow.length;
- 
-  const revenuePie = top10.slice(0, 5).map((p, i) => ({
-    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
-    value: p.totalRevenue,
-    color: PAL[i],
-  }));
-  const moverPie = totalSKUs > 0 ? [
-    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
-    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
-    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
-  ].filter(d => d.value > 0) : [];
- 
-  const TABS = [
-    { id: "top10",  label: "Top Products",   icon: BarChart2    },
-    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
-    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
-    { id: "buyers", label: "Top Performers", icon: Target       },
-  ];
-  const tabSt = (a) => ({
-    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
-    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
-    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-    color:      a ? "#fff" : "#5a7a65",
-    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
-  });
-  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
- 
-  const renderList = () => {
-    const isBuyers = tab === "buyers";
-    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
-    if (!list?.length) return (
-      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
-    );
-    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
-    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
-    return list.slice(0, 8).map((p, i) => (
-      <div key={p.name}
-        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7 }}
-        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
-        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
-          {i + 1}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
-          {!isBuyers && p.branchBreakdown && (
-            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
-              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
-            </div>
-          )}
-        </div>
-        {!isBuyers && (
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
-            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
-              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
-            </div>
-          </div>
-        )}
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
-          {isBuyers ? p.totalItems?.toLocaleString() : ("\u20B1" + Number(p.totalRevenue||0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }))}
-        </div>
-        <div style={{ paddingLeft: 8 }}>
-          {isBuyers
-            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
-            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+        {/* Period Summary column removed — 2-column spaced layout */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "stretch" }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
+           <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
+            {categoryPanelData.length > 0 ? (
+              <>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                  <DonutChartSVG
+                    segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))}
+                    size={150}
+                    centerLabel={hasData ? fmtShort(categoryPanelData.reduce((s, d) => s + (d.value || 0), 0)) : "—"}
+                    centerSub="total"
+                    showLegend={false}
+                  />
                 </div>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
-              </div>
-          }
-        </div>
-      </div>
-    ));
-  };
- 
-  return (
-    <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader
-        icon={Package}
-        title="Sales vs Stock Recommendations"
-        sub="Product performance · fast/slow movers · stock health"
-        action={
-          <button onClick={fetchData} disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
-            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
-            {loading ? "Loading…" : "Refresh"}
-          </button>
-        }
-      />
-      <div style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
-          {[
-            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
-            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
-            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
-            { label: "Avg Sales / Product", value: data?.avgQty ? `${data.avgQty} u` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
-          ].map((s, i) => (
-            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                <s.icon size={11} color={s.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
- 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
-          <div>
-            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
-              {TABS.map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
-                  <t.icon size={11} /> {t.label}
-                </button>
-              ))}
-            </div>
-            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
-              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
-                <span>#</span><span>Name</span>
-                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
-                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
-                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+                <div style={{ height: 1, background: "#e0f2f1", margin: "2px 0 14px" }} />
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
+                  {isFiltered ? "Category Breakdown" : "Brand Breakdown"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <HBarChart data={categoryPanelData.slice(0, 8).map(d => ({ label: d.label, value: d.value }))} />
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, minHeight: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12, textAlign: "center", padding: "0 10px" }}>
+                {isFiltered ? "No category data available for this brand/branch yet." : "No data"}
               </div>
             )}
-            {loading
-              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
-                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
-                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
-                </div>
-              : renderList()
-            }
           </div>
- 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
-              {revenuePie.length > 0
-                ? <DonutChartSVG segments={revenuePie} size={120} />
-                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
-              }
+          <div style={{
+            background: "#f8fffe",
+            border: "1px solid #e0f2f1",
+            borderRadius: 14,
+            padding: "18px 20px"
+          }}>
+            <ChartLabel>
+              <Target size={11} color="#00897b" />
+              Branch Attention & Opportunities
+            </ChartLabel>
+
+            <div style={{
+              fontSize: 10.5,
+              color: "#789086",
+              lineHeight: 1.5,
+              marginTop: -3,
+              marginBottom: 12,
+              fontFamily: FONT
+            }}>
+              Priority observations from branch profitability and transaction data
             </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
-              {moverPie.length > 0
-                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
-                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
-              }
-            </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {[
-                  { label: "Reorder Soon",  count: slowCount || 0,                                  color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
-                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),  color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
-                  { label: "High Demand",   count: fastCount || 0,                                  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
-                ].map((r, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
-                    <r.icon size={13} color={r.color} />
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
-                  </div>
-                ))}
+
+            {branchAttentionItems.length > 0 ? (
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8
+              }}>
+                {branchAttentionItems.map((item, index) => {
+                  const tone = {
+                    info: {
+                      bg: "#eff6ff",
+                      border: "#bfdbfe",
+                      accent: "#2563eb",
+                      badgeBg: "#dbeafe",
+                      badgeText: "#1e40af",
+                    },
+                    warning: {
+                      bg: "#fffbeb",
+                      border: "#fde68a",
+                      accent: "#d97706",
+                      badgeBg: "#fef3c7",
+                      badgeText: "#92400e",
+                    },
+                    success: {
+                      bg: "#ecfdf5",
+                      border: "#a7f3d0",
+                      accent: "#059669",
+                      badgeBg: "#d1fae5",
+                      badgeText: "#047857",
+                    },
+                    neutral: {
+                      bg: "#f8fafc",
+                      border: "#e2e8f0",
+                      accent: "#64748b",
+                      badgeBg: "#f1f5f9",
+                      badgeText: "#475569",
+                    },
+                    healthy: {
+                      bg: "#f0f5e8",
+                      border: "#c9dba0",
+                      accent: "#3b791e",
+                      badgeBg: "#e8f0dd",
+                      badgeText: "#2c5c16",
+                    },
+                  }[item.tone] || {
+                    bg: "#f8fafc",
+                    border: "#e2e8f0",
+                    accent: "#64748b",
+                    badgeBg: "#f1f5f9",
+                    badgeText: "#475569",
+                  };
+
+                  return (
+                    <div
+                      key={`${item.branch}-${index}`}
+                      style={{
+                        background: tone.bg,
+                        border: `1px solid ${tone.border}`,
+                        borderLeft: `3px solid ${tone.accent}`,
+                        borderRadius: 10,
+                        padding: "9px 10px"
+                      }}
+                    >
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        marginBottom: 5
+                      }}>
+                        <div style={{
+                          fontSize: 11.5,
+                          fontWeight: 800,
+                          color: "#102a1c",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          fontFamily: FONT
+                        }}>
+                          {item.branch}
+                        </div>
+
+                        <span style={{
+                          flexShrink: 0,
+                          fontSize: 8.5,
+                          fontWeight: 800,
+                          letterSpacing: ".05em",
+                          textTransform: "uppercase",
+                          padding: "2px 6px",
+                          borderRadius: 20,
+                          background: tone.badgeBg,
+                          color: tone.badgeText,
+                          fontFamily: FONT
+                        }}>
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: "#334155",
+                        lineHeight: 1.45,
+                        fontFamily: FONT
+                      }}>
+                        {item.title}
+                      </div>
+
+                      <div style={{
+                        fontSize: 10,
+                        color: "#64748b",
+                        lineHeight: 1.5,
+                        marginTop: 2,
+                        fontFamily: FONT
+                      }}>
+                        {item.detail}
+                      </div>
+
+                      <div style={{
+                        fontSize: 9.7,
+                        fontWeight: 700,
+                        color: tone.accent,
+                        lineHeight: 1.45,
+                        marginTop: 4,
+                        fontFamily: FONT
+                      }}>
+                        {item.action}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            ) : (
+              <div style={{
+                height: 130,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#94a3b8",
+                fontFamily: FONT,
+                fontSize: 11.5,
+                textAlign: "center",
+                lineHeight: 1.6,
+                padding: 16
+              }}>
+                No branch profitability observations are available for this filter.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1137,13 +1319,15 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
   );
 }
 
-// ─── AI PREDICTIVE PANEL ──────────────────────────────────────────────────────
-function PrescriptiveSection({ transactions, filterLabel, preset, total, values, kpiData }) {
-  const [analysis, setAnalysis] = React.useState(null);
-  const [loading,  setLoading]  = React.useState(false);
-  const [error,    setError]    = React.useState(null);
-  const [lastRun,  setLastRun]  = React.useState(null);
- 
+function PrescriptiveSection({ transactions, filterLabel, preset, total, values, labels = [], kpiData }) {
+  const [analysis, setAnalysis] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [lastRun,  setLastRun]  = useState(null);
+  const [pdfBusy,  setPdfBusy]  = useState(false);
+
+  const exportRef = useRef(null); // offscreen report layout used for Print + PDF
+
   const runAnalysis = async () => {
     if (!transactions?.length) { setError("No transaction data available."); return; }
     setLoading(true); setError(null);
@@ -1162,29 +1346,123 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
     } catch { setError("Could not reach the AI service."); }
     finally { setLoading(false); }
   };
- 
-  const projRev = analysis?.projectedRevenue ?? (total ? Math.round(total * 1.05) : null);
-  const projChg = analysis?.projectedChange  ?? 5.2;
-  const peakDay = analysis?.peakDay         ?? "Thursday";
-  const slowDay = analysis?.slowestDay      ?? "Sunday";
-  const conf    = analysis?.confidence      ?? (total ? 72 : null);
- 
+
+  const projRev = analysis?.projectedRevenue ?? null;
+  const projChg = analysis?.projectedChange ?? null;
+  const peakDay = analysis?.peakDay ?? null;
+  const slowDay = analysis?.slowestDay ?? null;
+  const conf = analysis?.confidence ?? null;
+
+  // Prescriptive anomaly groups.
+  // "ghost_sales" is the backend's existing anomalyType for a branch that
+  // recorded sales while one or more inventory items are already at zero stock.
+  const ghostStockAnomalies = useMemo(() => {
+    const rows = Array.isArray(analysis?.stockAnomalies)
+      ? analysis.stockAnomalies
+      : [];
+
+    return rows.filter((a) => {
+      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+      return type === "ghost_sales" || type === "ghost_stock";
+    });
+  }, [analysis]);
+
+  // Preserve the other anomaly types instead of removing existing functionality.
+  const otherStockAnomalies = useMemo(() => {
+    const rows = Array.isArray(analysis?.stockAnomalies)
+      ? analysis.stockAnomalies
+      : [];
+
+    return rows.filter((a) => {
+      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+      return type !== "ghost_sales" && type !== "ghost_stock";
+    });
+  }, [analysis]);
+
   const typeStyle = (type) => ({
     success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
     warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
     info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
   }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
- 
-  const preRunBullets = React.useMemo(() => {
+
+  const preRunBullets = useMemo(() => {
     if (!total) return [];
     return [
-      `${transactions?.length?.toLocaleString() ?? 0} transactions loaded for ${filterLabel}.`,
-      `Estimated 7-day projected revenue: ${projRev ? fmtAmt_d(projRev) : "—"} (${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% estimate vs prior period).`,
-      `Forecast peak day: ${peakDay} · Slowest day: ${slowDay}.`,
-      conf ? `Model confidence: ${conf}% — ${conf >= 80 ? "High confidence based on strong data history." : conf >= 60 ? "Medium confidence — limited transaction history." : "Low confidence — more data needed for reliable forecasts."}` : null,
-    ].filter(Boolean);
-  }, [total, transactions, filterLabel, projRev, projChg, peakDay, slowDay, conf]);
- 
+      `${transactions?.length?.toLocaleString() ?? 0} transaction records are available to the AI service.`,
+      `Recorded revenue represented by the selected dashboard series is ${fmtAmt(total)}.`,
+      `The evidence charts below show the historical values supplied for analysis. AI forecasts only appear after Run AI Analysis is completed.`,
+    ];
+  }, [total, transactions]);
+
+  // ── Print (opens the offscreen report layout in a new tab) ─────────────
+  const handlePrint = () => {
+    if (!exportRef.current) return;
+    const printContents = exportRef.current.innerHTML;
+    const win = window.open("", "_blank");
+    if (!win) { alert("Please allow pop-ups to print this report."); return; }
+   win.document.write(`
+      <html>
+        <head>
+          <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; background: #ffffff !important; }
+            @media print { @page { margin: 14mm; } button { display: none !important; } }
+          </style>
+        </head>
+        <body>${printContents}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
+  };
+
+  // ── Download as an actual PDF file (same layout as Print) ──────────────
+  const handleDownloadPDF = async () => {
+    if (!exportRef.current) return;
+    setPdfBusy(true);
+    try {
+      const margin = 30; // pt
+      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const pageWidth    = pdf.internal.pageSize.getWidth();
+      const pageHeight   = pdf.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - margin * 2;
+
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        windowWidth: exportRef.current.scrollWidth,
+      });
+      const imgData    = canvas.toDataURL("image/png");
+      const imgHeight   = (canvas.height * contentWidth) / canvas.width;
+      const pageContentH = pageHeight - margin * 2 - 20; // reserve a little for page number
+      const totalPages   = Math.max(1, Math.ceil(imgHeight / pageContentH));
+
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const yOffset = margin - page * pageContentH;
+        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+
+        pdf.setDrawColor(224, 242, 241);
+        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
+      }
+
+      pdf.save(`Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("Could not generate PDF. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <PanelCard style={{ marginBottom: 22 }}>
       <CardHeader
@@ -1193,32 +1471,57 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
         sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
         gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
         action={
-          <button onClick={runAnalysis} disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
-            <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
-            {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={handlePrint}
+              title="Print"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+              <Printer size={13} /> Print
+            </button>
+            <button onClick={handleDownloadPDF} disabled={pdfBusy}
+              title="Download as PDF"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+              {pdfBusy ? "Preparing…" : "Download PDF"}
+            </button>
+            <button onClick={runAnalysis} disabled={loading}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+              <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+              {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+            </button>
+          </div>
         }
       />
+
+      {/* ── Live dashboard view (unchanged, compact) ── */}
       <div style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          {[
-            { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt_d(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior` : "Run AI to populate", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: TrendingUp },
-            { label: "Peak Day Forecast",        value: peakDay || "—",   sub: "Highest revenue day",  color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: Target },
-            { label: "Slowest Day Forecast",     value: slowDay || "—",   sub: "Lowest revenue day",   color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: TrendingDown },
-            { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — need more data") : "Run AI to populate", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", icon: CheckCircle },
-          ].map((card, i) => (
-            <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <card.icon size={11} color={card.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{card.label}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,.8fr)", gap: 16, marginBottom: 20 }}>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>Historical Revenue Evidence</div>
+                <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, fontFamily:FONT }}>Actual dashboard series used as evidence for the AI analysis</div>
               </div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: card.color, fontFamily: FONT, lineHeight: 1.15 }}>{card.value}</div>
-              <div style={{ fontSize: 10.5, color: "#5a7a65", fontFamily: FONT, marginTop: 3 }}>{card.sub}</div>
+              <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20, background:"#eff6ff", color:"#1d4ed8", fontFamily:FONT }}>SOURCE DATA</span>
             </div>
-          ))}
+            <DashboardLineGraph labels={labels} values={values} height={210} />
+          </div>
+          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+            <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>AI Output Evidence</div>
+            <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, marginBottom:12, fontFamily:FONT }}>Forecast fields stay empty until the AI returns them</div>
+            {analysis ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {[
+                  ["Projected 7-Day Revenue", projRev != null ? fmtAmt(projRev) : "Not returned"],
+                  ["Projected Change", projChg != null ? `${projChg >= 0 ? "+" : ""}${Number(projChg).toFixed(1)}%` : "Not returned"],
+                  ["Peak Day", peakDay || "Not returned"],
+                  ["Slowest Day", slowDay || "Not returned"],
+                  ["Confidence", conf != null ? `${conf}%` : "Not returned"],
+                ].map(([label,value]) => <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"9px 10px", borderRadius:9, background:"#f8fbff", border:"1px solid #e5edf8" }}><span style={{fontSize:10.5,color:"#64748b",fontWeight:700}}>{label}</span><strong style={{fontSize:11,color:"#1e3a5f",textAlign:"right"}}>{value}</strong></div>)}
+              </div>
+            ) : <div style={{ minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", border:"1px dashed #bfdbfe", borderRadius:10, background:"#f8fbff", color:"#64748b", fontSize:11.5, textAlign:"center", padding:18 }}>Run AI Analysis to generate forecast evidence and recommendations.</div>}
+          </div>
         </div>
- 
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
@@ -1251,34 +1554,298 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
                 </>
               )}
             </div>
- 
-            {analysis?.stockAnomalies?.length > 0 && (
+
+            {/* Ghost Stock Anomalies Across Branches — directly under AI Summary */}
+            {analysis && (
+              <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 14, padding: "14px 15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: ghostStockAnomalies.length > 0 ? 10 : 0, flexWrap: "wrap" }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: "#dc2626",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontFamily: FONT
+                  }}>
+                    Ghost Stock Anomalies Across Branches
+                  </span>
+
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                    color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b",
+                    fontFamily: FONT
+                  }}>
+                    {ghostStockAnomalies.length}
+                  </span>
+                </div>
+
+                <div style={{
+                  marginBottom: 11,
+                  padding: "10px 12px",
+                  borderRadius: 9,
+                  background: "#fff7f7",
+                  border: "1px solid #fee2e2",
+                  fontSize: 11.5,
+                  color: "#7f1d1d",
+                  lineHeight: 1.6,
+                  fontFamily: FONT
+                }}>
+                  <strong>What is a ghost stock anomaly?</strong>{" "}
+                  A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+                </div>
+
+                {ghostStockAnomalies.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {ghostStockAnomalies.map((a, i) => {
+                      const severity = String(a?.severity || "critical").toLowerCase();
+                      const severityColor =
+                        severity === "critical"
+                          ? "#dc2626"
+                          : severity === "warning"
+                            ? "#d97706"
+                            : "#2563eb";
+
+                      return (
+                        <div
+                          key={`${a?.branch || "branch"}-${i}`}
+                          style={{
+                            background: "linear-gradient(145deg,#fff7f7,#fef2f2)",
+                            border: "1px solid #fecaca",
+                            borderLeft: `4px solid ${severityColor}`,
+                            borderRadius: 12,
+                            padding: "13px 14px"
+                          }}
+                        >
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                            marginBottom: 8,
+                            flexWrap: "wrap"
+                          }}>
+                            <AlertTriangle size={13} color={severityColor} />
+
+                            <span style={{
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                              background: "#fee2e2",
+                              color: "#991b1b",
+                              textTransform: "uppercase",
+                              fontFamily: FONT
+                            }}>
+                              Ghost Stock
+                            </span>
+
+                            <span style={{
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: "#0d2b1e",
+                              fontFamily: FONT
+                            }}>
+                              {a?.branch || "Unknown Branch"}
+                            </span>
+
+                            <span style={{
+                              marginLeft: "auto",
+                              fontSize: 9,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                              background: severity === "critical" ? "#fee2e2" : severity === "warning" ? "#fef3c7" : "#dbeafe",
+                              color: severity === "critical" ? "#991b1b" : severity === "warning" ? "#92400e" : "#1e40af",
+                              textTransform: "uppercase",
+                              fontFamily: FONT
+                            }}>
+                              {severity}
+                            </span>
+                          </div>
+
+                          <BulletItem
+                            text={a?.finding || "Sales activity was detected while related inventory is already recorded at zero stock."}
+                            color={severityColor}
+                            size="small"
+                          />
+
+                          <div style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 7,
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            background: "rgba(255,255,255,0.78)",
+                            border: "1px solid #fecaca",
+                            marginTop: 7
+                          }}>
+                            <CheckCircle size={12} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
+                            <span style={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: "#0d2b1e",
+                              lineHeight: 1.55,
+                              fontFamily: FONT
+                            }}>
+                              {a?.action || "Verify the branch's physical stock, reconcile recent sales against inventory movements, and correct the stock record before further replenishment decisions."}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    padding: "10px 11px",
+                    borderRadius: 9,
+                    background: "#f8fafc",
+                    border: "1px dashed #cbd5e1"
+                  }}>
+                    <CheckCircle size={14} color="#059669" />
+                    <span style={{
+                      fontSize: 11.5,
+                      color: "#64748b",
+                      lineHeight: 1.55,
+                      fontFamily: FONT
+                    }}>
+                      No ghost stock anomaly was detected in the branches included in this analysis.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Preserve non-ghost stock/sales anomalies below the ghost-stock section */}
+            {analysis && otherStockAnomalies.length > 0 && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Stock vs Sales Anomalies</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#fee2e2", color: "#dc2626", fontFamily: FONT }}>{analysis.stockAnomalies.length}</span>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#d97706" }} />
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: "#92400e",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontFamily: FONT
+                  }}>
+                    Other Stock vs Sales Anomalies
+                  </span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    fontFamily: FONT
+                  }}>
+                    {otherStockAnomalies.length}
+                  </span>
                 </div>
+
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {analysis.stockAnomalies.map((a, i) => {
+                  {otherStockAnomalies.map((a, i) => {
                     const cfg = {
-                      ghost_sales:          { bg: "#fef2f2", border: "#fecaca", label: "Ghost Sales",    labelBg: "#fee2e2", labelColor: "#991b1b", dot: "#dc2626" },
-                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering", labelBg: "#fef3c7", labelColor: "#92400e", dot: "#d97706" },
-                      dead_stock:           { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock",     labelBg: "#dbeafe", labelColor: "#1e40af", dot: "#2563eb" },
-                    }[a.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly", labelBg: "#e0f2f1", labelColor: "#00695c", dot: "#00897b" };
+                      low_stock_no_reorder: {
+                        bg: "#fffbeb",
+                        border: "#fde68a",
+                        label: "Not Reordering",
+                        labelBg: "#fef3c7",
+                        labelColor: "#92400e",
+                        dot: "#d97706"
+                      },
+                      dead_stock: {
+                        bg: "#eff6ff",
+                        border: "#bfdbfe",
+                        label: "Dead Stock",
+                        labelBg: "#dbeafe",
+                        labelColor: "#1e40af",
+                        dot: "#2563eb"
+                      },
+                    }[a?.anomalyType] || {
+                      bg: "#f8fffe",
+                      border: "#d1eedd",
+                      label: "Anomaly",
+                      labelBg: "#e0f2f1",
+                      labelColor: "#00695c",
+                      dot: "#00897b"
+                    };
+
                     return (
-                      <div key={i} style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: "13px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#d97706" : "#2563eb", display: "inline-block" }} />
-                          <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: cfg.labelBg, color: cfg.labelColor, textTransform: "uppercase", fontFamily: FONT }}>{cfg.label}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{a.branch}</span>
-                          {a.severity === "critical" && <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 20, background: "#fee2e2", color: "#991b1b", fontFamily: FONT }}>CRITICAL</span>}
+                      <div key={i} style={{
+                        background: cfg.bg,
+                        border: `1px solid ${cfg.border}`,
+                        borderRadius: 12,
+                        padding: "13px 14px"
+                      }}>
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          marginBottom: 7,
+                          flexWrap: "wrap"
+                        }}>
+                          <span style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: cfg.dot,
+                            display: "inline-block"
+                          }} />
+                          <span style={{
+                            fontSize: 9.5,
+                            fontWeight: 800,
+                            padding: "2px 7px",
+                            borderRadius: 20,
+                            background: cfg.labelBg,
+                            color: cfg.labelColor,
+                            textTransform: "uppercase",
+                            fontFamily: FONT
+                          }}>
+                            {cfg.label}
+                          </span>
+                          <span style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "#0d2b1e",
+                            fontFamily: FONT
+                          }}>
+                            {a?.branch || "Unknown Branch"}
+                          </span>
                         </div>
-                        <BulletItem text={a.finding} color={cfg.dot} size="small" />
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "7px 9px", borderRadius: 7, background: "rgba(255,255,255,0.65)", border: `1px solid ${cfg.border}`, marginTop: 6 }}>
-                          <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
-                          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{a.action}</span>
-                        </div>
+
+                        <BulletItem text={a?.finding} color={cfg.dot} size="small" />
+
+                        {a?.action && (
+                          <div style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 6,
+                            padding: "7px 9px",
+                            borderRadius: 7,
+                            background: "rgba(255,255,255,0.65)",
+                            border: `1px solid ${cfg.border}`,
+                            marginTop: 6
+                          }}>
+                            <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                            <span style={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: "#0d2b1e",
+                              lineHeight: 1.55,
+                              fontFamily: FONT
+                            }}>
+                              {a.action}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1286,7 +1853,7 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
               </div>
             )}
           </div>
- 
+
           <div>
             {analysis?.recommendations?.length > 0 ? (
               <>
@@ -1326,17 +1893,888 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
           </div>
         </div>
       </div>
+
+      {/* ── OFFSCREEN report layout — used only by Print & Download PDF ── */}
+      <div style={{ position: "absolute", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
+        <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#0d2b1e" }}>
+
+          {/* Letterhead */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #00c853" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <img src={logoIfranchise} alt="iFranchise Business Services Corp." style={{ height: 58, width: "auto" }} />
+              <div style={{ width: 1, height: 44, background: "#d1eedd" }} />
+              <img src={logoSync} alt="FranchiSync" style={{ height: 46, width: "auto" }} />
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                iFranchise Business Services Corp.
+              </div>
+              <div style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 2 }}>
+                {new Date().toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {/* Title block */}
+          <div style={{ marginBottom: 26 }}>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#0d2b1e", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+              AI Prescriptive Analysis Report
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#00897b", background: "#e0f2f1", padding: "4px 12px", borderRadius: 20 }}>
+                {filterLabel}
+              </span>
+              {lastRun && (
+                <span style={{ fontSize: 13, color: "#5a7a65", fontWeight: 600 }}>
+                  AI run at {lastRun}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* KPI summary grid — larger, readable */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 30 }}>
+            {[
+              { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior period` : "Not yet calculated", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+              { label: "Peak Day Forecast",        value: peakDay || "—", sub: "Highest revenue day", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+              { label: "Slowest Day Forecast",     value: slowDay || "—", sub: "Lowest revenue day", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+              { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — needs more data") : "Not yet calculated", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+            ].map((card, i) => (
+              <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 14, padding: "18px 20px" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+                  {card.label}
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
+                <div style={{ fontSize: 12.5, color: "#5a7a65", marginTop: 6 }}>{card.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Executive summary */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+              <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                {analysis ? "Executive Summary" : "Data Overview"}
+              </span>
+            </div>
+            {analysis ? (
+              <p style={{ fontSize: 14.5, lineHeight: 1.85, margin: 0, color: "#1a1a1a" }}>{analysis.summary}</p>
+            ) : (
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 2, color: "#1a1a1a" }}>
+                {preRunBullets.map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+            )}
+          </div>
+
+          {/* Ghost Stock Anomalies Across Branches */}
+          {analysis && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  Ghost Stock Anomalies Across Branches
+                </span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                  color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b"
+                }}>
+                  {ghostStockAnomalies.length}
+                </span>
+              </div>
+
+              <div style={{
+                marginBottom: 14,
+                padding: "11px 13px",
+                borderRadius: 9,
+                background: "#fff7f7",
+                border: "1px solid #fee2e2",
+                fontSize: 12.5,
+                color: "#7f1d1d",
+                lineHeight: 1.65
+              }}>
+                <strong>What is a ghost stock anomaly?</strong>{" "}
+                A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+              </div>
+
+              {ghostStockAnomalies.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {ghostStockAnomalies.map((a, i) => (
+                    <div
+                      key={`${a?.branch || "branch"}-${i}`}
+                      style={{
+                        background: "#fef2f2",
+                        border: "1.5px solid #fecaca",
+                        borderLeft: "5px solid #dc2626",
+                        borderRadius: 12,
+                        padding: "16px 18px"
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fff",
+                          color: "#991b1b",
+                          textTransform: "uppercase"
+                        }}>
+                          Ghost Stock
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>
+                          {a?.branch || "Unknown Branch"}
+                        </span>
+                        <span style={{
+                          marginLeft: "auto",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                          textTransform: "uppercase"
+                        }}>
+                          {a?.severity || "critical"}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                        {a?.finding || "Sales activity was detected while related inventory is recorded at zero stock."}
+                      </p>
+
+                      <div style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        background: "rgba(255,255,255,0.7)",
+                        borderRadius: 8,
+                        padding: "9px 12px"
+                      }}>
+                        → {a?.action || "Verify physical stock, reconcile inventory movements, and correct the branch stock record."}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: 13,
+                  color: "#64748b",
+                  background: "#f8fafc",
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: 10,
+                  padding: "12px 14px"
+                }}>
+                  No ghost stock anomaly was detected in the branches included in this analysis.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preserve other stock/sales anomalies in exported reports */}
+          {analysis && otherStockAnomalies.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#d97706" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  Other Stock vs Sales Anomalies
+                </span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#fef3c7",
+                  color: "#92400e"
+                }}>
+                  {otherStockAnomalies.length}
+                </span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {otherStockAnomalies.map((a, i) => {
+                  const cfg = {
+                    low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
+                    dead_stock: { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
+                  }[a?.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
+
+                  return (
+                    <div key={i} style={{
+                      background: cfg.bg,
+                      border: `1.5px solid ${cfg.border}`,
+                      borderRadius: 12,
+                      padding: "16px 18px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "3px 10px",
+                          borderRadius: 20,
+                          background: "#fff",
+                          textTransform: "uppercase"
+                        }}>
+                          {cfg.label}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>
+                          {a?.branch || "Unknown Branch"}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                        {a?.finding}
+                      </p>
+
+                      {a?.action && (
+                        <div style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 8,
+                          padding: "9px 12px"
+                        }}>
+                          → {a.action}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recommendations */}
+          {analysis?.recommendations?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Actionable Recommendations</span>
+                <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#e0f2f1", color: "#00695c" }}>
+                  {analysis.recommendations.length}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {analysis.recommendations.map((rec, i) => {
+                  const s = typeStyle(rec.type);
+                  return (
+                    <div key={i} style={{ background: s.bg, border: `1.5px solid ${s.borderColor}40`, borderLeft: `5px solid ${s.borderColor}`, borderRadius: 10, padding: "14px 18px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: s.color, background: s.badgeBg, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>
+                        {rec.branch || rec.type}
+                      </span>
+                      <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: "8px 0 0" }}>{rec.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #e0f2f1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+              Generated by FranchiSync · Franchise Business Services Corp.
+            </span>
+            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+              AI analysis powered by Groq
+            </span>
+          </div>
+        </div>
+      </div>
     </PanelCard>
   );
 }
 
-// ---------DASHBOARD------------------
-function FADashboardEmptyState({ message }) {
-  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total, transactions = [] }) {
+  const [data,    setData]    = useState(null);
+  const [inventoryRows, setInventoryRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [tab,     setTab]     = useState("top10");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === "preset") params.set("preset", preset);
+      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+      else params.set("preset", "month");
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (names.length) params.set("branches", names.join(","));
+      }
+      const [analyticsRes, inventoryRes] = await Promise.all([
+        fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
+        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+      ]);
+      const json = analyticsRes.ok ? await analyticsRes.json() : {};
+      const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
+      setData(json);
+      setInventoryRows(Array.isArray(inventoryJson) ? inventoryJson : []);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const top10     = data?.top10 ?? [];
+  const fast      = data?.fastMoving ?? [];
+  const slow      = data?.slowMoving ?? [];
+  const totalSKUs = data?.totalProducts ?? 0;
+  const fastCount = fast.length;
+  const slowCount = slow.length;
+
+  const stockEvidence = useMemo(() => {
+    /*
+      Build the stock charts from the SAME filtered transaction records used by
+      the dashboard instead of relying only on top10/fast/slow lists.
+
+      This fixes the empty charts when a sold product exists in transactions
+      and inventory but was omitted from one of the analytics summary arrays.
+    */
+
+    const normalizeName = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, "");
+
+    const normalizeText = (value) =>
+      String(value || "").trim().toLowerCase();
+
+    const parseItems = (raw) => {
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    // Number of days represented by the current dashboard filter.
+    let periodDays = 30;
+
+    if (rangeMode === "preset") {
+      periodDays =
+        preset === "day"
+          ? 1
+          : preset === "week"
+            ? 7
+            : preset === "year"
+              ? 365
+              : 30;
+    } else if (appliedRange?.from && appliedRange?.to) {
+      periodDays = Math.max(
+        1,
+        Math.ceil(
+          (
+            new Date(appliedRange.to + "T23:59:59") -
+            new Date(appliedRange.from + "T00:00:00")
+          ) / 864e5
+        )
+      );
+    }
+
+    /*
+      Aggregate actual units sold from the already-filtered transactions.
+      Store both an ID key and a normalized-name key because older transaction
+      rows may not consistently contain the inventory/ingredient ID.
+    */
+    const soldById = new Map();
+    const soldByName = new Map();
+
+    (Array.isArray(transactions) ? transactions : []).forEach((tx) => {
+      const txBranch = normalizeText(tx?.branch);
+
+      parseItems(tx?.items).forEach((item) => {
+        const qty = Number(
+          item?.qty ??
+          item?.quantity ??
+          item?.quantity_sold ??
+          0
+        );
+
+        if (!Number.isFinite(qty) || qty <= 0) return;
+
+        const itemId =
+          item?.ingredient_id ??
+          item?.inventory_id ??
+          item?.product_id ??
+          item?.id ??
+          null;
+
+        const itemName =
+          item?.name ??
+          item?.product_name ??
+          item?.item_name ??
+          item?.title ??
+          "";
+
+        /*
+          Include branch in the name key where possible so two branches selling
+          products with the same name don't accidentally share sales quantities.
+        */
+        const nameKey = normalizeName(itemName);
+
+        if (itemId != null && itemId !== "") {
+          const idKey = `${txBranch}|${String(itemId)}`;
+          soldById.set(idKey, (soldById.get(idKey) || 0) + qty);
+
+          // Compatibility key for rows where inventory has no branch.
+          const globalIdKey = `|${String(itemId)}`;
+          soldById.set(globalIdKey, (soldById.get(globalIdKey) || 0) + qty);
+        }
+
+        if (nameKey) {
+          const branchNameKey = `${txBranch}|${nameKey}`;
+          soldByName.set(
+            branchNameKey,
+            (soldByName.get(branchNameKey) || 0) + qty
+          );
+
+          // Compatibility key for inventory records without a branch value.
+          const globalNameKey = `|${nameKey}`;
+          soldByName.set(
+            globalNameKey,
+            (soldByName.get(globalNameKey) || 0) + qty
+          );
+        }
+      });
+    });
+
+    const selectedBranchNames =
+      filterBrand && selectedBrand
+        ? (selectedBrand.branches || [])
+            .map((br) => typeof br === "string" ? br : br?.name)
+            .filter(Boolean)
+        : [];
+
+    const inventoryInScope = (Array.isArray(inventoryRows) ? inventoryRows : [])
+      .filter((inv) => {
+        const invBranch = String(inv?.branch || "").trim();
+        const invBrand = normalizeText(inv?.brand);
+
+        if (filterBranch) {
+          return invBranch === filterBranch;
+        }
+
+        if (filterBrand && selectedBrand) {
+          const branchMatches =
+            selectedBranchNames.length === 0 ||
+            selectedBranchNames.includes(invBranch);
+
+          const brandMatches =
+            !invBrand ||
+            invBrand === normalizeText(selectedBrand?.name);
+
+          return branchMatches && brandMatches;
+        }
+
+        return true;
+      });
+
+    const rows = inventoryInScope
+      .map((inv) => {
+        const invBranch = normalizeText(inv?.branch);
+        const invName = normalizeName(inv?.name);
+
+        const invId =
+          inv?.id ??
+          inv?.ingredient_id ??
+          inv?.inventory_id ??
+          null;
+
+        let sold = 0;
+
+        if (invId != null && invId !== "") {
+          sold =
+            soldById.get(`${invBranch}|${String(invId)}`) ??
+            soldById.get(`|${String(invId)}`) ??
+            0;
+        }
+
+        // Fallback to normalized product name for older transactions.
+        if (sold <= 0 && invName) {
+          sold =
+            soldByName.get(`${invBranch}|${invName}`) ??
+            soldByName.get(`|${invName}`) ??
+            0;
+        }
+
+        /*
+          These two charts are sales-vs-stock charts, so only products that
+          actually have sales in the selected period are meaningful.
+        */
+        if (!(sold > 0)) return null;
+
+        const stock = Number(inv?.stock ?? 0);
+        const reorder = Number(
+          inv?.min_stock ??
+          inv?.reorder_point ??
+          inv?.minimum_stock ??
+          0
+        );
+
+        const dailySales = sold / Math.max(periodDays, 1);
+        const daysLeft = dailySales > 0 ? stock / dailySales : null;
+        const ratio = sold > 0 ? stock / sold : null;
+
+        let status = "OK";
+        let recommendation = "Monitor stock level";
+
+        if (
+          stock <= reorder ||
+          (daysLeft != null && daysLeft < 14)
+        ) {
+          status = "CRITICAL";
+          recommendation = "Restock urgently";
+        } else if (
+          (daysLeft != null && daysLeft > 90) ||
+          (ratio != null && ratio > 3)
+        ) {
+          status = "OVERSTOCK";
+          recommendation = "Reduce ordering / promote";
+        } else if (
+          daysLeft != null &&
+          daysLeft < 30
+        ) {
+          status = "WATCH";
+          recommendation = "Reorder soon";
+        }
+
+        return {
+          id: invId,
+          name: inv?.name || "Unnamed Product",
+          branch: inv?.branch || "Unassigned",
+          brand: inv?.brand || "",
+          stock,
+          reorder,
+          sold,
+          daysLeft,
+          ratio,
+          status,
+          recommendation,
+          unit: inv?.unit || "units",
+        };
+      })
+      .filter(Boolean);
+
+    /*
+      Put the products with the greatest sales first, while still keeping
+      critical items visible near the top.
+    */
+    rows.sort((a, b) => {
+      const priority = {
+        CRITICAL: 0,
+        WATCH: 1,
+        OK: 2,
+        OVERSTOCK: 3,
+      };
+
+      const p = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+      return p !== 0 ? p : b.sold - a.sold;
+    });
+
+    return rows.slice(0, 10);
+  }, [
+    transactions,
+    inventoryRows,
+    preset,
+    rangeMode,
+    appliedRange,
+    filterBranch,
+    filterBrand,
+    selectedBrand,
+  ]);
+
+  const revenuePie = top10.slice(0, 5).map((p, i) => ({
+    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
+    value: p.totalRevenue,
+    color: PAL[i],
+  }));
+  const moverPie = totalSKUs > 0 ? [
+    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
+    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
+  ].filter(d => d.value > 0) : [];
+
+  const TABS = [
+    { id: "top10",  label: "Top Products",   icon: BarChart2    },
+    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
+    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
+    { id: "buyers", label: "Top Performers", icon: Target       },
+  ];
+  const tabSt = (a) => ({
+    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
+    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
+    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+    color:      a ? "#fff" : "#5a7a65",
+    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+  });
+  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
+
+  const renderList = () => {
+    const isBuyers = tab === "buyers";
+    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
+    if (!list?.length) return (
+      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+    );
+    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
+    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
+    return list.slice(0, 8).map((p, i) => (
+      <div key={p.name}
+        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
+        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
+          {i + 1}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+          {!isBuyers && p.branchBreakdown && (
+            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
+              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+            </div>
+          )}
+        </div>
+        {!isBuyers && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+          {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
+        </div>
+        <div style={{ paddingLeft: 8 }}>
+          {isBuyers
+            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
+              </div>
+          }
+        </div>
+      </div>
+    ));
+  };
+
+  return (
+    <PanelCard style={{ marginBottom: 22 }}>
+      <CardHeader
+        icon={Package}
+        title="Sales vs Stock Recommendations"
+        sub="Product performance · fast/slow movers · stock health"
+        action={
+          <button onClick={fetchData} disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        }
+      />
+      <div style={{ padding: "18px 20px" }}>
+        {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+        </div>}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
+          {[
+            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
+            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+          ].map((s, i) => (
+            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                <s.icon size={11} color={s.color} />
+                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
+          <div>
+            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
+                  <t.icon size={11} /> {t.label}
+                </button>
+              ))}
+            </div>
+            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
+              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                <span>#</span><span>Name</span>
+                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
+                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
+                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+              </div>
+            )}
+            {loading
+              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
+                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                </div>
+              : renderList()
+            }
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+              {revenuePie.length > 0
+                ? <DonutChartSVG segments={revenuePie} size={120} />
+                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+              {moverPie.length > 0
+                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
+                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+              }
+            </div>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
+                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
+                  { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
+                ].map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
+                    <r.icon size={13} color={r.color} />
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PanelCard>
+  );
 }
 
-function FADashboardLineGraph({ labels = [], values = [], height = 230 }) {
-  const [hover, setHover] = React.useState(null);
+function InfoModal({ modal, onClose, onConfirm }) {
+  if (!modal) return null;
+  const { type = "info", title, message, confirmLabel, cancelLabel } = modal;
+
+  const iconMap = {
+    error: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+    success: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    ),
+    info: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+    ),
+    warning: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+    confirm: (
+      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+  };
+
+  const hc = {
+    error:   { bg: "#fef2f2", border: "#fecaca", titleColor: "#991b1b" },
+    success: { bg: "#e8f5e9", border: "#c8e6c9", titleColor: "#00695c" },
+    info:    { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
+    warning: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+    confirm: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+  }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(13,43,30,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 3000, padding: 20, backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
+          boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: `1px solid ${hc.border}`,
+          fontFamily: FONT, overflow: "hidden",
+        }}
+      >
+        <div style={{ background: hc.bg, padding: "20px 24px 16px", borderBottom: `1px solid ${hc.border}`, display: "flex", alignItems: "flex-start", gap: 13 }}>
+          <div style={{ flexShrink: 0, marginTop: 1 }}>{iconMap[type]}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: hc.titleColor, marginBottom: 4, fontFamily: FONT }}>{title}</div>
+            {message && (
+              <div style={{ fontSize: 13, color: "#0d2b1e", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
+              border: `1px solid ${hc.border}`, background: "transparent", cursor: "pointer",
+              color: "#5a7a65", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style={{ padding: "14px 24px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          {type === "confirm" && (
+            <button
+              onClick={onClose}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+            >
+              {cancelLabel || "Cancel"}
+            </button>
+          )}
+          <button
+            onClick={type === "confirm" ? onConfirm : onClose}
+            style={{
+              padding: "8px 18px", borderRadius: 8, border: "none",
+              background: type === "confirm" ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#00c853,#00897b)",
+              color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+            }}
+          >
+            {confirmLabel || "OK"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+function DashboardLineGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
   const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
   const safeValues = values.map(v => Number(v || 0));
   const max = Math.max(...safeValues, 1);
@@ -1346,14 +2784,16 @@ function FADashboardLineGraph({ labels = [], values = [], height = 230 }) {
   const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
   const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
   const grid = [0,.25,.5,.75,1];
-  if (!labels.length || !values.length) return <FADashboardEmptyState message="No revenue data for the selected period." />;
+
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No revenue data for the selected period." />;
+
   return (
     <div style={{ position:"relative", width:"100%" }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
         {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
           <g key={i}>
             <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
-            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort_d(max*g)}</text>
+            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort(max*g)}</text>
           </g>
         )})}
         <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
@@ -1367,21 +2807,52 @@ function FADashboardLineGraph({ labels = [], values = [], height = 230 }) {
       </svg>
       {hover != null && (
         <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
-          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>{fmtAmt_d(safeValues[hover])}
+          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>
+          {fmtAmt(safeValues[hover])}
         </div>
       )}
     </div>
   );
 }
 
-function FADashboardRankBars({ data = [] }) {
-  if (!data.length) return <FADashboardEmptyState message="No branch sales data for the selected period." />;
+function DashboardBarGraph({ labels = [], values = [], height = 230 }) {
+  const [hover, setHover] = useState(null);
+  const W = 760, H = height, PL = 46, PR = 16, PT = 20, PB = 38;
+  const safeValues = values.map(v => Number(v || 0));
+  const max = Math.max(...safeValues, 1);
+  const pW = W-PL-PR, pH = H-PT-PB;
+  const gap = 6;
+  const bw = Math.max(4, (pW / Math.max(labels.length,1)) - gap);
+  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+  const grid=[0,.25,.5,.75,1];
+  if (!labels.length || !values.length) return <DashboardEmptyState message="No transaction data for the selected period." />;
+  return (
+    <div style={{position:"relative", width:"100%"}}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Transaction volume chart">
+        {grid.map((g,i)=>{const yy=PT+pH-g*pH;return <g key={i}><line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5"/><text x={PL-8} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{Math.round(max*g)}</text></g>})}
+        {safeValues.map((v,i)=>{
+          const slot=pW/Math.max(labels.length,1); const xx=PL+i*slot+(slot-bw)/2; const hh=(v/max)*pH; const yy=PT+pH-hh;
+          return <rect key={i} x={xx} y={yy} width={bw} height={Math.max(hh,1)} rx="4" fill={hover===i?"#2c5c16":"#c9dba0"} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}/>
+        })}
+        {tickIdx.map(i=>{const slot=pW/Math.max(labels.length,1);return <text key={i} x={PL+i*slot+slot/2} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>})}
+      </svg>
+      {hover != null && <div style={{position:"absolute",top:8,right:10,background:"#12241B",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:11,fontWeight:700,pointerEvents:"none"}}><div style={{opacity:.7,fontSize:9.5,marginBottom:2}}>{labels[hover]}</div>{safeValues[hover].toLocaleString()} transactions</div>}
+    </div>
+  );
+}
+
+function DashboardEmptyState({ message }) {
+  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+}
+
+function DashboardRankBars({ data = [] }) {
+  if (!data.length) return <DashboardEmptyState message="No branch sales data for the selected period." />;
   const max = Math.max(...data.map(d=>d.value),1);
   return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
     {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
         <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
-        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt_d(d.value)}</strong>
+        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
       </div>
       <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
     </div>)}
@@ -1390,35 +2861,53 @@ function FADashboardRankBars({ data = [] }) {
 
 function FADashboardContent({ transactions, brands: propBrands = [] }) {
   const today = new Date();
-  const fmt8  = (d) => d.toISOString().slice(0, 10);
- 
-  // ── All existing FA state is preserved exactly ──
-  const [rangeMode,    setRangeMode]    = React.useState("preset");
-  const [preset,       setPreset]       = React.useState("month");
-  const [customFrom,   setCustomFrom]   = React.useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [customTo,     setCustomTo]     = React.useState(fmt8(today));
-  const [appliedRange, setAppliedRange] = React.useState(null);
-  const [archives,     setArchives]     = React.useState(() => { try { return JSON.parse(localStorage.getItem("dashboardArchives") || "[]"); } catch { return []; } });
-  const [showArchivePanel,  setShowArchivePanel]  = React.useState(false);
-  const [viewingArchive,    setViewingArchive]    = React.useState(null);
-  const [archiveYearInput,  setArchiveYearInput]  = React.useState(String(today.getFullYear()));
-  const [archiveConfirm,    setArchiveConfirm]    = React.useState(false);
- 
-  const [filterBrand,    setFilterBrand]    = React.useState(null);
-  const [filterBranch,   setFilterBranch]   = React.useState(null);
-  const [brandDropOpen,  setBrandDropOpen]  = React.useState(false);
-  const [branchDropOpen, setBranchDropOpen] = React.useState(false);
-  const [brandQ,  setBrandQ]  = React.useState("");
-  const [branchQ, setBranchQ] = React.useState("");
-  const brandRef  = React.useRef(null);
-  const branchRef = React.useRef(null);
- 
-  const [kpiData,    setKpiData]    = React.useState(null);
-  const [kpiLoading, setKpiLoading] = React.useState(false);
-  const [analysisTab, setAnalysisTab] = React.useState("sales");
-  const [hiddenKpis, setHiddenKpis] = React.useState({});
- 
-  React.useEffect(() => {
+
+  const [rangeMode,    setRangeMode]    = useState("preset");
+  const [preset,       setPreset]       = useState("month");
+  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [customTo,     setCustomTo]     = useState(fmt8(today));
+  const [appliedRange, setAppliedRange] = useState(null);
+  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem("dashboardArchives") || "[]"); } catch { return []; } });
+  const [showArchive,  setShowArchive]  = useState(false);
+  const [viewArchive,  setViewArchive]  = useState(null);
+  const [archiveYear,  setArchiveYear]  = useState(String(today.getFullYear()));
+  const [archiveConf,  setArchiveConf]  = useState(false);
+
+  const [filterBrand,    setFilterBrand]    = useState(null);
+  const [filterBranch,   setFilterBranch]   = useState(null);
+  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
+  const [branchDropOpen, setBranchDropOpen] = useState(false);
+  const [brandQ,  setBrandQ]  = useState("");
+  const [branchQ, setBranchQ] = useState("");
+  const brandRef  = useRef(null);
+  const branchRef = useRef(null);
+  const [kpiData,    setKpiData]    = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
+
+  const [applyingRange, setApplyingRange] = useState(false);
+
+  const [infoModal, setInfoModal] = useState(null);
+  const showInfo = (opts) => setInfoModal(opts);
+  const closeInfo = () => setInfoModal(null);
+
+  const [toast, setToast] = useState(null);
+
+  const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
+  const [analysisTab, setAnalysisTab] = useState("sales");
+
+  // Menu/product catalogue rows, used to look up each sold item's category.
+  // Category lives on the menu item record from /inventory (e.g. "Beverage",
+  // "Pastry") — NOT on /ingredients, which is raw stock components (sugar,
+  // milk, etc.) with no category field at all.
+  const [catalogueRows, setCatalogueRows] = useState([]);
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL}/inventory`)
+      .then(r => r.json())
+      .then(d => setCatalogueRows(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const fn = (e) => {
       if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
       if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
@@ -1426,14 +2915,14 @@ function FADashboardContent({ transactions, brands: propBrands = [] }) {
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
   }, []);
- 
+
   const brandList      = propBrands.length > 0 ? propBrands : [];
   const selectedBrand  = brandList.find(b => b.id === filterBrand);
   const branchList     = selectedBrand ? (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
   const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
   const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
- 
-  const fetchKpis = React.useCallback(async () => {
+
+  const fetchKpis = useCallback(async () => {
     setKpiLoading(true);
     try {
       const params = new URLSearchParams();
@@ -1445,285 +2934,1042 @@ function FADashboardContent({ transactions, brands: propBrands = [] }) {
         const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
         if (bn.length) params.set("branches", bn.join(","));
       }
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
-      const d    = await res.json();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const d   = await res.json();
       if (!d.error) setKpiData(d);
     } catch (err) { console.error(err); }
     finally { setKpiLoading(false); }
   }, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
- 
-  React.useEffect(() => { if (!viewingArchive) fetchKpis(); }, [fetchKpis, viewingArchive]);
- 
+
+  useEffect(() => { if (!viewArchive) fetchKpis(); }, [fetchKpis, viewArchive]);
+
   const filterLabel = filterBranch ? filterBranch : filterBrand ? (selectedBrand?.name + " – All Branches") : "All Brands & Branches";
- 
+
   const getRangeLabel = () => {
-    if (viewingArchive) return `Archive: ${viewingArchive.year}`;
+    if (viewArchive) return `Archive: ${viewArchive.year}`;
     if (rangeMode === "custom" && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
     return { day: "Today", week: "This Week", month: "This Month", year: "This Year" }[preset] || "This Month";
   };
- 
-  const chartData = React.useMemo(() => {
-    if (viewingArchive) return viewingArchive.chartData;
-    let txList = transactions;
-    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
-    else if (filterBrand && selectedBrand) {
-      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-      txList = transactions.filter(tx => bn.includes(tx.branch));
-    }
-    if (!txList.length) return { labels: [], values: [] };
-    const now = new Date();
-    const filtered = txList.filter(tx => {
+
+const chartData = useMemo(() => {
+  if (viewArchive) return viewArchive.chartData;
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+  if (!txList.length) return { labels: [], values: [] };
+  const now = new Date();
+  const isCustom = rangeMode === "custom" && appliedRange;
+
+const filtered = txList.filter(tx => {
+  const d = new Date(tx.created_at);
+  if (isCustom) {
+    const f = new Date(appliedRange.from + "T00:00:00");
+    const t = new Date(appliedRange.to + "T23:59:59.999");
+    return d >= f && d <= t;
+  }
+  if (preset === "day")   return d.toDateString() === now.toDateString();
+  if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+  if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  if (preset === "year")  return d.getFullYear() === now.getFullYear();
+  return true;
+});
+
+if (isCustom) {
+  const from = new Date(appliedRange.from + "T00:00:00");
+  const to = new Date(appliedRange.to + "T23:59:59.999");
+  const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
+  const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
+  const values = Array(nw).fill(0);
+  filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
+  return { labels, values };
+}
+
+const groupedMap = new Map();
+  const addToGroup = (key, label, amount) => {
+    const prev = groupedMap.get(key) || { label, sortKey: key, value: 0 };
+    prev.value += amount;
+    groupedMap.set(key, prev);
+  };
+
+  if (preset === "day") {
+    filtered.forEach(tx => {
       const d = new Date(tx.created_at);
-      if (preset === "day")   return d.toDateString() === now.toDateString();
-      if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
-      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (preset === "year")  return d.getFullYear() === now.getFullYear();
-      if (rangeMode === "custom" && appliedRange) { const f = new Date(appliedRange.from); const t = new Date(appliedRange.to); return d >= f && d <= t; }
-      return true;
+      addToGroup(d.getHours(), `${d.getHours()}:00`, Number(tx.total||0));
     });
-    let grouped = {};
-    if (preset === "day")   filtered.forEach(tx => { const h = new Date(tx.created_at).getHours(); const l = `${h}:00`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "week")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{weekday:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "month") filtered.forEach(tx => { const l = `D${new Date(tx.created_at).getDate()}`; grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (preset === "year")  filtered.forEach(tx => { const l = new Date(tx.created_at).toLocaleDateString("en-US",{month:"short"}); grouped[l] = (grouped[l]||0) + Number(tx.total||0); });
-    else if (rangeMode === "custom" && appliedRange) {
-      const from = new Date(appliedRange.from), to = new Date(appliedRange.to);
-      const nw   = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
-      const lbs  = Array.from({ length: nw }, (_, i) => `W${i+1}`);
-      const vals = Array(nw).fill(0);
-      filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); vals[wi] += tx.total||0; });
-      return { labels: lbs, values: vals };
+  } else if (preset === "week") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getDay(), d.toLocaleDateString("en-US",{weekday:"short"}), Number(tx.total||0));
+    });
+  } else if (preset === "month") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getDate(), `D${d.getDate()}`, Number(tx.total||0));
+    });
+  } else if (preset === "year") {
+    filtered.forEach(tx => {
+      const d = new Date(tx.created_at);
+      addToGroup(d.getMonth(), d.toLocaleDateString("en-US",{month:"short"}), Number(tx.total||0));
+    });
+  }
+
+  const sortedGroups = Array.from(groupedMap.values()).sort((a,b) => a.sortKey - b.sortKey);
+  const labels = sortedGroups.map(e => e.label);
+  return { labels, values: sortedGroups.map(e => e.value) };
+}, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
+
+const filteredTransactions = useMemo(() => {
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+
+  const isCustom = rangeMode === "custom" && appliedRange;
+  const now = new Date();
+  return txList.filter(tx => {
+    const d = new Date(tx.created_at);
+    if (isCustom) {
+      const from = new Date(appliedRange.from + "T00:00:00");
+      const to = new Date(appliedRange.to + "T23:59:59.999");
+      return d >= from && d <= to;
     }
-    const labels = Object.keys(grouped);
-    return { labels, values: labels.map(l => grouped[l]) };
-  }, [transactions, preset, rangeMode, appliedRange, viewingArchive, filterBranch, filterBrand, selectedBrand]);
- 
-  const values    = chartData.values;
-  const total     = React.useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
-  const avg       = React.useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
-  const peak      = React.useMemo(() => values.length ? Math.max(...values) : 0, [values]);
-  const low       = React.useMemo(() => values.length ? Math.min(...values) : 0, [values]);
-  const peakLabel = values.length ? chartData.labels[values.indexOf(peak)] : "—";
+    if (preset === "day")   return d.toDateString() === now.toDateString();
+    if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+    if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (preset === "year")  return d.getFullYear() === now.getFullYear();
+    return true;
+  });
+}, [transactions, filterBranch, filterBrand, selectedBrand, rangeMode, appliedRange, preset]);
+
+  const values = kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values;
+  const chartLabels = kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels;  
+  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+ const peakLabel = values.length ? chartLabels[values.indexOf(peak)] : "—";
   const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
   const trending  = Number(pctChange) >= 0;
- 
-  const saveArchive = () => {
-    const year = parseInt(archiveYearInput);
-    if (isNaN(year) || year < 2000 || year > 2100) { alert("Please enter a valid year (2000–2100)"); return; }
-    if (archives.find(a => a.year === year)) { alert(`Year ${year} is already archived.`); return; }
-    const snapshot = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak, lowSales: low } };
-    const updated  = [...archives, snapshot].sort((a, b) => b.year - a.year);
-    setArchives(updated);
-    localStorage.setItem("dashboardArchives", JSON.stringify(updated));
-    setArchiveConfirm(false);
-    alert(`Year ${year} archived successfully!`);
-  };
- 
-  const deleteArchive = (year) => {
-    if (!window.confirm(`Delete archive for ${year}?`)) return;
-    const updated = archives.filter(a => a.year !== year);
-    setArchives(updated);
-    localStorage.setItem("dashboardArchives", JSON.stringify(updated));
-    if (viewingArchive?.year === year) setViewingArchive(null);
-  };
- 
-  const applyCustomRange = () => {
-    if (!customFrom || !customTo) { alert("Please select both From and To dates"); return; }
-    if (customFrom > customTo) { alert('"From" date cannot be after "To" date'); return; }
-    setAppliedRange({ from: customFrom, to: customTo });
-    setViewingArchive(null);
-  };
- 
-  // UI-only derived values. They use the SAME Franchise Admin transactions already loaded above.
-  const filteredTransactions = React.useMemo(() => {
-    let txList = Array.isArray(transactions) ? transactions : [];
-    if (filterBranch) txList = txList.filter(tx => tx.branch === filterBranch);
-    else if (filterBrand && selectedBrand) {
-      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-      txList = txList.filter(tx => bn.includes(tx.branch));
-    }
-    const now = new Date();
-    return txList.filter(tx => {
-      const d = new Date(tx.created_at);
-      if (preset === "day") return d.toDateString() === now.toDateString();
-      if (preset === "week") { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
-      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (preset === "year") return d.getFullYear() === now.getFullYear();
-      if (rangeMode === "custom" && appliedRange) { const f = new Date(appliedRange.from); const t = new Date(appliedRange.to); return d >= f && d <= t; }
-      return true;
-    });
-  }, [transactions, filterBranch, filterBrand, selectedBrand, preset, rangeMode, appliedRange]);
 
-  const actualRevenue = React.useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
-  const transactionCount = viewingArchive ? null : filteredTransactions.length;
+  const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
+  const transactionCount = viewArchive ? null : filteredTransactions.length;
   const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
-  const activeBranchCount = viewingArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
-  const branchPerformance = React.useMemo(() => {
-    if (viewingArchive) return [];
+  const activeBranchCount = viewArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+
+  const transactionCountSeries = useMemo(() => {
+    if (viewArchive || !chartLabels.length) return [];
+    const counts = Object.fromEntries(chartLabels.map(label => [label, 0]));
+    const now = new Date();
+    const isCustom = rangeMode === "custom" && appliedRange;
+    let customFromDate = null;
+    if (isCustom) customFromDate = new Date(appliedRange.from + "T00:00:00");
+
+    filteredTransactions.forEach(tx => {
+      const d = new Date(tx.created_at);
+      let label;
+      if (isCustom) {
+        const wi = Math.max(0, Math.floor((d - customFromDate) / (7 * 864e5)));
+        label = `W${wi + 1}`;
+      } else if (preset === "day") label = `${d.getHours()}:00`;
+      else if (preset === "week") label = d.toLocaleDateString("en-US", { weekday: "short" });
+      else if (preset === "month") label = `D${d.getDate()}`;
+      else if (preset === "year") label = d.toLocaleDateString("en-US", { month: "short" });
+      if (label in counts) counts[label] += 1;
+    });
+    return chartLabels.map(label => counts[label] || 0);
+  }, [filteredTransactions, chartLabels, preset, rangeMode, appliedRange, viewArchive]);
+
+  const branchPerformance = useMemo(() => {
+    if (viewArchive) return [];
     const grouped = {};
     filteredTransactions.forEach(tx => {
       const branch = tx.branch || "Unassigned";
       grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
     });
     return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewingArchive]);
+  }, [filteredTransactions, viewArchive]);
 
-  const branchProfitability = React.useMemo(() => {
-    if (viewingArchive) return [];
+  const branchProfitability = useMemo(() => {
+    if (viewArchive) return [];
+
     const grouped = {};
-    filteredTransactions.forEach(tx => {
+
+    filteredTransactions.forEach((tx) => {
       const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
       const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
-      let cogs = Number(tx?.cogs ?? tx?.total_cogs ?? tx?.cost_of_goods ?? tx?.cost_of_goods_sold ?? 0);
+
+      let cogs = Number(
+        tx?.cogs ??
+        tx?.total_cogs ??
+        tx?.cost_of_goods ??
+        tx?.cost_of_goods_sold ??
+        0
+      );
+
       if (!Number.isFinite(cogs)) cogs = 0;
+
       if (cogs === 0) {
         let items = tx?.items;
-        if (typeof items === "string") { try { items = JSON.parse(items); } catch { items = []; } }
+        if (typeof items === "string") {
+          try { items = JSON.parse(items); } catch { items = []; }
+        }
+
         if (Array.isArray(items)) {
           const itemCogs = items.reduce((sum, item) => {
             const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-            const unitCost = Number(item?.cost ?? item?.unit_cost ?? item?.unitCost ?? item?.purchase_cost ?? 0) || 0;
-            const lineCogs = Number(item?.cogs ?? item?.total_cost ?? item?.cost_total ?? 0) || 0;
+            const unitCost = Number(
+              item?.cost ??
+              item?.unit_cost ??
+              item?.unitCost ??
+              item?.purchase_cost ??
+              0
+            ) || 0;
+            const lineCogs = Number(
+              item?.cogs ??
+              item?.total_cost ??
+              item?.cost_total ??
+              0
+            ) || 0;
+
             return sum + (lineCogs > 0 ? lineCogs : unitCost * qty);
           }, 0);
+
           if (itemCogs > 0) cogs = itemCogs;
         }
       }
-      if (!grouped[branch]) grouped[branch] = { branch, revenue:0, cogs:0, transactions:0, hasCogs:false };
+
+      if (!grouped[branch]) {
+        grouped[branch] = {
+          branch,
+          revenue: 0,
+          cogs: 0,
+          transactions: 0,
+          hasCogs: false,
+        };
+      }
+
       grouped[branch].revenue += revenue;
       grouped[branch].cogs += cogs;
       grouped[branch].transactions += 1;
-      if (cogs > 0 || tx?.cogs != null || tx?.total_cogs != null || tx?.cost_of_goods != null || tx?.cost_of_goods_sold != null) grouped[branch].hasCogs = true;
-    });
-    return Object.values(grouped).map(row => {
-      const grossProfit = row.revenue - row.cogs;
-      const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
-      const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
-      return { ...row, grossProfit, margin, avgOrder };
-    }).sort((a,b) => (b.grossProfit-a.grossProfit) || (b.revenue-a.revenue));
-  }, [filteredTransactions, viewingArchive]);
 
-  const dropSt = { position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:400, background:"#fff", border:"1px solid #E1E6D8", borderRadius:11, boxShadow:"0 8px 28px rgba(18,36,27,0.10)", maxHeight:220, overflowY:"auto" };
-  const optSt = (a) => ({ padding:"9px 14px", cursor:"pointer", fontSize:13, color:a?"#2c5c16":"#12241B", fontWeight:a?700:500, background:a?"#F0F5E8":"transparent", display:"flex", alignItems:"center", gap:8, fontFamily:FONT });
-  const filterInputSt = { height:36, padding:"0 11px", borderRadius:9, border:"1px solid #E1E6D8", background:"#fff", fontSize:13, color:"#12241B", outline:"none", fontFamily:FONT, boxSizing:"border-box", width:"100%" };
-  const tabSt = (a) => ({ padding:"6px 13px", borderRadius:9, border:"none", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:FONT, transition:"all .15s", background:a?"#3b791e":"transparent", color:a?"#fff":"#5C6B60", boxShadow:"none" });
+      if (
+        cogs > 0 ||
+        tx?.cogs != null ||
+        tx?.total_cogs != null ||
+        tx?.cost_of_goods != null ||
+        tx?.cost_of_goods_sold != null
+      ) {
+        grouped[branch].hasCogs = true;
+      }
+    });
+
+    return Object.values(grouped)
+      .map((row) => {
+        const grossProfit = row.revenue - row.cogs;
+        const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
+        const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
+
+        return { ...row, grossProfit, margin, avgOrder };
+      })
+      .sort((a, b) =>
+        (b.grossProfit - a.grossProfit) ||
+        (b.revenue - a.revenue)
+      );
+  }, [filteredTransactions, viewArchive]);
+
+  const brandPerformance = useMemo(() => {
+    if (viewArchive) return [];
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      const brand = tx.brand || "Unassigned";
+      grouped[brand] = (grouped[brand] || 0) + Number(tx.total || tx.total_amount || 0);
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewArchive]);
+
+  // Category breakdown, computed client-side from the same filtered
+  // transactions used everywhere else on this dashboard. Category comes
+  // straight from each menu item's `category` field on catalogueRows
+  // (fetched from /inventory) — matched to each sold line item first by
+  // product id, falling back to normalized branch+name for older
+  // transactions that may not have stored the inventory id.
+  const categoryPerformance = useMemo(() => {
+    if (viewArchive) return [];
+
+    const normalizeName = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, "");
+
+    // Build id -> category and "branch|name" -> category lookups from the menu/inventory rows.
+    const categoryById = new Map();
+    const categoryByBranchName = new Map();
+
+    catalogueRows.forEach(row => {
+      const category = row?.category;
+      if (!category) return;
+      if (row?.id != null) categoryById.set(String(row.id), category);
+      const nameKey = `${normalizeName(row?.branch)}|${normalizeName(row?.name)}`;
+      categoryByBranchName.set(nameKey, category);
+    });
+
+    const grouped = {};
+    filteredTransactions.forEach(tx => {
+      let items = tx?.items;
+      if (typeof items === "string") {
+        try { items = JSON.parse(items); } catch { items = []; }
+      }
+      if (!Array.isArray(items)) return;
+
+      const txBranchKey = normalizeName(tx?.branch);
+
+      items.forEach(item => {
+        const itemId =
+          item?.inventory_id ?? item?.menu_item_id ?? item?.product_id ?? item?.id ?? null;
+        const itemName =
+          item?.name ?? item?.product_name ?? item?.item_name ?? item?.title ?? "";
+
+        const category =
+          (itemId != null ? categoryById.get(String(itemId)) : null) ||
+          categoryByBranchName.get(`${txBranchKey}|${normalizeName(itemName)}`) ||
+          "Uncategorized";
+
+        const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+        const price = Number(item?.price ?? item?.unit_price ?? 0) || 0;
+        const lineTotal = Number(item?.total ?? item?.line_total ?? (qty * price)) || 0;
+        grouped[category] = (grouped[category] || 0) + lineTotal;
+      });
+    });
+    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions, viewArchive, catalogueRows]);
+  
+
+const saveArchive = () => {
+  const year = parseInt(archiveYear);
+  if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
+  if (archives.find(a => a.year === year)) { showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` }); return; }
+  const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
+  const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
+  setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+  setArchiveConf(false);
+  showInfo({ type: "success", title: "Archived", message: `Year ${year} has been archived.` });
+};
+const deleteArchive = (year) => {
+  showInfo({
+    type: "confirm",
+    title: "Delete Archive?",
+    message: `Are you sure you want to delete the archive for ${year}? This cannot be undone.`,
+    confirmLabel: "Delete",
+    onConfirm: () => {
+      const upd = archives.filter(a => a.year !== year);
+      setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+      if (viewArchive?.year === year) setViewArchive(null);
+      closeInfo();
+    },
+  });
+};
+
+const applyCustomRange = async () => {
+  if (!customFrom || !customTo) { showInfo({ type: "warning", title: "Missing Dates", message: "Please select both a start and end date." }); return; }
+  if (customFrom > customTo) { showInfo({ type: "warning", title: "Invalid Range", message: "\"From\" cannot be after \"To\"." }); return; }
+
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => bn.includes(tx.branch));
+  }
+
+  const from = new Date(customFrom + "T00:00:00");
+  const to = new Date(customTo + "T23:59:59.999");
+
+  const hasData = txList.some(tx => {
+    const d = new Date(tx.created_at);
+    return d >= from && d <= to;
+  });
+
+  if (!hasData) {
+    showInfo({
+      type: "error",
+      title: "No Data Found",
+      message: `No data found for the selected date range (${customFrom} → ${customTo})${filterLabel !== "All Brands & Branches" ? ` — ${filterLabel}` : ""}. Please choose a different date range.`,
+    });
+    return;
+  }
+
+  setApplyingRange(true);
+  try {
+    setRangeMode("custom");
+    setAppliedRange({ from: customFrom, to: customTo });
+    setViewArchive(null);
+
+    // Fetch KPIs for this exact range right now, so the button reflects real completion
+    setKpiLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("from", customFrom);
+      params.set("to", customTo);
+      if (filterBranch) params.set("branch", filterBranch);
+      else if (filterBrand && selectedBrand) {
+        const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+        if (bn.length) params.set("branches", bn.join(","));
+      }
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+      const d = await res.json();
+      if (!d.error) setKpiData(d);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setKpiLoading(false);
+    }
+
+    setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
+  } finally {
+    setApplyingRange(false);
+  }
+};
+
+  const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
+  const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
+  const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#00695c" : "#0d2b1e", fontWeight: a ? 700 : 500, background: a ? "#e0f2f1" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
+  const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
 
   return (
-    <div style={{ fontFamily:FONT }}>
+    <div style={{ fontFamily: FONT }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *, *::before, *::after { box-sizing:border-box; }
+        *, *::before, *::after { box-sizing: border-box; }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        @media (max-width:1050px) { .fa-dashboard-main-grid { grid-template-columns:1fr !important; } }
       `}</style>
 
-      {viewingArchive && (
-        <div style={{ background:"linear-gradient(135deg,#12241B,#2c5c16)", color:"#fff", borderRadius:14, padding:"12px 20px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-          <span style={{ display:"flex", alignItems:"center", gap:8, fontWeight:700, fontSize:14 }}><Archive size={16}/> Viewing Archive: {viewingArchive.year}<span style={{ opacity:.65, fontSize:12, fontWeight:400 }}>- saved {viewingArchive.savedAt}</span></span>
-          <button onClick={() => setViewingArchive(null)} style={{ background:"rgba(255,255,255,.12)", border:"1px solid rgba(255,255,255,.28)", color:"#fff", borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, fontFamily:FONT }}><X size={12}/> Exit Archive View</button>
+      {/* Archive banner */}
+      {viewArchive && (
+        <div style={{ background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
+            <Archive size={16} /> Viewing Archive: {viewArchive.year}
+            <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewArchive.savedAt}</span>
+          </span>
+          <button onClick={() => setViewArchive(null)} style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
+            <X size={12} /> Exit Archive View
+          </button>
         </div>
       )}
 
-      {analysisTab === "sales" && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))", gap:14, marginBottom:18, animation:"fadeUp .35s ease" }}>
-          {[
-            { label:"Revenue", value:viewingArchive ? (viewingArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? kpiData?.totalSales ?? actualRevenue), icon:TrendingUp, format:"money", note:"Actual sales in selected period" },
-            { label:"Transactions", value:transactionCount, icon:ShoppingCart, format:"count", note:"Completed sales records" },
-            { label:"Average Sale", value:viewingArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon:BarChart2, format:"money", note:"Revenue per transaction" },
-            { label:"Active Branches", value:activeBranchCount, icon:Store, format:"count", note:"Branches with recorded sales" },
-          ].map((k,i) => {
-            const isHidden = !!hiddenKpis[i];
-            return (
-              <div key={i} style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)", position:"relative", overflow:"hidden", transition:"transform .2s,box-shadow .2s" }} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px rgba(50,109,32,.12)";}} onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 14px rgba(50,109,32,.06)";}}>
-                <button onClick={()=>setHiddenKpis(prev=>({...prev,[i]:!prev[i]}))} title={isHidden?"Show value":"Hide value"} style={{ position:"absolute", top:14, right:14, background:"none", border:"none", cursor:"pointer", color:"#3b791e", opacity:.6, padding:2, display:"flex", alignItems:"center" }}>
-                  {!isHidden ? <Eye size={15}/> : <Eye size={15} style={{opacity:.35}}/>}
-                </button>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-                  <div>
-                    <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", color:"#5C6B60", marginBottom:5, display:"flex", alignItems:"center", gap:5 }}><k.icon size={12} color="#3b791e"/> {k.label}</div>
-                    {kpiLoading && k.value == null ? <div style={{fontSize:12,fontWeight:700,color:"#5C6B60"}}>Loading...</div> : k.value != null ? <div style={{fontSize:22,fontWeight:800,color:"#12241B",letterSpacing:"-.5px"}}>{!isHidden ? (k.format==="money"?fmtAmt_d(k.value):Number(k.value).toLocaleString()) : (k.format==="money"?"\u20B1\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":"\u2022\u2022\u2022\u2022")}</div> : <div style={{fontSize:12,fontWeight:700,color:"#7A887B"}}>- Pending</div>}
-                  </div>
-                  <SparkBar values={values.slice(-7)} color="#3b791e" height={28}/>
-                </div>
-                <div style={{fontSize:10.5,fontWeight:600,color:"#7A887B"}}>{k.note}</div>
-                <div style={{fontSize:9.5,fontWeight:600,color:"#A7B0A5",marginTop:3}}>{getRangeLabel()} - {filterLabel}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:14, padding:"12px 16px", marginBottom:14, boxShadow:"0 1px 8px rgba(50,109,32,.04)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-        <div ref={brandRef} style={{ position:"relative", minWidth:170 }}>
-          <div onClick={()=>{setBrandDropOpen(v=>!v);setBrandQ("");}} style={{...filterInputSt,display:"flex",alignItems:"center",gap:7,cursor:"pointer",paddingRight:26,userSelect:"none",color:filterBrand?"#12241B":"#5C6B60"}}>
-            <Globe size={12} color="#3b791e"/><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{selectedBrand?selectedBrand.name:"All Brands"}</span><ChevronDown size={10} style={{position:"absolute",right:8,color:"#5C6B60"}}/>
-          </div>
-          {brandDropOpen && <div style={dropSt}>
-            <div style={{padding:"6px 8px",borderBottom:"1px solid #E1E6D8",position:"sticky",top:0,background:"#fff"}}><div style={{position:"relative"}}><Search size={10} style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"#5C6B60"}}/><input autoFocus type="text" value={brandQ} onChange={e=>setBrandQ(e.target.value)} placeholder="Search..." onClick={e=>e.stopPropagation()} style={{...filterInputSt,height:28,fontSize:11,paddingLeft:24}}/></div></div>
-            <div style={optSt(!filterBrand)} onMouseDown={()=>{setFilterBrand(null);setFilterBranch(null);setBrandDropOpen(false);}}>All Brands</div>
-            {filteredBrands.map(b=><div key={b.id} style={optSt(filterBrand===b.id)} onMouseDown={()=>{setFilterBrand(b.id);setFilterBranch(null);setBrandDropOpen(false);setBrandQ("");}}><Store size={12} color="#3b791e"/>{b.name}<span style={{marginLeft:"auto",fontSize:10,color:"#5C6B60"}}>{(b.branches||[]).length} branches</span></div>)}
-          </div>}
-        </div>
-
-        <div ref={branchRef} style={{position:"relative",minWidth:180,opacity:filterBrand?1:.45}}>
-          <div onClick={()=>{if(filterBrand){setBranchDropOpen(v=>!v);setBranchQ("");}}} style={{...filterInputSt,display:"flex",alignItems:"center",gap:7,cursor:filterBrand?"pointer":"not-allowed",paddingRight:26,userSelect:"none",color:filterBranch?"#12241B":"#5C6B60"}}>
-            <Store size={12} color={filterBrand?"#3b791e":"#5C6B60"}/><span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{filterBranch||(filterBrand?"All Branches":"Select brand first")}</span>{filterBrand&&<ChevronDown size={10} style={{position:"absolute",right:8,color:"#5C6B60"}}/>}
-          </div>
-          {branchDropOpen&&filterBrand&&<div style={dropSt}>
-            <div style={{padding:"6px 8px",borderBottom:"1px solid #E1E6D8",position:"sticky",top:0,background:"#fff"}}><div style={{position:"relative"}}><Search size={10} style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"#5C6B60"}}/><input autoFocus type="text" value={branchQ} onChange={e=>setBranchQ(e.target.value)} placeholder="Search..." onClick={e=>e.stopPropagation()} style={{...filterInputSt,height:28,fontSize:11,paddingLeft:24}}/></div></div>
-            <div style={optSt(!filterBranch)} onMouseDown={()=>{setFilterBranch(null);setBranchDropOpen(false);}}>All Branches</div>
-            {filteredBranches.map(br=><div key={br} style={optSt(filterBranch===br)} onMouseDown={()=>{setFilterBranch(br);setBranchDropOpen(false);setBranchQ("");}}><Store size={11} color="#3b791e"/>{br}</div>)}
-          </div>}
-        </div>
-
-        {(filterBrand||filterBranch)&&<>
-          {filterBrand&&!filterBranch&&<span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:700,background:"#F0F5E8",color:"#2c5c16",border:"1px solid #D9E4CF",cursor:"pointer"}} onClick={()=>{setFilterBrand(null);setFilterBranch(null);}}><Store size={10}/>{selectedBrand?.name}<X size={9}/></span>}
-          {filterBranch&&<span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:700,background:"#F0F5E8",color:"#2c5c16",border:"1px solid #D9E4CF",cursor:"pointer"}} onClick={()=>setFilterBranch(null)}><Store size={10}/>{filterBranch}<X size={9}/></span>}
-          <button onClick={()=>{setFilterBrand(null);setFilterBranch(null);}} style={{padding:"3px 9px",borderRadius:20,border:"1px solid #E1E6D8",background:"#fff",color:"#6B7A65",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>Clear</button>
-        </>}
-
-        <div style={{width:1,height:24,background:"#E1E6D8",margin:"0 4px"}}/>
-        <div style={{display:"flex",gap:3,background:"#F6F7F1",borderRadius:10,padding:3}}>{["day","week","month","year"].map(p=><button key={p} style={tabSt(rangeMode==="preset"&&preset===p)} onClick={()=>{setRangeMode("preset");setPreset(p);setViewingArchive(null);}}>{p.charAt(0).toUpperCase()+p.slice(1)}</button>)}</div>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><Calendar size={12} color="#5C6B60"/><input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} max={customTo} style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:11,fontFamily:FONT,color:"#12241B",outline:"none"}}/><span style={{color:"#5C6B60",fontSize:11}}>to</span><input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:11,fontFamily:FONT,color:"#12241B",outline:"none"}}/><button onClick={applyCustomRange} style={{padding:"6px 13px",borderRadius:999,border:"none",background:"#3b791e",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONT}}>Apply</button></div>
-        <button onClick={()=>setShowArchivePanel(v=>!v)} style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:999,border:"1px solid #E1E6D8",background:showArchivePanel?"#F0F5E8":"#fff",color:"#2c5c16",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}><Archive size={13}/> Archives{archives.length>0&&<span style={{background:"#3b791e",color:"#fff",borderRadius:10,padding:"1px 6px",fontSize:10,fontWeight:800}}>{archives.length}</span>}</button>
-      </div>
-
-      {showArchivePanel&&(
-        <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:16,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)",marginBottom:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap"}}><div style={{fontWeight:800,fontSize:14,color:"#12241B",display:"flex",alignItems:"center",gap:7}}><Archive size={15} color="#3b791e"/> Yearly Archives</div><div style={{display:"flex",alignItems:"center",gap:8}}>{!archiveConfirm?<><input type="number" value={archiveYearInput} onChange={e=>setArchiveYearInput(e.target.value)} min="2000" max="2100" placeholder="Year" style={{padding:"6px 9px",borderRadius:8,border:"1px solid #E1E6D8",background:"#fff",fontSize:12,fontFamily:FONT,color:"#12241B",outline:"none",width:86}}/><button onClick={()=>setArchiveConfirm(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:999,border:"none",background:"#3b791e",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT}}><Plus size={12}/> Archive Year</button></>:<div style={{display:"flex",alignItems:"center",gap:8,background:"#fffaf0",border:"1px solid #fde68a",borderRadius:9,padding:"6px 12px"}}><span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>Archive {archiveYearInput}?</span><button onClick={saveArchive} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #3b791e",background:"#F0F5E8",color:"#2c5c16"}}>Confirm</button><button onClick={()=>setArchiveConfirm(false)} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #E1E6D8",background:"#fff",color:"#6B7A65"}}>Cancel</button></div>}</div></div>
-          {archives.length===0?<div style={{padding:"20px 0",textAlign:"center",color:"#7A887B",fontSize:13}}>No archives yet.</div>:archives.map(a=><div key={a.year} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 13px",borderRadius:9,border:"1px solid #E7EEE4",marginBottom:7,background:"#FBFDF9"}}><div><div style={{fontWeight:800,fontSize:13,color:"#12241B"}}>{a.label}</div><div style={{fontSize:10.5,color:"#5C6B60",marginTop:2}}>Saved: {a.savedAt} - Total: {fmtAmt_d(a.kpis.totalSales)}</div></div><div style={{display:"flex",gap:7}}><button onClick={()=>{setViewingArchive(viewingArchive?.year===a.year?null:a);setShowArchivePanel(false);}} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #D4DBC8",background:viewingArchive?.year===a.year?"#F0F5E8":"#fff",color:"#2c5c16"}}>{viewingArchive?.year===a.year?"Viewing":"View"}</button><button onClick={()=>deleteArchive(a.year)} style={{padding:"4px 11px",borderRadius:999,fontSize:11,fontWeight:700,cursor:"pointer",border:"1px solid #f2c9c4",background:"#fff",color:"#c0392b"}}>Delete</button></div></div>)}
-        </div>
-      )}
-
-      <div style={{background:"#fff",border:"1px solid #DCE9DB",borderRadius:"14px 14px 0 0",marginTop:16,marginBottom:18,padding:"0 20px",display:"flex",alignItems:"stretch",gap:8,overflowX:"auto"}}>
+      {/* ── KPI Cards: always visible across all analysis tabs ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
-          {id:"sales",label:"Sales Trend",icon:TrendingUp},
-          {id:"prescriptive",label:"Prescriptive Analysis",icon:Brain},
-          {id:"stock",label:"Sales vs Stock",icon:Package},
-        ].map(t=><button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{position:"relative",minWidth:170,padding:"17px 16px 15px",border:"none",background:"transparent",color:analysisTab===t.id?"#3b791e":"#94a3b8",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:FONT,display:"flex",alignItems:"center",justifyContent:"center",gap:7,whiteSpace:"nowrap"}}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#bdd43c"}}/>}</button>)}
+          { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
+          { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
+          { label: "Average Sale", value: viewArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
+          { label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
+        ].map((k, i) => {
+          const isHidden = !!hiddenKpis[i];
+          return (
+            <div key={i}
+              style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+                <button
+                  onClick={() => setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }))}
+                  style={{
+                    position: "absolute", top: 14, right: 14,
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "#1565c0", opacity: 0.6, padding: 2,
+                    display: "flex", alignItems: "center",
+                  }}
+                  title={isHidden ? "Show value" : "Hide value"}
+                >
+                  {!isHidden
+                    ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  }
+                </button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                    <k.icon size={12} color="#00897b" /> {k.label}
+                  </div>
+                  {kpiLoading && k.value == null
+                    ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                    : k.value != null
+                      ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                          {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
+                        </div>
+                      : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                  }
+                </div>
+                <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+              </div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT, marginTop: 3 }}>{getRangeLabel()} · {filterLabel}</div>
+            </div>
+          );
+        })}
       </div>
 
-      {analysisTab==="sales"&&<>
-        <div className="fa-dashboard-main-grid" style={{display:"grid",gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)",gap:16,marginBottom:16}}>
-          <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Revenue Trend</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3}}>Actual revenue movement - {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt_d(viewingArchive?(viewingArchive?.kpis?.totalSales??total):actualRevenue)}</div></div></div><FADashboardLineGraph labels={chartData.labels} values={values}/></div>
-          <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><FADashboardRankBars data={branchPerformance}/></div>
+      {/* ── Filter + Date toolbar ── */}
+      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {/* Brand dropdown */}
+        <div ref={brandRef} style={{ position: "relative", minWidth: 170 }}>
+          <div onClick={() => { setBrandDropOpen(v => !v); setBrandQ(""); }}
+            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#0d2b1e" : "#5a7a65" }}>
+            <Globe size={12} color="#00897b" />
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
+            <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />
+          </div>
+          {brandDropOpen && (
+            <div style={dropSt}>
+              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                  <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                </div>
+              </div>
+              <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
+              {filteredBrands.map(b => (
+                <div key={b.id} style={optSt(filterBrand === b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
+                  <Store size={12} color="#00897b" /> {b.name}
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "#5a7a65" }}>{(b.branches || []).length} branches</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div style={{background:"#fff",border:"1px solid #E1E6D8",borderRadius:18,padding:"18px 20px",marginBottom:18,boxShadow:"0 2px 14px rgba(50,109,32,.06)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:16,flexWrap:"wrap"}}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Profitability</div><div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>Revenue, gross profit, margin and transaction efficiency by branch</div></div>{!viewingArchive&&<div style={{textAlign:"right"}}><div style={{fontSize:9.5,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Branches analyzed</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{branchProfitability.length.toLocaleString()}</div></div>}</div>
-          {branchProfitability.length>0?<div style={{overflowX:"auto",border:"1px solid #E7EEE4",borderRadius:13}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:820,fontFamily:FONT}}><thead><tr style={{background:"#F6FAF3"}}>{[{label:"Branch",align:"left"},{label:"Revenue",align:"right"},{label:"Gross Profit",align:"right"},{label:"Margin",align:"center"},{label:"Transactions",align:"center"},{label:"Avg. Order",align:"right"}].map(h=><th key={h.label} style={{padding:"11px 13px",textAlign:h.align,fontSize:9.5,color:"#71806F",fontWeight:800,textTransform:"uppercase",letterSpacing:".065em",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"}}>{h.label}</th>)}</tr></thead><tbody>{branchProfitability.map((row,index)=>{const has=row.hasCogs;const mc=!has?"#94a3b8":row.margin>=40?"#15803d":row.margin>=25?"#3b791e":row.margin>=15?"#d97706":"#dc2626";const mb=!has?"#f8fafc":row.margin>=40?"#ecfdf5":row.margin>=25?"#f0f5e8":row.margin>=15?"#fffbeb":"#fef2f2";const bd=index===branchProfitability.length-1?"none":"1px solid #EEF3EC";return <tr key={row.branch} style={{background:index%2===0?"#fff":"#FBFDF9"}}><td style={{padding:"12px 13px",borderBottom:bd}}><div style={{display:"flex",alignItems:"center",gap:9}}><span style={{width:24,height:24,borderRadius:8,background:"#F0F5E8",color:"#3b791e",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{index+1}</span><span style={{fontSize:11.5,fontWeight:800,color:"#12241B",whiteSpace:"nowrap"}}>{row.branch}</span></div></td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:"#183126",whiteSpace:"nowrap",borderBottom:bd}}>{fmtAmt_d(row.revenue)}</td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:has?"#1d4ed8":"#94a3b8",whiteSpace:"nowrap",borderBottom:bd}}>{has?fmtAmt_d(row.grossProfit):"-"}</td><td style={{padding:"12px 13px",textAlign:"center",borderBottom:bd}}><span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:60,padding:"4px 8px",borderRadius:20,background:mb,color:mc,fontSize:10.5,fontWeight:800,whiteSpace:"nowrap"}}>{has?`${row.margin.toFixed(1)}%`:"No COGS"}</span></td><td style={{padding:"12px 13px",textAlign:"center",fontSize:11.5,fontWeight:700,color:"#334155",borderBottom:bd}}>{row.transactions.toLocaleString()}</td><td style={{padding:"12px 13px",textAlign:"right",fontSize:11.5,fontWeight:800,color:"#3b791e",whiteSpace:"nowrap",borderBottom:bd}}>{fmtAmt_d(row.avgOrder)}</td></tr>})}</tbody></table></div>:<FADashboardEmptyState message={viewingArchive?"Branch profitability is not stored in this archived snapshot.":"No branch transaction data is available for the selected filter."}/>} 
+        {/* Branch dropdown */}
+        <div ref={branchRef} style={{ position: "relative", minWidth: 180, opacity: filterBrand ? 1 : 0.45 }}>
+          <div onClick={() => { if (filterBrand) { setBranchDropOpen(v => !v); setBranchQ(""); } }}
+            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#0d2b1e" : "#5a7a65" }}>
+            <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{filterBranch || (filterBrand ? "All Branches" : "Select brand first")}</span>
+            {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />}
+          </div>
+          {branchDropOpen && filterBrand && (
+            <div style={dropSt}>
+              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                  <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                </div>
+              </div>
+              <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
+              {filteredBranches.map(br => (
+                <div key={br} style={optSt(filterBranch === br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
+                  <Store size={11} color="#00897b" /> {br}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <SalesTrendSection values={values} labels={chartData.labels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel}/>
+        {/* Active chips */}
+        {(filterBrand || filterBranch) && (
+          <>
+            {filterBrand && !filterBranch && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+                <Store size={10} /> {selectedBrand?.name} <X size={9} />
+              </span>
+            )}
+            {filterBranch && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                onClick={() => setFilterBranch(null)}>
+                <Store size={10} /> {filterBranch} <X size={9} />
+              </span>
+            )}
+            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
+          </>
+        )}
+
+        <div style={{ width: 1, height: 24, background: "#e0ede2", margin: "0 4px" }} />
+
+        {/* Preset tabs */}
+        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+          {["day","week","month","year"].map(p => (
+            <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewArchive(null); }}>
+              {p.charAt(0).toUpperCase() + p.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom range */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Calendar size={12} color="#5a7a65" />
+          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
+          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+         <button
+          onClick={applyCustomRange}
+          disabled={applyingRange}
+          style={{
+            padding: "6px 13px", borderRadius: 8, border: "none",
+            background: "linear-gradient(135deg,#00c853,#00897b)",
+            color: "#fff", fontSize: 11, fontWeight: 700,
+            cursor: applyingRange ? "not-allowed" : "pointer",
+            fontFamily: FONT, opacity: applyingRange ? 0.7 : 1,
+            display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          {applyingRange ? (
+            <>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
+                <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+                <path d="M21 12a9 9 0 0 0-9-9" />
+              </svg>
+              Applying…
+            </>
+          ) : "Apply"}
+        </button>
+         </div>
+
+        {/* Archive */}
+        <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          <Archive size={13} /> Archives
+          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+        </button>
+      </div>
+
+      {/* Archive panel */}
+      {showArchive && (
+        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
+              <Archive size={15} color="#00897b" /> Yearly Archives
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {!archiveConf ? (
+                <>
+                  <input type="number" value={archiveYear} onChange={e => setArchiveYear(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
+                  <button onClick={() => setArchiveConf(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                    <Plus size={12} /> Archive Year
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYear}?</span>
+                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
+                  <button onClick={() => setArchiveConf(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
+                </div>
+              )}
+            </div>
+          </div>
+          {archives.length === 0
+            ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
+            : archives.map(a => (
+              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
+                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 7 }}>
+                  <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                    {viewArchive?.year === a.year ? "Viewing" : "View"}
+                  </button>
+                  <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* ── Analysis workspace tabs ── */}
+      <div style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:"14px 14px 0 0", marginTop:16, marginBottom:18, padding:"0 20px", display:"flex", alignItems:"stretch", gap:8, overflowX:"auto" }}>
+        {[
+          { id:"sales", label:"Sales Trend", icon:TrendingUp },
+          { id:"prescriptive", label:"Prescriptive Analysis", icon:Brain },
+          { id:"stock", label:"Sales vs Stock", icon:Package },
+        ].map(t => <button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{ position:"relative", minWidth:170, padding:"17px 16px 15px", border:"none", background:"transparent", color:analysisTab===t.id?"#139a43":"#94a3b8", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT, display:"flex", alignItems:"center", justifyContent:"center", gap:7, whiteSpace:"nowrap" }}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#22a447"}}/>}</button>)}
+      </div>
+
+      {analysisTab === "sales" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
+            <DashboardLineGraph labels={chartLabels} values={values} />
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
+        </div>
+        <div style={{
+          background:"#fff",
+          border:"1px solid #E1E6D8",
+          borderRadius:18,
+          padding:"18px 20px",
+          marginBottom:18,
+          boxShadow:"0 2px 14px rgba(50,109,32,.06)"
+        }}>
+          <div style={{
+            display:"flex",
+            justifyContent:"space-between",
+            alignItems:"flex-start",
+            gap:12,
+            marginBottom:16,
+            flexWrap:"wrap"
+          }}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>
+                  Branch Profitability
+                </div>
+                {!viewArchive && (
+                  <span style={{
+                    fontSize:9.5,fontWeight:800,padding:"3px 8px",
+                    borderRadius:20,background:"#ecfdf5",color:"#15803d",
+                    border:"1px solid #bbf7d0",letterSpacing:".04em"
+                  }}>
+                    API DATA
+                  </span>
+                )}
+              </div>
+              <div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>
+                Revenue, gross profit, margin and transaction efficiency by branch
+              </div>
+            </div>
+
+            {!viewArchive && (
+              <div style={{textAlign:"right"}}>
+                <div style={{
+                  fontSize:9.5,color:"#7A887B",fontWeight:700,
+                  textTransform:"uppercase",letterSpacing:".06em"
+                }}>
+                  Branches analyzed
+                </div>
+                <div style={{
+                  fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2
+                }}>
+                  {branchProfitability.length.toLocaleString()}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {branchProfitability.length > 0 ? (
+            <div style={{
+              overflowX:"auto",
+              border:"1px solid #E7EEE4",
+              borderRadius:13
+            }}>
+              <table style={{
+                width:"100%",
+                borderCollapse:"collapse",
+                minWidth:820,
+                fontFamily:FONT
+              }}>
+                <thead>
+                  <tr style={{background:"#F6FAF3"}}>
+                    {[
+                      { label:"Branch", align:"left" },
+                      { label:"Revenue", align:"right" },
+                      { label:"Gross Profit", align:"right" },
+                      { label:"Margin", align:"center" },
+                      { label:"Transactions", align:"center" },
+                      { label:"Avg. Order", align:"right" },
+                    ].map((h) => (
+                      <th key={h.label} style={{
+                        padding:"11px 13px",
+                        textAlign:h.align,
+                        fontSize:9.5,
+                        color:"#71806F",
+                        fontWeight:800,
+                        textTransform:"uppercase",
+                        letterSpacing:".065em",
+                        borderBottom:"1px solid #DDE8DA",
+                        whiteSpace:"nowrap"
+                      }}>
+                        {h.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {branchProfitability.map((row, index) => {
+                    const hasProfitData = row.hasCogs;
+                    const marginColor = !hasProfitData
+                      ? "#94a3b8"
+                      : row.margin >= 40
+                        ? "#15803d"
+                        : row.margin >= 25
+                          ? "#3b791e"
+                          : row.margin >= 15
+                            ? "#d97706"
+                            : "#dc2626";
+
+                    const marginBg = !hasProfitData
+                      ? "#f8fafc"
+                      : row.margin >= 40
+                        ? "#ecfdf5"
+                        : row.margin >= 25
+                          ? "#f0f5e8"
+                          : row.margin >= 15
+                            ? "#fffbeb"
+                            : "#fef2f2";
+
+                    const borderBottom = index === branchProfitability.length - 1
+                      ? "none"
+                      : "1px solid #EEF3EC";
+
+                    return (
+                      <tr key={row.branch} style={{
+                        background:index % 2 === 0 ? "#fff" : "#FBFDF9"
+                      }}>
+                        <td style={{padding:"12px 13px",borderBottom}}>
+                          <div style={{display:"flex",alignItems:"center",gap:9}}>
+                            <span style={{
+                              width:24,height:24,borderRadius:8,
+                              background:"#F0F5E8",color:"#3b791e",
+                              display:"inline-flex",alignItems:"center",
+                              justifyContent:"center",fontSize:10,
+                              fontWeight:800,flexShrink:0
+                            }}>
+                              {index + 1}
+                            </span>
+                            <span style={{
+                              fontSize:11.5,fontWeight:800,color:"#12241B",
+                              whiteSpace:"nowrap"
+                            }}>
+                              {row.branch}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,color:"#183126",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {fmtAmt(row.revenue)}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,
+                          color:hasProfitData ? "#1d4ed8" : "#94a3b8",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {hasProfitData ? fmtAmt(row.grossProfit) : "—"}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",
+                          textAlign:"center",
+                          borderBottom
+                        }}>
+                          <span style={{
+                            display:"inline-flex",
+                            alignItems:"center",
+                            justifyContent:"center",
+                            minWidth:60,
+                            padding:"4px 8px",
+                            borderRadius:20,
+                            background:marginBg,
+                            color:marginColor,
+                            border:`1px solid ${marginColor}25`,
+                            fontSize:10.5,
+                            fontWeight:800,
+                            whiteSpace:"nowrap"
+                          }}>
+                            {hasProfitData ? `${row.margin.toFixed(1)}%` : "No COGS"}
+                          </span>
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"center",
+                          fontSize:11.5,fontWeight:700,color:"#334155",
+                          borderBottom
+                        }}>
+                          {row.transactions.toLocaleString()}
+                        </td>
+
+                        <td style={{
+                          padding:"12px 13px",textAlign:"right",
+                          fontSize:11.5,fontWeight:800,color:"#3b791e",
+                          whiteSpace:"nowrap",borderBottom
+                        }}>
+                          {fmtAmt(row.avgOrder)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{
+              minHeight:180,display:"flex",alignItems:"center",
+              justifyContent:"center",border:"1px dashed #D7E1D4",
+              borderRadius:12,background:"#FAFCF8",color:"#7A887B",
+              fontSize:12,fontWeight:600,textAlign:"center",padding:20
+            }}>
+              {viewArchive
+                ? "Branch profitability is not stored in this archived dashboard snapshot."
+                : "No branch transaction data is available for the selected filter."}
+            </div>
+          )}
+
+          {!viewArchive &&
+            branchProfitability.length > 0 &&
+            branchProfitability.some(row => !row.hasCogs) && (
+              <div style={{
+                marginTop:10,display:"flex",alignItems:"flex-start",gap:7,
+                padding:"9px 11px",borderRadius:9,background:"#fffaf0",
+                border:"1px solid #fde68a",color:"#92400e",
+                fontSize:10.5,lineHeight:1.55
+              }}>
+                <Info size={13} style={{flexShrink:0,marginTop:1}} />
+                <span>
+                  Gross Profit and Margin show “No COGS” when the transaction API
+                  has no cost-of-goods value. Revenue, Transactions and Avg. Order
+                  still come directly from the API.
+                </span>
+              </div>
+            )}
+        </div>
+      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} categoryPerformance={categoryPerformance} />
       </>}
 
-      {analysisTab==="prescriptive"&&<PrescriptiveSection transactions={transactions} filterLabel={filterLabel} preset={preset} total={total} values={values} kpiData={kpiData}/>} 
-      {analysisTab==="stock"&&<SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total}/>} 
+      {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
+
+      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} transactions={filteredTransactions} />}
+
+      <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
+        
     </div>
   );
 }
 
-// ─── Chip ─────────────────────────────────────────────────────────────────────
+
+// MOBILE SHOP CONTENT
+const Field = ({ label, error, children }) => (
+    <div>
+      <label style={{ fontSize:"0.8rem", fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em" }}>{label}</label>
+      {children}
+      {error && <p style={{ color:"#e53935", fontSize:"0.72rem", marginTop:3, fontWeight:600 }}>{error}</p>}
+    </div>
+  );
+
+
+function MultiSelectBranchDropdown({ branches, selected, onChange, disabled, error, msInputStyle }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const toggle = (br) => {
+    const updated = selected.includes(br)
+      ? selected.filter(b => b !== br)
+      : [...selected, br];
+    onChange(updated);
+  };
+
+  const selectAll = () => onChange([...branches]);
+  const clearAll  = () => onChange([]);
+
+  const label = disabled
+    ? "Select a brand first"
+    : selected.length === 0
+      ? "Select branches…"
+      : selected.length === branches.length
+        ? "All branches"
+        : selected.join(", ");
+
+  return (
+    <div ref={ref} style={{ position:"relative", marginTop:"0.3rem" }}>
+      <div
+        onClick={() => { if (!disabled) setOpen(v => !v); }}
+        style={{
+          ...msInputStyle,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.5 : 1,
+          border: `1px solid ${error ? "#e53935" : "#d1eedd"}`,
+          userSelect:"none", paddingRight:10,
+          minHeight:36, height:"auto", flexWrap:"wrap", gap:4,
+        }}>
+        {selected.length > 0 && !disabled ? (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4, flex:1 }}>
+            {selected.map(br => (
+              <span key={br} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 8px", borderRadius:20, fontSize:11, fontWeight:600, background:"#e0f2f1", color:"#00695c", border:"1px solid #b2dfdb" }}>
+                {br}
+                <span
+                  onMouseDown={e => { e.stopPropagation(); toggle(br); }}
+                  style={{ cursor:"pointer", fontSize:12, lineHeight:1, color:"#5a7a65" }}>×</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span style={{ color: C.muted, fontSize:13 }}>{label}</span>
+        )}
+        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition:"transform .15s" }}>
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </div>
+
+      {open && !disabled && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:500,
+          background:C.white, border:`1px solid ${C.border}`, borderRadius:10,
+          boxShadow:"0 8px 24px rgba(0,0,0,0.10)", overflow:"hidden",
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", padding:"7px 12px", borderBottom:`1px solid ${C.border}`, background:"#f8fffe" }}>
+            <span onMouseDown={e => { e.preventDefault(); selectAll(); }}
+              style={{ fontSize:11, fontWeight:700, color:"#00897b", cursor:"pointer" }}>
+              Select All
+            </span>
+            <span onMouseDown={e => { e.preventDefault(); clearAll(); }}
+              style={{ fontSize:11, fontWeight:700, color:C.muted, cursor:"pointer" }}>
+              Clear
+            </span>
+          </div>
+          <div style={{ maxHeight:180, overflowY:"auto" }}>
+            {branches.length === 0 ? (
+              <div style={{ padding:"12px", fontSize:12, color:C.muted, fontStyle:"italic", textAlign:"center" }}>No branches available</div>
+            ) : branches.map(br => (
+              <div key={br} onMouseDown={e => { e.preventDefault(); toggle(br); }}
+                style={{
+                  display:"flex", alignItems:"center", gap:10,
+                  padding:"9px 12px", cursor:"pointer", fontSize:13,
+                  background: selected.includes(br) ? "#f0fdf5" : C.white,
+                  borderBottom:`1px solid #f5fdf7`,
+                }}>
+                <div style={{
+                  width:16, height:16, borderRadius:4, flexShrink:0,
+                  border: `2px solid ${selected.includes(br) ? "#00897b" : "#b2dfdb"}`,
+                  background: selected.includes(br) ? "#00897b" : C.white,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                }}>
+                  {selected.includes(br) && (
+                    <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
+                </div>
+                <span style={{ fontWeight: selected.includes(br) ? 700 : 500, color: selected.includes(br) ? "#00695c" : C.ink }}>
+                  {br}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Chip({ label, color, bg, onRemove }) {
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:20, fontSize:11, fontWeight:700, color, background:bg }}>
@@ -6808,3 +9054,4 @@ function FAProfileContent({ user }) {
     </div>
   );
 }
+
