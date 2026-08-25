@@ -1,5 +1,4 @@
 
-//apply here the whole dashboard logic and content
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -35,9 +34,9 @@ const C = {
   greenDk:    "#2c5c16",
   greenMid:   "#c9dba0", 
   teal:       "#509820",
-  lime:         "#d8cb39",
+  lime:       "#48b328",  
   limeInk:    "#24310C",   
-  ink:       "#438d2c", 
+  ink:        "#b3a941",
   muted:      "#5C6B60",  
   border:     "#E1E6D8", 
   bg:         "#F6F7F1", 
@@ -2527,7 +2526,7 @@ function SalesTrendSection({
   values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
   getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
   transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
-  branchProfitability = [], categoryPerformance = [],
+  branchProfitability = [],
 }) {
   const panelRef = useRef(null);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -2540,11 +2539,8 @@ function SalesTrendSection({
   );
 
   const catData = useMemo(() => {
-    if (Array.isArray(kpiData?.categoryBreakdown) && kpiData.categoryBreakdown.length) {
-      return kpiData.categoryBreakdown;
-    }
-    return Array.isArray(categoryPerformance) ? categoryPerformance : [];
-  }, [kpiData, categoryPerformance]);
+    return Array.isArray(kpiData?.categoryBreakdown) ? kpiData.categoryBreakdown : [];
+  }, [kpiData]);
 
   const brandBreakdownData = useMemo(() => {
     if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
@@ -2714,8 +2710,8 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
         <head>
           <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             html, body { margin: 0; background: #ffffff !important; }
             @media print { @page { margin: 14mm; } button { display: none !important; } }
           </style>
@@ -2885,33 +2881,13 @@ const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
         </div>
 
         {/* Period Summary column removed — 2-column spaced layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "stretch" }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
            <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
-            {categoryPanelData.length > 0 ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                  <DonutChartSVG
-                    segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))}
-                    size={150}
-                    centerLabel={hasData ? fmtShort(categoryPanelData.reduce((s, d) => s + (d.value || 0), 0)) : "—"}
-                    centerSub="total"
-                    showLegend={false}
-                  />
-                </div>
-                <div style={{ height: 1, background: "#e0f2f1", margin: "2px 0 14px" }} />
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-                  {isFiltered ? "Category Breakdown" : "Brand Breakdown"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <HBarChart data={categoryPanelData.slice(0, 8).map(d => ({ label: d.label, value: d.value }))} />
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, minHeight: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12, textAlign: "center", padding: "0 10px" }}>
-                {isFiltered ? "No category data available for this brand/branch yet." : "No data"}
-              </div>
-            )}
+            {categoryPanelData.length > 0
+              ? <DonutChartSVG segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={150} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+              : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+            }
           </div>
           <div style={{
             background: "#f8fffe",
@@ -3175,8 +3151,8 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
         <head>
           <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+            * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             html, body { margin: 0; background: #ffffff !important; }
             @media print { @page { margin: 14mm; } button { display: none !important; } }
           </style>
@@ -4264,6 +4240,9 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
     selectedBrand,
   ]);
 
+  const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
+  const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
+
   const revenuePie = top10.slice(0, 5).map((p, i) => ({
     label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
     value: p.totalRevenue,
@@ -4355,6 +4334,18 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         }
       />
       <div style={{ padding: "18px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Days of Stock Remaining</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:9}}>{stockEvidence.map((r,i)=><div key={r.name} style={{display:"grid",gridTemplateColumns:"130px 1fr 48px",alignItems:"center",gap:9}}><span title={r.name} style={{fontSize:10.5,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span><div style={{height:10,borderRadius:4,background:"#edf8f0",position:"relative",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.daysLeft||0)/maxDaysLeft)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#22c55e",borderRadius:4}}/></div><strong style={{fontSize:10.5,textAlign:"right",color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</strong></div>)}</div> : <DashboardEmptyState message="No matched sales + inventory records for this filter." />}
+            <div style={{display:"flex",gap:14,marginTop:14,fontSize:9.5,color:"#64748b"}}><span><b style={{color:"#ef4444"}}>14d</b> critical</span><span><b style={{color:"#f59e0b"}}>30d</b> reorder watch</span></div>
+          </div>
+          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Stock-to-Sales Ratio by Product</strong></div>
+            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:10}}>{stockEvidence.map(r=><div key={r.name}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:4}}><span title={r.name} style={{fontSize:10.5,fontWeight:700,color:"#263b2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span><span style={{fontSize:10.5,fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a"}}>{r.ratio==null?"—":`×${r.ratio.toFixed(1)}`}</span></div><div style={{height:6,borderRadius:99,background:"#edf8f0",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.ratio||0)/maxRatio)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a",borderRadius:99}}/></div></div>)}</div> : <DashboardEmptyState message="No stock-to-sales ratio can be calculated for this filter." />}
+          </div>
+        </div>
+
         {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
@@ -4365,6 +4356,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
             { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
             { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
             { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+           { label: "Avg Units Sold / Product", value: data?.avgQty ? `${Number(data.avgQty).toLocaleString()} units` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
           ].map((s, i) => (
             <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
@@ -4665,18 +4657,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
   const [analysisTab, setAnalysisTab] = useState("sales");
 
-  // Menu/product catalogue rows, used to look up each sold item's category.
-  // Category lives on the menu item record from /inventory (e.g. "Beverage",
-  // "Pastry") — NOT on /ingredients, which is raw stock components (sugar,
-  // milk, etc.) with no category field at all.
-  const [catalogueRows, setCatalogueRows] = useState([]);
-  useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/inventory`)
-      .then(r => r.json())
-      .then(d => setCatalogueRows(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, []);
-
   useEffect(() => {
     const fn = (e) => {
       if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
@@ -4961,64 +4941,6 @@ const filteredTransactions = useMemo(() => {
     });
     return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
   }, [filteredTransactions, viewArchive]);
-
-  // Category breakdown, computed client-side from the same filtered
-  // transactions used everywhere else on this dashboard. Category comes
-  // straight from each menu item's `category` field on catalogueRows
-  // (fetched from /inventory) — matched to each sold line item first by
-  // product id, falling back to normalized branch+name for older
-  // transactions that may not have stored the inventory id.
-  const categoryPerformance = useMemo(() => {
-    if (viewArchive) return [];
-
-    const normalizeName = (value) =>
-      String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/&/g, "and")
-        .replace(/[^a-z0-9]+/g, "");
-
-    // Build id -> category and "branch|name" -> category lookups from the menu/inventory rows.
-    const categoryById = new Map();
-    const categoryByBranchName = new Map();
-
-    catalogueRows.forEach(row => {
-      const category = row?.category;
-      if (!category) return;
-      if (row?.id != null) categoryById.set(String(row.id), category);
-      const nameKey = `${normalizeName(row?.branch)}|${normalizeName(row?.name)}`;
-      categoryByBranchName.set(nameKey, category);
-    });
-
-    const grouped = {};
-    filteredTransactions.forEach(tx => {
-      let items = tx?.items;
-      if (typeof items === "string") {
-        try { items = JSON.parse(items); } catch { items = []; }
-      }
-      if (!Array.isArray(items)) return;
-
-      const txBranchKey = normalizeName(tx?.branch);
-
-      items.forEach(item => {
-        const itemId =
-          item?.inventory_id ?? item?.menu_item_id ?? item?.product_id ?? item?.id ?? null;
-        const itemName =
-          item?.name ?? item?.product_name ?? item?.item_name ?? item?.title ?? "";
-
-        const category =
-          (itemId != null ? categoryById.get(String(itemId)) : null) ||
-          categoryByBranchName.get(`${txBranchKey}|${normalizeName(itemName)}`) ||
-          "Uncategorized";
-
-        const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-        const price = Number(item?.price ?? item?.unit_price ?? 0) || 0;
-        const lineTotal = Number(item?.total ?? item?.line_total ?? (qty * price)) || 0;
-        grouped[category] = (grouped[category] || 0) + lineTotal;
-      });
-    });
-    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewArchive, catalogueRows]);
   
 
 const saveArchive = () => {
@@ -5114,7 +5036,7 @@ const applyCustomRange = async () => {
   return (
     <div style={{ fontFamily: FONT }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -5133,8 +5055,8 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-      {/* ── KPI Cards: always visible across all analysis tabs ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+      {/* ── KPI Cards: Sales Trend tab only ── */}
+      {analysisTab === "sales" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
           { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
           { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
@@ -5183,7 +5105,7 @@ const applyCustomRange = async () => {
             </div>
           );
         })}
-      </div>
+      </div>}
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -5603,7 +5525,7 @@ const applyCustomRange = async () => {
               </div>
             )}
         </div>
-      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} categoryPerformance={categoryPerformance} />
+      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
       </>}
 
       {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
@@ -8708,14 +8630,32 @@ const handleSendRescheduleOptions = async (app, { optionADate, optionBDate }) =>
   }
 };
 
-const handleTestQuickSchedule = (app) => {
-  const inFiveMin = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-  handleScheduleAppointment(app, {
-    appointmentDate: inFiveMin,
-    appointmentLocation: "Test Location — Google Meet",
-    appointmentNotes: "This is a test appointment for email testing.",
-  });
+// ⚠️ TEMPORARY — testing only, remove once the client-facing reschedule page exists
+const handleTestRequestReschedule = async (app) => {
+  if (!app.appointmentToken) {
+    setAlertModal({ title: "No appointment token", message: "Schedule an interview first.", type: "error" });
+    return;
+  }
+  setAlertModal({ title: "Simulating client reschedule request…", type: "loading" });
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/public/appointments/${app.appointmentToken}/reschedule-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!data.success) {
+      setAlertModal({ title: "Failed", message: data.error || "Please try again.", type: "error" });
+      return;
+    }
+    await fetchApplications();
+    setViewApp(prev => prev ? { ...prev, appointmentStatus: "reschedule_requested" } : prev);
+    await fetchActivityLog();
+    setAlertModal({ title: "Reschedule request simulated", type: "success" });
+  } catch {
+    setAlertModal({ title: "Failed", message: "Please try again.", type: "error" });
+  }
 };
+
 const confirmDeleteApplication = async () => {
   if (!deleteTarget) return;
   setDeleting(true);
@@ -9246,20 +9186,18 @@ const handleRestoreApplication = async (entry) => {
     <Field label="Notes" value={viewApp.appointmentNotes} full />
   </Section>
 )}
-{viewApp.appointmentDate && viewApp.appointmentStatus !== "reschedule_requested" && (
-  <button
-    onClick={() => handleTestRequestReschedule(viewApp)}
-    style={{
-      display: "flex", alignItems: "center", gap: 6,
-      padding: "6px 12px", borderRadius: 8,
-      border: "1.5px dashed #f59e0b", background: "#fffbeb",
-      color: "#b45309", fontSize: 11, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit", marginBottom: 20,
-    }}
-  >
-    🧪 [TEST] Simulate Client Reschedule Request
-  </button>
-)}
+<button
+  onClick={() => setScheduleApp(viewApp)}
+  style={{
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "6px 12px", borderRadius: 8,
+    border: "1.5px dashed #f59e0b", background: "#fffbeb",
+    color: "#b45309", fontSize: 11, fontWeight: 700,
+    cursor: "pointer", fontFamily: "inherit", marginBottom: 12,
+  }}
+>
+  🧪 [TEST] Resend Schedule Email
+</button>
                 </>
               );
             })()}
@@ -16434,6 +16372,5 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
-
 
 
