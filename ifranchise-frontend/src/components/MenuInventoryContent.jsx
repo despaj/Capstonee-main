@@ -1285,10 +1285,34 @@ const computedCost = useMemo(() => {
 
 const handleAddItem = async e => {
   e.preventDefault();
-  const branch    = isAdmin ? formData.branch : userBranch;
+  const branch = isAdmin ? formData.branch : userBranch;
+
+  const missing = [];
+  if (!formData.name?.trim())      missing.push("Name");
+  if (!formData.category?.trim())  missing.push("Category");
+  if (!branch?.trim())             missing.push("Branch");
+  if (!formData.brand?.trim())     missing.push("Brand");
+  if (formData.cost === "" || formData.cost == null)   missing.push("Cost");
+  if (formData.price === "" || formData.price == null) missing.push("Price");
+  if (!formData.image_url?.trim()) missing.push("Image");
+  if (formData.minStock === "" || formData.minStock == null) missing.push("Min stock");
+  if (!formData.ingredients || formData.ingredients.length === 0) {
+    missing.push("At least one ingredient");
+  } else {
+    const badIngredient = formData.ingredients.some(
+      ing => !ing.stock_item_id || !ing.qty_required || !ing.unit
+    );
+    if (badIngredient) missing.push("All ingredient fields (item, quantity, unit)");
+  }
+
+  if (missing.length > 0) {
+    showToast("error", "Missing required fields", missing.join(", "));
+    return;
+  }
+
   const duplicate = findDuplicate(formData.name, branch, inventory);
   if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-  
+
   setSaving(true);
   const coords = await getBrowserLocation();
   const payload = {

@@ -19,8 +19,28 @@ const ALLOWED_TRANSITIONS = {
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
-  const { userId } = req.query;
+  const { userId, branch, brand, role } = req.query;
   try {
+    let where = "";
+    let params = [];
+
+    if (userId) {
+      // Existing behavior: customer-facing "my orders" lookup
+      where = "WHERE o.user_id = $1";
+      params = [userId];
+    } else {
+      // Staff/admin view: no single user, so require a recognized role instead
+      const STAFF_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee Operations Admin", "Super Admin", "Franchisee", "Staff"];
+      if (!STAFF_ROLES.includes(role)) {
+        return res.status(403).json({ error: "userId or a valid staff role is required" });
+      }
+      const conditions = [];
+      if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
+      if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
+      if (conditions.length) where = "WHERE " + conditions.join(" AND ");
+      // no branch/brand at all = every order in the system (e.g. HQ-wide view)
+    }
+
     const result = await pool.query(`
       SELECT o.id, o.status, o.total_amount, o.created_at, o.phone, o.brand, o.branch, o.address,
         u.name AS user_name,
@@ -29,10 +49,10 @@ router.get("/orders", async (req, res) => {
       LEFT JOIN users u ON u.id=o.user_id
       LEFT JOIN order_items oi ON oi.order_id=o.id
       LEFT JOIN shop_items si ON si.id=oi.shop_item_id
-      WHERE o.user_id = $1
+      ${where}
       GROUP BY o.id, u.name, o.address
       ORDER BY o.created_at DESC
-    `, [userId]);
+    `, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch orders" });
