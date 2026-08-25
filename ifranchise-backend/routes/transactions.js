@@ -73,8 +73,6 @@ router.post("/transactions", async (req, res) => {
           [ing.ingredient_id]
         );
       }
-
-      await client.query(`UPDATE inventory SET stock=stock-$1, updated_at=NOW() WHERE id=$2`, [parseInt(item.qty), item.id]);
     }
 
     await client.query("COMMIT");
