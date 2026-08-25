@@ -82,6 +82,16 @@ export default function ReschedulePage() {
   const fmt = (d) =>
     d ? new Date(d).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Manila" }) : "";
 
+  const optionBtnStyle = {
+  padding: "14px 18px", borderRadius: 12,
+  border: `1.5px solid #a5d6a7`, background: "#e8f5e9",
+  color: "#1b5e20", fontSize: 14, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+};
+const optionLabelStyle = {
+  fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", opacity: 0.7, marginBottom: 4,
+};
+
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
@@ -164,47 +174,33 @@ export default function ReschedulePage() {
         )}
 
         {status === "options" && appointment && (
-          <>
+        <>
             <CalendarClock size={36} color={C.teal} />
-            <h2 style={{ marginTop: 16, marginBottom: 4, color: "#0d2b1e" }}>Choose Your New Interview Time</h2>
+            <h2 style={{ marginTop: 16, marginBottom: 4, color: "#0d2b1e" }}>Choose Your Interview Time</h2>
             <p style={{ color: C.muted, fontSize: 14, marginBottom: 24 }}>
-              Hi {appointment.name}, please pick one of the times below:
+            Hi {appointment.name}, please pick one of the times below:
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 8 }}>
-              {appointment.reschedule_option_a && (
-                <button
-                  onClick={() => handleSelectOption("a")}
-                  style={{
-                    padding: "14px 18px", borderRadius: 12,
-                    border: `1.5px solid #a5d6a7`, background: "#e8f5e9",
-                    color: "#1b5e20", fontSize: 14, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                  }}
-                >
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", opacity: 0.7, marginBottom: 4 }}>
-                    OPTION A
-                  </div>
-                  {fmt(appointment.reschedule_option_a)}
+            {appointment.reschedule_option_a && (
+                <button onClick={() => handleSelectOption("a")} style={optionBtnStyle}>
+                <div style={optionLabelStyle}>OPTION A</div>
+                {fmt(appointment.reschedule_option_a)}
                 </button>
-              )}
-              {appointment.reschedule_option_b && (
-                <button
-                  onClick={() => handleSelectOption("b")}
-                  style={{
-                    padding: "14px 18px", borderRadius: 12,
-                    border: `1.5px solid #a5d6a7`, background: "#e8f5e9",
-                    color: "#1b5e20", fontSize: 14, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                  }}
-                >
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", opacity: 0.7, marginBottom: 4 }}>
-                    OPTION B
-                  </div>
-                  {fmt(appointment.reschedule_option_b)}
+            )}
+            {appointment.reschedule_option_b && (
+                <button onClick={() => handleSelectOption("b")} style={optionBtnStyle}>
+                <div style={optionLabelStyle}>OPTION B</div>
+                {fmt(appointment.reschedule_option_b)}
                 </button>
-              )}
+            )}
+            {appointment.reschedule_option_c && (
+                <button onClick={() => handleSelectOption("c")} style={optionBtnStyle}>
+                <div style={optionLabelStyle}>OPTION C</div>
+                {fmt(appointment.reschedule_option_c)}
+                </button>
+            )}
             </div>
-          </>
+        </>
         )}
 
         {status === "confirming" && (

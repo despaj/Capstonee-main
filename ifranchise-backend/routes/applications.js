@@ -314,16 +314,16 @@ router.put("/applications/:id/appointment", async (req, res) => {
   }
 });
 
-router.put("/applications/:id/reschedule-options", async (req, res) => {
+router.put("/applications/:id/schedule-options", async (req, res) => {
   try {
     const rawId = req.params.id;
     const isIpharma = rawId.startsWith("ip-");
     const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
     const sourceTable = isIpharma ? "ipharma_applications" : "applications";
-    const { optionADate, optionBDate, performed_by, role, latitude, longitude } = req.body;
+    const { optionADate, optionBDate, optionCDate, performed_by, role, latitude, longitude } = req.body;
 
-    if (!optionADate || !optionBDate) {
-      return res.status(400).json({ success: false, error: "Both optionADate and optionBDate are required" });
+    if (!optionADate || !optionBDate || !optionCDate) {
+      return res.status(400).json({ success: false, error: "All three date options are required" });
     }
 
     const before = await pool.query(`SELECT * FROM ${sourceTable} WHERE id=$1`, [id]);
@@ -332,37 +332,39 @@ router.put("/applications/:id/reschedule-options", async (req, res) => {
     const oldApp = before.rows[0];
 
     const token = oldApp.appointment_token || crypto.randomBytes(24).toString("hex");
+    const isResend = !!oldApp.appointment_date || oldApp.appointment_status === "options_sent";
 
     const result = await pool.query(
       `UPDATE ${sourceTable}
-       SET reschedule_option_a=$1, reschedule_option_b=$2,
-           appointment_status='options_sent', appointment_token=$3
-       WHERE id=$4 RETURNING *`,
-      [optionADate, optionBDate, token, id]
+       SET reschedule_option_a=$1, reschedule_option_b=$2, reschedule_option_c=$3,
+           appointment_status='options_sent', appointment_token=$4,
+           appointment_date=NULL, status='pending'
+       WHERE id=$5 RETURNING *`,
+      [optionADate, optionBDate, optionCDate, token, id]
     );
 
     const updatedApp = rowToApplication(result.rows[0]);
 
     await logActivity(
-      "send_reschedule_options",
+      isResend ? "resend_schedule_options" : "send_schedule_options",
       updatedApp.name,
       performed_by || "System",
-      { optionA: optionADate, optionB: optionBDate },
+      { optionA: optionADate, optionB: optionBDate, optionC: optionCDate },
       req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications",
       latitude, longitude, role || "Unknown"
     );
 
     res.json({ success: true, application: updatedApp, appointmentToken: token });
   } catch (err) {
-    console.error("Error sending reschedule options:", err);
-    res.status(500).json({ success: false, error: "Failed to send reschedule options" });
+    console.error("Error sending schedule options:", err);
+    res.status(500).json({ success: false, error: "Failed to send schedule options" });
   }
 });
 
 router.get("/public/appointments/:token", async (req, res) => {
   try {
     const { token } = req.params;
-    const cols = `name, appointment_date, appointment_location, appointment_status, reschedule_option_a, reschedule_option_b`;
+    const cols = `name, appointment_date, appointment_location, appointment_status, reschedule_option_a, reschedule_option_b, reschedule_option_c`;
     let result = await pool.query(`SELECT ${cols} FROM applications WHERE appointment_token=$1`, [token]);
     if (result.rows.length === 0) {
       result = await pool.query(`SELECT ${cols} FROM ipharma_applications WHERE appointment_token=$1`, [token]);
@@ -416,36 +418,33 @@ router.post("/public/appointments/:token/reschedule-request", async (req, res) =
   }
 });
 
-router.post("/send-reschedule-options", async (req, res) => {
-  const { to, name, optionADate, optionBDate, token } = req.body;
+router.post("/send-schedule-options", async (req, res) => {
+  const { to, name, optionADate, optionBDate, optionCDate, token } = req.body;
   try {
     const fmt = (d) => new Date(d).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Manila" });
-    const link = (opt) => `${process.env.FRONTEND_URL}/reschedule/${token}?option=${opt}`;
+    const link = `${process.env.FRONTEND_URL}/reschedule/${token}`;
 
     await resend.emails.send({
       from: "Franchisync <noreply@franchisync.business>",
       to,
-      subject: "Please Choose a New Interview Time",
+      subject: "Choose Your Interview Time",
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2E7D32;">Choose Your New Interview Time</h2>
+          <h2 style="color: #2E7D32;">Choose Your Interview Time</h2>
           <p>Hi ${name},</p>
-          <p>Please pick one of the following available times:</p>
+          <p>Please pick one of the following available times for your franchise interview:</p>
           <div style="margin: 15px 0;">
-            <a href="${link("a")}" style="display:block;padding:12px 20px;background:#E8F5E9;color:#1b5e20;text-decoration:none;border-radius:8px;margin-bottom:10px;border:1px solid #a5d6a7;">
-              Option A: ${fmt(optionADate)}
-            </a>
-            <a href="${link("b")}" style="display:block;padding:12px 20px;background:#E8F5E9;color:#1b5e20;text-decoration:none;border-radius:8px;border:1px solid #a5d6a7;">
-              Option B: ${fmt(optionBDate)}
-            </a>
+            <p style="padding:10px 16px;background:#f0fdf5;border-radius:8px;margin-bottom:8px;"><strong>Option A:</strong> ${fmt(optionADate)}</p>
+            <p style="padding:10px 16px;background:#f0fdf5;border-radius:8px;margin-bottom:8px;"><strong>Option B:</strong> ${fmt(optionBDate)}</p>
+            <p style="padding:10px 16px;background:#f0fdf5;border-radius:8px;margin-bottom:8px;"><strong>Option C:</strong> ${fmt(optionCDate)}</p>
           </div>
-          <p style="font-size:12px;color:#666;">Clicking a time takes you to a confirmation page — nothing is booked until you confirm there.</p>
+          <p><a href="${link}" style="display:inline-block;padding:12px 24px;background:#2E7D32;color:#fff;text-decoration:none;border-radius:8px;">Choose Your Time</a></p>
         </div>`
     });
     res.json({ success: true });
   } catch (err) {
     console.error("Resend error:", err);
-    res.status(500).json({ error: "Failed to send reschedule options email" });
+    res.status(500).json({ error: "Failed to send schedule options email" });
   }
 });
 
@@ -470,7 +469,7 @@ router.post("/public/appointments/:token/select-option", async (req, res) => {
   try {
     const { token } = req.params;
     const { option } = req.body; // "a" | "b"
-    if (!["a", "b"].includes(option)) {
+    if (!["a", "b", "c"].includes(option)) {
       return res.status(400).json({ success: false, error: "Invalid option" });
     }
 
@@ -489,16 +488,19 @@ router.post("/public/appointments/:token/select-option", async (req, res) => {
       return res.status(400).json({ success: false, error: "No pending reschedule options for this appointment" });
     }
 
-    const chosenDate = option === "a" ? app.reschedule_option_a : app.reschedule_option_b;
+    const chosenDate =
+  option === "a" ? app.reschedule_option_a :
+  option === "b" ? app.reschedule_option_b :
+  app.reschedule_option_c;
     if (!chosenDate) {
       return res.status(400).json({ success: false, error: "Selected option is unavailable" });
     }
 
     const result = await pool.query(
       `UPDATE ${sourceTable}
-       SET appointment_date=$1, appointment_status='scheduled',
-           reschedule_option_a=NULL, reschedule_option_b=NULL, status='scheduled'
-       WHERE appointment_token=$2 RETURNING *`,
+      SET appointment_date=$1, appointment_status='scheduled',
+          reschedule_option_a=NULL, reschedule_option_b=NULL, reschedule_option_c=NULL, status='scheduled'
+      WHERE appointment_token=$2 RETURNING *`,
       [chosenDate, token]
     );
     const updatedApp = result.rows[0];

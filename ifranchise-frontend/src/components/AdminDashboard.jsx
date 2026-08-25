@@ -8534,68 +8534,17 @@ const interviewPending = (app) => {
   return now < interviewEndsAt;
 };
 
-const handleScheduleAppointment = async (app, { appointmentDate, appointmentLocation, appointmentNotes }) => {
+const handleSendScheduleOptions = async (app, { optionADate, optionBDate, optionCDate }) => {
   if (processingId) return;
   setProcessingId(app.id);
-  setAlertModal({ title: "Scheduling interview…", type: "loading" });
+  setAlertModal({ title: "Sending interview options…", type: "loading" });
   try {
     const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/appointment`, {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/schedule-options`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        appointmentDate, appointmentLocation, appointmentNotes,
-        performed_by: user?.name || "System",
-        role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      }),
-    });
-    const data = await res.json();
-    if (!data.success) {
-      setAlertModal({ title: "Failed to schedule appointment", message: data.error || "Please try again.", type: "error" });
-      return;
-    }
-
-    if (app.email) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-appointment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: app.email,
-          name: app.name,
-          appointmentDate, appointmentLocation, appointmentNotes,
-          rescheduleToken: data.appointmentToken,
-          isReschedule: data.isReschedule,
-        }),
-      });
-    }
-
-    const normalizedApp = normalizeApp(data.application);
-    setApplications(prev => prev.map(a => a.id === app.id ? { ...a, ...normalizedApp } : a));
-    setViewApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
-    setMenuApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
-    await fetchActivityLog();
-    setScheduleApp(null);
-    setAlertModal({ title: "Interview scheduled & emailed", type: "success" });
-  } catch {
-    setAlertModal({ title: "Failed to schedule appointment", message: "Please try again.", type: "error" });
-  } finally {
-    setProcessingId(null);
-  }
-};
-
-const handleSendRescheduleOptions = async (app, { optionADate, optionBDate }) => {
-  if (processingId) return;
-  setProcessingId(app.id);
-  setAlertModal({ title: "Sending reschedule options…", type: "loading" });
-  try {
-    const coords = await getBrowserLocation();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/applications/${app.id}/reschedule-options`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        optionADate, optionBDate,
+        optionADate, optionBDate, optionCDate,
         performed_by: user?.name || "System",
         role: user?.role || "Unknown",
         latitude: coords?.latitude,
@@ -8609,10 +8558,10 @@ const handleSendRescheduleOptions = async (app, { optionADate, optionBDate }) =>
     }
 
     if (app.email) {
-      await fetch(`${process.env.REACT_APP_API_URL}/send-reschedule-options`, {
+      await fetch(`${process.env.REACT_APP_API_URL}/send-schedule-options`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: app.email, name: app.name, optionADate, optionBDate, token: data.appointmentToken }),
+        body: JSON.stringify({ to: app.email, name: app.name, optionADate, optionBDate, optionCDate, token: data.appointmentToken }),
       });
     }
 
@@ -8621,8 +8570,8 @@ const handleSendRescheduleOptions = async (app, { optionADate, optionBDate }) =>
     setViewApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
     setMenuApp(prev => prev?.id === app.id ? { ...prev, ...normalizedApp } : prev);
     await fetchActivityLog();
-    setRescheduleApp(null);
-    setAlertModal({ title: "Reschedule options sent", type: "success" });
+    setScheduleApp(null);
+    setAlertModal({ title: "Interview options sent", type: "success" });
   } catch {
     setAlertModal({ title: "Failed to send options", message: "Please try again.", type: "error" });
   } finally {
@@ -9166,7 +9115,7 @@ const handleRestoreApplication = async (entry) => {
                 )}
               </div>
             </div>
-            {viewApp.appointmentDate && (
+{viewApp.appointmentDate && (
   <Section title="Interview Appointment">
     <Field
       label="Date & Time"
@@ -9186,56 +9135,27 @@ const handleRestoreApplication = async (entry) => {
     <Field label="Notes" value={viewApp.appointmentNotes} full />
   </Section>
 )}
-<button
-  onClick={() => setScheduleApp(viewApp)}
-  style={{
-    display: "flex", alignItems: "center", gap: 6,
-    padding: "6px 12px", borderRadius: 8,
-    border: "1.5px dashed #f59e0b", background: "#fffbeb",
-    color: "#b45309", fontSize: 11, fontWeight: 700,
-    cursor: "pointer", fontFamily: "inherit", marginBottom: 12,
-  }}
->
-  🧪 [TEST] Resend Schedule Email
-</button>
+{/* ⚠️ TEMPORARY TEST BUTTON REMOVED — redundant now that the real button
+    below does the same thing without a disabled lock */}
                 </>
               );
             })()}
 
 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1.5px solid #e0f2f1" }}>
-{viewApp.appointmentStatus === "reschedule_requested" ? (
+{interviewPending(viewApp) || !viewApp.appointmentDate ? (
   <button
-    onClick={() => setRescheduleApp(viewApp)}
+    onClick={() => setScheduleApp(viewApp)}
     disabled={processingId !== null}
     style={{
       display: "flex", alignItems: "center", gap: 7,
-      padding: "10px 22px", borderRadius: 10, border: "none",
-      background: "linear-gradient(135deg,#2E7D32,#00897b)",
-      color: "#fff", fontSize: 13, fontWeight: 700,
+      padding: "10px 22px", borderRadius: 10,
+      border: "1.5px solid #b2dfdb", background: "#e0f2f1",
+      color: "#00695c", fontSize: 13, fontWeight: 700,
       cursor: processingId !== null ? "not-allowed" : "pointer",
       fontFamily: "inherit",
     }}
   >
-    <CalendarClock size={15} /> Send Reschedule Options
-  </button>
-) : interviewPending(viewApp) || !viewApp.appointmentDate ? (
-  <button
-    onClick={() => setScheduleApp(viewApp)}
-    disabled={processingId !== null || !!viewApp.appointmentDate}
-    style={{
-      display: "flex", alignItems: "center", gap: 7,
-      padding: "10px 22px", borderRadius: 10,
-      border: "1.5px solid #b2dfdb",
-      background: viewApp.appointmentDate ? "#f0f0f0" : "#e0f2f1",
-      color: viewApp.appointmentDate ? "#9e9e9e" : "#00695c",
-      fontSize: 13, fontWeight: 700,
-      cursor: (processingId !== null || viewApp.appointmentDate) ? "not-allowed" : "pointer",
-      fontFamily: "inherit",
-      opacity: viewApp.appointmentDate ? 0.65 : 1,
-    }}
-  >
-    <CalendarClock size={15} />
-    {viewApp.appointmentDate ? "Interview Scheduled" : "Schedule Interview"}
+    <CalendarClock size={15} /> {viewApp.appointmentDate ? "Resend Interview Options" : "Send Interview Options"}
   </button>
 ) : (
                 <>
@@ -9654,21 +9574,13 @@ const handleRestoreApplication = async (entry) => {
             </table>
           </div>
         </div>
-      {scheduleApp && (
-  <AppointmentModal
+
+{scheduleApp && (
+  <ScheduleOptionsModal
     applicant={scheduleApp}
     sending={processingId === scheduleApp.id}
     onClose={() => { if (processingId === null) setScheduleApp(null); }}
-    onSchedule={(fields) => handleScheduleAppointment(scheduleApp, fields)}
-  />
-)}
-
-{rescheduleApp && (
-  <RescheduleOptionsModal
-    applicant={rescheduleApp}
-    sending={processingId === rescheduleApp.id}
-    onClose={() => { if (processingId === null) setRescheduleApp(null); }}
-    onSend={(fields) => handleSendRescheduleOptions(rescheduleApp, fields)}
+    onSend={(fields) => handleSendScheduleOptions(scheduleApp, fields)}
   />
 )}
       </div>
@@ -9676,19 +9588,15 @@ const handleRestoreApplication = async (entry) => {
   );
 }
 
-function AppointmentModal({ applicant, onClose, onSchedule, sending }) {
-  const initialLocal = applicant?.appointmentDate
-    ? new Date(applicant.appointmentDate).toISOString().slice(0, 16)
-    : "";
-
+function ScheduleOptionsModal({ applicant, onClose, onSend, sending }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const form = e.target;
-    if (!form.appointmentDate.value) return;
-    onSchedule({
-      appointmentDate: new Date(form.appointmentDate.value).toISOString(),
-      appointmentLocation: form.appointmentLocation.value,
-      appointmentNotes: form.appointmentNotes.value,
+    if (!form.optionADate.value || !form.optionBDate.value || !form.optionCDate.value) return;
+    onSend({
+      optionADate: new Date(form.optionADate.value).toISOString(),
+      optionBDate: new Date(form.optionBDate.value).toISOString(),
+      optionCDate: new Date(form.optionCDate.value).toISOString(),
     });
   };
 
@@ -9697,7 +9605,7 @@ function AppointmentModal({ applicant, onClose, onSchedule, sending }) {
       <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: 20, padding: '28px 32px', width: '100%', maxWidth: 460, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: '1px solid rgba(0,168,76,0.15)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ fontFamily: 'Montserrat,sans-serif', fontSize: 18, fontWeight: 800, color: '#0d2b1e', margin: 0 }}>
-            {applicant?.appointmentDate ? "Reschedule Interview" : "Schedule Interview"}
+            Send Interview Time Options
           </h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #b2dfdb', background: '#e0f2f1', cursor: 'pointer', color: '#00695c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={15} />
@@ -9708,19 +9616,19 @@ function AppointmentModal({ applicant, onClose, onSchedule, sending }) {
         </p>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 14 }}>
-            <label style={bmLabel}>Date & Time</label>
-            <input name="appointmentDate" type="datetime-local" required defaultValue={initialLocal} style={{ ...bmInput, marginTop: 4 }} />
+            <label style={bmLabel}>Option A — Date & Time</label>
+            <input name="optionADate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
           </div>
           <div style={{ marginBottom: 14 }}>
-            <label style={bmLabel}>Location / Mode</label>
-            <input name="appointmentLocation" type="text" placeholder="e.g. Head office, Google Meet link" defaultValue={applicant?.appointmentLocation} style={{ ...bmInput, marginTop: 4 }} />
+            <label style={bmLabel}>Option B — Date & Time</label>
+            <input name="optionBDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
           </div>
           <div style={{ marginBottom: 18 }}>
-            <label style={bmLabel}>Notes (optional)</label>
-            <textarea name="appointmentNotes" rows={3} defaultValue={applicant?.appointmentNotes} style={{ ...bmInput, marginTop: 4, resize: "vertical", fontFamily: "inherit" }} />
+            <label style={bmLabel}>Option C — Date & Time</label>
+            <input name="optionCDate" type="datetime-local" required style={{ ...bmInput, marginTop: 4 }} />
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>
-            The applicant will be emailed the date and a link to request a reschedule.
+            The applicant will get an email with all three times and picks whichever works for them — no separate confirmation step needed from you.
           </p>
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #b2dfdb', background: '#f0fdf5', color: '#5a7a65', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
@@ -9728,7 +9636,7 @@ function AppointmentModal({ applicant, onClose, onSchedule, sending }) {
             </button>
             <button type="submit" disabled={sending}
               style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#2E7D32,#00897b)', color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', boxShadow: '0 2px 10px rgba(0,180,90,0.35)', opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
-              {sending ? "Sending…" : "Send Schedule"}
+              {sending ? "Sending…" : "Send Options"}
             </button>
           </div>
         </form>
