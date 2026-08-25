@@ -34,9 +34,9 @@ const C = {
   greenDk:    "#2c5c16",
   greenMid:   "#c9dba0", 
   teal:       "#509820",
-  lime:       "#48b328",  
+  lime:       "#b3a941",
   limeInk:    "#24310C",   
-  ink:        "#b3a941",
+  ink:        "#347022", 
   muted:      "#5C6B60",  
   border:     "#E1E6D8", 
   bg:         "#F6F7F1", 
@@ -12873,18 +12873,21 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
     setToast(null);
   };
 
-  /* ── fetch orders + ingredients ── */
-  const fetchOrders = async () => {
-    setLoadingData(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/orders`, { credentials:"include" });
-      if (!res.ok) throw new Error("Failed to load orders");
-      const data = await res.json();
-      setOrders(data.map(normalizeOrder));
-    } catch (err) { setError(err.message); }
-    finally { setLoadingData(false); }
-  };
+const fetchOrders = async () => {
+  setLoadingData(true);
+  setError(null);
+  try {
+    const params = new URLSearchParams({ role: user?.role || "" });
+    if (user?.branch) params.set("branch", user.branch);
+    if (user?.brand)  params.set("brand", user.brand);
+
+    const res = await fetch(`${apiUrl}/orders?${params.toString()}`, { credentials:"include" });
+    if (!res.ok) throw new Error("Failed to load orders");
+    const data = await res.json();
+    setOrders(data.map(normalizeOrder));
+  } catch (err) { setError(err.message); }
+  finally { setLoadingData(false); }
+};  
 
   const fetchIngredients = useCallback(async () => {
     try {

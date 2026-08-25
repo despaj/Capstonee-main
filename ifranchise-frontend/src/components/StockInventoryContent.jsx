@@ -2711,6 +2711,25 @@ const openEdit = async item => {
         [role="button"]:hover { filter: brightness(0.97); }
       `}</style>
 
+       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
+        <button
+          onClick={() => setShowDeleteHistory(true)}
+          style={{ ...btnSt, borderColor:"#fecaca", color:"#dc2626" }}
+        >
+          <HistoryIcon size={13}/> Delete History
+          {deleteHistory.length > 0 && (
+            <span style={{
+              marginLeft:2, fontSize:10, fontWeight:800,
+              background:"#fee2e2", color:"#dc2626",
+              borderRadius:20, padding:"1px 7px",
+            }}>
+              {deleteHistory.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+
       {/* Landing screen: 4 brand cards — clicking one opens its full product + FIFO/FEFO view */}
       {!activeBrandDef ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
