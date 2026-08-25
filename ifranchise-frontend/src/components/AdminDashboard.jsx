@@ -1,5 +1,4 @@
-
-//apply here the whole dashboard logic and content
+//this is the franchisync design
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -721,7 +720,7 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
                 border: "2px solid #fff",
 
                 fontFamily:
-                  "'Montserrat',sans-serif",
+                  "'Plus Jakarta Sans',sans-serif", //dito
 
                 boxShadow:
                   "0 2px 6px rgba(220,38,38,.22)",
@@ -771,7 +770,7 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
               zIndex: 3000,
 
               fontFamily:
-                "'Montserrat',sans-serif",
+                "'Plus Jakarta Sans',sans-serif",
 
               display: "flex",
               flexDirection: "column",
@@ -1292,7 +1291,7 @@ function NotificationBell({ notifications, loading, onRefresh, onNavigate }) {
               box-sizing: border-box;
 
               font-family:
-                'Montserrat',
+                'Plus Jakarta Sans',
                 sans-serif;
 
               cursor: pointer;
@@ -7306,7 +7305,7 @@ const placeholderImageFor = (name) =>
 
 function MobileShopContent({ user, brands: propBrands = [] }) {
   const [activityLog,     setActivityLog]     = useState([]);
-  const [shopItems,       setShopItems]       = useState([]); // listing overrides: photo/visibility, keyed to a stock product
+  const [shopItems,       setShopItems]       = useState([]); // listing overrides keyed to a stock product
   const [itemsLoading,    setItemsLoading]    = useState(true);
   const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // item pending unlist confirmation (modal)
   const [deleteLoading,   setDeleteLoading]   = useState(false);
@@ -7319,12 +7318,10 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const [toast,           setToast]           = useState(null);
   const [selectedKeys,    setSelectedKeys]    = useState(() => new Set()); // multi-select for bulk listing
   const [bulkListing,     setBulkListing]     = useState(false);
+  const [currentPage,     setCurrentPage]     = useState(1);
 
-  const [filterListed, setFilterListed] = useState("all"); // "all" | "listed" | "unlisted"
-
+  const ITEMS_PER_PAGE = 10;
   const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans","gallons"];
-
-  const editImageRef = useRef(null);
 
   const fetchActivityLog = useCallback(async () => {
     try {
@@ -7342,9 +7339,8 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     } catch (err) { console.error("Failed to fetch shop activity log:", err); }
   }, []);
 
-  // Listing overrides (photo / visibility) for products that have
-  // been set up for the Mobile Shop. This is NOT the source of the product
-  // list — Stock Inventory is — it's just extra metadata per product.
+  // Listing overrides for products that have been set up for the Mobile Shop.
+  // Stock Inventory remains the source of the product list and live cost.
   const fetchShopItems = useCallback(async () => {
     setItemsLoading(true);
     try {
@@ -7415,7 +7411,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         cost: liveCost,
         price: computePrice(liveCost),
         unit: match ? match.unit : "",
-        image_url: match ? match.image_url : "",
         is_visible: match ? !!match.is_visible : false,
         listed: !!match,
       };
@@ -7434,6 +7429,28 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     if (filterShop !== "all" && item.shop !== filterShop) return false;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+  const pageStartIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedItems = filteredItems.slice(pageStartIndex, pageStartIndex + ITEMS_PER_PAGE);
+  const pageStartDisplay = filteredItems.length === 0 ? 0 : pageStartIndex + 1;
+  const pageEndDisplay = Math.min(pageStartIndex + ITEMS_PER_PAGE, filteredItems.length);
+
+  const visiblePages = useMemo(() => {
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterShop]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   // Clear out any selected keys that no longer exist in the current item set
   // (e.g. a product was removed from Stock Inventory).
@@ -7459,18 +7476,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     });
   };
 
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
-  const toggleSelectAllFiltered = () => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (allFilteredSelected) {
-        filteredItems.forEach((i) => next.delete(keyFor(i)));
-      } else {
-        filteredItems.forEach((i) => next.add(keyFor(i)));
-      }
-      return next;
-    });
-  };
 
   const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
   const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
@@ -7481,44 +7486,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
-  };
-
-  const handleImageSelect = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // basic guardrails
-    if (!file.type.startsWith("image/")) {
-      setToast({ type: "error", title: "Invalid File", message: "Please select an image." });
-      e.target.value = "";
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setToast({ type: "error", title: "File Too Large", message: "Please choose an image under 5MB." });
-      e.target.value = "";
-      return;
-    }
-
-    const ext = file.name.split(".").pop();
-    const path = `shop-items/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-    setEditLoading(true);
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from("shop-images")
-        .upload(path, file, { cacheControl: "3600", upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("shop-images").getPublicUrl(path);
-      setEditingItem((prev) => ({ ...prev, image_url: data.publicUrl }));
-    } catch (err) {
-      console.error("Image upload failed:", err);
-      setToast({ type: "error", title: "Upload Failed", message: "Could not upload the photo. Try again." });
-    } finally {
-      setEditLoading(false);
-      e.target.value = "";
-    }
   };
 
   const openEditor = (item) => {
@@ -7539,7 +7506,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       name: editingItem.name,
       price: computePrice(liveCost),
       unit: editingItem.unit || "",
-      image_url: editingItem.image_url,
       shop: editingItem.brand,
       brand: editingItem.brand,
       is_visible: editingItem.is_visible !== false,
@@ -7570,8 +7536,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   };
 
   // Bulk-list one or more not-yet-listed products in a single action.
-  // Photos are optional here — staff can attach one later via Edit —
-  // so this is meant for quickly getting products visible in the shop.
   const bulkListItems = async (candidateItems) => {
     const toList = candidateItems.filter((i) => !i.listed);
     if (toList.length === 0) {
@@ -7587,7 +7551,6 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         name: it.name,
         price: computePrice(liveCost),
         unit: it.unit || "",
-        image_url: it.image_url || "",
         shop: it.brand,
         brand: it.brand,
         is_visible: true,
@@ -7609,7 +7572,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setToast({
       type: failed > 0 ? "error" : "success",
       title: "Bulk Listing Complete",
-      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
+      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}.`,
     });
   };
 
@@ -7658,39 +7621,11 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     setBlockedUnlistItem(null);
   };
 
-const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
-    <Field label="Photo (optional)" error={error}>
-      <div
-        onClick={() => inputRef.current.click()}
-        style={{
-          cursor: "pointer", borderRadius: 12, background: C.bg, textAlign: "center", marginTop: 6,
-          border: `1.5px dashed ${error ? C.red : C.border}`,
-          padding: value ? 8 : "22px 8px", transition: "border-color .15s, background .15s",
-        }}
-      >
-        {value ? (
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <img src={value} alt="preview" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, display: "block", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
-            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
-              ✕
-            </button>
-          </div> 
-        ) : (
-          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Montserrat', sans-serif" }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
-            Click to upload photo
-            <div style={{ fontSize: 10.5, marginTop: 4, opacity: 0.75 }}>optional</div>
-          </div>
-        )}
-      </div>
-    </Field>
-  );
 
   return (
-    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Montserrat', sans-serif" }}>
+    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -7726,12 +7661,11 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{editingItem.brand} · {editingItem.name}</div>
                 </div>
               </div>
-              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
             </div>
             <div style={{ padding: "22px 24px" }}>
-              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 14 }}>ℹ️</span>
-                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, lineHeight: 1.5 }}>
+                This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>.
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
                 <Field label="Brand">
@@ -7755,9 +7689,7 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
                     {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </Field>
-                <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
-                </div>
-              <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
+              </div>
 
               <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
                 <div onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}
@@ -7847,7 +7779,7 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
               onClick={() => bulkListItems(selectedItems)}
               disabled={bulkListing || selectedUnlistedCount === 0}
               className="msc-btn"
-              title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
+              title={selectedUnlistedCount === 0 ? "Click unlisted rows to select them" : "List all selected items"}
               style={{ ...toolbarBtnSt, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
               <ListIcon /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
             </button>
@@ -7878,103 +7810,158 @@ const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
             <div style={{ fontSize: 12, marginTop: 4 }}>Add products in Stock Inventory first — they will then appear here.</div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: "11px 0 11px 18px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: "#f8fffe", width: 34 }}>
-                    <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered}
-                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} title="Select all shown" />
-                  </th>
-                  {["", "Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
-                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 6 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
-                  const rowKey = keyFor(item);
-                  const isSelected = selectedKeys.has(rowKey);
-                  return (
-                    <tr
-                      key={rowKey}
-                      className={`msc-row${isSelected ? " selected" : ""}`}
-                      onClick={() => toggleSelect(rowKey)}
-                      style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
-                    >
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: "11px 0 11px 18px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(rowKey)}
-                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} />
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <div style={{ position: "relative", width: 40, height: 40 }}>
-                          <img src={item.image_url || null} alt="" style={{ width: 40, height: 40, borderRadius: 9, objectFit: "cover", border: `1px solid ${C.border}`, display: "block", background: C.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }} onError={(e) => (e.target.style.visibility = "hidden")} />
-                          {isSelected && (
-                            <div style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, borderRadius: "50%", background: C.green, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
-                              <CheckCircleIcon size={10} />
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {["Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
+                      <th key={i} style={{ padding: "11px 14px", textAlign: i === 5 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedItems.map((item) => {
+                    const rowKey = keyFor(item);
+                    const isSelected = selectedKeys.has(rowKey);
+                    return (
+                      <tr
+                        key={rowKey}
+                        className={`msc-row${isSelected ? " selected" : ""}`}
+                        onClick={() => toggleSelect(rowKey)}
+                        aria-selected={isSelected}
+                        title={isSelected ? "Click row to deselect" : "Click row to select"}
+                        style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
+                      >
+                        <td style={{ padding: "11px 14px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
+                        </td>
+                        <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
+                        <td style={{ padding: "11px 14px" }}>
+                          {item.cost > 0 ? (
+                            <div>
+                              <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
+                              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
                             </div>
+                          ) : (
+                            <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
                           )}
-                        </div>
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
-                      </td>
-                      <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {item.cost > 0 ? (
-                          <div>
-                            <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
-                            <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                        </td>
+                        <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
+                        <td style={{ padding: "11px 14px" }}>
+                          {item.listed ? (
+                            <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
+                              {item.is_visible ? "Visible" : "Hidden"}
+                            </span>
+                          ) : (
+                            <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
+                              Not Listed
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                            <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
+                              style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
+                              <EditIcon /> {item.listed ? "Edit" : "List"}
+                            </button>
+                            {item.listed && (
+                              <>
+                                <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
+                                  style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
+                                  {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
+                                </button>
+                                <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
+                                  style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
+                                  <TrashIcon />
+                                </button>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {item.listed ? (
-                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                            {item.is_visible ? "Visible" : "Hidden"}
-                          </span>
-                        ) : (
-                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
-                            Not Listed
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
-                          <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
-                            style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
-                            <EditIcon /> {item.listed ? "Edit" : "List"}
-                          </button>
-                          {item.listed && (
-                            <>
-                              <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
-                                style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
-                                {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
-                              </button>
-                              <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
-                                style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
-                                <TrashIcon />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ padding: "14px 18px", borderTop: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: "#fafffe" }}>
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>
+                Showing {pageStartDisplay}-{pageEndDisplay} of {filteredItems.length}
+              </span>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                >
+                  First
+                </button>
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                >
+                  Previous
+                </button>
+
+                {visiblePages.map((page) => (
+                  <button
+                    type="button"
+                    key={page}
+                    className="msc-btn"
+                    onClick={() => setCurrentPage(page)}
+                    style={{
+                      minWidth: 32,
+                      padding: "7px 9px",
+                      borderRadius: 8,
+                      border: `1px solid ${page === currentPage ? C.green : C.border}`,
+                      background: page === currentPage ? C.greenLt : C.white,
+                      color: page === currentPage ? C.greenDk : C.ink,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                >
+                  Next
+                </button>
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontSize: 11.5, fontWeight: 700, fontFamily: "inherit" }}
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 }
+
 
 function generateTempPassword(length = 10) {
   const groups = [
@@ -13725,7 +13712,7 @@ function GCashQRModal({ totalAmt, onConfirm, onCancel, fmtPHP }) {
         width:'100%', maxWidth:400,
         overflow:'hidden',
         boxShadow:'0 32px 80px rgba(0,0,0,0.3)',
-        fontFamily:"'Montserrat',sans-serif",
+        fontFamily:"'Plus Jakarta Sans',sans-serif",
         animation:'gcashSlideUp .25s cubic-bezier(.22,1,.36,1)',
       }}>
         <style>{`
@@ -14423,9 +14410,9 @@ const [gcashPaymentAmt,   setGcashPaymentAmt]   = React.useState(0);
   );
 
   return (
-    <div style={{ fontFamily:"'Montserrat', sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
+    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", background:"linear-gradient(140deg,#e8f5e9 0%,#f0faf4 45%,#e0f2f1 100%)", minHeight:"100vh", padding:"24px 30px 48px" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
         @media print { body > * { display: none !important; } .pos-receipt-print { display: block !important; } }
       `}</style>
 
@@ -15442,7 +15429,7 @@ function ActionDropdown({ application, onView, onAddAccount, onApprove, onDelete
                 background: "none", border: "none", cursor: "pointer",
                 fontSize: 13, fontWeight: 700,
                 color: item.color,
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "'Plus Jakarta Sans',sans-serif",
                 textAlign: "left",
                 borderTop: item.danger ? "1px solid #fee2e2" : "none",
               }}
@@ -15491,7 +15478,7 @@ function ModalShell({ onClose, maxWidth = 700, children }) {
           maxHeight: "90vh", overflowY: "auto",
           boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
           border: "1px solid rgba(0,168,76,0.15)",
-          fontFamily: "Montserrat, sans-serif",
+          fontFamily: "'Plus Jakarta Sans',sans-serif",
         }}
       >
         {children}
@@ -15907,7 +15894,7 @@ export function DeletedApplicationsTab({ deletedItems, onRestore }) {
   };
  
   return (
-    <div style={{ fontFamily: "Montserrat, sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
@@ -16053,7 +16040,7 @@ export function AppSection({ title, children }) {
     <div style={{ marginBottom: "2rem" }}>
       <h3
         style={{
-          fontFamily: "Montserrat,sans-serif", fontWeight: 800, fontSize: 13,
+          fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 13,
           color: "#00897b", textTransform: "uppercase", letterSpacing: "0.08em",
           marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${C.border}`,
         }}
