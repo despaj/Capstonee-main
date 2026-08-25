@@ -10065,13 +10065,14 @@ const downloadReport = (report) => {
 const loadImageAsBase64 = (url) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0); 
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
+      resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = reject;
     img.src = url;
@@ -10081,6 +10082,7 @@ const loadImageAsBase64 = (url) => {
 const loadImageAsBase64Circular = (url) => {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const size = Math.min(img.width, img.height);
       const canvas = document.createElement("canvas");
@@ -10099,7 +10101,7 @@ const loadImageAsBase64Circular = (url) => {
       ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
       ctx.restore();
 
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
+      resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = reject;
     img.src = url;
@@ -10128,37 +10130,56 @@ const generatePdfDoc = (report) => {
   };
 
   y = margin;
-  doc.setFillColor(13, 43, 30);
-  doc.rect(0, 0, pageW, 38, 'F');
+  doc.setFillColor(22, 73, 51);
+  doc.rect(0, 0, pageW, 2.5, 'F');
 
-  const circleLogoSize = 12;   // small circular iFranchise logo
-  const wideLogoW = 34;        // wider main logo
+  const logoW = 12;    // iFranchise logo, kept in its natural rectangular shape
+  const logoH = 12;
+  const wideLogoW = 34;
   const wideLogoH = 12;
   const gap = 6;
-  const logoY = 4;
-
-  const totalWidth = circleLogoSize + gap + wideLogoW;
+  const logoY = 8;
+  const totalWidth = logoW + gap + wideLogoW;
   const startX = (pageW - totalWidth) / 2;
   try {
-  if (iFranchise_logoB64) {
-    doc.addImage(iFranchise_logoB64, 'JPEG', startX, logoY, circleLogoSize, circleLogoSize);
+    if (iFranchise_logoB64) {
+      doc.addImage(iFranchise_logoB64, 'PNG', startX, logoY, logoW, logoH);
+    }
+    if (logoB64) {
+      doc.addImage(logoB64, 'PNG', startX + logoW + gap, logoY, wideLogoW, wideLogoH);
+    }
+  } catch (err) {
+    console.warn('Failed to add logos to PDF:', err);
   }
-  if (logoB64) {
-    doc.addImage(logoB64, 'JPEG', startX + circleLogoSize + gap, logoY, wideLogoW, wideLogoH);
-  }
-} catch (err) {
-  console.warn('Failed to add logos to PDF:', err);
-}
 
-  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(255,255,255);
-  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 28, { align: 'center' });
+  // Small report-ID badge, top-right corner
+  const badgeText = `REP-${String(report.id).padStart(5, '0')}`;
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+  const badgeW = doc.getTextWidth(badgeText) + 10;
+  doc.setDrawColor(13, 43, 30); doc.setLineWidth(0.4);
+  doc.roundedRect(pageW - margin - badgeW, 8, badgeW, 8, 2, 2, 'S');
+  doc.setTextColor(13, 43, 30);
+  doc.text(badgeText, pageW - margin - badgeW / 2, 13, { align: 'center' });
 
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(160,220,190);
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 43, 30);
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 30, { align: 'center' });
+
+  // Small decorative rule under the title
+  const ruleWidth = 46;
+  doc.setDrawColor(22, 73, 51);
+  doc.setLineWidth(0.6);
+  doc.line(pageW / 2 - ruleWidth / 2, 33.5, pageW / 2 + ruleWidth / 2, 33.5);
+
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 122, 101);
   const safePeriod = (report.period||'').replace(/→/g,'to').replace(/[^\x00-\x7F]/g,'');
-  
-  doc.setFontSize(8); doc.setTextColor(120,180,150);
-  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 34, { align: 'center' });
-  y = 46;
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 38.5, { align: 'center' });
+
+  // Thin rule closing off the header from the body
+  doc.setDrawColor(220, 230, 225);
+  doc.setLineWidth(0.3);
+  doc.line(margin, 42, pageW - margin, 42);
+
+  y = 50;
 
   const cleanContent = (report.content || '').replace(/₱/g,'PHP ').replace(/→/g,'to')
     .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
@@ -10194,7 +10215,11 @@ const generatePdfDoc = (report) => {
 
   const totalPages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i); doc.setFillColor(245,247,245); doc.rect(0, pageH - 12, pageW, 12, 'F');
+    doc.setPage(i);
+    doc.setFillColor(22, 73, 51);
+    doc.rect(0, pageH - 12, pageW, 0.6, 'F'); // thin accent line above footer bar
+    doc.setFillColor(245, 247, 245);
+    doc.rect(0, pageH - 11.4, pageW, 11.4, 'F');
     doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(120,140,130);
     doc.text(`${report.branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
     doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
@@ -10404,10 +10429,20 @@ const generatePdfDoc = (report) => {
       style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:6, padding:"7px 16px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#f0fdf5", color:"#00695c", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
       <Download size={13}/> Export CSV
     </button>
-    <button onClick={fetchReports}
-      style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-      <RefreshCw size={13}/> Refresh
-    </button>
+<button
+  onClick={fetchReports}
+  disabled={refreshing}
+  style={{
+    display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10,
+    border:"1.5px solid #b2dfdb", background:"#fff", color:"#5a7a65",
+    fontSize:12, fontWeight:700, fontFamily:"inherit",
+    cursor: refreshing ? "not-allowed" : "pointer",
+    opacity: refreshing ? 0.6 : 1,
+  }}
+>
+  <RefreshCw size={13} style={refreshing ? { animation:"spin 0.8s linear infinite" } : undefined}/>
+  {refreshing ? "Refreshing…" : "Refresh"}
+</button>
   </div>
 
   {/* Active filter chips — mirrors inventory pattern */}
@@ -11706,13 +11741,18 @@ useEffect(() => { fetchAnnouncements(); fetchDeleteHistory(); fetchActivityLog()
   const now          = new Date();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  const tabFiltered = (() => {
+   const tabFiltered = (() => {
+    let list;
     switch (selectedTab) {
-      case "recent":        return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
-      case "pinned":        return mergedAnnouncements.filter(a => a.pinned);
-      case "deleteHistory": return [];
-      default:              return mergedAnnouncements;
+      case "recent":        list = mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo); break;
+      case "pinned":        list = mergedAnnouncements.filter(a => a.pinned); break;
+      case "deleteHistory": list = []; break;
+      default:              list = mergedAnnouncements;
     }
+    return [...list].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
   })();
 
   const filtered = searchQuery.trim()
@@ -12851,11 +12891,15 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const showToast = (type, title, message) => setToast({ type, title, message });
 
   /* ── printing ── */
-  const triggerPrint = (ordersToPrint) => {
-    if (!ordersToPrint || ordersToPrint.length === 0) return;
-    setPrintQueue(ordersToPrint);
-    setTimeout(() => { window.print(); setPrintQueue([]); }, 80);
-  };
+const triggerPrint = (ordersToPrint, onDone) => {
+  if (!ordersToPrint || ordersToPrint.length === 0) { onDone?.(); return; }
+  setPrintQueue(ordersToPrint);
+  setTimeout(() => {
+    window.print();
+    setPrintQueue([]);
+    onDone?.();
+  }, 80);
+};
 
   /* ── activity log ── */
   const fetchActivityLog = useCallback(async () => {
@@ -12869,25 +12913,32 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
   const handleRefreshClick = async () => {
     setRefreshingOrders(true);
     showToast("loading", "Refreshing orders…");
-    await fetchOrders();
+    await fetchOrders({ silent: true });
     setToast(null);
+    setRefreshingOrders(false);
   };
 
-const fetchOrders = async () => {
-  setLoadingData(true);
+const fetchOrders = async ({ silent = false } = {}) => {
+  if (!silent) setLoadingData(true);
   setError(null);
   try {
+    const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
     const params = new URLSearchParams({ role: user?.role || "" });
-    if (user?.branch) params.set("branch", user.branch);
-    if (user?.brand)  params.set("brand", user.brand);
+    if (!HQ_ROLES.includes(user?.role)) {
+      if (user?.branch) params.set("branch", user.branch);
+      if (user?.brand)  params.set("brand", user.brand);
+    }
 
-    const res = await fetch(`${apiUrl}/orders?${params.toString()}`, { credentials:"include" });
+    const res = await fetch(`${apiUrl}/orders?${params.toString()}`, { credentials: "include" });
     if (!res.ok) throw new Error("Failed to load orders");
     const data = await res.json();
     setOrders(data.map(normalizeOrder));
-  } catch (err) { setError(err.message); }
-  finally { setLoadingData(false); }
-};  
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    if (!silent) setLoadingData(false);
+  }
+};
 
   const fetchIngredients = useCallback(async () => {
     try {
@@ -13051,31 +13102,32 @@ const fetchOrders = async () => {
     }
   };
 
-  const handleMassAcceptAndPrint = async () => {
-    const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
-    const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
-    if (pendingOrders.length === 0) {
-      showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
-      return;
-    }
-    setMassAccepting(true);
-    showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
-    const accepted = [];
-    for (const o of pendingOrders) {
-      try {
-        const ok = await acceptOrderWithDeduction(o);
-        if (ok) accepted.push({ ...o, status:"accepted" });
-      } catch {}
-    }
-    setMassAccepting(false);
-    if (accepted.length > 0) {
-      showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
-      triggerPrint(accepted);
-    } else {
-      setToast(null);
-    }
-    await fetchOrders();
-  };
+const handleMassAcceptAndPrint = async () => {
+  const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
+  const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
+  if (pendingOrders.length === 0) {
+    showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
+    return;
+  }
+  setMassAccepting(true);
+  showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
+  const accepted = [];
+  for (const o of pendingOrders) {
+    try {
+      const ok = await acceptOrderWithDeduction(o);
+      if (ok) accepted.push({ ...o, status: "accepted" });
+    } catch {}
+  }
+  setMassAccepting(false);
+
+  if (accepted.length > 0) {
+    showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
+    triggerPrint(accepted, () => { fetchOrders({ silent: true }); });
+  } else {
+    setToast(null);
+    await fetchOrders({ silent: true });
+  }
+};
 
   const filtered = orders.filter(o => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
