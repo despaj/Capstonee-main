@@ -14,8 +14,6 @@ const ALLOWED_TRANSITIONS = {
   rejected: [],
 };
 
-// Only these roles may move an order into "received" — admin/HO side
-// can ship it, but only the receiving branch confirms delivery.
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
@@ -25,20 +23,31 @@ router.get("/orders", async (req, res) => {
     let params = [];
 
     if (userId) {
-      // Existing behavior: customer-facing "my orders" lookup
       where = "WHERE o.user_id = $1";
       params = [userId];
     } else {
-      // Staff/admin view: no single user, so require a recognized role instead
-      const STAFF_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee Operations Admin", "Super Admin", "Franchisee", "Staff"];
+      const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
+      const RESTRICTED_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee", "Staff"];
+      const STAFF_ROLES = [...HQ_ROLES, ...RESTRICTED_ROLES];
+
       if (!STAFF_ROLES.includes(role)) {
         return res.status(403).json({ error: "userId or a valid staff role is required" });
       }
+
       const conditions = [];
-      if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
-      if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
+
+      if (HQ_ROLES.includes(role)) {
+        if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
+        if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
+      } else {
+        if (!branch || !brand) {
+          return res.status(403).json({ error: "Branch and brand are required for this role." });
+        }
+        params.push(branch); conditions.push(`o.branch=$${params.length}`);
+        params.push(brand);  conditions.push(`o.brand=$${params.length}`);
+      }
+
       if (conditions.length) where = "WHERE " + conditions.join(" AND ");
-      // no branch/brand at all = every order in the system (e.g. HQ-wide view)
     }
 
     const result = await pool.query(`

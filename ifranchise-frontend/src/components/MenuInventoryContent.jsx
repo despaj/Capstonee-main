@@ -817,17 +817,17 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
   const [statusF, setStatusF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return items
-      .filter(i => {
-        if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
-        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
-        return true;
-      })
-      .sort((a,b) => a.name.localeCompare(b.name));
-  }, [items, search, statusF]);
+const filtered = useMemo(() => {
+  const q = search.toLowerCase();
+  return items
+    .filter(i => {
+      if (q && !i.name.toLowerCase().includes(q)) return false;
+      if (statusF === "low" && !i.is_low) return false;
+      if (statusF === "ok"  && i.is_low) return false;
+      return true;
+    })
+    .sort((a,b) => a.name.localeCompare(b.name));
+}, [items, search, statusF]);
 
   useEffect(() => {
     if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
@@ -915,11 +915,11 @@ function computeAvailability(ingredients) {
 function MenuBrandCard({
   brandName, items, branchOptions, categories,
   onEdit, onRequestDelete, deletingId, onQuickAdd, onBack,
-  onOpenDeleteHistory, deleteHistoryCount,
+  onOpenDeleteHistory, deleteHistory, brandFilter,
   onImportExcel, excelRef,
+  branchFilter, onBranchFilterChange,
 }) {
   const [search, setSearch]         = useState("");
-  const [branchF, setBranchF]       = useState("");
   const [statusF, setStatusF]       = useState("");
   const [categoryF, setCategoryF]   = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -928,7 +928,7 @@ function MenuBrandCard({
    useEffect(() => {
     if (!didSetDefaultBranch.current && branchOptions.length > 0) {
       const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
-      if (headOffice) setBranchF(headOffice);
+      if (headOffice && !branchFilter) onBranchFilterChange(headOffice);
       didSetDefaultBranch.current = true;
     }
   }, [branchOptions]);
@@ -938,14 +938,23 @@ function MenuBrandCard({
     return items
       .filter(i => {
         if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (branchF && i.branch !== branchF) return false;
+        if (branchFilter && i.branch !== branchFilter) return false;
         if (categoryF && i.category !== categoryF) return false;
         if (statusF === "low" && !i.is_low) return false;
-        if (statusF === "ok"  && i.is_low) return false;
+if (statusF === "ok"  && i.is_low) return false;
         return true;
       })
       .sort((a,b) => a.name.localeCompare(b.name));
-  }, [items, search, branchF, categoryF, statusF]);
+  }, [items, search, branchFilter, categoryF, statusF]);
+
+    const filteredDeleteHistory = useMemo(() => {
+    return (deleteHistory || []).filter(entry => {
+      const d = entry.inventory_data || {};
+      if (brandFilter && d.brand !== brandFilter) return false;
+      if (branchFilter && d.branch !== branchFilter) return false;
+      return true;
+    });
+  }, [deleteHistory, brandFilter, branchFilter]);
 
   useEffect(() => {
     if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
@@ -984,7 +993,7 @@ function MenuBrandCard({
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
-        <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
+         <BranchOnlyFilter branches={branchOptions} activeBranch={branchFilter} onChangeBranch={onBranchFilterChange}/>
         <select value={categoryF} onChange={e=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:140 }}>
           <option value="">All Categories</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -995,11 +1004,11 @@ function MenuBrandCard({
           <option value="ok">In Stock</option>
         </select>
         <div style={{ flex:1 }}/>
-        <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
-          <HistoryIcon size={11}/> Delete History
-          {deleteHistoryCount > 0 && (
-            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
-          )}
+        <button onClick={() => onOpenDeleteHistory(filteredDeleteHistory)} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
+           <HistoryIcon size={11}/> Delete History
+          {filteredDeleteHistory.length > 0 && (
+            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{filteredDeleteHistory.length}</span>
+           )}
         </button>
         <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5, background:C.white }}>
           <FileIcon size={11}/> Import Excel
@@ -1013,7 +1022,7 @@ function MenuBrandCard({
           {filtered.length === 0 ? (
             <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
           ) : filtered.map(item => {
-            const low = Number(item.stock) <= Number(item.min_stock);
+            const low = item.is_low;
             const active = item.id === selectedId;
             const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
             return (
@@ -1102,6 +1111,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
 
   const [deleteHistory,     setDeleteHistory]     = useState([]);
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
+  const [deleteHistoryToShow, setDeleteHistoryToShow] = useState([]);
   const [activityLog,       setActivityLog]       = useState([]);
   const [showActivityLog,   setShowActivityLog]   = useState(false);
 
@@ -1168,6 +1178,8 @@ const fetchStockItems = useCallback(async (branch, brand) => {
   } catch { setStockItems([]); }
 }, []);
 
+
+
   const fetchDeleteHistory = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/inventory-delete-history`);
@@ -1212,23 +1224,21 @@ const fetchStockItems = useCallback(async (branch, brand) => {
     fetchInventory();
   }, [isAdmin, userBranch, fetchInventory]);
 
-  useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
+ useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
 const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return inventory.filter(i => {
-      const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
-      if (filterBrandName && itemBrand !== filterBrandName) return false;
-      if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-      if (filterCategory && i.category!==filterCategory) return false;
-      if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
-      if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
-      return true;
-    });
-  }, [inventory, searchQuery, filterCategory, filterStatus, filterBrandName, branchToBrand]);
+  const q = searchQuery.toLowerCase();
+  return inventory.filter(i => {
+    const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
+    if (filterBrandName && itemBrand !== filterBrandName) return false;
+    if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
+    if (filterCategory && i.category !== filterCategory) return false;
+    return true;
+  });
+}, [inventory, searchQuery, filterCategory, filterBrandName, branchToBrand]);
 
   const filteredCategories = useMemo(() => {
     if (filterBrandName) {
@@ -1292,10 +1302,6 @@ const handleAddItem = async e => {
   if (!formData.category?.trim())  missing.push("Category");
   if (!branch?.trim())             missing.push("Branch");
   if (!formData.brand?.trim())     missing.push("Brand");
-  if (formData.cost === "" || formData.cost == null)   missing.push("Cost");
-  if (formData.price === "" || formData.price == null) missing.push("Price");
-  if (!formData.image_url?.trim()) missing.push("Image");
-  if (formData.minStock === "" || formData.minStock == null) missing.push("Min stock");
   if (!formData.ingredients || formData.ingredients.length === 0) {
     missing.push("At least one ingredient");
   } else {
@@ -1490,7 +1496,7 @@ const handleAddItem = async e => {
 
 const openEditModal = item => {
   setEditingItem(item);
-  const branch = isAdmin ? "Head Office" : item.branch;
+  const branch = isAdmin ? (branchFilter || item.branch || "Head Office") : item.branch;
   const brandForItem = filterBrandName || branchToBrand[item.branch] || ""; 
   setFormData({
     name:item.name, category:item.category, branch, brand:brandForItem,
@@ -1510,7 +1516,7 @@ const openEditModal = item => {
 };
 
 const openAddModal = () => {
-  const branch = isAdmin ? "Head Office" : userBranch;
+  const branch = isAdmin ? (branchFilter || "Head Office") : userBranch;
   const brandName = selectedBrandObj ? selectedBrandObj.name : "";
   setFormData({ ...emptyForm(), branch, brand: brandName });
   fetchStockItems(branch, brandName);
@@ -1892,7 +1898,7 @@ const openBrand = brandId => {
                   brand={b}
                   branchCount={branchNames.length}
                   itemCount={brandItems.length}
-                  lowCount={brandItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length}
+                  lowCount={brandItems.filter(i => i.is_low).length}
                   onClick={() => openBrand(b.id)}
                 />
               );
@@ -1914,29 +1920,39 @@ return (
       <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid ${C.border}` }}>
         Loading inventory…
       </div>
+    ) : isAdmin ? (
+      <MenuBrandCard
+        key={filterBrandName || "all"}
+        brandName={filterBrandName || "All Items"}
+        items={filteredItems}
+        branchOptions={branchOptionsForCard}
+        categories={filteredCategories}
+        onEdit={openEditModal}
+        onRequestDelete={setDeleteTarget}
+        deletingId={deletingId}
+        branchFilter={branchFilter}
+        onBranchFilterChange={setBranchFilter}
+        onQuickAdd={()=>{
+          const branch = branchFilter || "Head Office";
+          setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
+          fetchStockItems(branch, filterBrandName || "");
+          setFormBrandId(filterBrand ? String(filterBrand) : "");
+          setShowAddModal(true);
+        }}
+        onBack={goBackToBrands}
+        deleteHistory={deleteHistory}
+        brandFilter={filterBrandName}
+        onOpenDeleteHistory={(filtered) => { setDeleteHistoryToShow(filtered); setShowDeleteHistory(true); }}
+        onImportExcel={importExcel}
+        excelRef={excelRef}
+      />
     ) : (
-<MenuBrandCard
-  key={filterBrandName || "all"}
-  brandName={filterBrandName || "All Items"}
-  items={filteredItems}
-  branchOptions={branchOptionsForCard}
-  categories={filteredCategories}
-  onEdit={openEditModal}
-  onRequestDelete={setDeleteTarget}
-  deletingId={deletingId}
-  onQuickAdd={()=>{
-    const branch = isAdmin ? "Head Office" : userBranch;
-    setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
-    fetchStockItems(branch, filterBrandName || "");
-    setFormBrandId(filterBrand ? String(filterBrand) : "");
-    setShowAddModal(true);
-  }}
-  onBack={isAdmin ? goBackToBrands : null}
-  onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
-  deleteHistoryCount={deleteHistory.length}
-  onImportExcel={importExcel}
-  excelRef={excelRef}
-/>
+      <MenuBrandListCard
+        items={filteredItems}
+        onEdit={openEditModal}
+        onRequestDelete={setDeleteTarget}
+        deletingId={deletingId}
+      />
     )}
 
     {deleteTarget && (
@@ -1973,7 +1989,7 @@ return (
 
     {showDeleteHistory && (
       <InventoryDeleteHistoryPanel
-        history={deleteHistory}
+        history={deleteHistoryToShow}
         onRestore={handleRestore}
         restoringId={restoringId}
         onClose={() => setShowDeleteHistory(false)}

@@ -1028,8 +1028,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged }) {
-  const [search, setSearch]     = useState("");
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, onOpenDeleteHistory, deleteHistory }) {  const [search, setSearch]     = useState("");
   const [branchF, setBranchF]   = useState(initialBranchFilter);
   const [unitF, setUnitF]       = useState("");
   const [statusF, setStatusF]   = useState(initialStatusFilter);
@@ -1053,6 +1052,15 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuic
 const branchOptions = useMemo(() => {
   return (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
 }, [brandObj]);
+
+  const filteredDeleteHistory = useMemo(() => {
+    return (deleteHistory || []).filter(entry => {
+      const d = entry.data || {};
+      if (!brandDef.match((d.brand || "").toLowerCase())) return false;
+      if (branchF && d.branch !== branchF) return false;
+      return true;
+    });
+  }, [deleteHistory, brandDef, branchF]);
 
   const filtered = useMemo(() => {
   const q = search.toLowerCase();
@@ -1249,6 +1257,13 @@ return (
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
         </select>
+         <div style={{ flex:1 }}/>
+        <button onClick={() => onOpenDeleteHistory(filteredDeleteHistory)} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
+           <HistoryIcon size={11}/> Delete History
+          {filteredDeleteHistory.length > 0 && (
+            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{filteredDeleteHistory.length}</span>
+           )}
+        </button>
       </div>
 
       {/* two columns: left = scrollable product list, right = scrollable FIFO/FEFO queue */}
@@ -2285,6 +2300,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [showValue, setShowValue] = useState(true);
 
   const [receiveTarget, setReceiveTarget] = useState(null);
+  const [deleteHistoryToShow, setDeleteHistoryToShow] = useState([]);
 
   const excelRef = useRef(null);
 
@@ -2496,7 +2512,10 @@ const emptyForm = useCallback(() => ({
     if (!form.brand) errors.push("Brand is required.");
     if (isAdmin && !form.branch) errors.push("Branch is required.");
     if (!form.unit) errors.push("Unit is required.");
-    if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
+    if (!isPositiveOrZeroNumber(form.min_stock) || parseFloat(form.min_stock) <= 0) {
+     errors.push("Minimum stock is required and must be greater than 0.");
+   }
+   if (form.listInShop && !form.shopCategory) errors.push("Shop category is required when listing in Mobile Shop.");
   
     if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
       errors.push("Stock must be a valid number of 0 or more.");
@@ -2711,25 +2730,6 @@ const openEdit = async item => {
         [role="button"]:hover { filter: brightness(0.97); }
       `}</style>
 
-       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
-        <button
-          onClick={() => setShowDeleteHistory(true)}
-          style={{ ...btnSt, borderColor:"#fecaca", color:"#dc2626" }}
-        >
-          <HistoryIcon size={13}/> Delete History
-          {deleteHistory.length > 0 && (
-            <span style={{
-              marginLeft:2, fontSize:10, fontWeight:800,
-              background:"#fee2e2", color:"#dc2626",
-              borderRadius:20, padding:"1px 7px",
-            }}>
-              {deleteHistory.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-
       {/* Landing screen: 4 brand cards — clicking one opens its full product + FIFO/FEFO view */}
       {!activeBrandDef ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
@@ -2771,6 +2771,8 @@ const openEdit = async item => {
             showUiModal={showUiModal}
             setToast={setToast}
             onItemsChanged={() => { fetchItems(); fetchActivityLog(); }}
+            deleteHistory={deleteHistory}
+            onOpenDeleteHistory={(filtered) => { setDeleteHistoryToShow(filtered); setShowDeleteHistory(true); }}
           />
         </>
       )}
@@ -2984,8 +2986,7 @@ const openEdit = async item => {
       {/* ── IMPORT LOADING MODAL ── */}
       <ImportLoadingModal visible={importLoading} progress={importProgress}/>
       <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={()=>{ if(uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
-      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistory} restoringId={restoringId} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}
-      {showActivityLog && (
+      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistoryToShow} restoringId={restoringId} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}{showActivityLog && (
   <ActivityLogPanel
     log={activityLog}
     onClose={() => setShowActivityLog(false)}

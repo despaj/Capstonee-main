@@ -628,6 +628,7 @@ export function POSContent({ user }) {
   const [discountAuthInput,  setDiscountAuthInput]   = useState('');
   const [discountAuthErr,    setDiscountAuthErr]     = useState('');
   const [customDiscountInput,setCustomDiscountInput] = useState('');
+  const [discountVerifying, setDiscountVerifying] = useState(false);
 
   // Modals
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -703,19 +704,37 @@ export function POSContent({ user }) {
     setDiscountAuthInput(''); setCustomDiscountInput('');
   };
 
-  // ── Discount auth ─────────────────────────────────────────────────────────
-  const confirmDiscountAuth = () => {
-    if (discountAuthInput !== MANAGER_PASSWORD) {
-      setDiscountAuthErr('Incorrect manager password.');
+  const confirmDiscountAuth = async () => {
+  if (!discountAuthInput) {
+    setDiscountAuthErr('Please enter the manager password.');
+    return;
+  }
+
+  if (pendingDiscount.label === 'Others') {
+    const pct = parseFloat(customDiscountInput);
+    if (!pct || pct <= 0 || pct > 100) {
+      setDiscountAuthErr('Enter a valid discount % (1–100).');
       return;
     }
+  }
+
+  setDiscountVerifying(true);
+  setDiscountAuthErr('');
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-manager-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch: userBranch, password: discountAuthInput }),
+    });
+    const data = await res.json();
+    if (!data.valid) {
+      setDiscountAuthErr(data.error || 'Incorrect manager password.');
+      setDiscountVerifying(false);
+      return;
+    }
+
     if (pendingDiscount.label === 'Others') {
-      const pct = parseFloat(customDiscountInput);
-      if (!pct || pct <= 0 || pct > 100) {
-        setDiscountAuthErr('Enter a valid discount % (1–100).');
-        return;
-      }
-      setDiscountPct(pct);
+      setDiscountPct(parseFloat(customDiscountInput));
       setDiscountType('Others');
     } else {
       setDiscountPct(pendingDiscount.pct);
@@ -726,7 +745,12 @@ export function POSContent({ user }) {
     setDiscountAuthErr('');
     setCustomDiscountInput('');
     setPendingDiscount(null);
-  };
+  } catch {
+    setDiscountAuthErr('Could not verify password. Check your connection.');
+  } finally {
+    setDiscountVerifying(false);
+  }
+};
 
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal    = cart.reduce((s, c) => s + (c.price || 0) * c.qty, 0);

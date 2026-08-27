@@ -5255,8 +5255,13 @@ function UIModal({ modal, onClose, onConfirm }) {
 
 // MOBILE ORDERS
 
-const DB_TO_UI_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", cancelled:"rejected" };
-const UI_TO_DB_STATUS = { pending:"pending", accepted:"accepted", disposed:"disposed", rejected:"cancelled" };
+const DB_TO_UI_STATUS = {
+  pending:  "pending",
+  accepted: "accepted",
+  shipping: "shipping",
+  received: "received",
+  rejected: "rejected",
+};
 
 const STATUS_CONFIG = {
   pending:  { label:"Incoming",  bg:"#faeeda", color:"#633806", dot:"#BA7517" },
@@ -5750,6 +5755,18 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
   );
 }
 
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        () => resolve(null),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  };
+
+
 function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   const apiUrl   = process.env.REACT_APP_API_URL;
   const userName = user?.name || "Admin";
@@ -5770,29 +5787,24 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   const [massAccepting, setMassAccepting] = useState(false);
   const [acceptingId,   setAcceptingId]   = useState(null);
 
-  // Automatic, per-order stock availability — replaces manual "check stock" + dispose flow
-  // shape: { [orderId]: { checking: bool, ok: bool, results: [{...item, matched, available, sufficient}] } }
+  const [shippingId, setShippingId] = useState(null);
+
   const [stockAvailability, setStockAvailability] = useState({});
 
   const showToast = (type, title, message) => setToast({ type, title, message });
 
-  const getBrowserLocation = () => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) { resolve(null); return; }
-      navigator.geolocation.getCurrentPosition(
-        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-        () => resolve(null),
-        { timeout: 5000, maximumAge: 60000 }
-      );
-    });
-  };
+  /* ── printing ── */
+const triggerPrint = (ordersToPrint, onDone) => {
+  if (!ordersToPrint || ordersToPrint.length === 0) { onDone?.(); return; }
+  setPrintQueue(ordersToPrint);
+  setTimeout(() => {
+    window.print();
+    setPrintQueue([]);
+    onDone?.();
+  }, 80);
+};
 
-  const triggerPrint = (ordersToPrint) => {
-    if (!ordersToPrint || ordersToPrint.length === 0) return;
-    setPrintQueue(ordersToPrint);
-    setTimeout(() => { window.print(); setPrintQueue([]); }, 80);
-  };
-
+  /* ── activity log ── */
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${apiUrl}/orders-activity-log`);
@@ -5804,22 +5816,32 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   const handleRefreshClick = async () => {
     setRefreshingOrders(true);
     showToast("loading", "Refreshing orders…");
-    await fetchOrders();
+    await fetchOrders({ silent: true });
     setToast(null);
+    setRefreshingOrders(false);
   };
 
-  /* ── fetch orders + ingredients ── */
-  const fetchOrders = async () => {
-    setLoadingData(true);
-    setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/orders`, { credentials:"include" });
-      if (!res.ok) throw new Error("Failed to load orders");
-      const data = await res.json();
-      setOrders(data.map(normalizeOrder));
-    } catch (err) { setError(err.message); }
-    finally { setLoadingData(false); }
-  };
+const fetchOrders = async ({ silent = false } = {}) => {
+  if (!silent) setLoadingData(true);
+  setError(null);
+  try {
+    const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
+    const params = new URLSearchParams({ role: user?.role || "" });
+    if (!HQ_ROLES.includes(user?.role)) {
+      if (user?.branch) params.set("branch", user.branch);
+      if (user?.brand)  params.set("brand", user.brand);
+    }
+
+    const res = await fetch(`${apiUrl}/orders?${params.toString()}`, { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to load orders");
+    const data = await res.json();
+    setOrders(data.map(normalizeOrder));
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    if (!silent) setLoadingData(false);
+  }
+};
 
   const fetchIngredients = useCallback(async () => {
     try {
@@ -5831,9 +5853,10 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
 
   useEffect(() => { fetchOrders(); fetchActivityLog(); fetchIngredients(); }, [fetchActivityLog, fetchIngredients]);
 
-  /* ── automatic stock availability, sourced entirely from Stock Inventory
-     (ingredients/ingredient_batches). shop_items.stock is just a mirror of
-     this now — never treated as authoritative. ── */
+  /* ── NEW: automatic stock availability for all pending orders ──
+     Runs whenever the order list changes — no button click needed.
+     Caps each item's availability at the linked ingredient's real batch stock,
+     same logic the old manual "check stock" step used, just automatic + upfront. */
   const fetchShopItemsMap = async () => {
     const res = await fetch(`${apiUrl}/shop-items`);
     const data = await res.json();
@@ -5848,6 +5871,9 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     return Array.isArray(d) ? d : [];
   };
 
+/* ── automatic stock availability, sourced entirely from Stock Inventory
+     (ingredients/ingredient_batches). shop_items.stock is just a mirror of
+     this now — never treated as authoritative. ── */
   const refreshStockAvailability = useCallback(async (orderList) => {
     const pendingOrders = orderList.filter(o => o.status === "pending");
     if (pendingOrders.length === 0) return;
@@ -5860,7 +5886,7 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
 
     let shopItemsMap;
     try {
-      shopItemsMap = await fetchShopItemsMap();
+      shopItemsMap = await fetchShopItemsMap(); // still needed to resolve shop_item_id -> ingredient_id
     } catch {
       return;
     }
@@ -5903,34 +5929,33 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
   }, [orders, refreshStockAvailability]);
 
   const advanceStatus = async (order, nextUiStatus, changeNote) => {
-    const dbStatus = UI_TO_DB_STATUS[nextUiStatus];
-    const coords = await getBrowserLocation();
-    try {
-      const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
-        method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
-        body: JSON.stringify({
-          status: dbStatus,
-          performed_by: userName,
-          performed_by_role: user?.role || "Unknown",
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-        }),
-      });
-      if (!res.ok) {
-        let detail = "";
-        try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
-        throw new Error(detail || `Update failed (${res.status})`);
+      const coords = await getBrowserLocation(); // reuse the helper used elsewhere in this app
+      try {
+        const res = await fetch(`${apiUrl}/orders/${order._dbId}`, {
+          method:"PUT", headers:{ "Content-Type":"application/json" }, credentials:"include",
+          body: JSON.stringify({
+            status: nextUiStatus,
+            performed_by: userName,
+            performed_by_role: user?.role || "Unknown",
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        });
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.json()).error || detail; } catch { detail = await res.text().catch(() => ""); }
+          throw new Error(detail || `Update failed (${res.status})`);
+        }
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
+        setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
+        await fetchActivityLog();
+      } catch (err) {
+        showToast("error", "Couldn't update order", err.message);
+        throw err;
       }
-      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status:nextUiStatus } : o));
-      setViewOrder(v => (v && v.id === order.id) ? { ...v, status:nextUiStatus } : v);
-      await fetchActivityLog();
-    } catch (err) {
-      showToast("error", "Couldn't update order", err.message);
-      throw err;
-    }
-  };
+    };
 
-  const acceptOrderWithDeduction = async (order) => {
+    const acceptOrderWithDeduction = async (order) => {
     const availability = stockAvailability[order.id];
     if (!availability?.ok) {
       const short = (availability?.results || []).filter(r => !r.sufficient);
@@ -5968,31 +5993,44 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     } catch {}
   };
 
-  const handleMassAcceptAndPrint = async () => {
-    const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
-    const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
-    if (pendingOrders.length === 0) {
-      showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
-      return;
+  const handleShip = async (order) => {
+    setShippingId(order.id);
+    try {
+      await advanceStatus(order, "shipping", "Marked as shipping");
+      showToast("success", "Order shipped", `#${order.id} is on its way.`);
+    } catch (err) {
+      showToast("error", "Couldn't ship order", err.message);
+    } finally {
+      setShippingId(null);
     }
-    setMassAccepting(true);
-    showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
-    const accepted = [];
-    for (const o of pendingOrders) {
-      try {
-        const ok = await acceptOrderWithDeduction(o);
-        if (ok) accepted.push({ ...o, status:"accepted" });
-      } catch {}
-    }
-    setMassAccepting(false);
-    if (accepted.length > 0) {
-      showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
-      triggerPrint(accepted);
-    } else {
-      setToast(null);
-    }
-    await fetchOrders();
   };
+
+const handleMassAcceptAndPrint = async () => {
+  const pendingOrders = orders.filter(o => o.status === "pending" && stockAvailability[o.id]?.ok);
+  const skipped = orders.filter(o => o.status === "pending" && !stockAvailability[o.id]?.ok).length;
+  if (pendingOrders.length === 0) {
+    showToast("error", "Nothing to accept", skipped > 0 ? `${skipped} order(s) skipped — insufficient stock.` : "No incoming orders.");
+    return;
+  }
+  setMassAccepting(true);
+  showToast("loading", "Accepting orders…", `Processing ${pendingOrders.length} order(s)`);
+  const accepted = [];
+  for (const o of pendingOrders) {
+    try {
+      const ok = await acceptOrderWithDeduction(o);
+      if (ok) accepted.push({ ...o, status: "accepted" });
+    } catch {}
+  }
+  setMassAccepting(false);
+
+  if (accepted.length > 0) {
+    showToast("success", "Orders accepted", `${accepted.length} accepted${skipped ? `, ${skipped} skipped (low stock)` : ""} — sending to print.`);
+    triggerPrint(accepted, () => { fetchOrders({ silent: true }); });
+  } else {
+    setToast(null);
+    await fetchOrders({ silent: true });
+  }
+};
 
   const filtered = orders.filter(o => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
@@ -6007,28 +6045,32 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     total:    orders.length,
     pending:  orders.filter(o => o.status === "pending").length,
     accepted: orders.filter(o => o.status === "accepted").length,
+    shipping: orders.filter(o => o.status === "shipping").length,
+    received: orders.filter(o => o.status === "received").length,
     rejected: orders.filter(o => o.status === "rejected").length,
   };
 
   const FILTER_CHIPS = [
     { key:"all",      label:"All Orders",      count:counts.total },
     { key:"pending",  label:"Incoming Orders", count:counts.pending },
-    { key:"accepted", label:"Shipping",        count:counts.accepted },
+    { key:"accepted", label:"To Ship",         count:counts.accepted },
+    { key:"shipping", label:"Shipping",        count:counts.shipping },
+    { key:"received", label:"Delivered",       count:counts.received },
     { key:"rejected", label:"Rejected",        count:counts.rejected },
   ];
 
   if (loadingData) return (
-    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Loading orders…</div>
+    <div style={{ padding:60, textAlign:"center", color:C.muted, fontFamily:"'Montserrat',sans-serif" }}>Loading orders…</div>
   );
   if (error) return (
-    <div style={{ padding:40, textAlign:"center", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      <div style={{ color:"#dc2626", marginBottom:12 }}>{error}</div>
+    <div style={{ padding:40, textAlign:"center", fontFamily:"'Montserrat',sans-serif" }}>
+      <div style={{ color:C.red, marginBottom:12 }}>{error}</div>
       <button onClick={fetchOrders} style={{ padding:"8px 20px", borderRadius:8, border:`1px solid ${C.border}`, background:C.greenLt, color:C.greenDk, fontWeight:700, cursor:"pointer" }}>Retry</button>
     </div>
   );
 
   return (
-    <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+    <div style={{ fontFamily:"'Montserrat',sans-serif" }}>
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -6104,6 +6146,9 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
                 onAccept={handleAccept}
                 acceptDisabled={acceptingId === order.id || (order.status === "pending" && !stockAvailability[order.id]?.ok)}
                 accepting={acceptingId === order.id}
+                onShip={handleShip}
+                shipDisabled={shippingId === order.id}
+                shipping={shippingId === order.id} 
               />
             </div>
           ))}
@@ -6120,6 +6165,9 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
           stockInfo={stockAvailability[viewOrder.id]}
           acceptDisabled={acceptingId === viewOrder.id || (viewOrder.status === "pending" && !stockAvailability[viewOrder.id]?.ok)}
           accepting={acceptingId === viewOrder.id}
+          onShip={handleShip}
+          shipDisabled={shippingId === viewOrder.id}
+          shipping={shippingId === viewOrder.id}
         />
       )}
 
@@ -6131,7 +6179,6 @@ function FAMobileOrdersContent({ user, brands: propBrands = [] }) {
     </div>
   );
 }
-
 
 // APPLICATIONS 
 function generateTempPassword(length = 10) {
@@ -7646,9 +7693,13 @@ function FACommunicationContent({ user, brands: propBrands = [] }) {
 
   const merged = announcements.map(a => ({ ...a, pinned: pinnedIds.has(String(a.id)) }));
   const now = new Date(), sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const tabFiltered = selectedTab === 'recent' ? merged.filter(a => new Date(a.created_at) >= sevenDaysAgo)
-    : selectedTab === 'pinned' ? merged.filter(a => a.pinned)
-    : selectedTab === 'deleteHistory' ? [] : merged;
+const tabFiltered = (selectedTab === 'recent' ? merged.filter(a => new Date(a.created_at) >= sevenDaysAgo)
+  : selectedTab === 'pinned' ? merged.filter(a => a.pinned)
+  : selectedTab === 'deleteHistory' ? [] : merged
+).sort((a, b) => {
+  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+  return new Date(b.created_at) - new Date(a.created_at);
+});
 
   const fmt = (d) => new Date(d).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const getInitials = (t = '') => t.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');

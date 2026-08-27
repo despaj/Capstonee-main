@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import logo from '../assets/logo.png';
 import Receipts from './Receipts';
 import jsPDF from 'jspdf';
+import ifranchisejpg from '../assets/ifranchisejpg.jpg';
+import franchisync from '../assets/franchisyncjpg.jpg';
 import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
@@ -332,7 +334,7 @@ export default function FranchiseeDashboard({ onLogout }) {
 
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
-    { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
+    { id: 'menuInventory',  label: 'Product Catalogue',  icon: <Box size={20} /> },
     { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
@@ -2478,7 +2480,7 @@ function FrMenuInventoryContent({ user, brands }) {
         @media(max-width:900px){ .fr-menu-master-detail{ grid-template-columns:1fr !important; } .fr-menu-detail{ border-top:1px solid #E1E6D8; } }
       `}</style>
 
-      <ReadOnlyBanner message="Menu inventory is view-only. You can search, filter, sort, and inspect item details." />
+      <ReadOnlyBanner message="Product Catalogue is view-only. You can search, filter, sort, and inspect item details." />
 
       <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:'hidden', boxShadow:'0 2px 10px rgba(50,109,32,.05)' }}>
         {/* Flat header copied from the supplied Menu Inventory card layout */}
@@ -2488,7 +2490,7 @@ function FrMenuInventoryContent({ user, brands }) {
               <StoreIcon size={16} color={C.green}/>
             </div>
             <div>
-              <div style={{ fontSize:17, fontWeight:800, color:C.ink }}>Menu Inventory</div>
+              <div style={{ fontSize:17, fontWeight:800, color:C.ink }}>Product Catalogue</div>
               <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{userBranch}</div>
             </div>
           </div>
@@ -3611,6 +3613,9 @@ function FrReportsContent({ user, transactions = [] }){
   const [deletingId, setDeletingId] = useState(null);
   const [savingId, setSavingId] = useState(null);
 
+  const [logoB64, setLogoB64] = useState(null);
+  const [iFranchiseLogoB64, setIFranchiseLogoB64] = useState(null);
+
   const showToast = (type, title, message) => setToast({ type, title, message });
 
   const fmtPeriod = (period) => {
@@ -3639,6 +3644,11 @@ function FrReportsContent({ user, transactions = [] }){
   useEffect(() => { setGenPage(0); }, [reports]);
   useEffect(() => { setSubPage(0); }, [submittedReports]);
   useEffect(() => { setDelPage(0); }, [deletedReports]);
+
+  useEffect(() => {
+  loadImageAsBase64(franchisync).then(setLogoB64).catch(err => console.warn("Failed to load left logo:", err));
+  loadImageAsBase64Circular(ifranchisejpg).then(setIFranchiseLogoB64).catch(err => console.warn("Failed to load right logo:", err));
+}, []);
 
 useEffect(() => {
   const fetchSavedReports = async () => {
@@ -4046,142 +4056,172 @@ setRetrieving(report.id);
   setRetrieving(null);
 };
 
-  const downloadReport = report => {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 18;
-    const contentW = pageW - margin * 2;
-    let y = 0;
-
-    const addPage = () => {
-      doc.addPage();
-      y = margin;
+const loadImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
     };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
 
-    const checkY = (needed = 8) => {
-      if (y + needed > pageH - margin) addPage();
+const loadImageAsBase64Circular = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      const offsetX = (img.width - size) / 2;
+      const offsetY = (img.height - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      ctx.restore();
+      resolve(canvas.toDataURL("image/png"));
     };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
 
-    const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
-      doc.setFontSize(fontSize);
-      doc.setFont('helvetica', style);
-      doc.setTextColor(...color);
-      const lines = doc.splitTextToSize(text, contentW - indent);
-      lines.forEach(line => {
-        checkY(fontSize * 0.45 + 2);
-        doc.text(line, margin + indent, y);
-        y += fontSize * 0.45 + 1.5;
-      });
-    };
+const downloadReport = report => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = 0;
 
-    const writeDivider = (color = [180, 180, 180]) => {
-      checkY(6);
-      doc.setDrawColor(...color);
-      doc.setLineWidth(0.3);
-      doc.line(margin, y, pageW - margin, y);
-      y += 4;
-    };
+  const addPage = () => { doc.addPage(); y = margin; };
+  const checkY = (needed = 8) => { if (y + needed > pageH - margin) addPage(); };
 
-    y = margin;
-
-    doc.setFillColor(13, 43, 30);
-    doc.rect(0, 0, pageW, 38, 'F');
-
-    doc.setFontSize(15);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(160, 220, 190);
-    const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
-    
-    doc.text(`REP-${String(report.id).padStart(5, '0')}   |   Branch: ${branch}   |   Period: ${safePeriod}`, pageW / 2, 22, { align: 'center' });
-    doc.text(`Generated: ${report.generatedDate}`, pageW / 2, 28, { align: 'center' });
-    doc.setFontSize(8);
-    doc.setTextColor(120, 180, 150);
-    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 33.5, { align: 'center' });
-
-    y = 46;
-
-    const cleanContent = report.content
-      .replace(/₱/g, 'PHP ')
-      .replace(/±/g, 'PHP ')
-      .replace(/→/g, 'to')
-      .replace(/!'/g, 'to')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/\u2013/g, '-')
-      .replace(/\u2014/g, '--')
-      .replace(/\u2026/g, '...')
-      .replace(/[═─━]+/g, '')
-      .replace(/^.*FRANCHISE SALES.*$/gm, '')
-      .replace(/^.*Branch:.*Period:.*$/gm, '')
-      .replace(/^.*Date Prepared:.*$/gm, '')
-      .replace(/^.*This report was automatically.*$/gm, '')
-      .replace(/^.*transaction data for.*$/gm, '')
-      .replace(/^.*report generation date.*$/gm, '')
-      .replace(/[^\x00-\x7F]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    const lines = cleanContent.split('\n');
-
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed) { y += 3; return; }
-
-      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
-        checkY(14);
-        y += 4;
-        doc.setFillColor(0, 137, 123);
-        doc.rect(margin, y - 4, 3, 9, 'F');
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(13, 43, 30);
-        doc.text(trimmed, margin + 6, y + 2);
-        y += 8;
-        writeDivider([0, 137, 123]);
-      }
-      else if (/^\d+\.\s+/.test(trimmed)) {
-        checkY(8);
-        const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
-        doc.setFontSize(9.5);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 137, 123);
-        doc.text(num.replace('.', ''), margin + 2, y);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(40, 40, 40);
-        const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
-        wrapped.forEach((wl, i) => {
-          if (i > 0) checkY(6);
-          doc.text(wl, margin + 9, y);
-          y += 5.5;
-        });
-      }
-      else {
-        writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
-        y += 1;
-      }
-    });
-
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFillColor(245, 247, 245);
-      doc.rect(0, pageH - 12, pageW, 12, 'F');
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 140, 130);
-      const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
-      doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
-      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
-    }
-
-    doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
+    doc.setFontSize(fontSize); doc.setFont('helvetica', style); doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(text, contentW - indent);
+    lines.forEach(line => { checkY(fontSize * 0.45 + 2); doc.text(line, margin + indent, y); y += fontSize * 0.45 + 1.5; });
   };
+  const writeDivider = (color = [180, 180, 180]) => {
+    checkY(6); doc.setDrawColor(...color); doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y); y += 4;
+  };
+
+  y = margin;
+
+  // ── Header, copied from ReportsContent.generatePdfDoc ──
+  doc.setFillColor(22, 73, 51);
+  doc.rect(0, 0, pageW, 2.5, 'F');
+
+  const logoW = 12, logoH = 12, wideLogoW = 34, wideLogoH = 12, gap = 6, logoY = 8;
+  const totalWidth = logoW + gap + wideLogoW;
+  const startX = (pageW - totalWidth) / 2;
+  try {
+    if (iFranchiseLogoB64) doc.addImage(iFranchiseLogoB64, 'PNG', startX, logoY, logoW, logoH);
+    if (logoB64) doc.addImage(logoB64, 'PNG', startX + logoW + gap, logoY, wideLogoW, wideLogoH);
+  } catch (err) {
+    console.warn('Failed to add logos to PDF:', err);
+  }
+
+  const badgeText = `REP-${String(report.id).padStart(5, '0')}`;
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+  const badgeW = doc.getTextWidth(badgeText) + 10;
+  doc.setDrawColor(13, 43, 30); doc.setLineWidth(0.4);
+  doc.roundedRect(pageW - margin - badgeW, 8, badgeW, 8, 2, 2, 'S');
+  doc.setTextColor(13, 43, 30);
+  doc.text(badgeText, pageW - margin - badgeW / 2, 13, { align: 'center' });
+
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 43, 30);
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 30, { align: 'center' });
+
+  const ruleWidth = 46;
+  doc.setDrawColor(22, 73, 51);
+  doc.setLineWidth(0.6);
+  doc.line(pageW / 2 - ruleWidth / 2, 33.5, pageW / 2 + ruleWidth / 2, 33.5);
+
+  const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 122, 101);
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 38.5, { align: 'center' });
+
+  doc.setDrawColor(220, 230, 225);
+  doc.setLineWidth(0.3);
+  doc.line(margin, 42, pageW - margin, 42);
+
+  y = 50;
+
+  // ── Body — same cleaning + parsing as before ──
+  const cleanContent = report.content
+    .replace(/₱/g, 'PHP ')
+    .replace(/±/g, 'PHP ')
+    .replace(/→/g, 'to')
+    .replace(/!'/g, 'to')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2013/g, '-')
+    .replace(/\u2014/g, '--')
+    .replace(/\u2026/g, '...')
+    .replace(/[═─━]+/g, '')
+    .replace(/^.*FRANCHISE SALES.*$/gm, '')
+    .replace(/^.*Branch:.*Period:.*$/gm, '')
+    .replace(/^.*Date Prepared:.*$/gm, '')
+    .replace(/^.*This report was automatically.*$/gm, '')
+    .replace(/^.*transaction data for.*$/gm, '')
+    .replace(/^.*report generation date.*$/gm, '')
+    .replace(/[^\x00-\x7F]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  cleanContent.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) { y += 3; return; }
+
+    if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+      checkY(14); y += 4;
+      doc.setFillColor(0, 137, 123); doc.rect(margin, y - 4, 3, 9, 'F');
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 43, 30);
+      doc.text(trimmed, margin + 6, y + 2); y += 8; writeDivider([0, 137, 123]);
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      checkY(8);
+      const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 137, 123);
+      doc.text(num.replace('.', ''), margin + 2, y);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40);
+      const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
+      wrapped.forEach((wl, i) => { if (i > 0) checkY(6); doc.text(wl, margin + 9, y); y += 5.5; });
+    } else {
+      writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
+      y += 1;
+    }
+  });
+
+  // ── Footer, copied from ReportsContent.generatePdfDoc ──
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(22, 73, 51);
+    doc.rect(0, pageH - 12, pageW, 0.6, 'F');
+    doc.setFillColor(245, 247, 245);
+    doc.rect(0, pageH - 11.4, pageW, 11.4, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 140, 130);
+    doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+    doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+  }
+
+  doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+};
 
 const saveReport = async report => {
   if (!report.id) { showToast("error", "Save Failed", "No report ID found. Try regenerating."); return; }
@@ -4438,13 +4478,13 @@ const submitReport = async report => {
                             ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
                             : <><Send size={12} /> Submit to Admin</>}
                         </button>
-                        <button
-                          className="v-btn v-btn-sm"
-                          onClick={() => deleteReport(r)}
-                          style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
+                       <button
+                        className="v-btn v-btn-sm"
+                        onClick={() => setConfirmDeleteTarget(r)}
+                        style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
                       </div>
                     </td>
                   </tr>
@@ -5053,12 +5093,18 @@ function FrCommunicationContent() {
   const now         = new Date();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  const tabFiltered = (() => {
+    const tabFiltered = (() => {
+    let list;
     switch (selectedTab) {
-      case "recent": return mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo);
-      case "pinned": return mergedAnnouncements.filter(a => a.pinned);
-      default:       return mergedAnnouncements;
+      case "recent":        list = mergedAnnouncements.filter(a => new Date(a.created_at) >= sevenDaysAgo); break;
+      case "pinned":        list = mergedAnnouncements.filter(a => a.pinned); break;
+      case "deleteHistory": list = []; break;
+      default:              list = mergedAnnouncements;
     }
+    return [...list].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
   })();
 
   const filtered = searchQuery.trim()
