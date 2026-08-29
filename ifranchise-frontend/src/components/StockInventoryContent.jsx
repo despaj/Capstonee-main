@@ -74,7 +74,7 @@ const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans","gallons"];
 const DOSAGE_FORMS = ["Tablet","Capsule","Liquid","Injection","Cream","Ointment","Syrup","Other"];
 const STORAGE_REQS = ["Room Temperature","Refrigerated","Frozen"];
-const FUEL_GRADES  = ["Regular","Premium","Diesel","Kerosene"];
+const FUEL_GRADES  = ["Regular Gasoline","Ethanol-Blended Gasoline","Premium Gasoline","Diesel","Kerosene"];
 const PAGE_SIZE = 15;
 const EXPIRY_WARN_DAYS = 30;
 
@@ -270,6 +270,365 @@ const BRAND_DEFS = [
 function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
 function isFuelBrand(brand)   { return (brand || "").toLowerCase().includes("ifuel"); }
 function isDirectProductBrand(brand) { return isPharmaBrand(brand) || isFuelBrand(brand); }
+
+// ── Category-based shelf-life validation ─────────────────────────────────────
+// IMPORTANT:
+// • iPharma expiry rules are based on the PRODUCT CATEGORY + manufacture date.
+// • iFuel expiry rules are based on the PRODUCT CATEGORY + manufacture date.
+// • Receiving date is still validated, but it is NOT the shelf-life base date.
+function normalizeShelfText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseLocalDateOnly(value) {
+  if (!value) return null;
+  const raw = String(value).slice(0, 10);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const fallback = new Date(value);
+    if (Number.isNaN(fallback.getTime())) return null;
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 12, 0, 0, 0);
+  }
+  const y = Number(m[1]), month = Number(m[2]), d = Number(m[3]);
+  const date = new Date(y, month - 1, d, 12, 0, 0, 0);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== d
+  ) return null;
+  return date;
+}
+
+function addMonthsClamped(dateValue, months) {
+  const base = dateValue instanceof Date ? new Date(dateValue) : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+
+  const day = base.getDate();
+  const target = new Date(base.getFullYear(), base.getMonth() + Number(months || 0), 1, 12, 0, 0, 0);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12, 0, 0, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return target;
+}
+
+function addDaysLocal(dateValue, days) {
+  const base = dateValue instanceof Date ? new Date(dateValue) : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + Number(days || 0));
+  return base;
+}
+
+function toDateInputValue(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+/*
+  iPharma category rules:
+  - Medicine / Antibiotic / Vitamins & Supplements / other medicine-like
+    categories: EXACTLY 36 months (3 years) from manufacture date.
+  - First Aid / Medical Supplies / Bandages / Gauze / Hygiene:
+    EXACTLY 9 months from manufacture date.
+  - Health Devices / Equipment: expiry may be omitted when the manufacturer
+    provides no expiry date.
+
+  iFuel category rules:
+  - Regular gasoline: 3–6 months from manufacture date.
+  - Ethanol-blended gasoline: 1–3 months.
+  - Premium gasoline: up to 9 months.
+  - Diesel: up to 12 months.
+*/
+function getCategoryShelfLifeRule(brand, category, grade = "") {
+  const categoryKey = normalizeShelfText(category);
+  const gradeKey = normalizeShelfText(grade);
+
+  if (isPharmaBrand(brand)) {
+    if (!categoryKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iPharma category required",
+      };
+    }
+
+    if (
+      categoryKey.includes("health device") ||
+      categoryKey.includes("medical device") ||
+      categoryKey.includes("equipment")
+    ) {
+      return {
+        kind: "manufacturer",
+        allowNoExpiry: true,
+        requiresManufactureDate: false,
+        label: "Health device / equipment",
+      };
+    }
+
+    if (
+      categoryKey.includes("first aid") ||
+      categoryKey.includes("medical suppl") ||
+      categoryKey.includes("bandage") ||
+      categoryKey.includes("gauze") ||
+      categoryKey.includes("dressing") ||
+      categoryKey.includes("hygiene")
+    ) {
+      return {
+        kind: "exact",
+        months: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "9 months from manufacture date",
+      };
+    }
+
+    // Medicine, Antibiotic, Vitamins & Supplements, and future medicine-like
+    // iPharma categories use the 3-year shelf-life rule.
+    return {
+      kind: "exact",
+      months: 36,
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "3 years from manufacture date",
+    };
+  }
+
+  if (isFuelBrand(brand)) {
+    if (!categoryKey && !gradeKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iFuel category required",
+      };
+    }
+
+    // CATEGORY is authoritative. Grade is only a compatibility fallback for
+    // older records that were saved before fuel categories were connected.
+    const key = categoryKey || gradeKey;
+
+    if (
+      key.includes("ethanol") ||
+      /\be10\b/.test(key) ||
+      /\be15\b/.test(key) ||
+      /\be85\b/.test(key)
+    ) {
+      return {
+        kind: "range",
+        minMonths: 1,
+        maxMonths: 3,
+        recommendedMonths: 3,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Ethanol-blended gasoline · 1–3 months",
+      };
+    }
+
+    if (key.includes("premium")) {
+      return {
+        kind: "max",
+        maxMonths: 9,
+        recommendedMonths: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Premium gasoline · up to 9 months",
+      };
+    }
+
+    if (key.includes("diesel")) {
+      return {
+        kind: "max",
+        maxMonths: 12,
+        recommendedMonths: 12,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Diesel · up to 12 months",
+      };
+    }
+
+    if (
+      key.includes("regular") ||
+      key.includes("unleaded") ||
+      key === "gasoline" ||
+      key === "petrol" ||
+      key.includes("regular gasoline")
+    ) {
+      return {
+        kind: "range",
+        minMonths: 3,
+        maxMonths: 6,
+        recommendedMonths: 6,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Regular gasoline · 3–6 months",
+      };
+    }
+
+    return {
+      kind: "unconfigured-fuel",
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "Fuel shelf life not configured for this category",
+    };
+  }
+
+  return null;
+}
+
+function getExpiryBoundsFromManufacture(mfgDate, rule) {
+  const mfg = parseLocalDateOnly(mfgDate);
+  if (!mfg || !rule) {
+    return { minDate:null, maxDate:null, recommendedDate:null, minStr:"", maxStr:"", recommendedStr:"" };
+  }
+
+  let minDate = null;
+  let maxDate = null;
+  let recommendedDate = null;
+
+  if (rule.kind === "exact") {
+    minDate = addMonthsClamped(mfg, rule.months);
+    maxDate = minDate ? new Date(minDate) : null;
+    recommendedDate = minDate ? new Date(minDate) : null;
+  } else if (rule.kind === "range") {
+    minDate = addMonthsClamped(mfg, rule.minMonths);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
+  } else if (rule.kind === "max") {
+    minDate = addDaysLocal(mfg, 1);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
+  } else if (rule.kind === "manufacturer" || rule.kind === "unconfigured-fuel") {
+    minDate = addDaysLocal(mfg, 1);
+  }
+
+  return {
+    minDate,
+    maxDate,
+    recommendedDate,
+    minStr: toDateInputValue(minDate),
+    maxStr: toDateInputValue(maxDate),
+    recommendedStr: toDateInputValue(recommendedDate),
+  };
+}
+
+function shelfLifeHelperText(rule, bounds, category) {
+  if (!rule) return "";
+
+  const categoryLabel = String(category || "").trim();
+
+  if (rule.kind === "missing-category") {
+    return "Assign a category to this product first. Expiry validation depends on the selected category.";
+  }
+
+  if (rule.kind === "exact") {
+    if (!bounds?.recommendedStr) {
+      return `${categoryLabel || "This category"} requires expiry ${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${categoryLabel || "This category"}: expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`;
+  }
+
+  if (rule.kind === "range") {
+    if (!bounds?.minStr || !bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${rule.label}. Allowed expiry: ${fmtDate(bounds.minStr)} to ${fmtDate(bounds.maxStr)}.`;
+  }
+
+  if (rule.kind === "max") {
+    if (!bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${rule.label}. Expiry must be after manufacture and no later than ${fmtDate(bounds.maxStr)}.`;
+  }
+
+  if (rule.kind === "manufacturer") {
+    return "Use the manufacturer-provided expiry date. If the device/equipment has no expiry date, select “No expiry date”.";
+  }
+
+  if (rule.kind === "unconfigured-fuel") {
+    return "This fuel category has no configured shelf-life rule. Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.";
+  }
+
+  return "";
+}
+
+function validateCategoryShelfLife({ brand, category, grade, mfgDate, expiryDate, noExpiry = false }) {
+  const errors = [];
+  const rule = getCategoryShelfLifeRule(brand, category, grade);
+
+  if (!rule) return errors;
+
+  if (rule.kind === "missing-category") {
+    errors.push(`Assign a category to this ${isPharmaBrand(brand) ? "iPharma" : "iFuel"} product before receiving or editing stock.`);
+    return errors;
+  }
+
+  if (rule.kind === "unconfigured-fuel") {
+    errors.push(`No fuel shelf-life validation is configured for category "${category || grade || "Unknown"}". Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.`);
+    return errors;
+  }
+
+  if (rule.requiresManufactureDate && !mfgDate) {
+    errors.push("Manufacture date is required because expiration is calculated from the manufacture date.");
+    return errors;
+  }
+
+  if (noExpiry) {
+    if (!rule.allowNoExpiry) {
+      errors.push(`${category || "This category"} requires an expiration date.`);
+    }
+    return errors;
+  }
+
+  if (!expiryDate) {
+    errors.push("Expiry date is required.");
+    return errors;
+  }
+
+  const mfg = parseLocalDateOnly(mfgDate);
+  const exp = parseLocalDateOnly(expiryDate);
+
+  if (mfgDate && !mfg) {
+    errors.push("Manufacture date is not a valid date.");
+    return errors;
+  }
+  if (!exp) {
+    errors.push("Expiry date is not a valid date.");
+    return errors;
+  }
+
+  if (mfg && exp <= mfg) {
+    errors.push("Expiry date must be after the manufacture date.");
+    return errors;
+  }
+
+  const bounds = getExpiryBoundsFromManufacture(mfgDate, rule);
+
+  if (rule.kind === "exact" && bounds.recommendedDate) {
+    if (toDateInputValue(exp) !== bounds.recommendedStr) {
+      errors.push(`${category || "This category"} expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`);
+    }
+  } else if (rule.kind === "range" && bounds.minDate && bounds.maxDate) {
+    if (exp < bounds.minDate || exp > bounds.maxDate) {
+      errors.push(`${rule.label}. Expiry must be between ${fmtDate(bounds.minStr)} and ${fmtDate(bounds.maxStr)}.`);
+    }
+  } else if (rule.kind === "max" && bounds.maxDate) {
+    if (exp > bounds.maxDate) {
+      errors.push(`${rule.label}. Latest allowed expiry: ${fmtDate(bounds.maxStr)}.`);
+    }
+  }
+
+  return errors;
+}
 
 // Brand & Branch is the source of truth for iFuel/iPharma categories.
 // The API normally returns categories as an array, but this also safely
@@ -1259,31 +1618,53 @@ useEffect(() => {
 
 const validateBatchForm = (form, ingredient) => {
   const pharma = isPharmaBrand(ingredient.brand);
+  const fuel = isFuelBrand(ingredient.brand);
   const errors = [];
+
   if (!isPositiveOrZeroNumber(form.stock)) errors.push("Count must be a valid number of 0 or more.");
   if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
   if (form.exp_date && !isValidDateStr(form.exp_date)) errors.push("Expiry date is not a valid date.");
   if (form.supply_date && !isValidDateStr(form.supply_date)) errors.push("Supply date is not a valid date.");
-  if (form.mfg_date && form.exp_date && new Date(form.mfg_date) > new Date(form.exp_date)) errors.push("Manufacture date cannot be after the expiry date.");
-  if (form.supply_date && form.mfg_date && new Date(form.supply_date) < new Date(form.mfg_date)) errors.push("Supply date cannot be before the manufacture date.");
-  if (form.supply_date && form.exp_date && new Date(form.supply_date) > new Date(form.exp_date)) errors.push("Supply date cannot be after the expiry date.");
 
-  // iPharma only: expiry date must be AT LEAST 3 years after the receiving/supply date.
   if (
-    pharma &&
+    form.mfg_date &&
+    form.exp_date &&
+    isValidDateStr(form.mfg_date) &&
+    isValidDateStr(form.exp_date) &&
+    new Date(form.mfg_date) > new Date(form.exp_date)
+  ) {
+    errors.push("Manufacture date cannot be after the expiry date.");
+  }
+
+  if (
+    form.supply_date &&
+    form.mfg_date &&
+    isValidDateStr(form.supply_date) &&
+    isValidDateStr(form.mfg_date) &&
+    new Date(form.supply_date) < new Date(form.mfg_date)
+  ) {
+    errors.push("Supply/receiving date cannot be before the manufacture date.");
+  }
+
+  if (
     form.supply_date &&
     form.exp_date &&
     isValidDateStr(form.supply_date) &&
-    isValidDateStr(form.exp_date)
+    isValidDateStr(form.exp_date) &&
+    new Date(form.supply_date) > new Date(form.exp_date)
   ) {
-    const receivedDate = new Date(form.supply_date);
-    const expiryDate = new Date(form.exp_date);
-    const minimumExpiryDate = new Date(receivedDate);
-    minimumExpiryDate.setFullYear(minimumExpiryDate.getFullYear() + 3);
+    errors.push("Supply/receiving date cannot be after the expiry date.");
+  }
 
-    if (expiryDate < minimumExpiryDate) {
-      errors.push("For iPharma, expiration date must be at least 3 years after the receiving date.");
-    }
+  if (pharma || fuel) {
+    errors.push(...validateCategoryShelfLife({
+      brand: ingredient.brand,
+      category: ingredient.category,
+      grade: form.grade,
+      mfgDate: form.mfg_date,
+      expiryDate: form.exp_date,
+      noExpiry: !form.exp_date,
+    }));
   }
 
   if (form.exp_date && isValidDateStr(form.exp_date)) {
@@ -1291,8 +1672,12 @@ const validateBatchForm = (form, ingredient) => {
       errors.push("This expiry date is already in the past.");
     }
   }
-  if (pharma && form.controlled_substance && !form.lot_number) errors.push("LOT Number is required for controlled substances.");
-  return errors;
+
+  if (pharma && form.controlled_substance && !form.lot_number) {
+    errors.push("LOT Number is required for controlled substances.");
+  }
+
+  return [...new Set(errors)];
 };
 
 const saveBatch = async (form) => {
@@ -1535,24 +1920,67 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 
   const [noExpiry, setNoExpiry] = useState(false);
 
-  const minExpiryDate = useMemo(() => {
-    const base = form.received_at ? new Date(form.received_at) : new Date();
-    const minimum = new Date(base);
+  const expiryRule = useMemo(
+    () => getCategoryShelfLifeRule(product?.brand, product?.category, form.grade),
+    [product?.brand, product?.category, form.grade]
+  );
 
-    // iPharma requires an expiry date at least 3 years after stock is received.
-    if (pharma) {
-      minimum.setFullYear(minimum.getFullYear() + 3);
+  const expiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, expiryRule),
+    [form.mfg_date, expiryRule]
+  );
+
+  const canUseNoExpiry = expiryRule
+    ? !!expiryRule.allowNoExpiry
+    : !pharma && !fuel;
+
+  useEffect(() => {
+    if (!canUseNoExpiry && noExpiry) setNoExpiry(false);
+  }, [canUseNoExpiry, noExpiry]);
+
+  // Exact category rules (iPharma 3 years / 9 months) are auto-filled from
+  // manufacture date so the user does not have to manually calculate them.
+  // Fuel windows are prefilled with the recommended/latest date only when the
+  // expiry field is still empty; the user may choose another date in-range.
+  useEffect(() => {
+    if (!product || noExpiry || !form.mfg_date || !expiryRule) return;
+    const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
+
+    if (expiryRule.kind === "exact" && bounds.recommendedStr) {
+      setForm(f => f.exp_date === bounds.recommendedStr ? f : ({ ...f, exp_date: bounds.recommendedStr }));
+      return;
     }
 
-    return minimum;
-  }, [form.received_at, pharma]);
+    if (
+      (expiryRule.kind === "range" || expiryRule.kind === "max") &&
+      bounds.recommendedStr &&
+      !form.exp_date
+    ) {
+      setForm(f => ({ ...f, exp_date: bounds.recommendedStr }));
+    }
+  }, [
+    product?.id,
+    form.mfg_date,
+    noExpiry,
+    expiryRule?.kind,
+    expiryRule?.months,
+    expiryRule?.minMonths,
+    expiryRule?.maxMonths,
+    expiryRule?.recommendedMonths,
+  ]);
 
-  // Keep the HTML date value in local time so it does not shift by one day.
-  const minExpiryDateStr = [
-    minExpiryDate.getFullYear(),
-    String(minExpiryDate.getMonth() + 1).padStart(2, "0"),
-    String(minExpiryDate.getDate()).padStart(2, "0"),
-  ].join("-");
+  const basicReceivedDateStr = useMemo(() => {
+    if (!form.received_at || !isValidDateStr(form.received_at)) return "";
+    const received = new Date(form.received_at);
+    return [
+      received.getFullYear(),
+      String(received.getMonth() + 1).padStart(2, "0"),
+      String(received.getDate()).padStart(2, "0"),
+    ].join("-");
+  }, [form.received_at]);
+
+  const minExpiryDateStr = expiryRule ? expiryBounds.minStr : basicReceivedDateStr;
+  const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
 
   const syncIngredientStock = async (prod) => {
     const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`);
@@ -1574,54 +2002,84 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 
   const validate = () => {
     const errors = [];
+
     if (!product) errors.push("Please select a product to receive stock for.");
-    if (!isPositiveOrZeroNumber(form.stock) || parseFloat(form.stock) <= 0) errors.push("Quantity received must be a number greater than 0.");
-    if (form.cost_batch !== "" && !isPositiveOrZeroNumber(form.cost_batch)) errors.push("Total batch cost must be a valid number of 0 or more.");
+    if (!isPositiveOrZeroNumber(form.stock) || parseFloat(form.stock) <= 0) {
+      errors.push("Quantity received must be a number greater than 0.");
+    }
+    if (form.cost_batch !== "" && !isPositiveOrZeroNumber(form.cost_batch)) {
+      errors.push("Total batch cost must be a valid number of 0 or more.");
+    }
     if (form.cost_batch && Number(form.cost_batch) > 0 && (!form.stock || Number(form.stock) <= 0)) {
       errors.push("Enter the quantity received before the total batch cost, so cost per unit can be calculated.");
     }
-    if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
-    if (form.received_at && !isValidDateStr(form.received_at)) errors.push("Date & time received is not a valid date.");
-    if (form.mfg_date && form.received_at && isValidDateStr(form.mfg_date) && isValidDateStr(form.received_at) && new Date(form.received_at) < new Date(form.mfg_date)) {
+
+    if (form.mfg_date && !isValidDateStr(form.mfg_date)) {
+      errors.push("Manufacture date is not a valid date.");
+    }
+    if (form.received_at && !isValidDateStr(form.received_at)) {
+      errors.push("Date & time received is not a valid date.");
+    }
+
+    if (
+      form.mfg_date &&
+      form.received_at &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.received_at) &&
+      new Date(form.received_at) < new Date(form.mfg_date)
+    ) {
       errors.push("Date received cannot be before the manufacture date.");
     }
-    if (!noExpiry) {
+
+    if (product && (pharma || fuel)) {
+      errors.push(...validateCategoryShelfLife({
+        brand: product.brand,
+        category: product.category,
+        grade: form.grade,
+        mfgDate: form.mfg_date,
+        expiryDate: form.exp_date,
+        noExpiry,
+      }));
+    } else if (!noExpiry) {
       if (!form.exp_date) {
         errors.push("Expiry date is required.");
       } else if (!isValidDateStr(form.exp_date)) {
         errors.push("Expiry date is not a valid date.");
-      } else {
-        if (product) {
-          const status = computeExpiryStatus(form.exp_date, product.brand);
-          if (status === "expired") {
-            errors.push("Expiry date is already in the past.");
-          }
-        }
-        if (form.mfg_date && isValidDateStr(form.mfg_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
-          errors.push("Manufacture date cannot be after the expiry date.");
-        }
-        if (!pharma && form.received_at && isValidDateStr(form.received_at) && new Date(form.exp_date) < new Date(form.received_at)) {
-          errors.push("Expiry date cannot be earlier than the date received.");
-        }
-
-        // iPharma only: the expiry date must be at least 3 years after receipt.
-        if (pharma && form.received_at && isValidDateStr(form.received_at)) {
-          const receivedDate = new Date(form.received_at);
-          const expiryDate = new Date(form.exp_date);
-          const minimumExpiryDate = new Date(receivedDate);
-          minimumExpiryDate.setFullYear(minimumExpiryDate.getFullYear() + 3);
-
-          if (expiryDate < minimumExpiryDate) {
-            errors.push(`For iPharma, expiry date must be at least 3 years after the receiving date. Earliest allowed: ${fmtDate(minimumExpiryDate)}.`);
-          }
-        }
-
+      } else if (
+        form.received_at &&
+        isValidDateStr(form.received_at) &&
+        new Date(form.exp_date) < new Date(form.received_at)
+      ) {
+        errors.push("Expiry date cannot be earlier than the date received.");
       }
     }
+
+    if (
+      !noExpiry &&
+      form.exp_date &&
+      isValidDateStr(form.exp_date) &&
+      form.received_at &&
+      isValidDateStr(form.received_at) &&
+      new Date(form.received_at) > new Date(form.exp_date)
+    ) {
+      errors.push("Date received cannot be after the expiry date.");
+    }
+
+    if (
+      !noExpiry &&
+      form.exp_date &&
+      isValidDateStr(form.exp_date) &&
+      product &&
+      computeExpiryStatus(form.exp_date, product.brand) === "expired"
+    ) {
+      errors.push("Expiry date is already in the past.");
+    }
+
     if (pharma && form.controlled_substance && !form.lot_number) {
       errors.push("LOT Number is required for controlled substances.");
     }
-    return errors;
+
+    return [...new Set(errors)];
   };
 
   const submit = async (e) => {
@@ -1758,31 +2216,67 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 
 <div>
   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-    <label style={{ ...invLabelSt, marginBottom:0 }}>Expiry Date *</label>
-    {!pharma && (
+    <label style={{ ...invLabelSt, marginBottom:0 }}>
+      {canUseNoExpiry ? "Expiry Date" : "Expiry Date *"}
+    </label>
+    {canUseNoExpiry && (
       <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
         <input
           type="checkbox"
           checked={noExpiry}
-          onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setF("exp_date", ""); }}
+          onChange={e => {
+            setNoExpiry(e.target.checked);
+            if (e.target.checked) setF("exp_date", "");
+          }}
         />
         No expiry date
       </label>
     )}
   </div>
+
   <input
     type="date"
-    style={{ ...invInputSt, opacity: noExpiry ? 0.5 : 1 }}
+    style={{
+      ...invInputSt,
+      opacity:
+        noExpiry ||
+        (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+        expiryRule?.kind === "missing-category" ||
+        expiryRule?.kind === "unconfigured-fuel"
+          ? 0.5
+          : 1
+    }}
     value={form.exp_date}
-    min={minExpiryDateStr}
-    required
-    disabled={noExpiry}
+    min={minExpiryDateStr || undefined}
+    max={maxExpiryDateStr || undefined}
+    required={!noExpiry}
+    disabled={
+      noExpiry ||
+      (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+      expiryRule?.kind === "missing-category" ||
+      expiryRule?.kind === "unconfigured-fuel"
+    }
     onChange={e=>setF("exp_date", e.target.value)}
   />
-  <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
-    {pharma
-      ? <>For iPharma, expiry must be at least 3 years after the date received.</>
-      : <>Expiry must not be earlier than the date received.</>} Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>.
+
+  <div style={{
+    fontSize:11,
+    color:
+      expiryRule?.kind === "missing-category" ||
+      expiryRule?.kind === "unconfigured-fuel"
+        ? C.warn
+        : C.muted,
+    marginTop:5,
+    lineHeight:1.45
+  }}>
+    {expiryRule
+      ? shelfLifeHelperText(expiryRule, expiryBounds, product?.category)
+      : (
+        <>
+          Expiry must not be earlier than the date received.
+          {minExpiryDateStr && <> Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>.</>}
+        </>
+      )}
   </div>
 </div>
 
@@ -1971,24 +2465,29 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const getExpiryStatus = (exp_date, brand) => computeExpiryStatus(exp_date, brand);
 
-  const editMinExpiryDateStr = useMemo(() => {
-    if (!pharma || !form.supply_date || !isValidDateStr(form.supply_date)) return undefined;
+  const editExpiryRule = useMemo(
+    () => getCategoryShelfLifeRule(ingredient.brand, ingredient.category, form.grade),
+    [ingredient.brand, ingredient.category, form.grade]
+  );
 
-    const receivedDate = new Date(form.supply_date);
-    const minimumExpiryDate = new Date(receivedDate);
-    minimumExpiryDate.setFullYear(minimumExpiryDate.getFullYear() + 3);
+  const editExpiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, editExpiryRule),
+    [form.mfg_date, editExpiryRule]
+  );
 
-    return [
-      minimumExpiryDate.getFullYear(),
-      String(minimumExpiryDate.getMonth() + 1).padStart(2, "0"),
-      String(minimumExpiryDate.getDate()).padStart(2, "0"),
-    ].join("-");
-  }, [pharma, form.supply_date]);
+  const canEditNoExpiry = editExpiryRule
+    ? !!editExpiryRule.allowNoExpiry
+    : !pharma && !fuel;
+
+  useEffect(() => {
+    if (!canEditNoExpiry && noExpiry) setNoExpiry(false);
+  }, [canEditNoExpiry, noExpiry]);
 
   const submit = (e) => {
     e.preventDefault();
     onSave({
       ...form,
+      exp_date: noExpiry ? "" : form.exp_date,
       supply_date: form.supply_date ? new Date(form.supply_date).toISOString() : null,
     });
   };
@@ -2025,19 +2524,65 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
               <input type="date" style={invInputSt} value={form.mfg_date} onChange={e=>setF("mfg_date", e.target.value)}/>
             </div>
             <div>
-              <label style={invLabelSt}>Exp Date</label>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}>
+                <label style={{ ...invLabelSt, marginBottom:0 }}>
+                  {canEditNoExpiry ? "Exp Date" : "Exp Date *"}
+                </label>
+                {canEditNoExpiry && (
+                  <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={noExpiry}
+                      onChange={e => {
+                        setNoExpiry(e.target.checked);
+                        if (e.target.checked) setF("exp_date", "");
+                      }}
+                    />
+                    No expiry
+                  </label>
+                )}
+              </div>
+
               <input
                 type="date"
-                style={invInputSt}
+                style={{
+                  ...invInputSt,
+                  opacity:
+                    noExpiry ||
+                    (!!editExpiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                    editExpiryRule?.kind === "missing-category" ||
+                    editExpiryRule?.kind === "unconfigured-fuel"
+                      ? 0.5
+                      : 1
+                }}
                 value={form.exp_date}
-                min={pharma ? editMinExpiryDateStr : undefined}
+                min={editExpiryBounds.minStr || undefined}
+                max={editExpiryBounds.maxStr || undefined}
+                required={!noExpiry}
+                disabled={
+                  noExpiry ||
+                  (!!editExpiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                  editExpiryRule?.kind === "missing-category" ||
+                  editExpiryRule?.kind === "unconfigured-fuel"
+                }
                 onChange={e=>setF("exp_date", e.target.value)}
               />
-              {pharma && editMinExpiryDateStr && (
-                <div style={{ marginTop:5, fontSize:11, color:C.muted }}>
-                  Expiry must be at least 3 years after the date received. Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(editMinExpiryDateStr)}</strong>.
+
+              {editExpiryRule && (
+                <div style={{
+                  marginTop:5,
+                  fontSize:11,
+                  lineHeight:1.45,
+                  color:
+                    editExpiryRule.kind === "missing-category" ||
+                    editExpiryRule.kind === "unconfigured-fuel"
+                      ? C.warn
+                      : C.muted
+                }}>
+                  {shelfLifeHelperText(editExpiryRule, editExpiryBounds, ingredient.category)}
                 </div>
               )}
+
               {form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" && (
                 <div style={{ marginTop:5, fontSize:11, fontWeight:700, color:C.red }}>
                   This expiry date is already in the past.
@@ -2189,37 +2734,53 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
   };
 
   const validateBatchForm = (form) => {
+    const fuel = isFuelBrand(ingredient.brand);
     const errors = [];
+
     if (!isPositiveOrZeroNumber(form.stock)) errors.push("Count must be a valid number of 0 or more.");
     if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
     if (form.exp_date && !isValidDateStr(form.exp_date)) errors.push("Expiry date is not a valid date.");
     if (form.supply_date && !isValidDateStr(form.supply_date)) errors.push("Supply date is not a valid date.");
-    if (form.mfg_date && form.exp_date && isValidDateStr(form.mfg_date) && isValidDateStr(form.exp_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
+
+    if (
+      form.mfg_date &&
+      form.exp_date &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.mfg_date) > new Date(form.exp_date)
+    ) {
       errors.push("Manufacture date cannot be after the expiry date.");
     }
-    if (form.supply_date && form.mfg_date && isValidDateStr(form.supply_date) && isValidDateStr(form.mfg_date) && new Date(form.supply_date) < new Date(form.mfg_date)) {
-      errors.push("Supply date cannot be before the manufacture date.");
-    }
-    if (form.supply_date && form.exp_date && isValidDateStr(form.supply_date) && isValidDateStr(form.exp_date) && new Date(form.supply_date) > new Date(form.exp_date)) {
-      errors.push("Supply date cannot be after the expiry date.");
+
+    if (
+      form.supply_date &&
+      form.mfg_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.mfg_date) &&
+      new Date(form.supply_date) < new Date(form.mfg_date)
+    ) {
+      errors.push("Supply/receiving date cannot be before the manufacture date.");
     }
 
-    // iPharma only: expiry date must be AT LEAST 3 years after the receiving/supply date.
     if (
-      pharma &&
       form.supply_date &&
       form.exp_date &&
       isValidDateStr(form.supply_date) &&
-      isValidDateStr(form.exp_date)
+      isValidDateStr(form.exp_date) &&
+      new Date(form.supply_date) > new Date(form.exp_date)
     ) {
-      const receivedDate = new Date(form.supply_date);
-      const expiryDate = new Date(form.exp_date);
-      const minimumExpiryDate = new Date(receivedDate);
-      minimumExpiryDate.setFullYear(minimumExpiryDate.getFullYear() + 3);
+      errors.push("Supply/receiving date cannot be after the expiry date.");
+    }
 
-      if (expiryDate < minimumExpiryDate) {
-        errors.push("For iPharma, expiration date must be at least 3 years after the receiving date.");
-      }
+    if (pharma || fuel) {
+      errors.push(...validateCategoryShelfLife({
+        brand: ingredient.brand,
+        category: ingredient.category,
+        grade: form.grade,
+        mfgDate: form.mfg_date,
+        expiryDate: form.exp_date,
+        noExpiry: !form.exp_date,
+      }));
     }
 
     if (form.exp_date && isValidDateStr(form.exp_date)) {
@@ -2228,10 +2789,12 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
         errors.push("This expiry date is already in the past.");
       }
     }
+
     if (pharma && form.controlled_substance && !form.lot_number) {
       errors.push("LOT Number is required for controlled substances.");
     }
-    return errors;
+
+    return [...new Set(errors)];
   };
 
   const saveBatch = async (form) => {
