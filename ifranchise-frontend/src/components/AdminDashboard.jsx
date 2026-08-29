@@ -4240,9 +4240,6 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
     selectedBrand,
   ]);
 
-  const maxDaysLeft = Math.max(1, ...stockEvidence.map(r => Math.min(Number(r.daysLeft || 0), 280)));
-  const maxRatio = Math.max(1, ...stockEvidence.map(r => Number(r.ratio || 0)));
-
   const revenuePie = top10.slice(0, 5).map((p, i) => ({
     label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
     value: p.totalRevenue,
@@ -4334,18 +4331,6 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
         }
       />
       <div style={{ padding: "18px 20px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
-          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Days of Stock Remaining</strong></div>
-            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:9}}>{stockEvidence.map((r,i)=><div key={r.name} style={{display:"grid",gridTemplateColumns:"130px 1fr 48px",alignItems:"center",gap:9}}><span title={r.name} style={{fontSize:10.5,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</span><div style={{height:10,borderRadius:4,background:"#edf8f0",position:"relative",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.daysLeft||0)/maxDaysLeft)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#22c55e",borderRadius:4}}/></div><strong style={{fontSize:10.5,textAlign:"right",color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</strong></div>)}</div> : <DashboardEmptyState message="No matched sales + inventory records for this filter." />}
-            <div style={{display:"flex",gap:14,marginTop:14,fontSize:9.5,color:"#64748b"}}><span><b style={{color:"#ef4444"}}>14d</b> critical</span><span><b style={{color:"#f59e0b"}}>30d</b> reorder watch</span></div>
-          </div>
-          <div style={{ background:"#fff", border:"1px solid #d1eedd", borderRadius:14, padding:"16px 18px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Stock-to-Sales Ratio by Product</strong></div>
-            {stockEvidence.length ? <div style={{display:"flex",flexDirection:"column",gap:10}}>{stockEvidence.map(r=><div key={r.name}><div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:4}}><span title={r.name} style={{fontSize:10.5,fontWeight:700,color:"#263b2e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</span><span style={{fontSize:10.5,fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a"}}>{r.ratio==null?"—":`×${r.ratio.toFixed(1)}`}</span></div><div style={{height:6,borderRadius:99,background:"#edf8f0",overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,((r.ratio||0)/maxRatio)*100)}%`,background:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#3b82f6":"#16a34a",borderRadius:99}}/></div></div>)}</div> : <DashboardEmptyState message="No stock-to-sales ratio can be calculated for this filter." />}
-          </div>
-        </div>
-
         {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
           <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
@@ -4434,7 +4419,7 @@ function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, fi
 
 function InfoModal({ modal, onClose, onConfirm }) {
   if (!modal) return null;
-  const { type = "info", title, message, confirmLabel, cancelLabel } = modal;
+  const { type = "info", title, message, confirmLabel, cancelLabel, confirmTone = "danger" } = modal;
 
   const iconMap = {
     error: (
@@ -4521,7 +4506,9 @@ function InfoModal({ modal, onClose, onConfirm }) {
             onClick={type === "confirm" ? onConfirm : onClose}
             style={{
               padding: "8px 18px", borderRadius: 8, border: "none",
-              background: type === "confirm" ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#00c853,#00897b)",
+              background: type === "confirm"
+                ? (confirmTone === "success" ? "linear-gradient(135deg,#2E7D32,#00897b)" : "linear-gradient(135deg,#ef4444,#dc2626)")
+                : "linear-gradient(135deg,#00c853,#00897b)",
               color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
             }}
           >
@@ -4633,7 +4620,6 @@ function DashboardContent({ transactions, brands: propBrands = [] }) {
   const [showArchive,  setShowArchive]  = useState(false);
   const [viewArchive,  setViewArchive]  = useState(null);
   const [archiveYear,  setArchiveYear]  = useState(String(today.getFullYear()));
-  const [archiveConf,  setArchiveConf]  = useState(false);
 
   const [filterBrand,    setFilterBrand]    = useState(null);
   const [filterBranch,   setFilterBranch]   = useState(null);
@@ -4796,8 +4782,12 @@ const filteredTransactions = useMemo(() => {
   });
 }, [transactions, filterBranch, filterBrand, selectedBrand, rangeMode, appliedRange, preset]);
 
-  const values = kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values;
-  const chartLabels = kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels;  
+  const values = viewArchive
+    ? (chartData?.values || [])
+    : (kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values);
+  const chartLabels = viewArchive
+    ? (chartData?.labels || [])
+    : (kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels);  
   const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
   const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
   const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
@@ -4807,9 +4797,15 @@ const filteredTransactions = useMemo(() => {
   const trending  = Number(pctChange) >= 0;
 
   const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
-  const transactionCount = viewArchive ? null : filteredTransactions.length;
-  const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
-  const activeBranchCount = viewArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+  const transactionCount = viewArchive
+    ? Number(viewArchive?.kpis?.transactionCount ?? 0)
+    : filteredTransactions.length;
+  const averageTransaction = viewArchive
+    ? Number(viewArchive?.kpis?.avgOrder ?? viewArchive?.kpis?.avgSales ?? 0)
+    : (transactionCount ? actualRevenue / transactionCount : 0);
+  const activeBranchCount = viewArchive
+    ? Number(viewArchive?.kpis?.activeBranchCount ?? 0)
+    : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
 
   const transactionCountSeries = useMemo(() => {
     if (viewArchive || !chartLabels.length) return [];
@@ -4943,16 +4939,98 @@ const filteredTransactions = useMemo(() => {
   }, [filteredTransactions, viewArchive]);
   
 
-const saveArchive = () => {
-  const year = parseInt(archiveYear);
-  if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
-  if (archives.find(a => a.year === year)) { showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` }); return; }
-  const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
-  const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
-  setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
-  setArchiveConf(false);
-  showInfo({ type: "success", title: "Archived", message: `Year ${year} has been archived.` });
+const getTransactionsForArchiveYear = (year) => {
+  let txList = transactions;
+  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+  else if (filterBrand && selectedBrand) {
+    const branchNames = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+    txList = transactions.filter(tx => branchNames.includes(tx.branch));
+  }
+  return txList.filter(tx => {
+    const d = new Date(tx.created_at);
+    return !Number.isNaN(d.getTime()) && d.getFullYear() === year;
+  });
 };
+
+const buildArchiveSnapshot = (year, yearTransactions) => {
+  const labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthlyValues = Array(12).fill(0);
+
+  yearTransactions.forEach(tx => {
+    const d = new Date(tx.created_at);
+    if (Number.isNaN(d.getTime())) return;
+    monthlyValues[d.getMonth()] += Number(tx.total || tx.total_amount || 0);
+  });
+
+  const revenue = monthlyValues.reduce((sum, value) => sum + Number(value || 0), 0);
+  const transactionCount = yearTransactions.length;
+  const averageOrder = transactionCount ? revenue / transactionCount : 0;
+  const activeBranches = new Set(yearTransactions.map(tx => tx.branch).filter(Boolean)).size;
+  const peakSales = monthlyValues.length ? Math.max(...monthlyValues) : 0;
+
+  return {
+    year,
+    label: `Full Year ${year}`,
+    savedAt: new Date().toLocaleString("en-PH"),
+    filterLabel,
+    chartData: { labels, values: monthlyValues },
+    kpis: {
+      totalSales: revenue,
+      salesRevenue: revenue,
+      avgSales: averageOrder,
+      avgOrder: averageOrder,
+      peakSales,
+      transactionCount,
+      activeBranchCount: activeBranches,
+    },
+  };
+};
+
+const saveArchive = (snapshot) => {
+  const upd = [...archives, snapshot].sort((a, b) => b.year - a.year);
+  setArchives(upd);
+  localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+  setArchiveYear(String(snapshot.year));
+  showInfo({
+    type: "success",
+    title: "Archive Saved",
+    message: `${snapshot.label} was archived successfully with ${snapshot.kpis.transactionCount.toLocaleString()} transaction${snapshot.kpis.transactionCount === 1 ? "" : "s"}.`,
+  });
+};
+
+const requestArchiveYear = () => {
+  const year = parseInt(archiveYear, 10);
+  if (Number.isNaN(year) || year < 2000 || year > 2100) {
+    showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year from 2000 to 2100." });
+    return;
+  }
+  if (archives.some(a => Number(a.year) === year)) {
+    showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` });
+    return;
+  }
+
+  const yearTransactions = getTransactionsForArchiveYear(year);
+  if (yearTransactions.length === 0) {
+    showInfo({
+      type: "info",
+      title: "No Data Found",
+      message: `No sales data was found for ${year} under ${filterLabel}. Nothing was archived.`,
+    });
+    return;
+  }
+
+  const snapshot = buildArchiveSnapshot(year, yearTransactions);
+  showInfo({
+    type: "confirm",
+    confirmTone: "success",
+    title: `Archive ${year}?`,
+    message: `Data found: ${snapshot.kpis.transactionCount.toLocaleString()} transaction${snapshot.kpis.transactionCount === 1 ? "" : "s"}, ${fmtAmt(snapshot.kpis.totalSales)} revenue, and ${snapshot.kpis.activeBranchCount.toLocaleString()} active branch${snapshot.kpis.activeBranchCount === 1 ? "" : "es"}. Confirm to save this yearly snapshot.`,
+    confirmLabel: "Confirm Archive",
+    cancelLabel: "Cancel",
+    onConfirm: () => saveArchive(snapshot),
+  });
+};
+
 const deleteArchive = (year) => {
   showInfo({
     type: "confirm",
@@ -5055,12 +5133,12 @@ const applyCustomRange = async () => {
         </div>
       )}
 
-      {/* ── KPI Cards: Sales Trend tab only ── */}
-      {analysisTab === "sales" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+      {/* ── KPI Cards: visible across Sales Trend, Prescriptive, and Sales vs Stock ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
         {[
           { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
           { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
-          { label: "Average Sale", value: viewArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
+          { label: "Average Sale", value: viewArchive ? averageTransaction : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
           { label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
         ].map((k, i) => {
           const isHidden = !!hiddenKpis[i];
@@ -5105,7 +5183,7 @@ const applyCustomRange = async () => {
             </div>
           );
         })}
-      </div>}
+      </div>
 
       {/* ── Filter + Date toolbar ── */}
       <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -5237,20 +5315,18 @@ const applyCustomRange = async () => {
               <Archive size={15} color="#00897b" /> Yearly Archives
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {!archiveConf ? (
-                <>
-                  <input type="number" value={archiveYear} onChange={e => setArchiveYear(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
-                  <button onClick={() => setArchiveConf(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-                    <Plus size={12} /> Archive Year
-                  </button>
-                </>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYear}?</span>
-                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
-                  <button onClick={() => setArchiveConf(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
-                </div>
-              )}
+              <input
+                type="number"
+                value={archiveYear}
+                onChange={e => setArchiveYear(e.target.value)}
+                min="2000"
+                max="2100"
+                placeholder="Year"
+                style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }}
+              />
+              <button onClick={requestArchiveYear} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                <Plus size={12} /> Archive Year
+              </button>
             </div>
           </div>
           {archives.length === 0
@@ -16323,5 +16399,6 @@ export function AppField({ label, value, highlight, large }) {
 }
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export { ActionDropdown,  POSContent };
+
 
 

@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
 const { convertUnit } = require("../utils/unitConversion");
+const { isPharmaBrand, isFuelBrand, isDirectCatalogueBrand, rotationMethod, allocateProductStock } = require("../utils/inventoryAutomation");
 
 function computeAvailability(ingredients) {
   if (!ingredients || ingredients.length === 0) return { available: null, lowIngredients: [] };
@@ -43,19 +44,37 @@ router.get("/inventory", async (req, res) => {
     const items = await Promise.all(result.rows.map(async item => {
       const ings = await pool.query(
         `SELECT pi.quantity AS qty_required, pi.unit AS unit, pi.unit AS recipe_unit,
-                i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit
+                i.id, i.name, i.stock, i.min_stock, i.unit AS ingredient_unit,
+                i.brand, i.perishable, i.cost_per_unit, i.extra_fields,
+                CASE
+                  WHEN LOWER(COALESCE(i.brand,'')) LIKE '%pharma%' THEN
+                    COALESCE((SELECT SUM(b.stock) FROM ingredient_batches b
+                              WHERE b.ingredient_id=i.id AND b.stock>0
+                                AND (b.exp_date IS NULL OR b.exp_date >= CURRENT_DATE)),0)
+                  ELSE COALESCE((SELECT SUM(b.stock) FROM ingredient_batches b
+                                 WHERE b.ingredient_id=i.id AND b.stock>0), i.stock, 0)
+                END AS sellable_stock
         FROM product_ingredients pi
         JOIN ingredients i ON i.id = pi.ingredient_id
         WHERE pi.inventory_id = $1`,
         [item.id]
       );
       const { available, lowIngredients } = computeAvailability(ings.rows);
+      const direct = isDirectCatalogueBrand(item.brand);
+      const linked = ings.rows[0] || null;
+      const effectiveStock = direct && linked ? Number(linked.sellable_stock ?? linked.stock ?? 0) : available;
+      const productType = isPharmaBrand(item.brand) ? "DIRECT" : isFuelBrand(item.brand) ? "FUEL" : "RECIPE";
       return {
         ...item,
+        stock: effectiveStock != null ? effectiveStock : item.stock,
+        min_stock: direct && linked ? Number(linked.min_stock || 0) : item.min_stock,
         ingredients: ings.rows,
-        available_stock: available,        // null = no ingredients linked, can't compute
-        low_ingredients: lowIngredients,    // names of ingredients running low
-        is_low: lowIngredients.length > 0,
+        available_stock: effectiveStock,
+        low_ingredients: lowIngredients,
+        is_low: direct && linked ? Number(linked.sellable_stock ?? linked.stock ?? 0) <= Number(linked.min_stock || 0) : lowIngredients.length > 0,
+        product_type: productType,
+        stock_unit: direct && linked ? linked.ingredient_unit : null,
+        rotation_method: linked ? rotationMethod(linked) : null,
       };
     }));
 
@@ -296,75 +315,22 @@ router.post("/inventory", async (req, res) => {
 router.post("/inventory/:id/sell", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { quantity = 1 } = req.body;
+    const quantity = Number(req.body?.quantity ?? 1);
     await client.query("BEGIN");
-
-    const productResult = await client.query(
-      `UPDATE inventory SET stock=stock-$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
-      [parseInt(quantity), req.params.id]
-    );
-    if (productResult.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Product not found" }); }
-    if (productResult.rows[0].stock < 0) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Insufficient product stock" }); }
-
-    const recipe = await client.query(
-      `SELECT pi.ingredient_id, pi.quantity, pi.unit AS recipe_unit, i.name, i.brand, i.perishable, i.unit AS ingredient_unit
-      FROM product_ingredients pi JOIN ingredients i ON i.id=pi.ingredient_id
-      WHERE pi.inventory_id=$1`,
-      [req.params.id]
-    );
-
-    for (const row of recipe.rows) {
-      const neededInRecipeUnit = parseFloat(row.quantity) * parseInt(quantity);
-      const needed = convertUnit(neededInRecipeUnit, row.recipe_unit, row.ingredient_unit);
-      const isFefo = (row.brand || "").toLowerCase().includes("ipharma") || !!row.perishable;
-
-      const batchesRes = await client.query(
-        `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-        [row.ingredient_id]
-      );
-      const sorted = [...batchesRes.rows].sort((a, b) => {
-        if (isFefo) {
-          const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
-          const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
-          return da - db;
-        }
-        const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
-        const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
-        return da - db;
-      });
-
-      const available = sorted.reduce((s, b) => s + Number(b.stock || 0), 0);
-      if (available < needed) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: `Insufficient stock for ingredient: ${row.name}` });
-      }
-
-      let remaining = needed;
-      for (const b of sorted) {
-        if (remaining <= 0) break;
-        const take = Math.min(remaining, Number(b.stock));
-        await client.query(`UPDATE ingredient_batches SET stock = stock - $1, updated_at=NOW() WHERE id=$2`, [take, b.id]);
-        remaining -= take;
-      }
-
-      const totals = await client.query(
-        `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-         FROM ingredient_batches WHERE ingredient_id=$1`,
-        [row.ingredient_id]
-      );
-      const { total_stock, earliest_exp } = totals.rows[0];
-      await client.query(
-        `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3`,
-        [total_stock, earliest_exp || null, row.ingredient_id]
-      );
-      await client.query(`UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`, [total_stock, row.ingredient_id]);
-    }
-
+    const allocation = await allocateProductStock(client, req.params.id, quantity);
     await client.query("COMMIT");
-    res.json({ success: true, product: productResult.rows[0] });
+    res.json({
+      success: true,
+      product: allocation.product,
+      cogs: Number(allocation.cogs.toFixed(4)),
+      stock_allocations: allocation.ingredientAllocations,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
-    res.status(500).json({ error: "Failed to process sale" });
+    res.status(err.status || 500).json({
+      error: err.message || "Failed to process sale",
+      details: err.details || undefined,
+    });
   } finally {
     client.release();
   }

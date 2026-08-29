@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
-import { RefreshCw, AlertTriangle, Check, X, Trash2 } from "lucide-react";
+import {
+  RefreshCw, AlertTriangle, Check, X, Trash2, Search, Pencil, Plus, Store,
+  FileText, Tag, ChevronDown, ChevronUp, History, RotateCcw, Activity, ArrowLeft,
+  ArrowRight, Eye, AlertCircle, Info, Link2, PackageCheck
+} from "lucide-react";
 
 // ─── Design tokens — copied 1:1 from Stock Inventory ──────────────────────────
 const C = {
@@ -45,6 +49,12 @@ const smallBtnSt = {
 };
 
 const DEFAULT_PROFIT_MARGIN = 40;
+const DIRECT_OPERATIONS_MARGIN = 30;
+const DIRECT_PROFIT_MARGIN = 40;
+const computeDirectSellingPrice = (cost) => {
+  const base = Number(cost || 0);
+  return base > 0 ? Math.round(base * (1 + DIRECT_OPERATIONS_MARGIN / 100 + DIRECT_PROFIT_MARGIN / 100) * 100) / 100 : 0;
+};
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans"];
 
 const fmtPeso = n => "₱" + Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -52,8 +62,8 @@ const PAGE_SIZE = 20;
 const fmtTs   = d  => new Date(d).toLocaleString("en-PH",{ month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 const FONT     = "'Plus Jakarta Sans', sans-serif";
 
-const SortAscIcon  = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon = () => <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
+const SortAscIcon = ChevronUp;
+const SortDescIcon = ChevronDown;
 
 const normalizeName = str => {
   if (!str) return "";
@@ -68,23 +78,73 @@ const findDuplicate = (name, branch, existingItems) => {
   }) || null;
 };
 
-// ─── Icons — Stock Inventory's set, plus the couple Menu needed extra ─────────
-const SearchIcon    = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon      = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon         = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon      = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon     = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon      = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const TagIcon       = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
-const ChevronIcon   = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const HistoryIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
-const RestoreIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
-const ActivityIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-const ArrowLeftIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
-const ArrowRightIcon= ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
-const EyeIcon       = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
-const AlertCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+// ─── Icons — Lucide React only ───────────────────────────────────────────────
+const SearchIcon = Search;
+const EditIcon = Pencil;
+const TrashIcon = Trash2;
+const XIcon = X;
+const PlusIcon = Plus;
+const StoreIcon = Store;
+const FileIcon = FileText;
+const TagIcon = Tag;
+const ChevronIcon = ({ size=12, dir="down", ...props }) => dir === "up" ? <ChevronUp size={size} {...props}/> : <ChevronDown size={size} {...props}/>;
+const HistoryIcon = History;
+const RestoreIcon = RotateCcw;
+const ActivityIcon = Activity;
+const ArrowLeftIcon = ArrowLeft;
+const ArrowRightIcon = ArrowRight;
+const EyeIcon = Eye;
+const AlertCircleIcon = AlertCircle;
+
+const isPharmaBrandName = name => String(name || "").toLowerCase().includes("ipharma");
+const isFuelBrandName = name => String(name || "").toLowerCase().includes("ifuel");
+const isDirectBrandName = name => isPharmaBrandName(name) || isFuelBrandName(name);
+
+const getBrandCategories = brandObj => {
+  const raw = brandObj?.categories;
+  if (Array.isArray(raw)) return [...new Set(raw.map(c => String(c || "").trim()).filter(Boolean))];
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return [...new Set(parsed.map(c => String(c || "").trim()).filter(Boolean))];
+    } catch {}
+    return [...new Set(raw.split(",").map(c => c.trim()).filter(Boolean))];
+  }
+  return [];
+};
+
+const STOCK_CATEGORY_STORAGE_KEY = "franchisync_stock_product_categories_v2";
+
+const readStockCategoryMap = () => {
+  if (typeof window === "undefined" || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(STOCK_CATEGORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const getPersistedStockCategory = itemId => {
+  if (itemId === null || itemId === undefined || itemId === "") return "";
+  return String(readStockCategoryMap()[String(itemId)] || "").trim();
+};
+
+const normalizeCatalogueStockItem = row => {
+  const backendCategory = String(
+    row?.category ?? row?.product_category ?? row?.category_name ?? ""
+  ).trim();
+
+  return {
+    ...row,
+    brand: String(row?.brand ?? row?.brand_name ?? "").trim(),
+    // Uses the same exact product-category cache as Stock Inventory so direct
+    // iFuel/iPharma catalogue cards cannot fall back to Uncategorized simply
+    // because the current /ingredients API omitted category in its response.
+    category: backendCategory || getPersistedStockCategory(row?.id),
+  };
+};
 
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
@@ -558,7 +618,7 @@ function InventoryTable({ items, onEdit, onRequestDelete, deletingId }) {
                     <td style={{ padding:"10px 12px" }}>
                       <span style={{ color:low?C.warn:C.ink, fontWeight:low?700:500, display:"inline-flex", alignItems:"center", gap:5 }}>
                         {item.stock}
-                        {low && <span style={{ background:C.warnBg, color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>⚠️ LOW</span>}
+                        {low && <span style={{ background:C.warnBg, color:C.warn, fontSize:10, fontWeight:800, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
                       </span>
                     </td>
                     <td style={{ padding:"10px 12px", color:C.muted }}>{item.min_stock}</td>
@@ -722,12 +782,13 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
   const low        = item.is_low;
   const isDeleting = deletingId === item.id;
   const ingredients = item.ingredients || [];
+  const directProduct = item.product_type === "DIRECT" || item.product_type === "FUEL" || isDirectBrandName(item.brand);
 
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, gap:8 }}>
         <div style={{ flex:1, background:low?C.warnBg:C.okBg, borderRadius:10, padding:"10px 14px" }}>
-  <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Can Make</div>
+  <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{directProduct ? "Available Stock" : "Can Make"}</div>
   <div style={{ fontSize:18, fontWeight:800, color:low?C.warn:C.ink, display:"flex", alignItems:"center", gap:6 }}>
     {item.available_stock != null ? item.available_stock : "—"}
     {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"2px 7px", borderRadius:20 }}>LOW</span>}
@@ -740,11 +801,19 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
           </div>
         </div>
         <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-          <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity:isDeleting?0.5:1, cursor:isDeleting?"not-allowed":"pointer" }}><EditIcon size={11}/> Edit</button>
-          <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
-            {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>}
-            {isDeleting ? "Deleting…" : <><TrashIcon size={11}/> Delete</>}
-          </button>
+          {directProduct ? (
+            <span style={{ ...smallBtnSt, border:`1px solid ${C.greenMid}`, background:C.greenLt, color:C.greenDk, cursor:"default" }}>
+              <Link2 size={11}/> Managed in Stock Inventory
+            </span>
+          ) : (
+            <>
+              <button onClick={()=>onEdit(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:`1px solid ${C.border}`, color:C.green, opacity:isDeleting?0.5:1, cursor:isDeleting?"not-allowed":"pointer" }}><EditIcon size={11}/> Edit</button>
+              <button onClick={()=>onRequestDelete(item)} disabled={isDeleting} style={{ ...smallBtnSt, border:"1px solid #fecaca", color:C.red, opacity:isDeleting?0.6:1, cursor:isDeleting?"not-allowed":"pointer" }}>
+                {isDeleting && <RefreshCw size={11} style={{ animation:"spin 0.8s linear infinite" }}/>} 
+                {isDeleting ? "Deleting…" : <><TrashIcon size={11}/> Delete</>}
+              </button>
+            </>
+          )}
         </div>
       </div>
       {item.low_ingredients?.length > 0 && (
@@ -761,8 +830,9 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
 
       <div style={{ display:"flex", gap:10, marginBottom:16 }}>
         <div style={{ flex:1, background:C.greenLt, borderRadius:10, padding:"10px 14px" }}>
-          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Price</div>
+          <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{directProduct ? "Auto Selling Price" : "Price"}</div>
           <div style={{ fontSize:18, fontWeight:800, color:C.greenDk }}>{fmtPeso(item.price)}</div>
+          {directProduct && <div style={{ fontSize:9.5, color:C.muted, marginTop:3 }}>Cost + 30% operations + 40% profit</div>}
         </div>
         {item.category && (
           <div style={{ flex:1, background:C.bg, borderRadius:10, padding:"10px 14px" }}>
@@ -772,9 +842,38 @@ function ItemDetailPanel({ item, onEdit, onRequestDelete, deletingId }) {
         )}
       </div>
 
+      {directProduct && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:8, marginBottom:16 }}>
+          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
+            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Cost / Unit</div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{fmtPeso(item.cost_per_unit ?? item.cost)}</div>
+          </div>
+          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
+            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Unit</div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{item.unit || "—"}</div>
+          </div>
+          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px" }}>
+            <div style={{ fontSize:9.5, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em" }}>Minimum Stock</div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.ink, marginTop:4 }}>{Number(item.min_stock || 0).toLocaleString("en-PH")}</div>
+          </div>
+        </div>
+      )}
+
       <div>
-        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>Ingredients</div>
-        {ingredients.length === 0 ? (
+        <div style={{ fontSize:11, fontWeight:800, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8 }}>{directProduct ? "Stock Inventory Source" : "Ingredients"}</div>
+        {directProduct ? (
+          <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:11, padding:"11px 13px", display:"flex", alignItems:"flex-start", gap:9 }}>
+            <PackageCheck size={16} color={C.greenDk} style={{ marginTop:1, flexShrink:0 }}/>
+            <div>
+              <div style={{ fontSize:12.5, fontWeight:800, color:C.ink }}>{item.name}</div>
+              <div style={{ fontSize:11.5, color:C.muted, lineHeight:1.5, marginTop:3 }}>
+                {item.product_type === "FUEL"
+                  ? "Same product as Stock Inventory. Inventory movement and costing follow the FIFO delivery queue; this page only displays the product details and calculated pricing."
+                  : "Same product as Stock Inventory. Inventory movement and costing follow the FEFO batch queue; this page only displays the product details and calculated pricing."}
+              </div>
+            </div>
+          </div>
+        ) : ingredients.length === 0 ? (
           <div style={{ fontSize:12, color:C.muted, fontStyle:"italic" }}>No ingredients linked.</div>
         ) : (
           <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
@@ -817,17 +916,17 @@ function MenuBrandListCard({ items, onEdit, onRequestDelete, deletingId }) {
   const [statusF, setStatusF] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
-const filtered = useMemo(() => {
-  const q = search.toLowerCase();
-  return items
-    .filter(i => {
-      if (q && !i.name.toLowerCase().includes(q)) return false;
-      if (statusF === "low" && !i.is_low) return false;
-      if (statusF === "ok"  && i.is_low) return false;
-      return true;
-    })
-    .sort((a,b) => a.name.localeCompare(b.name));
-}, [items, search, statusF]);
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items
+      .filter(i => {
+        if (q && !i.name.toLowerCase().includes(q)) return false;
+        if (statusF === "low" && Number(i.stock) > Number(i.min_stock)) return false;
+        if (statusF === "ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        return true;
+      })
+      .sort((a,b) => a.name.localeCompare(b.name));
+  }, [items, search, statusF]);
 
   useEffect(() => {
     if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
@@ -877,7 +976,7 @@ const filtered = useMemo(() => {
             <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
           ) : (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center" }}>
-              <div>Select an item on the left<br/>to view its ingredients.</div>
+              <div>Select an item on the left<br/>to view its stock link and pricing.</div>
             </div>
           )}
         </div>
@@ -915,11 +1014,11 @@ function computeAvailability(ingredients) {
 function MenuBrandCard({
   brandName, items, branchOptions, categories,
   onEdit, onRequestDelete, deletingId, onQuickAdd, onBack,
-  onOpenDeleteHistory, deleteHistory, brandFilter,
+  onOpenDeleteHistory, deleteHistoryCount,
   onImportExcel, excelRef,
-  branchFilter, onBranchFilterChange,
 }) {
   const [search, setSearch]         = useState("");
+  const [branchF, setBranchF]       = useState("");
   const [statusF, setStatusF]       = useState("");
   const [categoryF, setCategoryF]   = useState("");
   const [selectedId, setSelectedId] = useState(null);
@@ -928,7 +1027,7 @@ function MenuBrandCard({
    useEffect(() => {
     if (!didSetDefaultBranch.current && branchOptions.length > 0) {
       const headOffice = branchOptions.find(b => b.toLowerCase() === "head office");
-      if (headOffice && !branchFilter) onBranchFilterChange(headOffice);
+      if (headOffice) setBranchF(headOffice);
       didSetDefaultBranch.current = true;
     }
   }, [branchOptions]);
@@ -938,23 +1037,14 @@ function MenuBrandCard({
     return items
       .filter(i => {
         if (q && !i.name.toLowerCase().includes(q)) return false;
-        if (branchFilter && i.branch !== branchFilter) return false;
+        if (branchF && i.branch !== branchF) return false;
         if (categoryF && i.category !== categoryF) return false;
         if (statusF === "low" && !i.is_low) return false;
-if (statusF === "ok"  && i.is_low) return false;
+        if (statusF === "ok"  && i.is_low) return false;
         return true;
       })
       .sort((a,b) => a.name.localeCompare(b.name));
-  }, [items, search, branchFilter, categoryF, statusF]);
-
-    const filteredDeleteHistory = useMemo(() => {
-    return (deleteHistory || []).filter(entry => {
-      const d = entry.inventory_data || {};
-      if (brandFilter && d.brand !== brandFilter) return false;
-      if (branchFilter && d.branch !== branchFilter) return false;
-      return true;
-    });
-  }, [deleteHistory, brandFilter, branchFilter]);
+  }, [items, search, branchF, categoryF, statusF]);
 
   useEffect(() => {
     if (selectedId && !items.find(i => i.id === selectedId)) setSelectedId(null);
@@ -962,6 +1052,7 @@ if (statusF === "ok"  && i.is_low) return false;
 
   const selected = items.find(i => i.id === selectedId) || null;
   const lowCount = items.filter(i => i.is_low).length;
+  const directBrand = isDirectBrandName(brandName);
 
   return (
     <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", display:"flex", flexDirection:"column" }}>
@@ -980,10 +1071,16 @@ if (statusF === "ok"  && i.is_low) return false;
         </span>
         <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
           <span style={{ opacity:0.85, color:C.muted }}>{items.length} item{items.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
-          <button onClick={onQuickAdd} title="Add a new menu item"
-            style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
-            <PlusIcon size={12}/> Add Item
-          </button>
+          {directBrand ? (
+            <span style={{ display:"inline-flex", alignItems:"center", gap:6, height:28, padding:"0 11px", borderRadius:8, border:`1px solid ${C.greenMid}`, background:C.greenLt, color:C.greenDk, fontSize:10.5, fontWeight:800, whiteSpace:"nowrap" }}>
+              <Link2 size={12}/> Auto-synced from Stock Inventory
+            </span>
+          ) : (
+            <button onClick={onQuickAdd} title="Add a new menu item"
+              style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              <PlusIcon size={12}/> Add Item
+            </button>
+          )}
         </span>
       </div>
 
@@ -993,7 +1090,7 @@ if (statusF === "ok"  && i.is_low) return false;
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
-         <BranchOnlyFilter branches={branchOptions} activeBranch={branchFilter} onChangeBranch={onBranchFilterChange}/>
+        <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
         <select value={categoryF} onChange={e=>setCategoryF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:140 }}>
           <option value="">All Categories</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1004,16 +1101,20 @@ if (statusF === "ok"  && i.is_low) return false;
           <option value="ok">In Stock</option>
         </select>
         <div style={{ flex:1 }}/>
-        <button onClick={() => onOpenDeleteHistory(filteredDeleteHistory)} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
-           <HistoryIcon size={11}/> Delete History
-          {filteredDeleteHistory.length > 0 && (
-            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{filteredDeleteHistory.length}</span>
-           )}
-        </button>
-        <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5, background:C.white }}>
-          <FileIcon size={11}/> Import Excel
-          <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
-        </label>
+        {!directBrand && (
+          <button onClick={onOpenDeleteHistory} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
+            <HistoryIcon size={11}/> Delete History
+            {deleteHistoryCount > 0 && (
+              <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{deleteHistoryCount}</span>
+            )}
+          </button>
+        )}
+        {!directBrand && (
+          <label style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1px solid ${C.border}`, cursor:"pointer", gap:5, background:C.white }}>
+            <FileIcon size={11}/> Import Excel
+            <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={onImportExcel} style={{ display:"none" }}/>
+          </label>
+        )}
       </div>
 
       {/* two columns: left = scrollable item list, right = scrollable ingredients panel */}
@@ -1022,7 +1123,7 @@ if (statusF === "ok"  && i.is_low) return false;
           {filtered.length === 0 ? (
             <div style={{ padding:"30px 14px", textAlign:"center", color:C.muted, fontSize:12 }}>No items found.</div>
           ) : filtered.map(item => {
-            const low = item.is_low;
+            const low = Number(item.stock) <= Number(item.min_stock);
             const active = item.id === selectedId;
             const stockPct = Number(item.min_stock) > 0 ? Math.min(100, Math.round((Number(item.stock||0) / (Number(item.min_stock)*2)) * 100)) : (Number(item.stock)>0?100:0);
             return (
@@ -1039,8 +1140,16 @@ if (statusF === "ok"  && i.is_low) return false;
                   <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
                 </div>
                 <div style={{ display:"flex", gap:6, marginTop:7 }}>
-                  <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
-                  <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:C.red }}><TrashIcon size={10}/> Delete</button>
+                  {directBrand ? (
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:5, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.greenMid}`, borderRadius:999, background:C.greenLt, color:C.greenDk, fontWeight:700 }}>
+                      <Link2 size={10}/> Managed in Stock Inventory
+                    </span>
+                  ) : (
+                    <>
+                      <button onClick={e=>{ e.stopPropagation(); onEdit(item); }} className="edit-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:`1px solid ${C.border}`, color:C.green }}><EditIcon size={10}/> Edit</button>
+                      <button onClick={e=>{ e.stopPropagation(); onRequestDelete(item); }} className="del-btn" style={{ ...smallBtnSt, height:24, padding:"0 9px", fontSize:10.5, border:"1px solid #fecaca", color:C.red }}><TrashIcon size={10}/> Delete</button>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -1052,7 +1161,7 @@ if (statusF === "ok"  && i.is_low) return false;
             <ItemDetailPanel item={selected} onEdit={onEdit} onRequestDelete={onRequestDelete} deletingId={deletingId}/>
           ) : (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", minHeight:300, color:C.muted, fontSize:12.5, textAlign:"center", padding:20 }}>
-              <div>Select an item on the left<br/>to view its ingredients.</div>
+              <div>Select an item on the left<br/>to view its product details.</div>
             </div>
           )}
         </div>
@@ -1079,17 +1188,28 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
     return out;
   }, [brandList]);
 
+  // Only infer a brand from branch when that branch belongs to exactly ONE brand.
+  // Shared branches such as Head Office must never decide product ownership.
   const branchToBrand = useMemo(() => {
-    const map = {};
+    const owners = {};
     brandList.forEach(b => (b.branches||[]).forEach(br => {
-      const name = typeof br==="string"?br:br.name;
-      map[name] = b.name;
+      const name = typeof br === "string" ? br : br?.name;
+      if (!name) return;
+      if (!owners[name]) owners[name] = [];
+      owners[name].push(b.name);
     }));
+
+    const map = {};
+    Object.entries(owners).forEach(([branchName, brandNames]) => {
+      const unique = [...new Set(brandNames.filter(Boolean))];
+      if (unique.length === 1) map[branchName] = unique[0];
+    });
     return map;
   }, [brandList]);
 
   const [inventory,       setInventory]       = useState([]);
   const [stockItems,      setStockItems]       = useState([]);
+  const [catalogStockItems, setCatalogStockItems] = useState([]);
   const [loading,         setLoading]         = useState(false);
   const [filterBrandName, setFilterBrandName] = useState("");
   const [filterCategory,  setFilterCategory]  = useState("");
@@ -1111,7 +1231,6 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
 
   const [deleteHistory,     setDeleteHistory]     = useState([]);
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
-  const [deleteHistoryToShow, setDeleteHistoryToShow] = useState([]);
   const [activityLog,       setActivityLog]       = useState([]);
   const [showActivityLog,   setShowActivityLog]   = useState(false);
 
@@ -1178,7 +1297,15 @@ const fetchStockItems = useCallback(async (branch, brand) => {
   } catch { setStockItems([]); }
 }, []);
 
-
+const fetchCatalogStockItems = useCallback(async () => {
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
+    const d = await res.json();
+    setCatalogStockItems(Array.isArray(d) ? d.map(normalizeCatalogueStockItem) : []);
+  } catch {
+    setCatalogStockItems([]);
+  }
+}, []);
 
   const fetchDeleteHistory = useCallback(async () => {
     try {
@@ -1224,21 +1351,139 @@ const fetchStockItems = useCallback(async (branch, brand) => {
     fetchInventory();
   }, [isAdmin, userBranch, fetchInventory]);
 
- useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
+  useEffect(() => { fetchStockItems(); fetchCatalogStockItems(); }, [fetchStockItems, fetchCatalogStockItems]);
+  useEffect(() => {
+    const refreshDirectCatalogue = () => fetchCatalogStockItems();
+    window.addEventListener("focus", refreshDirectCatalogue);
+    window.addEventListener("stock-inventory-updated", refreshDirectCatalogue);
+    return () => {
+      window.removeEventListener("focus", refreshDirectCatalogue);
+      window.removeEventListener("stock-inventory-updated", refreshDirectCatalogue);
+    };
+  }, [fetchCatalogStockItems]);
   useEffect(() => { fetchDeleteHistory(); fetchActivityLog(); }, [fetchDeleteHistory, fetchActivityLog]);
 
   const refetch = () => fetchInventory(isAdmin ? undefined : userBranch);
 
+const inventoryForCatalogue = useMemo(() => {
+    /*
+      ONE SOURCE OF TRUTH FOR DIRECT PRODUCTS
+      ---------------------------------------
+      iFuel and iPharma products DO NOT come from /inventory anymore.
+      Their Menu Inventory catalogue is generated directly from Stock Inventory
+      (/ingredients), so the product list is always exactly the same.
+
+      - Add in Stock Inventory    -> appears here automatically
+      - Update stock/cost there   -> details update here automatically
+      - Delete from Stock Inventory -> disappears here automatically
+      - No separate recipe/menu product record is required for iFuel/iPharma
+    */
+
+    const regularMenuItems = inventory
+      .map(item => {
+        const itemBrand = item.brand || branchToBrand[item.branch] || "Unassigned";
+
+        // Ignore old/stale iFuel and iPharma records that may still exist in
+        // the Menu Inventory table. Direct products are rendered ONLY from
+        // Stock Inventory below.
+        if (isDirectBrandName(itemBrand)) return null;
+
+        const brandObj = brandList.find(b => b.name === itemBrand);
+        const activeBranches = (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
+
+        // Brand & Branch remains authoritative for normal menu items too.
+        if (brandObj && !activeBranches.includes(item.branch)) return null;
+
+        return { ...item, brand:itemBrand };
+      })
+      .filter(Boolean);
+
+    const directStockProducts = catalogStockItems
+      .map(stock => {
+        // Stored brand is authoritative. Only fall back to branch when the
+        // branch belongs to exactly one brand. Head Office is commonly shared,
+        // so it cannot cause Coffee Spot/iPharma/iFuel products to mix.
+        const itemBrand = String(stock.brand || "").trim() || branchToBrand[stock.branch] || "Unassigned";
+        if (!isDirectBrandName(itemBrand)) return null;
+
+        const brandObj = brandList.find(b => b.name === itemBrand);
+        if (!brandObj) return null;
+
+        const activeBranches = (brandObj.branches || []).map(br => typeof br === "string" ? br : br?.name).filter(Boolean);
+        if (!activeBranches.includes(stock.branch)) return null;
+
+        const activeCategories = getBrandCategories(brandObj);
+        const storedCategory = String(stock.category || "").trim();
+        const canonicalCategory = activeCategories.find(cat => cat.toLowerCase() === storedCategory.toLowerCase());
+        const displayCategory = canonicalCategory || storedCategory || (activeCategories.length === 1 ? activeCategories[0] : "Uncategorized");
+
+        const cost = Number(stock.cost_per_unit || 0);
+        const availableStock = Number(stock.stock || 0);
+        const minStock = Number(stock.min_stock || 0);
+        const productType = isFuelBrandName(itemBrand) ? "FUEL" : "DIRECT";
+
+        return {
+          id:`stock-${stock.id}`,
+          source_stock_id:stock.id,
+          source_type:"STOCK_INVENTORY",
+          read_only_catalogue:true,
+
+          name:stock.name,
+          brand:itemBrand,
+          branch:stock.branch,
+          category:displayCategory,
+          image_url:stock.image_url || "",
+          unit:stock.unit || (isFuelBrandName(itemBrand) ? "liters" : "pcs"),
+
+          cost,
+          cost_per_unit:cost,
+          price:computeDirectSellingPrice(cost),
+          operations_markup:DIRECT_OPERATIONS_MARGIN,
+          profit_markup:DIRECT_PROFIT_MARGIN,
+
+          stock:availableStock,
+          available_stock:availableStock,
+          min_stock:minStock,
+          is_low:availableStock <= minStock,
+          product_type:productType,
+
+          ingredients:[{
+            stock_item_id:stock.id,
+            name:stock.name,
+            qty_required:1,
+            unit:stock.unit,
+            cost_per_unit:cost,
+            stock:availableStock,
+            min_stock:minStock,
+          }],
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const byBrand = String(a.brand || "").localeCompare(String(b.brand || ""));
+        if (byBrand !== 0) return byBrand;
+        const byCategory = String(a.category || "").localeCompare(String(b.category || ""));
+        if (byCategory !== 0) return byCategory;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      });
+
+    return [...regularMenuItems, ...directStockProducts];
+  }, [inventory, branchToBrand, brandList, catalogStockItems]);
+
 const filteredItems = useMemo(() => {
-  const q = searchQuery.toLowerCase();
-  return inventory.filter(i => {
-    const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
-    if (filterBrandName && itemBrand !== filterBrandName) return false;
-    if (q && !i.name.toLowerCase().includes(q) && !i.category.toLowerCase().includes(q) && !i.branch.toLowerCase().includes(q)) return false;
-    if (filterCategory && i.category !== filterCategory) return false;
-    return true;
-  });
-}, [inventory, searchQuery, filterCategory, filterBrandName, branchToBrand]);
+    const q = searchQuery.toLowerCase();
+    return inventoryForCatalogue
+      .filter(i => {
+        const itemBrand = i.brand || branchToBrand[i.branch] || "Unassigned";
+        if (filterBrandName && itemBrand !== filterBrandName) return false;
+        if (q && !i.name.toLowerCase().includes(q) && !String(i.category || "").toLowerCase().includes(q) && !String(i.branch || "").toLowerCase().includes(q)) return false;
+        if (filterCategory && i.category!==filterCategory) return false;
+        if (filterStatus==="low" && Number(i.stock) >  Number(i.min_stock)) return false;
+        if (filterStatus==="ok"  && Number(i.stock) <= Number(i.min_stock)) return false;
+        return true;
+      })
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [inventoryForCatalogue, searchQuery, filterCategory, filterStatus, filterBrandName, branchToBrand]);
 
   const filteredCategories = useMemo(() => {
     if (filterBrandName) {
@@ -1251,14 +1496,21 @@ const filteredItems = useMemo(() => {
   const brandGroups = useMemo(() => {
     const map = {};
     filteredItems.forEach(item => {
-      const brandName = branchToBrand[item.branch] || "Unassigned";
+      const brandName = item.brand || branchToBrand[item.branch] || "Unassigned";
       if (!map[brandName]) map[brandName] = [];
       map[brandName].push(item);
     });
     let names = brandList.map(b => b.name).filter(n => map[n]);
     if (map["Unassigned"]) names.push("Unassigned");
     if (filterBrandName) names = names.filter(n => n === filterBrandName);
-    return names.map(name => ({ name, items: map[name] }));
+    return names.map(name => ({
+      name,
+      items: (map[name] || []).slice().sort((a, b) => {
+        const byCategory = String(a.category || "").localeCompare(String(b.category || ""));
+        if (byCategory !== 0) return byCategory;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      }),
+    }));
   }, [filteredItems, branchToBrand, brandList, filterBrandName]);
   
   const UNIT_GROUPS = {
@@ -1277,7 +1529,19 @@ function convertUnit(quantity, fromUnit, toUnit) {
   return (quantity * from.factor) / to.factor;
 }
 
+const currentFormBrandName = formData.brand || branchToBrand[formData.branch] || "";
+const directStockSource = useMemo(() => {
+  if (!isDirectBrandName(currentFormBrandName) || !formData.name) return null;
+  return stockItems.find(stock =>
+    normalizeName(stock.name) === normalizeName(formData.name) &&
+    (!formData.branch || stock.branch === formData.branch)
+  ) || null;
+}, [currentFormBrandName, formData.name, formData.branch, stockItems]);
+
 const computedCost = useMemo(() => {
+  if (isDirectBrandName(currentFormBrandName)) {
+    return Number(directStockSource?.cost_per_unit || 0);
+  }
   if (!formData.ingredients || formData.ingredients.length === 0) return 0;
   return formData.ingredients.reduce((total, ing) => {
     const stock = stockItems.find(s => s.id === ing.stock_item_id);
@@ -1285,30 +1549,57 @@ const computedCost = useMemo(() => {
     const qtyInStockUnit = convertUnit(parseFloat(ing.qty_required||0), ing.unit, stock.unit);
     return total + (parseFloat(stock.cost_per_unit||0) * qtyInStockUnit);
   }, 0);
-}, [formData.ingredients, stockItems]);
+}, [formData.ingredients, stockItems, currentFormBrandName, directStockSource]);
 
   useEffect(() => {
-    const cost  = computedCost.toFixed(2);
-    const price = cost > 0 ? (parseFloat(cost) * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2) : "";
-    setFormData(prev => ({ ...prev, cost, price }));
-  }, [computedCost]);
+    const cost = computedCost.toFixed(2);
+    const numericCost = parseFloat(cost) || 0;
+    const price = numericCost > 0
+      ? (isDirectBrandName(currentFormBrandName)
+          ? computeDirectSellingPrice(numericCost).toFixed(2)
+          : (numericCost * (1 + DEFAULT_PROFIT_MARGIN / 100)).toFixed(2))
+      : "";
+    setFormData(prev => ({
+      ...prev,
+      cost,
+      price,
+      ...(isDirectBrandName(currentFormBrandName) && directStockSource ? {
+        stock:Number(directStockSource.stock || 0),
+        minStock:Number(directStockSource.min_stock || 0),
+      } : {}),
+    }));
+  }, [computedCost, currentFormBrandName, directStockSource]);
 
 const handleAddItem = async e => {
   e.preventDefault();
   const branch = isAdmin ? formData.branch : userBranch;
+  const requestedBrand = formData.brand || branchToBrand[branch] || "";
+  if (isDirectBrandName(requestedBrand)) {
+    showToast("info", "Use Stock Inventory", "Add iFuel and iPharma products in Stock Inventory. Menu Inventory mirrors them automatically.");
+    return;
+  }
 
   const missing = [];
   if (!formData.name?.trim())      missing.push("Name");
   if (!formData.category?.trim())  missing.push("Category");
   if (!branch?.trim())             missing.push("Branch");
   if (!formData.brand?.trim())     missing.push("Brand");
-  if (!formData.ingredients || formData.ingredients.length === 0) {
-    missing.push("At least one ingredient");
-  } else {
-    const badIngredient = formData.ingredients.some(
-      ing => !ing.stock_item_id || !ing.qty_required || !ing.unit
-    );
-    if (badIngredient) missing.push("All ingredient fields (item, quantity, unit)");
+  if (formData.cost === "" || formData.cost == null)   missing.push("Cost");
+  if (formData.price === "" || formData.price == null) missing.push("Price");
+  if (!formData.image_url?.trim()) missing.push("Image");
+  if (formData.minStock === "" || formData.minStock == null) missing.push("Min stock");
+  const directProduct = isDirectBrandName(formData.brand || branchToBrand[branch] || "");
+  if (!directProduct) {
+    if (!formData.ingredients || formData.ingredients.length === 0) {
+      missing.push("At least one ingredient");
+    } else {
+      const badIngredient = formData.ingredients.some(
+        ing => !ing.stock_item_id || !ing.qty_required || !ing.unit
+      );
+      if (badIngredient) missing.push("All ingredient fields (item, quantity, unit)");
+    }
+  } else if (!directStockSource) {
+    missing.push("Matching Stock Inventory source");
   }
 
   if (missing.length > 0) {
@@ -1329,6 +1620,7 @@ const handleAddItem = async e => {
     performed_by_role: user?.role || "Unknown",
     latitude: coords?.latitude,
     longitude: coords?.longitude,
+    ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
   };
    try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
@@ -1336,7 +1628,7 @@ const handleAddItem = async e => {
       });
       const d = await res.json();
       if (d.success) {
-        if (formData.ingredients && formData.ingredients.length > 0) {
+        if (!directProduct && formData.ingredients && formData.ingredients.length > 0) {
           const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
             method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({
@@ -1366,6 +1658,7 @@ const handleAddItem = async e => {
   const handleEditItem = async e => {
     e.preventDefault();
     const branch     = isAdmin ? formData.branch : userBranch;
+    const directProduct = isDirectBrandName(formData.brand || branchToBrand[branch] || "");
     const otherItems = inventory.filter(i => i.id !== editingItem.id);
     const duplicate  = findDuplicate(formData.name, branch, otherItems);
     if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
@@ -1379,6 +1672,7 @@ const handleAddItem = async e => {
       performed_by_role: user?.role || "Unknown",
       latitude: coords?.latitude,
       longitude: coords?.longitude,
+      ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
     };
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
@@ -1386,21 +1680,23 @@ const handleAddItem = async e => {
       });
       const d = await res.json();
       if (d.success) {
-        const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({
-            ingredients: (formData.ingredients||[]).map(ing => ({
-              ingredient_id: ing.stock_item_id,
-              quantity:      ing.qty_required,
-              unit:          ing.unit,
-            }))
-          })
-        });
-        const ingData = await ingRes.json();
-        if (!ingData.success) {
-          showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
-          setSaving(false);
-          return;
+        if (!directProduct) {
+          const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({
+              ingredients: (formData.ingredients||[]).map(ing => ({
+                ingredient_id: ing.stock_item_id,
+                quantity:      ing.qty_required,
+                unit:          ing.unit,
+              }))
+            })
+          });
+          const ingData = await ingRes.json();
+          if (!ingData.success) {
+            showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
+            setSaving(false);
+            return;
+          }
         }
 
         const changed = [];
@@ -1495,12 +1791,18 @@ const handleAddItem = async e => {
   };
 
 const openEditModal = item => {
+  if (item?.read_only_catalogue || isDirectBrandName(item?.brand)) {
+    showToast("info", "Managed in Stock Inventory", "iFuel and iPharma product records are edited from Stock Inventory only.");
+    return;
+  }
   setEditingItem(item);
-  const branch = isAdmin ? (branchFilter || item.branch || "Head Office") : item.branch;
+  const branch = item.branch;
   const brandForItem = filterBrandName || branchToBrand[item.branch] || ""; 
   setFormData({
     name:item.name, category:item.category, branch, brand:brandForItem,
     cost:item.cost||"", price:item.price,
+    stock:item.stock ?? item.available_stock ?? 0,
+    minStock:item.min_stock ?? 0,
     image_url: item.image_url || "",
     ingredients: (item.ingredients||[]).map(ing => ({
       stock_item_id: ing.stock_item_id || ing.id,
@@ -1516,7 +1818,7 @@ const openEditModal = item => {
 };
 
 const openAddModal = () => {
-  const branch = isAdmin ? (branchFilter || "Head Office") : userBranch;
+  const branch = isAdmin ? "Head Office" : userBranch;
   const brandName = selectedBrandObj ? selectedBrandObj.name : "";
   setFormData({ ...emptyForm(), branch, brand: brandName });
   fetchStockItems(branch, brandName);
@@ -1534,7 +1836,7 @@ const openAddModal = () => {
 
   const addIngredient = () => {
     if (!ingPicked) return;
-    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) { alert("Already added"); return; }
+    if ((formData.ingredients||[]).find(x=>x.stock_item_id===ingPicked.id)) { showToast("error", "Already linked", "This stock item is already linked to the product."); return; }
     setFormData(f => ({
       ...f, ingredients:[...(f.ingredients||[]), {
         stock_item_id: ingPicked.id,
@@ -1629,9 +1931,8 @@ const openAddModal = () => {
       }
 
       e.target.value = "";
-      let msg = `Parsed ${items.length} row(s).\n✅ Saved: ${saved}`;
-      if (skipped > 0) msg += `\n⚠️ Skipped ${skipped} duplicate(s):\n• ${skippedNames.join("\n• ")}`;
-      alert(msg);
+      const details = skipped > 0 ? `Saved ${saved} item(s). Skipped ${skipped} duplicate(s): ${skippedNames.join(", ")}` : `Saved ${saved} item(s).`;
+      showToast("success", "Import complete", details);
       await refetch();
       await fetchActivityLog();
     };
@@ -1703,12 +2004,45 @@ const openAddModal = () => {
 
 const renderFormFields = () => {
    const currentBrandName = formData.brand || selectedBrandObj?.name || filterBrandName || "";
+   const directProduct = isDirectBrandName(currentBrandName);
+   const directSource = directStockSource;
 
     return (
     <>
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Item Name</label>
-        <input type="text" name="name" value={formData.name} onChange={handleInputChange} required style={invInputSt} placeholder="Product name"/>
+        {directProduct ? (
+          showAddModal ? (
+            <select
+              value={directStockSource?.id || ""}
+              onChange={e => {
+                const source = stockItems.find(stock => String(stock.id) === String(e.target.value));
+                if (!source) {
+                  setFormData(prev => ({ ...prev, name:"", cost:"", price:"", stock:0, minStock:0 }));
+                  return;
+                }
+                setFormData(prev => ({
+                  ...prev,
+                  name:source.name,
+                  branch:source.branch || prev.branch,
+                  category:String(source.category || "").trim() || (getBrandCategories(selectedBrandObj).length === 1 ? getBrandCategories(selectedBrandObj)[0] : ""),
+                  stock:Number(source.stock || 0),
+                  minStock:Number(source.min_stock || 0),
+                }));
+              }}
+              style={invInputSt}
+            >
+              <option value="">Select Stock Inventory product…</option>
+              {stockItems.filter(stock => isDirectBrandName(stock.brand || currentBrandName)).map(stock => (
+                <option key={stock.id} value={stock.id}>{stock.name} ({stock.branch})</option>
+              ))}
+            </select>
+          ) : (
+            <div style={{ ...invInputSt, height:"auto", minHeight:38, padding:"9px 12px", background:"#f5f5f5", color:C.ink, fontWeight:700, display:"flex", alignItems:"center" }}>{formData.name || "—"}</div>
+          )
+        ) : (
+          <input type="text" name="name" value={formData.name} onChange={handleInputChange} style={invInputSt} placeholder="Product name"/>
+        )}
       </div>
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Product Image</label>
@@ -1740,8 +2074,8 @@ const renderFormFields = () => {
                   });
                   const d = await res.json();
                   if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
-                  else alert("Upload failed");
-                } catch { alert("Upload failed"); }
+                  else showToast("error", "Upload failed", "The product image could not be uploaded.");
+                } catch { showToast("error", "Upload failed", "The product image could not be uploaded."); }
               }}
             />
           </label>
@@ -1799,35 +2133,61 @@ const renderFormFields = () => {
 
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Category</label>
-        <CategorySelect
-          value={formData.category}
-          onChange={val=>setFormData(p=>({...p,category:val}))}
-          categories={formCategories}
-          onAddCategory={cat=>setFormCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}
-        />
+        {directProduct ? (
+          <div style={{ ...invInputSt, height:"auto", minHeight:38, padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{formData.category || "Uncategorized"}</div>
+        ) : (
+          <CategorySelect
+            value={formData.category}
+            onChange={val=>setFormData(p=>({...p,category:val}))}
+            categories={formCategories}
+            onAddCategory={cat=>setFormCategories(prev=>prev.includes(cat)?prev:[...prev,cat])}
+          />
+        )}
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:13 }}>
+      <div style={{ display:"grid", gridTemplateColumns:directProduct?"1fr 1fr 1fr":"1fr 1fr", gap:10, marginBottom:13 }}>
         <div>
           <label style={invLabelSt}>Product Cost (₱)</label>
           <input type="number" name="cost" value={formData.cost} readOnly style={{ ...invInputSt, background:"#f5f5f5", color:C.muted }}/>
         </div>
+        {directProduct && (
+          <div>
+            <label style={invLabelSt}>Operations Markup (%)</label>
+            <input type="number" value={DIRECT_OPERATIONS_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
+          </div>
+        )}
         <div>
           <label style={invLabelSt}>Profit Markup (%)</label>
-          <input type="number" value={DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
+          <input type="number" value={directProduct ? DIRECT_PROFIT_MARGIN : DEFAULT_PROFIT_MARGIN} readOnly disabled style={{ ...invInputSt, background:"#f5f5f5", color:C.muted, cursor:"not-allowed" }}/>
         </div>
       </div>
       {formData.cost !== "" && parseFloat(formData.cost) > 0 && (
-        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok }}>
-          Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong>
+        <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:9, padding:"9px 13px", marginBottom:13, fontSize:12, display:"flex", gap:8, alignItems:"center", color:C.ok, flexWrap:"wrap" }}>
+          {directProduct ? (
+            <>Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DIRECT_OPERATIONS_MARGIN}% operations</strong> + <strong>{DIRECT_PROFIT_MARGIN}% profit</strong> = Auto selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong></>
+          ) : (
+            <>Cost: <strong>{fmtPeso(formData.cost)}</strong> + <strong>{DEFAULT_PROFIT_MARGIN}%</strong> = Selling price: <strong style={{ color:C.green, fontSize:13 }}>{fmtPeso(formData.price)}</strong></>
+          )}
         </div>
       )}
     <div style={{ marginBottom:13 }}>
-      <label style={invLabelSt}>Selling Price (₱)</label>
-      <input type="number" name="price" value={formData.price} onChange={handleInputChange} step="0.01" min="0" style={invInputSt} placeholder="Auto-calc"/>
+      <label style={invLabelSt}>{directProduct ? "Auto Selling Price (₱)" : "Selling Price (₱)"}</label>
+      <input type="number" name="price" value={formData.price} onChange={directProduct ? undefined : handleInputChange} readOnly={directProduct} step="0.01" min="0" style={{ ...invInputSt, ...(directProduct ? { background:"#f5f5f5", color:C.greenDk, fontWeight:800 } : {}) }} placeholder="Auto-calc"/>
     </div>
       <div style={{ marginBottom:13 }}>
-        <label style={invLabelSt}>Ingredients</label>
-        {renderIngredientPicker()}
+        <label style={invLabelSt}>{directProduct ? "Stock Inventory Source" : "Ingredients"}</label>
+        {directProduct ? (
+          <div style={{ background:C.greenLt, border:`1px solid ${C.greenMid}`, borderRadius:12, padding:"13px 14px", display:"flex", alignItems:"flex-start", gap:10 }}>
+            <PackageCheck size={17} color={C.greenDk} style={{ marginTop:1, flexShrink:0 }}/>
+            <div>
+              <div style={{ fontSize:12.5, fontWeight:800, color:C.ink }}>{directSource?.name || formData.name || "Linked stock item"}</div>
+              <div style={{ fontSize:11.5, color:C.muted, lineHeight:1.5, marginTop:3 }}>
+                {isPharmaBrandName(currentBrandName)
+                  ? "Automatically linked to Stock Inventory. Cost and availability sync from batches, and POS deducts the earliest-expiring valid batch using FEFO."
+                  : "Automatically linked to Stock Inventory. Cost and availability sync from fuel deliveries, and POS deducts FIFO delivery layers for costing using liter quantities."}
+              </div>
+            </div>
+          </div>
+        ) : renderIngredientPicker()}
       </div>
       <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:8, paddingTop:14, borderTop:`1px solid ${C.border}` }}>
         <button type="button" disabled={saving} onClick={()=>{ setShowAddModal(false); setShowEditModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker(); }} style={{ ...btnSt, opacity: saving ? 0.5 : 1, cursor: saving ? "not-allowed" : "pointer" }}>Cancel</button>
@@ -1841,6 +2201,17 @@ const renderFormFields = () => {
 }; 
 
   const selectedBrandObj = brandList.find(b => b.id === filterBrand) || null;
+  const currentCardDeleteHistory = useMemo(() => {
+    const selectedBrandName = filterBrandName || selectedBrandObj?.name || "";
+    const branchNames = new Set((selectedBrandObj?.branches || []).map(br => typeof br === "string" ? br : br.name));
+    return deleteHistory.filter(entry => {
+      const d = entry?.inventory_data || {};
+      if (selectedBrandName && d.brand === selectedBrandName) return true;
+      if (selectedBrandName && d.branch && branchNames.has(d.branch)) return true;
+      if (!selectedBrandName && userBranch && d.branch === userBranch) return true;
+      return false;
+    });
+  }, [deleteHistory, filterBrandName, selectedBrandObj, userBranch]);
   const anyFilter = filterBrandName||filterCategory||filterStatus||searchQuery;
   const clearAll  = () => { setFilterBrandName(""); setFilterCategory(""); setFilterStatus(""); setSearchQuery(""); };
 
@@ -1891,14 +2262,14 @@ const openBrand = brandId => {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
             {brandList.map(b => {
               const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
-              const brandItems  = inventory.filter(i => (i.brand || branchToBrand[i.branch]) === b.name || (!i.brand && branchNames.includes(i.branch)));
+              const brandItems  = inventoryForCatalogue.filter(i => (i.brand || branchToBrand[i.branch]) === b.name && branchNames.includes(i.branch));
               return (
                 <BrandOverviewCard
                   key={b.id}
                   brand={b}
                   branchCount={branchNames.length}
                   itemCount={brandItems.length}
-                  lowCount={brandItems.filter(i => i.is_low).length}
+                  lowCount={brandItems.filter(i => Number(i.stock) <= Number(i.min_stock)).length}
                   onClick={() => openBrand(b.id)}
                 />
               );
@@ -1920,42 +2291,32 @@ return (
       <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:14, fontWeight:700, background:C.white, borderRadius:18, border:`1px solid ${C.border}` }}>
         Loading inventory…
       </div>
-    ) : isAdmin ? (
-      <MenuBrandCard
-        key={filterBrandName || "all"}
-        brandName={filterBrandName || "All Items"}
-        items={filteredItems}
-        branchOptions={branchOptionsForCard}
-        categories={filteredCategories}
-        onEdit={openEditModal}
-        onRequestDelete={setDeleteTarget}
-        deletingId={deletingId}
-        branchFilter={branchFilter}
-        onBranchFilterChange={setBranchFilter}
-        onQuickAdd={()=>{
-          const branch = branchFilter || "Head Office";
-          setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
-          fetchStockItems(branch, filterBrandName || "");
-          setFormBrandId(filterBrand ? String(filterBrand) : "");
-          setShowAddModal(true);
-        }}
-        onBack={goBackToBrands}
-        deleteHistory={deleteHistory}
-        brandFilter={filterBrandName}
-        onOpenDeleteHistory={(filtered) => { setDeleteHistoryToShow(filtered); setShowDeleteHistory(true); }}
-        onImportExcel={importExcel}
-        excelRef={excelRef}
-      />
     ) : (
-      <MenuBrandListCard
-        items={filteredItems}
-        onEdit={openEditModal}
-        onRequestDelete={setDeleteTarget}
-        deletingId={deletingId}
-      />
+<MenuBrandCard
+  key={filterBrandName || "all"}
+  brandName={filterBrandName || "All Items"}
+  items={filteredItems}
+  branchOptions={branchOptionsForCard}
+  categories={filteredCategories}
+  onEdit={openEditModal}
+  onRequestDelete={setDeleteTarget}
+  deletingId={deletingId}
+  onQuickAdd={()=>{
+    const branch = isAdmin ? "Head Office" : userBranch;
+    setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
+    fetchStockItems(branch, filterBrandName || "");
+    setFormBrandId(filterBrand ? String(filterBrand) : "");
+    setShowAddModal(true);
+  }}
+  onBack={isAdmin ? goBackToBrands : null}
+  onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
+  deleteHistoryCount={currentCardDeleteHistory.length}
+  onImportExcel={importExcel}
+  excelRef={excelRef}
+/>
     )}
 
-    {deleteTarget && (
+    {deleteTarget && !deleteTarget.read_only_catalogue && (
       <DeleteConfirmModal
         target={{
           name: deleteTarget.name,
@@ -1980,7 +2341,7 @@ return (
             <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{showAddModal?"Add New Menu Item":"Edit Menu Item"}</h2>
             <button onClick={()=>{setShowAddModal(false);setShowEditModal(false);setFormData(emptyForm());setFormBrandId("");resetIngPicker();}} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><XIcon size={18}/></button>
           </div>
-          <form onSubmit={showAddModal ? handleAddItem : handleEditItem}>
+          <form noValidate onSubmit={showAddModal ? handleAddItem : handleEditItem}>
             {renderFormFields()}
           </form>
         </div>
@@ -1989,7 +2350,7 @@ return (
 
     {showDeleteHistory && (
       <InventoryDeleteHistoryPanel
-        history={deleteHistoryToShow}
+        history={currentCardDeleteHistory}
         onRestore={handleRestore}
         restoringId={restoringId}
         onClose={() => setShowDeleteHistory(false)}
@@ -2007,3 +2368,4 @@ return (
   </div>
 );
 }
+

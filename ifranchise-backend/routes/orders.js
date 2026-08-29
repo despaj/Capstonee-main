@@ -4,6 +4,7 @@ const pool = require("../db");
 const { sendPushNotification } = require("../utils/pushNotif");
 const { logActivity } = require("../utils/activityLogger");
 const { recomputeProductCosts } = require("../utils/recomputeProductCosts");
+const { allocateIngredientStock, syncIngredientFromBatches } = require("../utils/inventoryAutomation");
 
 // ── State machine ──────────────────────────────────────────────
 const ALLOWED_TRANSITIONS = {
@@ -14,6 +15,8 @@ const ALLOWED_TRANSITIONS = {
   rejected: [],
 };
 
+// Only these roles may move an order into "received" — admin/HO side
+// can ship it, but only the receiving branch confirms delivery.
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
@@ -23,31 +26,20 @@ router.get("/orders", async (req, res) => {
     let params = [];
 
     if (userId) {
+      // Existing behavior: customer-facing "my orders" lookup
       where = "WHERE o.user_id = $1";
       params = [userId];
     } else {
-      const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
-      const RESTRICTED_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee", "Staff"];
-      const STAFF_ROLES = [...HQ_ROLES, ...RESTRICTED_ROLES];
-
+      // Staff/admin view: no single user, so require a recognized role instead
+      const STAFF_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee Operations Admin", "Super Admin", "Franchisee", "Staff"];
       if (!STAFF_ROLES.includes(role)) {
         return res.status(403).json({ error: "userId or a valid staff role is required" });
       }
-
       const conditions = [];
-
-      if (HQ_ROLES.includes(role)) {
-        if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
-        if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
-      } else {
-        if (!branch || !brand) {
-          return res.status(403).json({ error: "Branch and brand are required for this role." });
-        }
-        params.push(branch); conditions.push(`o.branch=$${params.length}`);
-        params.push(brand);  conditions.push(`o.brand=$${params.length}`);
-      }
-
+      if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
+      if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
       if (conditions.length) where = "WHERE " + conditions.join(" AND ");
+      // no branch/brand at all = every order in the system (e.g. HQ-wide view)
     }
 
     const result = await pool.query(`
@@ -220,63 +212,29 @@ router.put("/orders/:id", async (req, res) => {
         processed.add(row.ingredient_id);
 
         const qty = neededByIngredient.get(row.ingredient_id);
-        const isFefo = (row.brand || "").toLowerCase().includes("ipharma") || !!row.perishable;
+        const allocation = await allocateIngredientStock(client, row.ingredient_id, qty, { apply: true });
 
-        const batchesRes = await client.query(
-          `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-          [row.ingredient_id]
-        );
-        const sortedBatches = [...batchesRes.rows].sort((a, b) => {
-          if (isFefo) {
-            const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
-            const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
-            return da - db;
-          }
-          const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
-          const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
-          return da - db;
-        });
-
-        const totalAvailable = sortedBatches.reduce((s, b) => s + Number(b.stock || 0), 0);
-        if (totalAvailable < qty) {
-          await client.query("ROLLBACK");
-          return res.status(409).json({ error: `Insufficient batch stock for "${row.item_name}"` });
-        }
-
-        let remaining = qty;
-        for (const b of sortedBatches) {
-          if (remaining <= 0) break;
-          const take = Math.min(remaining, Number(b.stock));
-          
+        for (const b of allocation.allocations) {
           await client.query(
             `INSERT INTO order_stock_transfers
               (order_id, ingredient_id, source_batch_id, quantity, cost_per_unit, mfg_date, exp_date, supplier)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-            [req.params.id, row.ingredient_id, b.id, take, b.cost_per_unit, b.mfg_date, b.exp_date, b.supplier]
+            [
+              req.params.id, row.ingredient_id, b.batch_id, b.quantity,
+              b.cost_per_unit, b.mfg_date, b.exp_date, b.supplier,
+            ]
           );
-
-          remaining -= take;
         }
-
-        const totals = await client.query(
-          `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-           FROM ingredient_batches WHERE ingredient_id=$1`,
-          [row.ingredient_id]
-        );
-        const { total_stock, earliest_exp } = totals.rows[0];
-
-        await client.query(
-          `UPDATE ingredients SET stock=$1, extra_fields=extra_fields || jsonb_build_object('exp_date',$2::text), updated_at=NOW() WHERE id=$3`,
-          [total_stock, earliest_exp || null, row.ingredient_id]
-        );
-
-        await client.query(`UPDATE shop_items SET stock=$1 WHERE ingredient_id=$2`, [total_stock, row.ingredient_id]);
 
         await logActivity({
           action: "deduct",
           itemName: row.item_name,
           performedBy: performed_by || "System",
-          details: { note: `-${qty} deducted for Order #${req.params.id}` },
+          details: {
+            note: `-${qty} reserved for Order #${req.params.id}`,
+            rotation_method: allocation.rotation_method,
+            batches: allocation.allocations.map(b => ({ batch_number: b.batch_number, quantity: b.quantity })),
+          },
           req,
           branch: row.branch,
           module: "Stock Inventory",
@@ -285,13 +243,40 @@ router.put("/orders/:id", async (req, res) => {
           role: performed_by_role || "Unknown",
         });
       }
+
+    }
+
+    // If Head Office rejects an already accepted order, release the batches that
+    // were reserved/deducted at acceptance so Stock Inventory stays accurate.
+    if (status === "rejected" && currentStatus === "accepted") {
+      const reserved = await client.query(
+        `SELECT * FROM order_stock_transfers WHERE order_id=$1 AND applied=FALSE FOR UPDATE`,
+        [req.params.id]
+      );
+      const touched = new Set();
+      for (const t of reserved.rows) {
+        await client.query(
+          `UPDATE ingredient_batches SET stock=stock+$1, updated_at=NOW() WHERE id=$2`,
+          [Number(t.quantity || 0), t.source_batch_id]
+        );
+        touched.add(t.ingredient_id);
+      }
+      await client.query(`DELETE FROM order_stock_transfers WHERE order_id=$1 AND applied=FALSE`, [req.params.id]);
+      for (const ingredientId of touched) {
+        await syncIngredientFromBatches(client, ingredientId);
+      }
     }
 
     if (status === "received") {
       const transfersRes = await client.query(
-        `SELECT t.*, i.name, i.brand, i.unit, i.perishable
+        `SELECT t.*, i.name, i.brand, i.unit, i.perishable, i.min_stock,
+                sb.lot_number, sb.ndc_code, sb.dosage_form, sb.strength,
+                sb.storage_requirement, sb.controlled_substance,
+                sb.tank_id, sb.grade, sb.octane_rating, sb.delivery_temp,
+                sb.truck_id, sb.volume_correction
          FROM order_stock_transfers t
          JOIN ingredients i ON i.id = t.ingredient_id
+         LEFT JOIN ingredient_batches sb ON sb.id = t.source_batch_id
          WHERE t.order_id = $1 AND t.applied = FALSE`,
         [req.params.id]
       );
@@ -309,8 +294,8 @@ router.put("/orders/:id", async (req, res) => {
         } else {
           const created = await client.query(
             `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable)
-             VALUES ($1,$2,$3,$4,0,0,0,'{}'::jsonb,$5) RETURNING *`,
-            [t.name, currentRes.rows[0].branch, t.brand, t.unit, t.perishable]
+             VALUES ($1,$2,$3,$4,0,$5,0,'{}'::jsonb,$6) RETURNING *`,
+            [t.name, currentRes.rows[0].branch, t.brand, t.unit, Number(t.min_stock || 0), t.perishable]
           );
           dest = created.rows[0];
         }
@@ -328,11 +313,20 @@ router.put("/orders/:id", async (req, res) => {
 
         await client.query(
           `INSERT INTO ingredient_batches
-            (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes)
-           VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9)`,
-          [dest.id, batch_number, t.quantity, t.mfg_date, t.exp_date,
-           t.cost_per_unit, t.supplier || "Head Office Transfer", t.perishable,
-           `Auto-transferred from Order #${req.params.id}`]
+            (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
+             lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
+             tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction)
+           VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+          [
+            dest.id, batch_number, t.quantity, t.mfg_date, t.exp_date,
+            t.cost_per_unit, t.supplier || "Head Office Transfer", t.perishable,
+            `Auto-transferred from Order #${req.params.id}`,
+            t.lot_number || null, t.ndc_code || null, t.dosage_form || null, t.strength || null,
+            t.storage_requirement || null, !!t.controlled_substance,
+            t.tank_id || null, t.grade || null, t.octane_rating || null,
+            t.delivery_temp == null ? null : Number(t.delivery_temp),
+            t.truck_id || null, t.volume_correction == null ? null : Number(t.volume_correction),
+          ]
         );
 
         await client.query(`UPDATE order_stock_transfers SET applied=TRUE WHERE id=$1`, [t.id]);
@@ -340,49 +334,9 @@ router.put("/orders/:id", async (req, res) => {
       }
 
       for (const ingId of touchedIngredientIds) {
-        const totals = await client.query(
-          `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-           FROM ingredient_batches WHERE ingredient_id=$1`,
-          [ingId]
-        );
-        const { total_stock, earliest_exp } = totals.rows[0];
-
-        const ingInfo = await client.query(`SELECT brand, perishable FROM ingredients WHERE id=$1`, [ingId]);
-        const { brand: ingBrand, perishable: ingPerishable } = ingInfo.rows[0] || {};
-
-        const activeBatches = await client.query(
-          `SELECT stock, cost_per_unit, exp_date, supply_date, mfg_date, created_at
-           FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-          [ingId]
-        );
-        const isFefo = (ingBrand || "").toLowerCase().includes("ipharma") || !!ingPerishable;
-        const active = activeBatches.rows;
-        let resolvedCost = 0;
-        if (active.length > 0) {
-          const sorted = [...active].sort((a, b) => {
-            if (isFefo) {
-              const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
-              const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
-              return da - db;
-            }
-            const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
-            const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
-            return da - db;
-          });
-          resolvedCost = Number(sorted[0].cost_per_unit) || 0;
-        }
-
-        await client.query(
-          `UPDATE ingredients SET stock=$1, cost_per_unit=$2,
-           extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
-          [total_stock, resolvedCost, earliest_exp || null, ingId]
-        );
-        await recomputeProductCosts(client, ingId);
-        await client.query(
-          `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
-          [total_stock, resolvedCost, ingId]
-        );
+        await syncIngredientFromBatches(client, ingId);
       }
+
     }
 
     const result = await client.query("UPDATE orders SET status=$1 WHERE id=$2 RETURNING *", [status, req.params.id]);
