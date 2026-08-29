@@ -4,6 +4,7 @@ const pool = require("../db");
 const { logActivity } = require("../utils/activityLogger");
 const { convertUnit } = require("../utils/unitConversion");
 const { recomputeProductCosts } = require("../utils/recomputeProductCosts");
+const { syncIngredientFromBatches } = require("../utils/inventoryAutomation");
 
 function computeNextOutCost(batches, brand, perishable) {
   const active = batches.filter(b => Number(b.stock) > 0);
@@ -263,7 +264,11 @@ router.get("/ingredient-batches", async (req, res) => {
 router.post("/ingredient-batches", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { ingredient_id, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes } = req.body;
+    const {
+      ingredient_id, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
+      lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
+      tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction,
+    } = req.body;
     if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
 
     await client.query("BEGIN");
@@ -280,43 +285,24 @@ router.post("/ingredient-batches", async (req, res) => {
     const batch_number = `${letter}${String(num).padStart(3, "0")}`;
 
     const result = await client.query(
-      `INSERT INTO ingredient_batches (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [ingredient_id, batch_number, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null, parseFloat(cost_per_unit) || 0, supplier || null, perishable || false, notes || null]
+      `INSERT INTO ingredient_batches
+        (ingredient_id, batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
+         lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
+         tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+      [
+        ingredient_id, batch_number, parseFloat(stock) || 0, mfg_date || null, exp_date || null,
+        supply_date || null, parseFloat(cost_per_unit) || 0, supplier || null, !!perishable, notes || null,
+        lot_number || null, ndc_code || null, dosage_form || null, strength || null,
+        storage_requirement || null, !!controlled_substance,
+        tank_id || null, grade || null, octane_rating || null,
+        delivery_temp === '' || delivery_temp == null ? null : Number(delivery_temp),
+        truck_id || null, volume_correction === '' || volume_correction == null ? null : Number(volume_correction),
+      ]
     );  
 
-    const totals = await client.query(
-      `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-       FROM ingredient_batches WHERE ingredient_id=$1`,
-      [ingredient_id]
-    );
-    const { total_stock, earliest_exp } = totals.rows[0];
-
-    const ingInfo = await client.query(
-      `SELECT brand, perishable FROM ingredients WHERE id=$1`, [ingredient_id]
-    );
-    const { brand: ingBrand, perishable: ingPerishable } = ingInfo.rows[0] || {};
-
-    const activeBatches = await client.query(
-      `SELECT stock, cost_per_unit, exp_date, supply_date, mfg_date, created_at
-       FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-      [ingredient_id]
-    );
-    const nextOutCost = computeNextOutCost(activeBatches.rows, ingBrand, ingPerishable);
-    const resolvedCost = nextOutCost !== null ? nextOutCost : 0;
-
-    await client.query(
-      `UPDATE ingredients SET stock=$1, cost_per_unit=$2,
-      extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
-      [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
-    );
-
-    await recomputeProductCosts(client, ingredient_id);
-
-    await client.query(
-      `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
-      [total_stock, resolvedCost, ingredient_id]
-    );
+    const syncResult = await syncIngredientFromBatches(client, ingredient_id);
+    const total_stock = syncResult?.totalStock || 0;
     await client.query("COMMIT");
     
     const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
@@ -345,50 +331,37 @@ router.post("/ingredient-batches", async (req, res) => {
 router.put("/ingredient-batches/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes } = req.body;
+    const {
+      batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
+      lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
+      tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction,
+    } = req.body;
     await client.query("BEGIN");
 
     const result = await client.query(
-      `UPDATE ingredient_batches SET batch_number=$1, stock=$2, mfg_date=$3, exp_date=$4, supply_date=$5,
-      cost_per_unit=$6, supplier=$7, perishable=$8, notes=$9, updated_at=NOW() WHERE id=$10 RETURNING *`,
-      [batch_number || null, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null, parseFloat(cost_per_unit) || 0, supplier || null, perishable || false, notes || null, req.params.id]
+      `UPDATE ingredient_batches SET
+        batch_number=$1, stock=$2, mfg_date=$3, exp_date=$4, supply_date=$5,
+        cost_per_unit=$6, supplier=$7, perishable=$8, notes=$9,
+        lot_number=$10, ndc_code=$11, dosage_form=$12, strength=$13, storage_requirement=$14,
+        controlled_substance=$15, tank_id=$16, grade=$17, octane_rating=$18,
+        delivery_temp=$19, truck_id=$20, volume_correction=$21, updated_at=NOW()
+       WHERE id=$22 RETURNING *`,
+      [
+        batch_number || null, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null,
+        parseFloat(cost_per_unit) || 0, supplier || null, !!perishable, notes || null,
+        lot_number || null, ndc_code || null, dosage_form || null, strength || null,
+        storage_requirement || null, !!controlled_substance,
+        tank_id || null, grade || null, octane_rating || null,
+        delivery_temp === '' || delivery_temp == null ? null : Number(delivery_temp),
+        truck_id || null, volume_correction === '' || volume_correction == null ? null : Number(volume_correction),
+        req.params.id,
+      ]
     );
     if (result.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Batch not found" }); }
 
     const ingredient_id = result.rows[0].ingredient_id;
-    const totals = await client.query(
-      `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-      FROM ingredient_batches WHERE ingredient_id=$1`,
-      [ingredient_id]
-    );
-    const { total_stock, earliest_exp } = totals.rows[0];
-
-    const ingInfo = await client.query(
-      `SELECT brand, perishable FROM ingredients WHERE id=$1`, [ingredient_id]
-    );
-    const { brand: ingBrand, perishable: ingPerishable } = ingInfo.rows[0] || {};
-
-    const activeBatches = await client.query(
-      `SELECT stock, cost_per_unit, exp_date, supply_date, mfg_date, created_at
-       FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-      [ingredient_id]
-    );
-    const nextOutCost = computeNextOutCost(activeBatches.rows, ingBrand, ingPerishable);
-    // No active batches left → cost resets to 0, not the old stale value.
-    const resolvedCost = nextOutCost !== null ? nextOutCost : 0;
-
-    await client.query(
-      `UPDATE ingredients SET stock=$1, cost_per_unit=$2,
-      extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
-      [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
-    );
-
-    await recomputeProductCosts(client, ingredient_id);
-
-    await client.query(
-      `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
-      [total_stock, resolvedCost, ingredient_id]
-    );
+    const syncResult = await syncIngredientFromBatches(client, ingredient_id);
+    const total_stock = syncResult?.totalStock || 0;
 
     await client.query("COMMIT");
 
@@ -434,37 +407,8 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
 
     await client.query("DELETE FROM ingredient_batches WHERE id=$1", [req.params.id]);
 
-    const totals = await client.query(
-      `SELECT COALESCE(SUM(stock),0) AS total_stock, MIN(exp_date) FILTER (WHERE exp_date IS NOT NULL) AS earliest_exp
-      FROM ingredient_batches WHERE ingredient_id=$1`,
-      [ingredient_id]
-    );
-    const { total_stock, earliest_exp } = totals.rows[0];
-
-    const ingInfo = await client.query(
-      `SELECT brand, perishable FROM ingredients WHERE id=$1`, [ingredient_id]
-    );
-    const { brand: ingBrand, perishable: ingPerishable } = ingInfo.rows[0] || {};
-
-    const activeBatches = await client.query(
-      `SELECT stock, cost_per_unit, exp_date, supply_date, mfg_date, created_at
-       FROM ingredient_batches WHERE ingredient_id=$1 AND stock > 0`,
-      [ingredient_id]
-    );
-    const nextOutCost = computeNextOutCost(activeBatches.rows, ingBrand, ingPerishable);
-    const resolvedCost = nextOutCost !== null ? nextOutCost : 0;
-
-    await client.query(
-      `UPDATE ingredients SET stock=$1, cost_per_unit=$2,
-      extra_fields=extra_fields || jsonb_build_object('exp_date',$3::text), updated_at=NOW() WHERE id=$4`,
-      [total_stock, resolvedCost, earliest_exp || null, ingredient_id]
-    );
-    await recomputeProductCosts(client, ingredient_id);
-
-    await client.query(
-      `UPDATE shop_items SET stock=$1, price=ROUND($2::numeric * 1.10, 2) WHERE ingredient_id=$3`,
-      [total_stock, resolvedCost, ingredient_id]
-    );
+    const syncResult = await syncIngredientFromBatches(client, ingredient_id);
+    const total_stock = syncResult?.totalStock || 0;
 
     await client.query("COMMIT");
 

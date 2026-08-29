@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import * as XLSX from "xlsx";
 
 import {
-  AlertTriangle, RefreshCw, Check, X
+  AlertTriangle, RefreshCw, Check, X, Search, Pencil, Trash2, Plus, Store,
+  FileText, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, History,
+  RotateCcw, Activity, AlertCircle, CheckCircle2, Info, LoaderCircle,
+  UploadCloud, ArrowLeft, ArrowRight, Truck, Package
 } from 'lucide-react'
 
 const C = {
@@ -71,10 +74,9 @@ const normalizeName  = (str) => str.trim().toLowerCase().replace(/s$/i, "");
 const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans","gallons"];
 const DOSAGE_FORMS = ["Tablet","Capsule","Liquid","Injection","Cream","Ointment","Syrup","Other"];
 const STORAGE_REQS = ["Room Temperature","Refrigerated","Frozen"];
-const FUEL_GRADES  = ["Regular","Premium","Diesel","Kerosene"];
+const FUEL_GRADES  = ["Regular Gasoline","Ethanol-Blended Gasoline","Premium Gasoline","Diesel","Kerosene"];
 const PAGE_SIZE = 15;
 const EXPIRY_WARN_DAYS = 30;
-const MIN_SHELF_LIFE_DAYS = 30; // Receive Stock: expiry must be at least 1 month out from received date
 
 const fmtTs = (d) => new Date(d).toLocaleString("en-PH", {
   month:"short", day:"numeric", year:"numeric",
@@ -156,30 +158,30 @@ function Toast({ toast, onClose }) {
     </div>
   );
 }
-/* ── tiny inline SVG icons ── */
-const SearchIcon   = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>;
-const EditIcon     = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const TrashIcon    = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>;
-const XIcon        = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const PlusIcon     = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const StoreIcon    = ({ size=14, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const FileIcon     = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
-const SortAscIcon  = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>;
-const SortDescIcon = ({ size=11 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
-const FilterIcon   = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
-const ChevronIcon  = ({ size=12, dir="down" }) => { const d={down:"m6 9 6 6 6-6",up:"m18 15-6-6-6 6"}; return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d[dir]}/></svg>; };
-const HistoryIcon  = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>;
-const RestoreIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>;
-const ActivityIcon = ({ size=14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-const AlertCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-const CheckCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
-const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
-const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
-const ArrowLeftIcon   = ({ size=13 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>;
-const ArrowRightIcon  = ({ size=12 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
-const TruckIcon       = ({ size=13, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
-const PackageIcon     = ({ size=13, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+/* ── Lucide icon aliases/wrappers ── */
+const SearchIcon = Search;
+const EditIcon = Pencil;
+const TrashIcon = Trash2;
+const XIcon = X;
+const PlusIcon = Plus;
+const StoreIcon = Store;
+const FileIcon = FileText;
+const SortAscIcon = ArrowUp;
+const SortDescIcon = ArrowDown;
+const FilterIcon = Filter;
+const ChevronIcon = ({ size=12, dir="down", ...props }) => dir === "up" ? <ChevronUp size={size} {...props}/> : <ChevronDown size={size} {...props}/>;
+const HistoryIcon = History;
+const RestoreIcon = RotateCcw;
+const ActivityIcon = Activity;
+const AlertCircleIcon = AlertCircle;
+const CheckCircleIcon = CheckCircle2;
+const InfoIcon = Info;
+const LoaderIcon = ({ size=28, color="currentColor" }) => <LoaderCircle size={size} color={color} style={{animation:"spin 0.9s linear infinite"}}/>;
+const UploadIcon = UploadCloud;
+const ArrowLeftIcon = ArrowLeft;
+const ArrowRightIcon = ArrowRight;
+const TruckIcon = Truck;
+const PackageIcon = Package;
 
 /* ── Brand accent colors (for brand column text only — no bg pill) ── */
 function brandAccent(brandName) {
@@ -193,20 +195,12 @@ function brandAccent(brandName) {
 }
 
 /* ── FIFO / FEFO helpers (shared by ReceiveStockModal, FifoQueue) ── */
-const THREE_YEARS_MS = 3 * 365.25 * 24 * 60 * 60 * 1000;
 
 function computeExpiryStatus(exp_date, brand) {
   if (!exp_date) return null;
   const now = new Date(); now.setHours(0,0,0,0);
   const exp = new Date(exp_date);
   const msLeft = exp - now;
-  const isIPharma = (brand || "").toLowerCase().includes("ipharma");
-  if (isIPharma) {
-    if (msLeft < THREE_YEARS_MS) return "expired";
-    if (msLeft < THREE_YEARS_MS + 7  * 86400000) return "critical";
-    if (msLeft < THREE_YEARS_MS + 30 * 86400000) return "warning";
-    return "ok";
-  }
   if (msLeft < 0) return "expired";
   if (msLeft < 7  * 86400000) return "critical";
   if (msLeft < 30 * 86400000) return "warning";
@@ -214,11 +208,11 @@ function computeExpiryStatus(exp_date, brand) {
 }
 
 function getFifoMethod(brand, isPerishable) {
-  const isPharma = (brand || "").toLowerCase().includes("ipharma") && isPerishable;
+  const isPharma = (brand || "").toLowerCase().includes("ipharma");
   if (isPharma || isPerishable) {
     return {
       method: "FEFO",
-      topLabel: "▲ EXPIRY DATE (FEFO KEY)",
+      topLabel: "EXPIRY DATE (FEFO KEY)",
       queueLabel: isPharma
         ? "nearest expiry dispensed first — FDA compliance & patient safety"
         : "nearest expiry dispensed first — reduce spoilage waste",
@@ -226,7 +220,7 @@ function getFifoMethod(brand, isPerishable) {
   }
   return {
     method: "FIFO",
-    topLabel: "◄ NEXT OUT",
+    topLabel: "NEXT OUT",
     queueLabel: "oldest received batch used first",
   };
 }
@@ -275,6 +269,470 @@ const BRAND_DEFS = [
 
 function isPharmaBrand(brand) { return (brand || "").toLowerCase().includes("ipharma"); }
 function isFuelBrand(brand)   { return (brand || "").toLowerCase().includes("ifuel"); }
+function isDirectProductBrand(brand) { return isPharmaBrand(brand) || isFuelBrand(brand); }
+
+// ── Category-based shelf-life validation ─────────────────────────────────────
+// IMPORTANT:
+// • iPharma expiry rules are based on the PRODUCT CATEGORY + manufacture date.
+// • iFuel expiry rules are based on the PRODUCT CATEGORY + manufacture date.
+// • Receiving date is still validated, but it is NOT the shelf-life base date.
+function normalizeShelfText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseLocalDateOnly(value) {
+  if (!value) return null;
+  const raw = String(value).slice(0, 10);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const fallback = new Date(value);
+    if (Number.isNaN(fallback.getTime())) return null;
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate(), 12, 0, 0, 0);
+  }
+  const y = Number(m[1]), month = Number(m[2]), d = Number(m[3]);
+  const date = new Date(y, month - 1, d, 12, 0, 0, 0);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== d
+  ) return null;
+  return date;
+}
+
+function addMonthsClamped(dateValue, months) {
+  const base = dateValue instanceof Date ? new Date(dateValue) : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+
+  const day = base.getDate();
+  const target = new Date(base.getFullYear(), base.getMonth() + Number(months || 0), 1, 12, 0, 0, 0);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12, 0, 0, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return target;
+}
+
+function addDaysLocal(dateValue, days) {
+  const base = dateValue instanceof Date ? new Date(dateValue) : parseLocalDateOnly(dateValue);
+  if (!base || Number.isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + Number(days || 0));
+  return base;
+}
+
+function toDateInputValue(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+/*
+  iPharma category rules:
+  - Medicine / Antibiotic / Vitamins & Supplements / other medicine-like
+    categories: EXACTLY 36 months (3 years) from manufacture date.
+  - First Aid / Medical Supplies / Bandages / Gauze / Hygiene:
+    EXACTLY 9 months from manufacture date.
+  - Health Devices / Equipment: expiry may be omitted when the manufacturer
+    provides no expiry date.
+
+  iFuel category rules:
+  - Regular gasoline: 3–6 months from manufacture date.
+  - Ethanol-blended gasoline: 1–3 months.
+  - Premium gasoline: up to 9 months.
+  - Diesel: up to 12 months.
+*/
+function getCategoryShelfLifeRule(brand, category, grade = "") {
+  const categoryKey = normalizeShelfText(category);
+  const gradeKey = normalizeShelfText(grade);
+
+  if (isPharmaBrand(brand)) {
+    if (!categoryKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iPharma category required",
+      };
+    }
+
+    if (
+      categoryKey.includes("health device") ||
+      categoryKey.includes("medical device") ||
+      categoryKey.includes("equipment")
+    ) {
+      return {
+        kind: "manufacturer",
+        allowNoExpiry: true,
+        requiresManufactureDate: false,
+        label: "Health device / equipment",
+      };
+    }
+
+    if (
+      categoryKey.includes("first aid") ||
+      categoryKey.includes("medical suppl") ||
+      categoryKey.includes("bandage") ||
+      categoryKey.includes("gauze") ||
+      categoryKey.includes("dressing") ||
+      categoryKey.includes("hygiene")
+    ) {
+      return {
+        kind: "exact",
+        months: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "9 months from manufacture date",
+      };
+    }
+
+    // Medicine, Antibiotic, Vitamins & Supplements, and future medicine-like
+    // iPharma categories use the 3-year shelf-life rule.
+    return {
+      kind: "exact",
+      months: 36,
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "3 years from manufacture date",
+    };
+  }
+
+  if (isFuelBrand(brand)) {
+    if (!categoryKey && !gradeKey) {
+      return {
+        kind: "missing-category",
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "iFuel category required",
+      };
+    }
+
+    // CATEGORY is authoritative. Grade is only a compatibility fallback for
+    // older records that were saved before fuel categories were connected.
+    const key = categoryKey || gradeKey;
+
+    if (
+      key.includes("ethanol") ||
+      /\be10\b/.test(key) ||
+      /\be15\b/.test(key) ||
+      /\be85\b/.test(key)
+    ) {
+      return {
+        kind: "range",
+        minMonths: 1,
+        maxMonths: 3,
+        recommendedMonths: 3,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Ethanol-blended gasoline · 1–3 months",
+      };
+    }
+
+    if (key.includes("premium")) {
+      return {
+        kind: "max",
+        maxMonths: 9,
+        recommendedMonths: 9,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Premium gasoline · up to 9 months",
+      };
+    }
+
+    if (key.includes("diesel")) {
+      return {
+        kind: "max",
+        maxMonths: 12,
+        recommendedMonths: 12,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Diesel · up to 12 months",
+      };
+    }
+
+    if (
+      key.includes("regular") ||
+      key.includes("unleaded") ||
+      key === "gasoline" ||
+      key === "petrol" ||
+      key.includes("regular gasoline")
+    ) {
+      return {
+        kind: "range",
+        minMonths: 3,
+        maxMonths: 6,
+        recommendedMonths: 6,
+        allowNoExpiry: false,
+        requiresManufactureDate: true,
+        label: "Regular gasoline · 3–6 months",
+      };
+    }
+
+    return {
+      kind: "unconfigured-fuel",
+      allowNoExpiry: false,
+      requiresManufactureDate: true,
+      label: "Fuel shelf life not configured for this category",
+    };
+  }
+
+  return null;
+}
+
+function getExpiryBoundsFromManufacture(mfgDate, rule) {
+  const mfg = parseLocalDateOnly(mfgDate);
+  if (!mfg || !rule) {
+    return { minDate:null, maxDate:null, recommendedDate:null, minStr:"", maxStr:"", recommendedStr:"" };
+  }
+
+  let minDate = null;
+  let maxDate = null;
+  let recommendedDate = null;
+
+  if (rule.kind === "exact") {
+    minDate = addMonthsClamped(mfg, rule.months);
+    maxDate = minDate ? new Date(minDate) : null;
+    recommendedDate = minDate ? new Date(minDate) : null;
+  } else if (rule.kind === "range") {
+    minDate = addMonthsClamped(mfg, rule.minMonths);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
+  } else if (rule.kind === "max") {
+    minDate = addDaysLocal(mfg, 1);
+    maxDate = addMonthsClamped(mfg, rule.maxMonths);
+    recommendedDate = addMonthsClamped(mfg, rule.recommendedMonths ?? rule.maxMonths);
+  } else if (rule.kind === "manufacturer" || rule.kind === "unconfigured-fuel") {
+    minDate = addDaysLocal(mfg, 1);
+  }
+
+  return {
+    minDate,
+    maxDate,
+    recommendedDate,
+    minStr: toDateInputValue(minDate),
+    maxStr: toDateInputValue(maxDate),
+    recommendedStr: toDateInputValue(recommendedDate),
+  };
+}
+
+function shelfLifeHelperText(rule, bounds, category) {
+  if (!rule) return "";
+
+  const categoryLabel = String(category || "").trim();
+
+  if (rule.kind === "missing-category") {
+    return "Assign a category to this product first. Expiry validation depends on the selected category.";
+  }
+
+  if (rule.kind === "exact") {
+    if (!bounds?.recommendedStr) {
+      return `${categoryLabel || "This category"} requires expiry ${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${categoryLabel || "This category"}: expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`;
+  }
+
+  if (rule.kind === "range") {
+    if (!bounds?.minStr || !bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${rule.label}. Allowed expiry: ${fmtDate(bounds.minStr)} to ${fmtDate(bounds.maxStr)}.`;
+  }
+
+  if (rule.kind === "max") {
+    if (!bounds?.maxStr) {
+      return `${rule.label}. Enter the manufacture date first.`;
+    }
+    return `${rule.label}. Expiry must be after manufacture and no later than ${fmtDate(bounds.maxStr)}.`;
+  }
+
+  if (rule.kind === "manufacturer") {
+    return "Use the manufacturer-provided expiry date. If the device/equipment has no expiry date, select “No expiry date”.";
+  }
+
+  if (rule.kind === "unconfigured-fuel") {
+    return "This fuel category has no configured shelf-life rule. Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.";
+  }
+
+  return "";
+}
+
+function validateCategoryShelfLife({ brand, category, grade, mfgDate, expiryDate, noExpiry = false }) {
+  const errors = [];
+  const rule = getCategoryShelfLifeRule(brand, category, grade);
+
+  if (!rule) return errors;
+
+  if (rule.kind === "missing-category") {
+    errors.push(`Assign a category to this ${isPharmaBrand(brand) ? "iPharma" : "iFuel"} product before receiving or editing stock.`);
+    return errors;
+  }
+
+  if (rule.kind === "unconfigured-fuel") {
+    errors.push(`No fuel shelf-life validation is configured for category "${category || grade || "Unknown"}". Use Regular Gasoline, Ethanol-Blended Gasoline, Premium Gasoline, or Diesel.`);
+    return errors;
+  }
+
+  if (rule.requiresManufactureDate && !mfgDate) {
+    errors.push("Manufacture date is required because expiration is calculated from the manufacture date.");
+    return errors;
+  }
+
+  if (noExpiry) {
+    if (!rule.allowNoExpiry) {
+      errors.push(`${category || "This category"} requires an expiration date.`);
+    }
+    return errors;
+  }
+
+  if (!expiryDate) {
+    errors.push("Expiry date is required.");
+    return errors;
+  }
+
+  const mfg = parseLocalDateOnly(mfgDate);
+  const exp = parseLocalDateOnly(expiryDate);
+
+  if (mfgDate && !mfg) {
+    errors.push("Manufacture date is not a valid date.");
+    return errors;
+  }
+  if (!exp) {
+    errors.push("Expiry date is not a valid date.");
+    return errors;
+  }
+
+  if (mfg && exp <= mfg) {
+    errors.push("Expiry date must be after the manufacture date.");
+    return errors;
+  }
+
+  const bounds = getExpiryBoundsFromManufacture(mfgDate, rule);
+
+  if (rule.kind === "exact" && bounds.recommendedDate) {
+    if (toDateInputValue(exp) !== bounds.recommendedStr) {
+      errors.push(`${category || "This category"} expiry must be exactly ${rule.label}. Required date: ${fmtDate(bounds.recommendedStr)}.`);
+    }
+  } else if (rule.kind === "range" && bounds.minDate && bounds.maxDate) {
+    if (exp < bounds.minDate || exp > bounds.maxDate) {
+      errors.push(`${rule.label}. Expiry must be between ${fmtDate(bounds.minStr)} and ${fmtDate(bounds.maxStr)}.`);
+    }
+  } else if (rule.kind === "max" && bounds.maxDate) {
+    if (exp > bounds.maxDate) {
+      errors.push(`${rule.label}. Latest allowed expiry: ${fmtDate(bounds.maxStr)}.`);
+    }
+  }
+
+  return errors;
+}
+
+// Brand & Branch is the source of truth for iFuel/iPharma categories.
+// The API normally returns categories as an array, but this also safely
+// handles JSON/text values so Stock Inventory stays connected to it.
+function getBrandCategories(brandObj) {
+  const raw = brandObj?.categories;
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map(c => String(c || "").trim()).filter(Boolean))];
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return [...new Set(parsed.map(c => String(c || "").trim()).filter(Boolean))];
+      }
+    } catch {}
+    return [...new Set(raw.split(",").map(c => c.trim()).filter(Boolean))];
+  }
+  return [];
+}
+
+// Brand is authoritative. Branch is used only as a legacy fallback when the
+// old row has no brand at all. This prevents shared branches such as
+// "Head Office" from leaking Coffee Spot products into iPharma/iFuel.
+function itemBelongsToBrand(item, brandDef, brandObj) {
+  const storedBrand = String(item?.brand || item?.brand_name || "").trim().toLowerCase();
+  if (storedBrand) return brandDef.match(storedBrand);
+
+  // iFuel/iPharma are direct-product inventories and must always have an
+  // explicit brand. Never infer them from Head Office or another shared branch.
+  if (isDirectProductBrand(brandObj?.name || brandDef?.label || "")) return false;
+
+  // Legacy fallback is retained only for non-direct brands whose old rows may
+  // predate the brand field.
+  const validBranches = (brandObj?.branches || []).map(br =>
+    typeof br === "string" ? br : br?.name
+  ).filter(Boolean);
+  return !!item?.branch && validBranches.includes(item.branch);
+}
+
+const STOCK_CATEGORY_STORAGE_KEY = "franchisync_stock_product_categories_v2";
+
+function readStockCategoryMap() {
+  if (typeof window === "undefined" || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(STOCK_CATEGORY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistStockCategory(itemId, category) {
+  if (itemId === null || itemId === undefined || itemId === "") return;
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const value = String(category || "").trim();
+  try {
+    const map = readStockCategoryMap();
+    if (value) map[String(itemId)] = value;
+    else delete map[String(itemId)];
+    window.localStorage.setItem(STOCK_CATEGORY_STORAGE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function getPersistedStockCategory(itemId) {
+  if (itemId === null || itemId === undefined || itemId === "") return "";
+  return String(readStockCategoryMap()[String(itemId)] || "").trim();
+}
+
+function normalizeStockItem(row) {
+  if (!row || typeof row !== "object") return row;
+
+  const backendCategory = String(
+    row.category ?? row.product_category ?? row.category_name ?? ""
+  ).trim();
+
+  // If the API already returns a category, it remains authoritative and we
+  // cache it. If the current backend silently drops the category field on
+  // /ingredients PUT/POST, use the last category explicitly selected for this
+  // exact product instead of reverting the UI to "Uncategorized".
+  if (backendCategory && row.id != null) {
+    persistStockCategory(row.id, backendCategory);
+  }
+
+  const resolvedCategory = backendCategory || getPersistedStockCategory(row.id);
+
+  return {
+    ...row,
+    brand: String(row.brand ?? row.brand_name ?? "").trim(),
+    category: resolvedCategory,
+  };
+}
+
+// iFuel and iPharma use Stock Inventory as the single product source of truth.
+// Menu Inventory reads these same records for product details; FIFO/FEFO and
+// batch/stock movement remain managed here in Stock Inventory.
+
+const DIRECT_OPERATIONS_RATE = 0.30;
+const DIRECT_PROFIT_RATE = 0.40;
+const computeDirectSellingPrice = (cost) => {
+  const base = Number(cost || 0);
+  return base > 0 ? Math.round(base * (1 + DIRECT_OPERATIONS_RATE + DIRECT_PROFIT_RATE) * 100) / 100 : 0;
+};
 
 /* small reusable bar for stock level / freshness */
 function MiniBar({ pct, color, track="#eef6f1", height=6 }) {
@@ -688,7 +1146,9 @@ function DeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
               <div key={entry.id} style={{ display:"grid", gridTemplateColumns:"1fr 90px 90px 110px 100px", gap:8, alignItems:"center", padding:"12px 0", borderBottom: i < history.length-1 ? `1px solid ${C.bg}` : "none" }}>
                 <div>
                   <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
-                  <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{d.brand||"—"}</div>
+                  <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                    {d.brand||"—"}{isDirectProductBrand(d.brand) ? ` · ${d.category || "Uncategorized"}` : ""}
+                  </div>
                 </div>
                 <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
                 <div style={{ fontSize:12, color:C.ink, fontWeight:600 }}>{d.stock} {d.unit}</div>
@@ -879,7 +1339,7 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
                 <MiniBar pct={stockPct} color={C.green}/>
               </div>
 
-              {isPharmaBrand(product.brand) && product.perishable && (b.lot_number || b.ndc_code || b.dosage_form || b.storage_requirement || b.controlled_substance) && (
+              {isPharmaBrand(product.brand) && (b.lot_number || b.ndc_code || b.dosage_form || b.storage_requirement || b.controlled_substance) && (
                 <div style={{ marginTop:8, paddingTop:8, borderTop:`1px dashed ${C.border}`, display:"flex", flexWrap:"wrap", gap:10, fontSize:10.5, color:C.muted }}>
                   {b.lot_number && <span>LOT: <strong style={{ color:C.ink }}>{b.lot_number}</strong></span>}
                   {b.ndc_code && <span>NDC: <strong style={{ color:C.ink }}>{b.ndc_code}</strong></span>}
@@ -935,10 +1395,15 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
    BRAND OVERVIEW CARD — landing screen, one per brand, clickable
 ───────────────────────────────────────────────────────────────────────── */
 function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
-  const brandItems  = items.filter(i => brandDef.match((i.brand || "").toLowerCase()));
-  const lowCount    = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
-  const totalStock  = brandItems.reduce((sum, i) => sum + Number(i.stock || 0), 0);
-  const branchCount = (brandObj?.branches || []).length;
+  const validBranches = (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
+  const brandItems = items.filter(i => itemBelongsToBrand(i, brandDef, brandObj));
+  const lowCount = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
+  const totalStock = brandItems.reduce((sum, i) => sum + Number(i.stock || 0), 0);
+  const stockedItems = brandItems.filter(i => Number(i.stock || 0) > 0).length;
+  const isCoffeeSpot = brandDef.key === "coffee";
+  const stockMetricLabel = isCoffeeSpot ? "Stocked Items" : "Stock";
+  const stockMetricValue = isCoffeeSpot ? stockedItems : totalStock.toLocaleString();
+  const branchCount = validBranches.length;
 
   return (
     <button
@@ -968,7 +1433,7 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:0, padding:"16px 18px" }}>
         <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Products</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{brandItems.length}</div></div>
-        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Stock</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{totalStock.toLocaleString()}</div></div>
+        <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>{stockMetricLabel}</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{stockMetricValue}</div></div>
         <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:lowCount?C.red:C.green, marginTop:3 }}>{lowCount}</div></div>
       </div>
     </button>
@@ -1028,10 +1493,12 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, onOpenDeleteHistory, deleteHistory }) {  const [search, setSearch]     = useState("");
-  const [branchF, setBranchF]   = useState(initialBranchFilter);
-  const [unitF, setUnitF]       = useState("");
-  const [statusF, setStatusF]   = useState(initialStatusFilter);
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount=0, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation=null, refreshToken=0 }) {
+  const [search, setSearch]       = useState("");
+  const [branchF, setBranchF]     = useState(initialBranchFilter);
+  const [categoryF, setCategoryF] = useState("");
+  const [unitF, setUnitF]         = useState("");
+  const [statusF, setStatusF]     = useState(initialStatusFilter);
   const [selectedId, setSelectedId] = useState(null);
   const [batches, setBatches]       = useState([]);
 
@@ -1044,37 +1511,45 @@ function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuic
 
   const [transferHistoryBatch, setTransferHistoryBatch] = useState(null);
 
-  const brandItems = useMemo(
-    () => items.filter(i => brandDef.match((i.brand || "").toLowerCase())),
-    [items, brandDef]
-  );
-
 const branchOptions = useMemo(() => {
   return (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
 }, [brandObj]);
 
-  const filteredDeleteHistory = useMemo(() => {
-    return (deleteHistory || []).filter(entry => {
-      const d = entry.data || {};
-      if (!brandDef.match((d.brand || "").toLowerCase())) return false;
-      if (branchF && d.branch !== branchF) return false;
-      return true;
-    });
-  }, [deleteHistory, brandDef, branchF]);
+const categoryOptions = useMemo(() => {
+  return isDirectProductBrand(brandObj?.name || brandDef.label)
+    ? getBrandCategories(brandObj)
+    : [];
+}, [brandObj, brandDef]);
+
+  const brandItems = useMemo(
+    () => items
+      .filter(i => itemBelongsToBrand(i, brandDef, brandObj))
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+    [items, brandDef, brandObj]
+  );
 
   const filtered = useMemo(() => {
   const q = search.toLowerCase();
   return brandItems
     .filter(i => {
-      if (q && !i.name.toLowerCase().includes(q)) return false;
+      if (q && !i.name.toLowerCase().includes(q) && !String(i.category || "").toLowerCase().includes(q)) return false;
       if (branchF && i.branch !== branchF) return false;
+      if (categoryF && i.category !== categoryF) return false;
       if (unitF && i.unit !== unitF) return false;
       if (statusF === "low" && Number(i.stock) >= Number (i.min_stock)) return false;
       if (statusF === "ok"  && Number(i.stock) <  Number(i.min_stock)) return false;
       return true;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-}, [brandItems, search, branchF, unitF, statusF]);
+}, [brandItems, search, branchF, categoryF, unitF, statusF]);
+
+useEffect(() => {
+  if (branchF && !branchOptions.includes(branchF)) setBranchF("");
+}, [branchF, branchOptions]);
+
+useEffect(() => {
+  if (categoryF && !categoryOptions.includes(categoryF)) setCategoryF("");
+}, [categoryF, categoryOptions]);
 
 useEffect(() => {
   if (initialBranchFilter) {
@@ -1093,6 +1568,21 @@ useEffect(() => {
     setStatusF(initialStatusFilter);
   }, [initialStatusFilter]);
 
+  // Keep a newly added/edited/received product visible even when the current
+  // branch/category/status filter would otherwise hide the result immediately.
+  useEffect(() => {
+    const changed = focusMutation?.item;
+    if (!changed || !itemBelongsToBrand(changed, brandDef, brandObj)) return;
+
+    if (branchF && changed.branch !== branchF) setBranchF("");
+    if (categoryF && String(changed.category || "") !== categoryF) setCategoryF("");
+
+    const isLow = Number(changed.stock || 0) < Number(changed.min_stock || 0);
+    if ((statusF === "low" && !isLow) || (statusF === "ok" && isLow)) setStatusF("");
+
+    if (changed.id != null) setSelectedId(changed.id);
+  }, [focusMutation?.stamp, brandDef, brandObj]);
+
   useEffect(() => {
     if (selectedId && !brandItems.find(i => i.id === selectedId)) setSelectedId(null);
   }, [brandItems, selectedId]);
@@ -1109,39 +1599,85 @@ useEffect(() => {
   }, [selectedId, apiUrl]);
 
   const syncIngredientStock = async (ingredient) => {
-  try {
-    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
-    const freshBatches = await res.json();
-    const totalStock = Array.isArray(freshBatches) ? freshBatches.reduce((s,b)=>s+Number(b.stock||0),0) : 0;
-    await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
-      method:"PUT", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ ...ingredient, stock: totalStock }),
-    });
-  } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
-};
+    try {
+      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
+      const freshBatches = await res.json();
+      const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+      const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+      const nextOutCost = computeNextOutCost(activeBatches, ingredient.brand, !!ingredient.perishable);
+      await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
+        method:"PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          ...ingredient,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
+      });
+    } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
+  };
 
 const validateBatchForm = (form, ingredient) => {
-  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const pharma = isPharmaBrand(ingredient.brand);
+  const fuel = isFuelBrand(ingredient.brand);
   const errors = [];
+
   if (!isPositiveOrZeroNumber(form.stock)) errors.push("Count must be a valid number of 0 or more.");
   if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
   if (form.exp_date && !isValidDateStr(form.exp_date)) errors.push("Expiry date is not a valid date.");
   if (form.supply_date && !isValidDateStr(form.supply_date)) errors.push("Supply date is not a valid date.");
-  if (form.mfg_date && form.exp_date && new Date(form.mfg_date) > new Date(form.exp_date)) errors.push("Manufacture date cannot be after the expiry date.");
-  if (form.supply_date && form.mfg_date && new Date(form.supply_date) < new Date(form.mfg_date)) errors.push("Supply date cannot be before the manufacture date.");
-  if (form.supply_date && form.exp_date && new Date(form.supply_date) > new Date(form.exp_date)) errors.push("Supply date cannot be after the expiry date.");
+
+  if (
+    form.mfg_date &&
+    form.exp_date &&
+    isValidDateStr(form.mfg_date) &&
+    isValidDateStr(form.exp_date) &&
+    new Date(form.mfg_date) > new Date(form.exp_date)
+  ) {
+    errors.push("Manufacture date cannot be after the expiry date.");
+  }
+
+  if (
+    form.supply_date &&
+    form.mfg_date &&
+    isValidDateStr(form.supply_date) &&
+    isValidDateStr(form.mfg_date) &&
+    new Date(form.supply_date) < new Date(form.mfg_date)
+  ) {
+    errors.push("Supply/receiving date cannot be before the manufacture date.");
+  }
+
+  if (
+    form.supply_date &&
+    form.exp_date &&
+    isValidDateStr(form.supply_date) &&
+    isValidDateStr(form.exp_date) &&
+    new Date(form.supply_date) > new Date(form.exp_date)
+  ) {
+    errors.push("Supply/receiving date cannot be after the expiry date.");
+  }
+
+  if (pharma || fuel) {
+    errors.push(...validateCategoryShelfLife({
+      brand: ingredient.brand,
+      category: ingredient.category,
+      grade: form.grade,
+      mfgDate: form.mfg_date,
+      expiryDate: form.exp_date,
+      noExpiry: !form.exp_date,
+    }));
+  }
+
   if (form.exp_date && isValidDateStr(form.exp_date)) {
     if (computeExpiryStatus(form.exp_date, ingredient.brand) === "expired") {
-      errors.push(pharma ? "Expiry date does not meet iPharma's 3-year shelf life requirement." : "This expiry date is already in the past.");
+      errors.push("This expiry date is already in the past.");
     }
   }
-  if (pharma && form.exp_date && form.supply_date) {
-    const minExp = new Date(form.supply_date);
-    minExp.setDate(minExp.getDate() + Math.ceil(THREE_YEARS_MS / 86400000));
-    if (new Date(form.exp_date) < minExp) errors.push("Expiry date must be at least 3 years after the supply date (FDA shelf life requirement for medicine).");
+
+  if (pharma && form.controlled_substance && !form.lot_number) {
+    errors.push("LOT Number is required for controlled substances.");
   }
-  if (pharma && form.controlled_substance && !form.lot_number) errors.push("LOT Number is required for controlled substances.");
-  return errors;
+
+  return [...new Set(errors)];
 };
 
 const saveBatch = async (form) => {
@@ -1153,7 +1689,7 @@ const saveBatch = async (form) => {
   }
   setSavingBatch(true);
   const coords = await getBrowserLocation();
-  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const pharma = isPharmaBrand(ingredient.brand);
   const industryFields = {
     ...(pharma ? { lot_number:form.lot_number, ndc_code:form.ndc_code, dosage_form:form.dosage_form, strength:form.strength, storage_requirement:form.storage_requirement, controlled_substance:!!form.controlled_substance } : {}),
     ...(isFuelBrand(ingredient.brand) ? { tank_id:form.tank_id, grade:form.grade, octane_rating:form.octane_rating, delivery_temp:form.delivery_temp, truck_id:form.truck_id, volume_correction:form.volume_correction } : {}),
@@ -1204,7 +1740,7 @@ const confirmDeleteBatch = async () => {
       .then(d => { if (!cancelled) { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); } })
       .catch(() => { if (!cancelled) setBatchLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedId, apiUrl]);
+  }, [selectedId, apiUrl, refreshToken]);
 
   const lowCount = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
   const listMaxHeight = expanded ? 700 : 480;
@@ -1226,13 +1762,18 @@ return (
     </span>
     <span style={{ display:"flex", alignItems:"center", gap:10, fontSize:11 }}>
       <span style={{ opacity:0.92 }}>{brandItems.length} item{brandItems.length===1?"":"s"}{lowCount>0?` · ${lowCount} low`:""}</span>
+      <button onClick={onOpenDeleteHistory} title={`View ${brandDef.label} delete history`}
+        style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 10px", borderRadius:7, border:"1px solid #fecaca", background:C.white, color:C.red, fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
+        <HistoryIcon size={11}/> Delete History
+        {deleteHistoryCount > 0 && <span style={{ fontSize:9.5, fontWeight:800, background:"#fee2e2", color:C.red, borderRadius:20, padding:"1px 6px" }}>{deleteHistoryCount}</span>}
+      </button>
       {!readOnly && (
         <>
           <button onClick={() => onReceiveStock(brandDef, selected)} title="Receive stock for this brand"
             style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 11px", borderRadius:7, border:`1px solid ${C.border}`, background:C.white, color:C.greenDk, fontSize:11, fontWeight:700, fontFamily:"inherit" }}>
             <PlusIcon size={11}/> Receive Stock
           </button>
-          <button onClick={() => onQuickAdd(brandDef)} title="Add a new ingredient to this brand"
+          <button onClick={() => onQuickAdd(brandDef, branchF)} title="Add a new ingredient to this brand"
             style={{ display:"inline-flex", alignItems:"center", gap:5, height:26, padding:"0 12px", borderRadius:7, border:"none", background:C.green, color:C.white, fontSize:11, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
             <PlusIcon size={12}/> Add Item
           </button>
@@ -1248,6 +1789,15 @@ return (
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
 <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
+        {isDirectProductBrand(brandObj?.name || brandDef.label) && (
+          <select value={categoryF} onChange={e=>setCategoryF(e.target.value)}
+            style={{ ...invInputSt, height:30, fontSize:11, width:150 }}
+            disabled={categoryOptions.length === 0}
+            title={categoryOptions.length === 0 ? "Add categories in Brand & Branch first" : "Filter by Brand & Branch category"}>
+            <option value="">{categoryOptions.length === 0 ? "No Categories" : "All Categories"}</option>
+            {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+        )}
         <select value={unitF} onChange={e=>setUnitF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:100 }}>
           <option value="">All Units</option>
           {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -1257,13 +1807,6 @@ return (
           <option value="low">Low Stock</option>
           <option value="ok">In Stock</option>
         </select>
-         <div style={{ flex:1 }}/>
-        <button onClick={() => onOpenDeleteHistory(filteredDeleteHistory)} style={{ ...smallBtnSt, height:30, padding:"0 11px", border:`1.5px solid ${C.red}`, color:C.red, gap:5, background:C.white }}>
-           <HistoryIcon size={11}/> Delete History
-          {filteredDeleteHistory.length > 0 && (
-            <span style={{ background:C.red, color:"#fff", fontSize:9, fontWeight:800, padding:"1px 6px", borderRadius:20 }}>{filteredDeleteHistory.length}</span>
-           )}
-        </button>
       </div>
 
       {/* two columns: left = scrollable product list, right = scrollable FIFO/FEFO queue */}
@@ -1282,8 +1825,16 @@ return (
                   <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
                   {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
                 </div>
-                <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>
+                <div style={{ fontSize:10.5, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                   <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
+                  {isDirectProductBrand(item.brand || brandObj?.name || brandDef.label) && (
+                    <>
+                      <span style={{ opacity:.45 }}>•</span>
+                      <span style={{ color:item.category?C.greenDk:C.warn, fontWeight:700 }}>
+                        {item.category || "Uncategorized"}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div style={{ marginTop:5 }}>
                   <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
@@ -1358,8 +1909,9 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
   const [saving, setSaving] = useState(false);
 
   const product = brandItems.find(i => String(i.id) === String(productId)) || null;
-  const pharma = isPharmaBrand(product?.brand) && !!product?.perishable;
+  const pharma = isPharmaBrand(product?.brand);
   const fuel   = isFuelBrand(product?.brand);
+  const directProduct = isDirectProductBrand(product?.brand);
 
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const qty = parseFloat(form.stock) || 0;
@@ -1368,74 +1920,166 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 
   const [noExpiry, setNoExpiry] = useState(false);
 
-  const minShelfLifeDays = pharma ? Math.ceil(THREE_YEARS_MS / 86400000) : MIN_SHELF_LIFE_DAYS;
+  const expiryRule = useMemo(
+    () => getCategoryShelfLifeRule(product?.brand, product?.category, form.grade),
+    [product?.brand, product?.category, form.grade]
+  );
 
-  const minExpiryDate = useMemo(() => {
-    const base = form.received_at ? new Date(form.received_at) : new Date();
-    base.setDate(base.getDate() + minShelfLifeDays);
-    return base;
-  }, [form.received_at, minShelfLifeDays]);
-  const minExpiryDateStr = minExpiryDate.toISOString().slice(0,10);
+  const expiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, expiryRule),
+    [form.mfg_date, expiryRule]
+  );
+
+  const canUseNoExpiry = expiryRule
+    ? !!expiryRule.allowNoExpiry
+    : !pharma && !fuel;
+
+  useEffect(() => {
+    if (!canUseNoExpiry && noExpiry) setNoExpiry(false);
+  }, [canUseNoExpiry, noExpiry]);
+
+  // Exact category rules (iPharma 3 years / 9 months) are auto-filled from
+  // manufacture date so the user does not have to manually calculate them.
+  // Fuel windows are prefilled with the recommended/latest date only when the
+  // expiry field is still empty; the user may choose another date in-range.
+  useEffect(() => {
+    if (!product || noExpiry || !form.mfg_date || !expiryRule) return;
+    const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
+
+    if (expiryRule.kind === "exact" && bounds.recommendedStr) {
+      setForm(f => f.exp_date === bounds.recommendedStr ? f : ({ ...f, exp_date: bounds.recommendedStr }));
+      return;
+    }
+
+    if (
+      (expiryRule.kind === "range" || expiryRule.kind === "max") &&
+      bounds.recommendedStr &&
+      !form.exp_date
+    ) {
+      setForm(f => ({ ...f, exp_date: bounds.recommendedStr }));
+    }
+  }, [
+    product?.id,
+    form.mfg_date,
+    noExpiry,
+    expiryRule?.kind,
+    expiryRule?.months,
+    expiryRule?.minMonths,
+    expiryRule?.maxMonths,
+    expiryRule?.recommendedMonths,
+  ]);
+
+  const basicReceivedDateStr = useMemo(() => {
+    if (!form.received_at || !isValidDateStr(form.received_at)) return "";
+    const received = new Date(form.received_at);
+    return [
+      received.getFullYear(),
+      String(received.getMonth() + 1).padStart(2, "0"),
+      String(received.getDate()).padStart(2, "0"),
+    ].join("-");
+  }, [form.received_at]);
+
+  const minExpiryDateStr = expiryRule ? expiryBounds.minStr : basicReceivedDateStr;
+  const maxExpiryDateStr = expiryRule ? expiryBounds.maxStr : "";
 
   const syncIngredientStock = async (prod) => {
-    try {
-      const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`);
-      const freshBatches = await res.json();
-      const totalStock = Array.isArray(freshBatches) ? freshBatches.reduce((s,b)=>s+Number(b.stock||0),0) : 0;
-      await fetch(`${apiUrl}/ingredients/${prod.id}`, {
-        method:"PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ ...prod, stock: totalStock }),
-      });
-    } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
+    const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${prod.id}`);
+    const freshBatches = await res.json();
+    const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+    const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+    const nextOutCost = computeNextOutCost(activeBatches, prod.brand, !!prod.perishable);
+
+    const updateRes = await fetch(`${apiUrl}/ingredients/${prod.id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        ...prod,
+        stock: totalStock,
+        ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+      }),
+    });
+    if (!updateRes.ok) throw new Error("Failed to sync product totals after receiving stock.");
   };
 
   const validate = () => {
     const errors = [];
+
     if (!product) errors.push("Please select a product to receive stock for.");
-    if (!isPositiveOrZeroNumber(form.stock) || parseFloat(form.stock) <= 0) errors.push("Quantity received must be a number greater than 0.");
-    if (form.cost_batch !== "" && !isPositiveOrZeroNumber(form.cost_batch)) errors.push("Total batch cost must be a valid number of 0 or more.");
+    if (!isPositiveOrZeroNumber(form.stock) || parseFloat(form.stock) <= 0) {
+      errors.push("Quantity received must be a number greater than 0.");
+    }
+    if (form.cost_batch !== "" && !isPositiveOrZeroNumber(form.cost_batch)) {
+      errors.push("Total batch cost must be a valid number of 0 or more.");
+    }
     if (form.cost_batch && Number(form.cost_batch) > 0 && (!form.stock || Number(form.stock) <= 0)) {
       errors.push("Enter the quantity received before the total batch cost, so cost per unit can be calculated.");
     }
-    if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
-    if (form.received_at && !isValidDateStr(form.received_at)) errors.push("Date & time received is not a valid date.");
-    if (form.mfg_date && form.received_at && isValidDateStr(form.mfg_date) && isValidDateStr(form.received_at) && new Date(form.received_at) < new Date(form.mfg_date)) {
+
+    if (form.mfg_date && !isValidDateStr(form.mfg_date)) {
+      errors.push("Manufacture date is not a valid date.");
+    }
+    if (form.received_at && !isValidDateStr(form.received_at)) {
+      errors.push("Date & time received is not a valid date.");
+    }
+
+    if (
+      form.mfg_date &&
+      form.received_at &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.received_at) &&
+      new Date(form.received_at) < new Date(form.mfg_date)
+    ) {
       errors.push("Date received cannot be before the manufacture date.");
     }
-    if (!noExpiry) {
+
+    if (product && (pharma || fuel)) {
+      errors.push(...validateCategoryShelfLife({
+        brand: product.brand,
+        category: product.category,
+        grade: form.grade,
+        mfgDate: form.mfg_date,
+        expiryDate: form.exp_date,
+        noExpiry,
+      }));
+    } else if (!noExpiry) {
       if (!form.exp_date) {
         errors.push("Expiry date is required.");
       } else if (!isValidDateStr(form.exp_date)) {
         errors.push("Expiry date is not a valid date.");
-      } else {
-        if (product) {
-          const status = computeExpiryStatus(form.exp_date, product.brand);
-          if (status === "expired") {
-            errors.push(pharma
-              ? "Expiry date does not meet iPharma's 3-year shelf life requirement."
-              : "Expiry date is already in the past.");
-          }
-        }
-        if (form.mfg_date && isValidDateStr(form.mfg_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
-          errors.push("Manufacture date cannot be after the expiry date.");
-        }
-        if (form.received_at && isValidDateStr(form.received_at) && new Date(form.exp_date) < new Date(form.received_at)) {
-          errors.push("Expiry date cannot be earlier than the date received.");
-        }
-        const receivedBase = form.received_at ? new Date(form.received_at) : new Date();
-        const minExp = new Date(receivedBase);
-        minExp.setDate(minExp.getDate() + minShelfLifeDays);
-        if (new Date(form.exp_date) < minExp) {
-          errors.push(pharma
-            ? `Expiry date must be at least 3 years after the date received (FDA shelf life requirement for medicine).`
-            : `Expiry date must be at least 1 month (${MIN_SHELF_LIFE_DAYS} days) after the date received.`);
-        }
+      } else if (
+        form.received_at &&
+        isValidDateStr(form.received_at) &&
+        new Date(form.exp_date) < new Date(form.received_at)
+      ) {
+        errors.push("Expiry date cannot be earlier than the date received.");
       }
     }
+
+    if (
+      !noExpiry &&
+      form.exp_date &&
+      isValidDateStr(form.exp_date) &&
+      form.received_at &&
+      isValidDateStr(form.received_at) &&
+      new Date(form.received_at) > new Date(form.exp_date)
+    ) {
+      errors.push("Date received cannot be after the expiry date.");
+    }
+
+    if (
+      !noExpiry &&
+      form.exp_date &&
+      isValidDateStr(form.exp_date) &&
+      product &&
+      computeExpiryStatus(form.exp_date, product.brand) === "expired"
+    ) {
+      errors.push("Expiry date is already in the past.");
+    }
+
     if (pharma && form.controlled_substance && !form.lot_number) {
       errors.push("LOT Number is required for controlled substances.");
     }
-    return errors;
+
+    return [...new Set(errors)];
   };
 
   const submit = async (e) => {
@@ -1479,13 +2123,23 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     };
     try {
       const res = await fetch(`${apiUrl}/ingredient-batches`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-      const d = await res.json();
-      setSaving(false);
-      onDone();
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d?.success === false) {
+        throw new Error(d?.error || "Failed to save the received batch.");
+      }
+
+      // Recalculate the product total and next-out cost BEFORE refreshing the UI.
+      // This fixes received stock being saved as a batch but not appearing in
+      // the product list/Menu Inventory immediately.
+      await syncIngredientStock(product);
+      await Promise.resolve(onDone?.(product));
+      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:product.id, brand:product.brand } }));
+
       setToast({ type: "success", title: "Stock Received", message: `${body.stock} ${product.unit} of "${product.name}" logged.` });
-    } catch {
+    } catch (err) {
+      setToast({ type: "error", title: "Receive Stock Failed", message: err?.message || "Failed to log the received stock." });
+    } finally {
       setSaving(false);
-      setToast({ type: "error", title: "Connection Error", message: "Failed to log the received stock." });
     }
   };
 
@@ -1502,7 +2156,7 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
           </div>
         </div>
 
-        <form onSubmit={submit} style={{ padding:24, display:"grid", gap:14 }}>
+        <form noValidate onSubmit={submit} style={{ padding:24, display:"grid", gap:14 }}>
           <div style={{ fontSize:10.5, fontWeight:800, color:C.muted, letterSpacing:"0.06em", borderBottom:`1px solid ${C.border}`, paddingBottom:6 }}>BATCH DETAILS</div>
 
           <div>
@@ -1534,9 +2188,13 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
                 <div style={{ fontSize:18, fontWeight:900, color:C.ink, marginTop:4 }}>₱{unitCost.toFixed(2)}</div>
               </div>
               <div style={{ padding:"10px 13px", borderRadius:9, background:C.greenLt, border:`1px solid ${C.greenMid}` }}>
-                <div style={{ fontSize:11.5, fontWeight:700, color:C.greenDk }}>Shop Price</div>
-                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>cost/unit + 10% (weighted avg across batches)</div>
-                <div style={{ fontSize:18, fontWeight:900, color:C.greenDk, marginTop:4 }}>₱{(unitCost * 1.10).toFixed(2)}</div>
+                <div style={{ fontSize:11.5, fontWeight:700, color:C.greenDk }}>{directProduct ? "Auto Selling Price" : "Shop Price"}</div>
+                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>
+                  {directProduct ? "cost/unit + 30% operations + 40% profit" : "cost/unit + 10% (weighted avg across batches)"}
+                </div>
+                <div style={{ fontSize:18, fontWeight:900, color:C.greenDk, marginTop:4 }}>
+                  ₱{(directProduct ? computeDirectSellingPrice(unitCost) : unitCost * 1.10).toFixed(2)}
+                </div>
               </div>
             </div>
           )}
@@ -1558,31 +2216,67 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
 
 <div>
   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-    <label style={{ ...invLabelSt, marginBottom:0 }}>Expiry Date *</label>
-    {!pharma && (
+    <label style={{ ...invLabelSt, marginBottom:0 }}>
+      {canUseNoExpiry ? "Expiry Date" : "Expiry Date *"}
+    </label>
+    {canUseNoExpiry && (
       <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
         <input
           type="checkbox"
           checked={noExpiry}
-          onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setF("exp_date", ""); }}
+          onChange={e => {
+            setNoExpiry(e.target.checked);
+            if (e.target.checked) setF("exp_date", "");
+          }}
         />
         No expiry date
       </label>
     )}
   </div>
+
   <input
     type="date"
-    style={{ ...invInputSt, opacity: noExpiry ? 0.5 : 1 }}
+    style={{
+      ...invInputSt,
+      opacity:
+        noExpiry ||
+        (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+        expiryRule?.kind === "missing-category" ||
+        expiryRule?.kind === "unconfigured-fuel"
+          ? 0.5
+          : 1
+    }}
     value={form.exp_date}
-    min={minExpiryDateStr}
-    required
-    disabled={noExpiry}
+    min={minExpiryDateStr || undefined}
+    max={maxExpiryDateStr || undefined}
+    required={!noExpiry}
+    disabled={
+      noExpiry ||
+      (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+      expiryRule?.kind === "missing-category" ||
+      expiryRule?.kind === "unconfigured-fuel"
+    }
     onChange={e=>setF("exp_date", e.target.value)}
   />
-  <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
-    {pharma
-      ? <>Medicine requires at least <strong style={{ color:C.ink }}>3 years</strong> of shelf life from the date received</>
-      : <>Must be at least 1 month after the date received</>} (earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>).
+
+  <div style={{
+    fontSize:11,
+    color:
+      expiryRule?.kind === "missing-category" ||
+      expiryRule?.kind === "unconfigured-fuel"
+        ? C.warn
+        : C.muted,
+    marginTop:5,
+    lineHeight:1.45
+  }}>
+    {expiryRule
+      ? shelfLifeHelperText(expiryRule, expiryBounds, product?.category)
+      : (
+        <>
+          Expiry must not be earlier than the date received.
+          {minExpiryDateStr && <> Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>.</>}
+        </>
+      )}
   </div>
 </div>
 
@@ -1735,7 +2429,7 @@ function BatchDeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
    editing a single batch's queuing details (expiry date, stock, etc).
 ───────────────────────────────────────────────────────────────────────── */
 function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
-  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const pharma = isPharmaBrand(ingredient.brand);
   const fuel   = isFuelBrand(ingredient.brand);
   const [noExpiry, setNoExpiry] = useState(!batch.exp_date);
 
@@ -1771,10 +2465,29 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const getExpiryStatus = (exp_date, brand) => computeExpiryStatus(exp_date, brand);
 
+  const editExpiryRule = useMemo(
+    () => getCategoryShelfLifeRule(ingredient.brand, ingredient.category, form.grade),
+    [ingredient.brand, ingredient.category, form.grade]
+  );
+
+  const editExpiryBounds = useMemo(
+    () => getExpiryBoundsFromManufacture(form.mfg_date, editExpiryRule),
+    [form.mfg_date, editExpiryRule]
+  );
+
+  const canEditNoExpiry = editExpiryRule
+    ? !!editExpiryRule.allowNoExpiry
+    : !pharma && !fuel;
+
+  useEffect(() => {
+    if (!canEditNoExpiry && noExpiry) setNoExpiry(false);
+  }, [canEditNoExpiry, noExpiry]);
+
   const submit = (e) => {
     e.preventDefault();
     onSave({
       ...form,
+      exp_date: noExpiry ? "" : form.exp_date,
       supply_date: form.supply_date ? new Date(form.supply_date).toISOString() : null,
     });
   };
@@ -1792,7 +2505,7 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
           </button>
         </div>
 
-        <form onSubmit={submit} style={{ padding:22, display:"grid", gap:14 }}>
+        <form noValidate onSubmit={submit} style={{ padding:22, display:"grid", gap:14 }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
             <div>
               <label style={invLabelSt}>Quantity *</label>
@@ -1811,13 +2524,68 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
               <input type="date" style={invInputSt} value={form.mfg_date} onChange={e=>setF("mfg_date", e.target.value)}/>
             </div>
             <div>
-              <label style={invLabelSt}>Exp Date</label>
-              <input type="date" style={invInputSt} value={form.exp_date} onChange={e=>setF("exp_date", e.target.value)}/>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}>
+                <label style={{ ...invLabelSt, marginBottom:0 }}>
+                  {canEditNoExpiry ? "Exp Date" : "Exp Date *"}
+                </label>
+                {canEditNoExpiry && (
+                  <label style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={noExpiry}
+                      onChange={e => {
+                        setNoExpiry(e.target.checked);
+                        if (e.target.checked) setF("exp_date", "");
+                      }}
+                    />
+                    No expiry
+                  </label>
+                )}
+              </div>
+
+              <input
+                type="date"
+                style={{
+                  ...invInputSt,
+                  opacity:
+                    noExpiry ||
+                    (!!editExpiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                    editExpiryRule?.kind === "missing-category" ||
+                    editExpiryRule?.kind === "unconfigured-fuel"
+                      ? 0.5
+                      : 1
+                }}
+                value={form.exp_date}
+                min={editExpiryBounds.minStr || undefined}
+                max={editExpiryBounds.maxStr || undefined}
+                required={!noExpiry}
+                disabled={
+                  noExpiry ||
+                  (!!editExpiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                  editExpiryRule?.kind === "missing-category" ||
+                  editExpiryRule?.kind === "unconfigured-fuel"
+                }
+                onChange={e=>setF("exp_date", e.target.value)}
+              />
+
+              {editExpiryRule && (
+                <div style={{
+                  marginTop:5,
+                  fontSize:11,
+                  lineHeight:1.45,
+                  color:
+                    editExpiryRule.kind === "missing-category" ||
+                    editExpiryRule.kind === "unconfigured-fuel"
+                      ? C.warn
+                      : C.muted
+                }}>
+                  {shelfLifeHelperText(editExpiryRule, editExpiryBounds, ingredient.category)}
+                </div>
+              )}
+
               {form.exp_date && getExpiryStatus(form.exp_date, ingredient.brand) === "expired" && (
                 <div style={{ marginTop:5, fontSize:11, fontWeight:700, color:C.red }}>
-                  {pharma
-                    ? "Does not meet iPharma's 3-year shelf life requirement."
-                    : "This expiry date is already in the past."}
+                  This expiry date is already in the past.
                 </div>
               )}
             </div>
@@ -1911,7 +2679,7 @@ function BatchEditModal({ ingredient, batch, onClose, onSave, saving }) {
 }
 
 function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl, userName, userRole, showUiModal, setToast, readOnly=false }) {
-  const pharma = isPharmaBrand(ingredient.brand) && !!ingredient.perishable;
+  const pharma = isPharmaBrand(ingredient.brand);
   const [editingBatch, setEditingBatch] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [batchDeleteHistory, setBatchDeleteHistory] = useState([]);
@@ -1950,49 +2718,83 @@ function BatchesModal({ ingredient, batches, loading, onClose, onRefresh, apiUrl
     try {
       const res = await fetch(`${apiUrl}/ingredient-batches?ingredient_id=${ingredient.id}`);
       const freshBatches = await res.json();
-      const totalStock = Array.isArray(freshBatches)
-        ? freshBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0) : 0;
+      const activeBatches = Array.isArray(freshBatches) ? freshBatches : [];
+      const totalStock = activeBatches.reduce((sum, b) => sum + Number(b.stock || 0), 0);
+      const nextOutCost = computeNextOutCost(activeBatches, ingredient.brand, !!ingredient.perishable);
       await fetch(`${apiUrl}/ingredients/${ingredient.id}`, {
         method:"PUT", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ ...ingredient, stock: totalStock }),
+        body: JSON.stringify({
+          ...ingredient,
+          stock: totalStock,
+          ...(nextOutCost !== null ? { cost_per_unit: nextOutCost } : {}),
+        }),
       });
+      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:ingredient.id, brand:ingredient.brand } }));
     } catch (err) { console.warn("Failed to sync ingredient stock:", err); }
   };
 
   const validateBatchForm = (form) => {
+    const fuel = isFuelBrand(ingredient.brand);
     const errors = [];
+
     if (!isPositiveOrZeroNumber(form.stock)) errors.push("Count must be a valid number of 0 or more.");
     if (form.mfg_date && !isValidDateStr(form.mfg_date)) errors.push("Manufacture date is not a valid date.");
     if (form.exp_date && !isValidDateStr(form.exp_date)) errors.push("Expiry date is not a valid date.");
     if (form.supply_date && !isValidDateStr(form.supply_date)) errors.push("Supply date is not a valid date.");
-    if (form.mfg_date && form.exp_date && isValidDateStr(form.mfg_date) && isValidDateStr(form.exp_date) && new Date(form.mfg_date) > new Date(form.exp_date)) {
+
+    if (
+      form.mfg_date &&
+      form.exp_date &&
+      isValidDateStr(form.mfg_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.mfg_date) > new Date(form.exp_date)
+    ) {
       errors.push("Manufacture date cannot be after the expiry date.");
     }
-    if (form.supply_date && form.mfg_date && isValidDateStr(form.supply_date) && isValidDateStr(form.mfg_date) && new Date(form.supply_date) < new Date(form.mfg_date)) {
-      errors.push("Supply date cannot be before the manufacture date.");
+
+    if (
+      form.supply_date &&
+      form.mfg_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.mfg_date) &&
+      new Date(form.supply_date) < new Date(form.mfg_date)
+    ) {
+      errors.push("Supply/receiving date cannot be before the manufacture date.");
     }
-    if (form.supply_date && form.exp_date && isValidDateStr(form.supply_date) && isValidDateStr(form.exp_date) && new Date(form.supply_date) > new Date(form.exp_date)) {
-      errors.push("Supply date cannot be after the expiry date.");
+
+    if (
+      form.supply_date &&
+      form.exp_date &&
+      isValidDateStr(form.supply_date) &&
+      isValidDateStr(form.exp_date) &&
+      new Date(form.supply_date) > new Date(form.exp_date)
+    ) {
+      errors.push("Supply/receiving date cannot be after the expiry date.");
     }
+
+    if (pharma || fuel) {
+      errors.push(...validateCategoryShelfLife({
+        brand: ingredient.brand,
+        category: ingredient.category,
+        grade: form.grade,
+        mfgDate: form.mfg_date,
+        expiryDate: form.exp_date,
+        noExpiry: !form.exp_date,
+      }));
+    }
+
     if (form.exp_date && isValidDateStr(form.exp_date)) {
       const status = getExpiryStatus(form.exp_date, ingredient.brand);
       if (status === "expired") {
-        errors.push(pharma
-          ? "Expiry date does not meet iPharma's 3-year shelf life requirement."
-          : "This expiry date is already in the past.");
+        errors.push("This expiry date is already in the past.");
       }
     }
-    if (pharma && form.exp_date && form.supply_date && isValidDateStr(form.exp_date) && isValidDateStr(form.supply_date)) {
-      const minExp = new Date(form.supply_date);
-      minExp.setDate(minExp.getDate() + Math.ceil(THREE_YEARS_MS / 86400000));
-      if (new Date(form.exp_date) < minExp) {
-        errors.push("Expiry date must be at least 3 years after the supply date (FDA shelf life requirement for medicine).");
-      }
-    }
+
     if (pharma && form.controlled_substance && !form.lot_number) {
       errors.push("LOT Number is required for controlled substances.");
     }
-    return errors;
+
+    return [...new Set(errors)];
   };
 
   const saveBatch = async (form) => {
@@ -2167,9 +2969,7 @@ const restoreBatch = async (entry) => {
                   </div>
                   {status === "expired" && (
                     <div style={{ marginTop:6, fontSize:11, fontWeight:700, color:"#dc2626", display:"flex", alignItems:"center", gap:5 }}>
-                      {ingredient.brand?.toLowerCase().includes("ipharma")
-                        ? "Item does not meet iPharma's 3-year shelf life requirement."
-                        : "This batch has already expired."}
+                      This batch has already expired.
                     </div>
                   )}
                   {batch.notes && <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>{batch.notes}</div>}
@@ -2240,7 +3040,7 @@ const restoreBatch = async (entry) => {
    MAIN COMPONENT
 ───────────────────────────────────────────────────────────────────────── */
 export default function StockInventoryContent({ user, brands: propBrands = [], initialFocus = null }) {
-  const isAdmin = user?.role === "Super Admin" || user?.role === "Sales Admin" || "Franchisee Operations Admin";
+  const isAdmin = user?.role === "Super Admin" || user?.role === "Sales Admin" || user?.role === "Franchisee Operations Admin";
   const isReadOnly = user?.role === "Franchisee Operations Admin";
   const userBranch = user?.branch || "";
   const userName   = user?.name   || "Unknown";
@@ -2251,6 +3051,11 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [toast, setToast] = useState(null);
 
   const brandList = propBrands.length > 0 ? propBrands : [];
+
+  const connectedBrandDefs = useMemo(
+    () => BRAND_DEFS.filter(bd => brandList.some(b => bd.match((b.name || "").toLowerCase()))),
+    [brandList]
+  );
   
   const allBranches = useMemo(() => {
     const out = [];
@@ -2275,9 +3080,9 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [showModal,  setShowModal]  = useState(false);
   const [editing,    setEditing]    = useState(null);
 
-  // navigation: null = landing grid of 4 brand cards, otherwise a BRAND_DEFS key
+  // navigation: null = landing grid; active cards come only from live Brand & Branch records
   const [activeBrandKey, setActiveBrandKey] = useState(null);
-  const activeBrandDef = BRAND_DEFS.find(b => b.key === activeBrandKey) || null;
+  const activeBrandDef = connectedBrandDefs.find(b => b.key === activeBrandKey) || null;
 
   const currentBrandName = activeBrandDef
   ? (brandList.find(b => activeBrandDef.match((b.name||"").toLowerCase()))?.name || "")
@@ -2292,6 +3097,7 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [importProgress,        setImportProgress]        = useState({ percent:0, label:"Preparing…", current:0, total:0 });
   const [deleteHistory,         setDeleteHistory]         = useState([]);
   const [showDeleteHistory,     setShowDeleteHistory]     = useState(false);
+  const [deleteHistoryBrandKey, setDeleteHistoryBrandKey] = useState(null);
   const [activityLog,           setActivityLog]           = useState([]);
   const [showActivityLog,       setShowActivityLog]       = useState(false);
   const [activeBatchIngredient, setActiveBatchIngredient] = useState(null);
@@ -2300,12 +3106,13 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const [showValue, setShowValue] = useState(true);
 
   const [receiveTarget, setReceiveTarget] = useState(null);
-  const [deleteHistoryToShow, setDeleteHistoryToShow] = useState([]);
+  const [focusMutation, setFocusMutation] = useState(null);
+  const [stockRefreshToken, setStockRefreshToken] = useState(0);
 
   const excelRef = useRef(null);
 
 const emptyForm = useCallback(() => ({
-  name:"", branch: isAdmin ? "" : userBranch, brand:"",
+  name:"", branch: isAdmin ? "" : userBranch, brand:"", category:"",
   unit:"pcs", min_stock:0, cost_per_unit:"", perishable:false,
   listInShop: false,
   shopCategory:"", 
@@ -2320,9 +3127,15 @@ const emptyForm = useCallback(() => ({
       const q   = !isAdmin && userBranch ? `?branch=${encodeURIComponent(userBranch)}` : "";
       const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients${q}`);
       const d   = await res.json();
-      setItems(Array.isArray(d) ? d : []);
-    } catch { setItems([]); }
-    finally { setLoading(false); }
+      const rows = Array.isArray(d) ? d.map(normalizeStockItem) : [];
+      setItems(rows);
+      return rows;
+    } catch {
+      setItems([]);
+      return [];
+    } finally {
+      setLoading(false);
+    }
   }, [isAdmin, userBranch]);
 
   const fetchDeleteHistory = useCallback(async () => {
@@ -2330,7 +3143,7 @@ const emptyForm = useCallback(() => ({
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`);
       const data = await res.json();
       setDeleteHistory(Array.isArray(data) ? data.map(row => ({
-        id: row.id, data: row.ingredient_data ?? row.data ?? {},
+        id: row.id, data: normalizeStockItem(row.ingredient_data ?? row.data ?? {}),
         deletedAt: row.deleted_at ?? row.deletedAt,
         deletedBy: row.deleted_by ?? row.deletedBy,
       })) : []);
@@ -2352,6 +3165,12 @@ const emptyForm = useCallback(() => ({
       })) : []);
     } catch (err) { console.error(err); }
   }, []);
+
+  useEffect(() => {
+    if (activeBrandKey && !connectedBrandDefs.some(bd => bd.key === activeBrandKey)) {
+      setActiveBrandKey(null);
+    }
+  }, [activeBrandKey, connectedBrandDefs]);
 
     useEffect(() => {
     if (!initialFocus?.brand) return;
@@ -2399,8 +3218,9 @@ const emptyForm = useCallback(() => ({
               || String(rawListInShop).trim().toLowerCase() === "yes"
               || String(rawListInShop).trim().toLowerCase() === "true";
             const rowBrand = String(row.brand || row.Brand || "").trim();
+            const rowCategory = String(row.category || row.Category || "").trim();
             rows_to_save.push({
-              name, branch:rowBranch, brand:rowBrand,
+              name, branch:rowBranch, brand:rowBrand, category:rowCategory,
               unit:          String(row.unit||row.Unit||"pcs").trim(),
               stock:         parseFloat(row.stock||row.Stock||0)||0,
               min_stock:     parseFloat(row.min_stock||row["Min Stock"]||0)||0,
@@ -2511,11 +3331,22 @@ const emptyForm = useCallback(() => ({
     if (!form.name || !form.name.trim()) errors.push("Ingredient name is required.");
     if (!form.brand) errors.push("Brand is required.");
     if (isAdmin && !form.branch) errors.push("Branch is required.");
+
+    // iFuel/iPharma categories come ONLY from Brand & Branch Management.
+    if (isDirectProductBrand(form.brand)) {
+      const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === form.brand.toLowerCase());
+      const allowedCategories = getBrandCategories(selectedBrandObj);
+      if (allowedCategories.length === 0) {
+        errors.push(`No categories are configured for ${form.brand}. Add a category in Brand & Branch Management first.`);
+      } else if (!form.category) {
+        errors.push("Category is required for iFuel and iPharma products.");
+      } else if (!allowedCategories.some(cat => cat.toLowerCase() === String(form.category).toLowerCase())) {
+        errors.push(`"${form.category}" is no longer an active ${form.brand} category. Select a category from Brand & Branch Management.`);
+      }
+    }
+
     if (!form.unit) errors.push("Unit is required.");
-    if (!isPositiveOrZeroNumber(form.min_stock) || parseFloat(form.min_stock) <= 0) {
-     errors.push("Minimum stock is required and must be greater than 0.");
-   }
-   if (form.listInShop && !form.shopCategory) errors.push("Shop category is required when listing in Mobile Shop.");
+    if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
   
     if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
       errors.push("Stock must be a valid number of 0 or more.");
@@ -2557,6 +3388,16 @@ const emptyForm = useCallback(() => ({
       const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const d   = await res.json();
       if (d.success) {
+        const persistedItemId = d.item?.id ?? editing?.id;
+
+        // Persist the selected category before refetching. Some current
+        // /ingredients API responses do not return/save the category field,
+        // which previously caused fetchItems() to immediately replace the
+        // selected category with an empty value.
+        if (isDirectProductBrand(payload.brand) && persistedItemId != null) {
+          persistStockCategory(persistedItemId, payload.category);
+        }
+
         let changesStr = null;
         if (editing) {
           const changed=[];
@@ -2564,10 +3405,13 @@ const emptyForm = useCallback(() => ({
           if (String(editing.min_stock)!==String(payload.min_stock)) changed.push(`min: ${editing.min_stock}→${payload.min_stock}`);
           if (String(editing.cost_per_unit)!==String(payload.cost_per_unit)) changed.push(`cost: ₱${editing.cost_per_unit}→₱${payload.cost_per_unit}`);
           if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
+          if (String(editing.category || "") !== String(payload.category || "")) changed.push(`category: ${editing.category || "—"}→${payload.category || "—"}`);
           changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
         }
         if (form.listInShop && form.cost_per_unit) {
-          const computedShopPrice = Math.round(parseFloat(form.cost_per_unit) * 1.10 * 100) / 100;
+          const computedShopPrice = isDirectProductBrand(form.brand)
+            ? computeDirectSellingPrice(form.cost_per_unit)
+            : Math.round(parseFloat(form.cost_per_unit) * 1.10 * 100) / 100;
           try {
             const ingredientId = editing ? editing.id : d.item.id;
             const shopRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
@@ -2607,7 +3451,22 @@ const emptyForm = useCallback(() => ({
             }
           } catch {}
         }
-        await fetchItems(); await fetchActivityLog();
+        const savedItem = normalizeStockItem({
+          ...(editing || {}),
+          ...payload,
+          ...(d.item || {}),
+          id: d.item?.id ?? editing?.id,
+          category: d.item?.category ?? payload.category ?? editing?.category ?? "",
+          brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
+        });
+
+        const freshRows = await fetchItems();
+        const freshItem = freshRows.find(row => String(row.id) === String(savedItem.id)) || savedItem;
+        setFocusMutation({ item:freshItem, stamp:Date.now(), reason:editing ? "edit" : "add" });
+        setStockRefreshToken(v => v + 1);
+        window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:freshItem.id, brand:freshItem.brand } }));
+
+        await fetchActivityLog();
         closeModal();
         setToast({ type: "success", title: editing ? "Ingredient Updated" : "Ingredient Added", message: editing ? `"${payload.name}" has been updated.` : `"${payload.name}" has been added.` });
       } else {
@@ -2636,6 +3495,8 @@ const confirmDelete = async () => {
     if (d.success) {
       await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ingredient_data:item, deleted_by:userName }) });
       await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
+      setStockRefreshToken(v => v + 1);
+      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:item.id, brand:item.brand, deleted:true } }));
       setToast({ type: "success", title: "Ingredient Deleted", message: `"${item.name}" moved to Delete History.` });
     } else {
       setToast({ type: "error", title: "Failed to Delete", message: d.error || "An unexpected error occurred." });
@@ -2655,12 +3516,20 @@ const handleRestore = async (entry) => {
     const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, performed_by: userName, performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude, restored: true }),
+      body:JSON.stringify({ name:d.name, branch:d.branch, brand:d.brand, category:d.category || "", unit:d.unit, stock:d.stock, min_stock:d.min_stock, cost_per_unit:d.cost_per_unit, performed_by: userName, performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude, restored: true }),
     });
     const result = await res.json();
     if (result.success) {
+      if (result.item?.id != null && d.category) {
+        persistStockCategory(result.item.id, d.category);
+      }
       await fetch(`${process.env.REACT_APP_API_URL}/ingredient-delete-history/${entry.id}`, { method:"DELETE" });
-      await fetchItems(); await fetchDeleteHistory(); await fetchActivityLog();
+      const freshRows = await fetchItems();
+      await fetchDeleteHistory(); await fetchActivityLog();
+      const restoredItem = freshRows.find(row => normalizeName(row.name) === normalizeName(d.name) && String(row.branch || "").toLowerCase() === String(d.branch || "").toLowerCase()) || normalizeStockItem(d);
+      setFocusMutation({ item:restoredItem, stamp:Date.now(), reason:"restore" });
+      setStockRefreshToken(v => v + 1);
+      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:restoredItem.id, brand:restoredItem.brand, restored:true } }));
       setToast({ type: "success", title: "Ingredient Restored", message: `"${d.name}" has been restored.` });
     } else {
       setToast({ type: "error", title: "Restore Failed", message: result.error || "Failed to restore." });
@@ -2683,7 +3552,7 @@ const openEdit = async item => {
     }
   } catch {}
   setForm({
-    name: item.name, brand: item.brand || "", branch: item.branch || "",
+    name: item.name, brand: item.brand || "", branch: item.branch || "", category: item.category || "",
     unit: item.unit || "pcs", stock: item.stock, min_stock: item.min_stock,
     cost_per_unit: item.cost_per_unit || "",
     perishable: !!item.perishable,
@@ -2709,7 +3578,25 @@ const openEdit = async item => {
     );
   };
 
-  const brandItemsFor = (brandDef) => items.filter(i => brandDef.match((i.brand||"").toLowerCase()));
+  const brandItemsFor = (brandDef) => {
+    const brandObj = brandList.find(b => brandDef.match((b.name || "").toLowerCase()));
+    return items
+      .filter(i => itemBelongsToBrand(i, brandDef, brandObj))
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  };
+
+  const deleteHistoryForBrand = (brandDef) => {
+    if (!brandDef) return [];
+    const brandObj = brandList.find(b => brandDef.match((b.name || "").toLowerCase()));
+
+    return deleteHistory
+      .filter(entry => itemBelongsToBrand(entry?.data || {}, brandDef, brandObj))
+      .sort((a, b) => {
+        const byProduct = String(a?.data?.name || "").localeCompare(String(b?.data?.name || ""));
+        if (byProduct !== 0) return byProduct;
+        return new Date(b?.deletedAt || 0) - new Date(a?.deletedAt || 0);
+      });
+  };
 
   /* ── render ── */
   return (
@@ -2730,10 +3617,10 @@ const openEdit = async item => {
         [role="button"]:hover { filter: brightness(0.97); }
       `}</style>
 
-      {/* Landing screen: 4 brand cards — clicking one opens its full product + FIFO/FEFO view */}
+      {/* Landing screen: cards mirror Brand & Branch; deleting a brand removes its inventory card immediately */}
       {!activeBrandDef ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
-          {BRAND_DEFS.map(bd => (
+          {connectedBrandDefs.map(bd => (
             <BrandOverviewCard
               key={bd.key}
               brandDef={bd}
@@ -2742,6 +3629,11 @@ const openEdit = async item => {
               onClick={() => setActiveBrandKey(bd.key)}
             />
           ))}
+          {connectedBrandDefs.length === 0 && (
+            <div style={{ gridColumn:"1 / -1", padding:"38px 20px", textAlign:"center", border:`1.5px dashed ${C.border}`, borderRadius:16, color:C.muted, fontSize:13 }}>
+              No active brands found. Add a brand in Brand &amp; Branch to create its Stock Inventory card.
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -2754,13 +3646,26 @@ const openEdit = async item => {
             onEdit={openEdit}
             onDelete={handleDeleteItem}
             onManageBatches={(item) => { if (item) { setActiveBatchIngredient(item); setBatches([]); } }}
-            onQuickAdd={(bd2) => {
+            onQuickAdd={(bd2, preferredBranch="") => {
               setEditing(null);
               const matchedBrand = brandList.find(b => bd2.match((b.name||"").toLowerCase()));
-              setForm({ ...emptyForm(), brand: matchedBrand ? matchedBrand.name : "", shopCategory: matchedBrand ? matchedBrand.name : "" });
+              const brandCategories = getBrandCategories(matchedBrand);
+              const allowedBranches = (matchedBrand?.branches || []).map(br => typeof br === "string" ? br : br?.name).filter(Boolean);
+              const initialBranch = !isAdmin
+                ? userBranch
+                : (preferredBranch && allowedBranches.includes(preferredBranch) ? preferredBranch : "");
+              setForm({
+                ...emptyForm(),
+                branch: initialBranch,
+                brand: matchedBrand ? matchedBrand.name : "",
+                category: brandCategories.length === 1 ? brandCategories[0] : "",
+                shopCategory: matchedBrand ? matchedBrand.name : "",
+              });
               setShowModal(true);
             }}
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
+            onOpenDeleteHistory={() => { setDeleteHistoryBrandKey(activeBrandDef.key); setShowDeleteHistory(true); }}
+            deleteHistoryCount={deleteHistoryForBrand(activeBrandDef).length}
             onBack={() => setActiveBrandKey(null)}
             initialBranchFilter={initialFocus?.branch || ""}   // ← new
             initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
@@ -2770,9 +3675,9 @@ const openEdit = async item => {
             userRole={user?.role}
             showUiModal={showUiModal}
             setToast={setToast}
-            onItemsChanged={() => { fetchItems(); fetchActivityLog(); }}
-            deleteHistory={deleteHistory}
-            onOpenDeleteHistory={(filtered) => { setDeleteHistoryToShow(filtered); setShowDeleteHistory(true); }}
+            onItemsChanged={async () => { await fetchItems(); await fetchActivityLog(); setStockRefreshToken(v => v + 1); }}
+            focusMutation={focusMutation}
+            refreshToken={stockRefreshToken}
           />
         </>
       )}
@@ -2786,7 +3691,7 @@ const openEdit = async item => {
               <h2 style={{ margin:0, fontSize:16, fontWeight:800, color:C.ink }}>{editing ? "Edit Stock" : "Add Stock"}</h2>
               <button onClick={closeModal} style={{ background:"none", border:"none", color:C.muted, padding:4 }}><XIcon size={18}/></button>
             </div>
-            <form onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
+            <form noValidate onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
               <div>
                 <label style={invLabelSt}>Ingredient Name *</label>
                 <input style={invInputSt} value={form.name}
@@ -2800,6 +3705,32 @@ const openEdit = async item => {
                   {form.brand || currentBrandName || "—"}
                 </div>
               </div>
+
+              {isDirectProductBrand(form.brand || currentBrandName) && (() => {
+                const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === String(form.brand || currentBrandName).toLowerCase());
+                const categoryOptions = getBrandCategories(selectedBrandObj);
+                return (
+                  <div>
+                    <label style={invLabelSt}>Category *</label>
+                    <select
+                      style={{ ...invInputSt, opacity:categoryOptions.length?1:.6, cursor:categoryOptions.length?"pointer":"not-allowed" }}
+                      value={form.category || ""}
+                      disabled={categoryOptions.length === 0}
+                      onChange={e=>setForm(f=>({...f, category:e.target.value}))}
+                      required
+                    >
+                      <option value="">{categoryOptions.length ? "Select category…" : "No categories configured"}</option>
+                      {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                    <div style={{ fontSize:10.5, color:categoryOptions.length?C.muted:C.warn, marginTop:5, lineHeight:1.45 }}>
+                      {categoryOptions.length
+                        ? <>Categories are synced from <strong>Brand &amp; Branch Management</strong>. Add, rename, or remove categories there.</>
+                        : <>Add at least one category to <strong>{form.brand || currentBrandName}</strong> in Brand &amp; Branch Management before saving this product.</>}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {isAdmin ? (
                 <div>
                   <label style={invLabelSt}>Branch *</label>
@@ -2841,12 +3772,25 @@ const openEdit = async item => {
                 </div>
                 {!editing && (
                   <div style={{ fontSize:11, color:"#1e40af", marginTop:5, display:"flex", alignItems:"flex-start", gap:5 }}>
-                    <span>ℹ️</span>
-                    <span>Cost starts at ₱0.00. Use <strong>Receive Stock</strong> after saving this item to log a batch.</span>
+                    <Info size={14} style={{ flexShrink:0, marginTop:1 }}/><span>Cost starts at ₱0.00. Use <strong>Receive Stock</strong> after saving this item to log a batch.</span>
                   </div>
                 )}
               </div>
             </div>
+
+            {isDirectProductBrand(form.brand || currentBrandName) && (
+              <div style={{ padding:"12px 14px", borderRadius:11, background:C.greenLt, border:`1px solid ${C.greenMid}` }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:800, color:C.greenDk, textTransform:"uppercase", letterSpacing:".05em" }}>Auto Selling Price</div>
+                    <div style={{ fontSize:10.5, color:C.muted, marginTop:3 }}>Cost per unit + 30% operations + 40% profit</div>
+                  </div>
+                  <div style={{ fontSize:20, fontWeight:900, color:C.greenDk }}>
+                    ₱{computeDirectSellingPrice(form.cost_per_unit).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                  </div>
+                </div>
+              </div>
+            )}
 
 <div style={{
   display:"flex", alignItems:"center", gap:10,
@@ -2904,7 +3848,10 @@ const openEdit = async item => {
                         <label style={invLabelSt}>Shop Price (₱)</label>
                         <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6 }}>
                           {form.cost_per_unit
-                            ? `₱${(parseFloat(form.cost_per_unit) * 1.10).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`
+                            ? `₱${(isDirectProductBrand(form.brand)
+                                ? computeDirectSellingPrice(form.cost_per_unit)
+                                : parseFloat(form.cost_per_unit) * 1.10
+                              ).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`
                             : "—"}
                           <span style={{ fontSize:10, color:C.muted, fontWeight:400 }}>(cost + 10%)</span>
                         </div>
@@ -2948,7 +3895,14 @@ const openEdit = async item => {
           userName={userName}
           userRole={user?.role}
           onClose={() => setReceiveTarget(null)}
-          onDone={() => { setReceiveTarget(null); fetchItems(); fetchActivityLog(); }}
+          onDone={async (receivedProduct) => {
+            const freshRows = await fetchItems();
+            await fetchActivityLog();
+            const freshItem = freshRows.find(row => String(row.id) === String(receivedProduct?.id)) || receivedProduct;
+            if (freshItem) setFocusMutation({ item:freshItem, stamp:Date.now(), reason:"receive" });
+            setStockRefreshToken(v => v + 1);
+            setReceiveTarget(null);
+          }}
           showUiModal={showUiModal}
           setToast={setToast}
         />
@@ -2986,7 +3940,15 @@ const openEdit = async item => {
       {/* ── IMPORT LOADING MODAL ── */}
       <ImportLoadingModal visible={importLoading} progress={importProgress}/>
       <UIModal modal={uiModal} onClose={closeUiModal} onConfirm={()=>{ if(uiModal?.onConfirm) uiModal.onConfirm(); closeUiModal(); }}/>
-      {showDeleteHistory && <DeleteHistoryPanel history={deleteHistoryToShow} restoringId={restoringId} onRestore={handleRestore} onClose={()=>setShowDeleteHistory(false)}/>}{showActivityLog && (
+      {showDeleteHistory && (
+        <DeleteHistoryPanel
+          history={deleteHistoryForBrand(BRAND_DEFS.find(bd => bd.key === deleteHistoryBrandKey) || activeBrandDef)}
+          restoringId={restoringId}
+          onRestore={handleRestore}
+          onClose={() => { setShowDeleteHistory(false); setDeleteHistoryBrandKey(null); }}
+        />
+      )}
+      {showActivityLog && (
   <ActivityLogPanel
     log={activityLog}
     onClose={() => setShowActivityLog(false)}
@@ -2996,3 +3958,6 @@ const openEdit = async item => {
     </div>
   );
 }
+
+
+
