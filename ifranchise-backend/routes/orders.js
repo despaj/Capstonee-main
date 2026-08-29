@@ -14,6 +14,8 @@ const ALLOWED_TRANSITIONS = {
   rejected: [],
 };
 
+// Only these roles may move an order into "received" — admin/HO side
+// can ship it, but only the receiving branch confirms delivery.
 const FRANCHISEE_ROLES = ["Franchisee", "Manager", "Staff"];
 
 router.get("/orders", async (req, res) => {
@@ -23,10 +25,13 @@ router.get("/orders", async (req, res) => {
     let params = [];
 
     if (userId) {
+      // Existing behavior: customer-facing "my orders" lookup
       where = "WHERE o.user_id = $1";
       params = [userId];
     } else {
+      // Full visibility: only these two roles may see every order, system-wide
       const HQ_ROLES = ["Super Admin", "Franchisee Operations Admin"];
+      // Everyone else with staff access is locked to their own branch + brand
       const RESTRICTED_ROLES = ["Admin", "SuperAdmin", "HQ", "Manager", "Franchisee", "Staff"];
       const STAFF_ROLES = [...HQ_ROLES, ...RESTRICTED_ROLES];
 
@@ -37,9 +42,13 @@ router.get("/orders", async (req, res) => {
       const conditions = [];
 
       if (HQ_ROLES.includes(role)) {
+        // HQ can optionally narrow the view, but nothing is required
         if (branch) { params.push(branch); conditions.push(`o.branch=$${params.length}`); }
         if (brand)  { params.push(brand);  conditions.push(`o.brand=$${params.length}`); }
       } else {
+        // Every other role MUST be scoped — no branch/brand means no results,
+        // never "everything," closing the loophole where omitting these
+        // params silently granted system-wide visibility.
         if (!branch || !brand) {
           return res.status(403).json({ error: "Branch and brand are required for this role." });
         }

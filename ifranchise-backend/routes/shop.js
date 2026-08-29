@@ -131,7 +131,7 @@ router.put("/shop-items/:id/toggle", async (req, res) => {
 router.patch("/shop-items/:id/deduct-stock", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { quantity, performed_by, order_id, performed_by_role } = req.body;
+    const { quantity, performed_by, order_id, performed_by_role, latitude, longitude } = req.body;
     const qty = Number(quantity);
     if (!qty || qty <= 0) {
         return res.status(400).json({ error: "Invalid quantity" });
@@ -225,6 +225,8 @@ if (itemRes.rows.length === 0) {
         req,
         branch: item.shop,
         module: "Mobile Shop",
+        latitude,
+        longitude,
         role: performed_by_role || "Unknown",
       });
 

@@ -83,17 +83,34 @@ router.put("/brands/:id", async (req, res) => {
 
 router.delete("/brands/:id", async (req, res) => {
   const { performed_by, role, latitude, longitude } = req.body || {};
+  const client = await pool.connect();
   try {
-    const existing = await pool.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
+    await client.query("BEGIN");
+
+    const existing = await client.query("SELECT * FROM brands WHERE id=$1", [req.params.id]);
     const brand = existing.rows[0];
-    await pool.query("DELETE FROM brands WHERE id=$1", [req.params.id]);
+
+    if (brand) {
+      const branchRows = await client.query("SELECT name FROM branches WHERE brand_id=$1", [brand.id]);
+      const branchNames = branchRows.rows.map(r => r.name);
+
+      if (branchNames.length > 0) {
+        await client.query(`DELETE FROM transactions WHERE branch IN (${branchNames.map((_, i) => `$${i + 1}`).join(",")})`, branchNames);
+        await client.query(`DELETE FROM inventory WHERE branch IN (${branchNames.map((_, i) => `$${i + 1}`).join(",")})`, branchNames);
+      }
+
+      await client.query("DELETE FROM branches WHERE brand_id=$1", [brand.id]);
+    }
+
+    await client.query("DELETE FROM brands WHERE id=$1", [req.params.id]);
+    await client.query("COMMIT");
 
     if (brand) {
       await logActivity({
         action: "delete",
         itemName: brand.name,
         performedBy: performed_by || "System",
-        details: { contact_email: brand.contact_email, contact_phone: brand.contact_phone },
+        details: { contact_email: brand.contact_email, contact_phone: brand.contact_phone, note: "Cascaded: deleted associated branches, transactions, and inventory" },
         req,
         branch: brand.name,
         module: "Brand Management",
@@ -105,7 +122,10 @@ router.delete("/brands/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    await client.query("ROLLBACK");
     res.status(500).json({ error: "Failed to delete brand" });
+  } finally {
+    client.release();
   }
 });
 
@@ -188,10 +208,20 @@ router.put("/branches/:id", async (req, res) => {
 
 router.delete("/branches/:id", async (req, res) => {
   const { performed_by, role, latitude, longitude } = req.body || {};
+  const client = await pool.connect();
   try {
-    const existing = await pool.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
+    await client.query("BEGIN");
+
+    const existing = await client.query("SELECT * FROM branches WHERE id=$1", [req.params.id]);
     const branch = existing.rows[0];
-    await pool.query("DELETE FROM branches WHERE id=$1", [req.params.id]);
+
+    if (branch) {
+      await client.query("DELETE FROM transactions WHERE branch=$1", [branch.name]);
+      await client.query("DELETE FROM inventory WHERE branch=$1", [branch.name]);
+    }
+
+    await client.query("DELETE FROM branches WHERE id=$1", [req.params.id]);
+    await client.query("COMMIT");
 
     if (branch) {
       const brandRes = await pool.query("SELECT name FROM brands WHERE id=$1", [branch.brand_id]);
@@ -200,7 +230,7 @@ router.delete("/branches/:id", async (req, res) => {
         action: "delete",
         itemName: branch.name,
         performedBy: performed_by || "System",
-        details: { region: branch.region, manager: branch.manager },
+        details: { region: branch.region, manager: branch.manager, note: "Cascaded: deleted associated transactions and inventory" },
         req,
         branch: brandName,
         module: "Brand Management",
@@ -212,7 +242,10 @@ router.delete("/branches/:id", async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
+    await client.query("ROLLBACK");
     res.status(500).json({ error: "Failed to delete branch" });
+  } finally {
+    client.release();
   }
 });
 

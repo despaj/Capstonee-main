@@ -7466,6 +7466,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       brand: editingItem.brand,
       is_visible: editingItem.is_visible !== false,
       performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown",
       latitude: coords?.latitude,
       longitude: coords?.longitude,
     };
@@ -7514,6 +7515,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
         brand: it.brand,
         is_visible: true,
         performed_by: user?.name || "System",
+        performed_by_role: user?.role || "Unknown",
         latitude: coords?.latitude,
         longitude: coords?.longitude,
       };
@@ -7543,7 +7545,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deleted_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
     } catch {
@@ -7563,7 +7565,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
       await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ performed_by: user?.name || "System", latitude: coords?.latitude, longitude: coords?.longitude }),
+        body: JSON.stringify({ performed_by: user?.name || "System",performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
       });
       fetchShopItems();
       fetchActivityLog();
@@ -8058,6 +8060,7 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [accountApp,   setAccountApp]   = useState(null);
   const [alertModal, setAlertModal] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
+  const [createdAccountIds, setCreatedAccountIds] = useState(() => new Set());
   
   const showAlert = (title, message, type = "info") =>
   setAlertModal({ title, message, type });
@@ -9175,25 +9178,25 @@ const handleRestoreApplication = async (entry) => {
                   >
                     <X size={14} /> {viewApp.status === "rejected" ? "Already Rejected" : "Reject"}
                   </button>
-                  <button
+                                   <button
                     onClick={async () => {
                       await handleApproveAndCreateAccount(viewApp);
                       setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
                     }}
-                    disabled={processingId !== null}
+                    disabled={processingId !== null || createdAccountIds.has(viewApp.id)}
                     style={{
                       display: "flex", alignItems: "center", gap: 7,
                       padding: "10px 22px", borderRadius: 10, border: "none",
-                      background: "linear-gradient(135deg,#00c853,#00897b)",
-                      color: "#fff",
+                      background: createdAccountIds.has(viewApp.id) ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                      color: createdAccountIds.has(viewApp.id) ? "#9e9e9e" : "#fff",
                       fontSize: 13, fontWeight: 700,
-                      cursor: processingId !== null ? "not-allowed" : "pointer",
+                      cursor: (processingId !== null || createdAccountIds.has(viewApp.id)) ? "not-allowed" : "pointer",
                       fontFamily: "inherit",
                       boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
-                      opacity: processingId !== null ? 0.6 : 1,
+                      opacity: (processingId !== null || createdAccountIds.has(viewApp.id)) ? 0.6 : 1,
                     }}
                   >
-                    <UserPlus size={14} /> {viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                    <UserPlus size={14} /> {createdAccountIds.has(viewApp.id) ? "Account Created" : viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
                   </button>
                 </>
               )}
@@ -9208,10 +9211,12 @@ const handleRestoreApplication = async (entry) => {
       {accountApp && (
         <CreateAccountModal
           applicant={accountApp}
+          user={user}
           defaultRole="franchisee"
           roles={['Franchisee']}    
           onClose={() => setAccountApp(null)}
           onAlert={(message, type) => setAlertModal({ message, type })}
+          onCreated={(appId) => setCreatedAccountIds(prev => new Set(prev).add(appId))}
         />
       )}
 
@@ -9267,19 +9272,20 @@ const handleRestoreApplication = async (entry) => {
                   await handleApproveAndCreateAccount(menuApp);
                   setMenuApp(null);
                 }}
-                disabled={processingId !== null}
+                disabled={processingId !== null || createdAccountIds.has(menuApp.id)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
-                  background: "linear-gradient(135deg,#00c853,#00897b)",
-                  color: "#fff", fontSize: 13, fontWeight: 700,
-                  cursor: processingId !== null ? "not-allowed" : "pointer",
+                  background: createdAccountIds.has(menuApp.id) ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                  color: createdAccountIds.has(menuApp.id) ? "#9e9e9e" : "#fff",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: (processingId !== null || createdAccountIds.has(menuApp.id)) ? "not-allowed" : "pointer",
                   fontFamily: "inherit",
-                  opacity: processingId !== null ? 0.6 : 1,
+                  opacity: (processingId !== null || createdAccountIds.has(menuApp.id)) ? 0.6 : 1,
                 }}
               >
                 <UserPlus size={15} />
-                {menuApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                {createdAccountIds.has(menuApp.id) ? "Account Created" : menuApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
@@ -9697,11 +9703,10 @@ function RescheduleOptionsModal({ applicant, onClose, onSend, sending }) {
   );
 }
 
-function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
+function CreateAccountModal({ applicant, user, onClose, onAlert, onCreated, roles}) {
   const [sending, setSending] = useState(false);
   const [brands, setBrands] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState('');
-  const [branches, setBranches] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState(roles?.[0] || 'Franchisee');
 
@@ -9709,6 +9714,15 @@ function CreateAccountModal({ applicant, onClose, onAlert, roles}) {
     fetch(`${process.env.REACT_APP_API_URL}/brands`).then(r => r.json())
       .then(d => setBrands(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setBrandsLoading(false));
   }, []);
+
+  const getBrowserLocation = () => new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
 
   useEffect(() => {
     if (!selectedBrandId) { setBranches([]); return; }
@@ -12528,7 +12542,13 @@ function OrderCard({ order, onOpen, stockInfo, onAccept, acceptDisabled, accepti
         </span>
       </div>
 
-      <div style={{ fontSize:12.5, fontWeight:700, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+      {(order.brand || order.branch) && (
+        <div style={{ fontSize:13, fontWeight:800, color:C.ink, display:"flex", alignItems:"center", gap:5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          <Store size={13} color={C.green}/> {order.brand || "—"}{order.branch ? ` · ${order.branch}` : ""}
+        </div>
+      )}
+
+      <div style={{ fontSize:11.5, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
         {order.customer}
       </div>
 
@@ -12697,7 +12717,12 @@ function OrderDrawer({ order, onClose, onAccept, onReject, onPrint, stockInfo, a
 
           {/* Customer */}
           <SectionCard title="Customer">
-            <div style={{ fontWeight:800, fontSize:14, color:C.ink }}>{order.customer}</div>
+            {(order.brand || order.branch) && (
+              <div style={{ fontSize:15, fontWeight:800, color:C.ink, display:"flex", alignItems:"center", gap:6 }}>
+                <Store size={14} color={C.green}/> {order.brand || "—"}{order.branch ? ` · ${order.branch}` : ""}
+              </div>
+            )}
+            <div style={{ fontSize:12.5, color:C.muted, marginTop: (order.brand || order.branch) ? 4 : 0 }}>{order.customer}</div>
             <div style={{ fontSize:12.5, color:C.muted, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Phone size={12}/> {order.phone || "—"}</div>
           </SectionCard>
 
@@ -12878,6 +12903,8 @@ function MobileOrdersContent({ user, brands: propBrands = [] }) {
 
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("pending");
+  const [filterBrand,  setFilterBrand]  = useState("");
+  const [filterBranch, setFilterBranch] = useState("");
   const [viewOrder,    setViewOrder]    = useState(null);
   const [toast,        setToast]        = useState(null);
   const [printQueue,   setPrintQueue]   = useState([]);
@@ -13129,8 +13156,13 @@ const handleMassAcceptAndPrint = async () => {
   }
 };
 
-  const filtered = orders.filter(o => {
+  const selectedBrandObj = propBrands.find(b => String(b.id) === filterBrand);
+  const branchOptions = selectedBrandObj ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
+
+   const filtered = orders.filter(o => {
     if (statusFilter !== "all" && o.status !== statusFilter) return false;
+    if (filterBranch && o.branch !== filterBranch) return false;
+    else if (filterBrand && selectedBrandObj && !branchOptions.includes(o.branch)) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!o.id.toLowerCase().includes(q) && !o.customer.toLowerCase().includes(q)) return false;
@@ -13196,6 +13228,25 @@ const handleMassAcceptAndPrint = async () => {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search order # or customer name…"
               style={{ width:"100%", height:38, padding:"0 14px 0 36px", borderRadius:10, border:`1px solid ${C.border}`, fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
           </div>
+
+                    <select value={filterBrand} onChange={e => { setFilterBrand(e.target.value); setFilterBranch(""); }}
+            style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
+              fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background:"#fff", cursor:"pointer" }}>
+            <option value="">All Brands</option>
+            {propBrands.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+
+          <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} disabled={!filterBrand}
+            style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
+              fontSize:12.5, fontWeight:700, color:C.ink, fontFamily:"inherit", background: filterBrand ? "#fff" : "#f3f4f6",
+              cursor: filterBrand ? "pointer" : "not-allowed", opacity: filterBrand ? 1 : 0.6 }}>
+            <option value="">All Branches</option>
+            {branchOptions.map(br => (
+              <option key={br} value={br}>{br}</option>
+            ))}
+          </select>
 
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
             style={{ height:38, padding:"0 12px", borderRadius:10, border:`1px solid ${C.border}`,
