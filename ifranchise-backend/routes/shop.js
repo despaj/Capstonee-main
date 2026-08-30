@@ -5,11 +5,24 @@ const { logActivity } = require("../utils/activityLogger");
 
 async function priceFromCost(brand, name, fallback) {
   const r = await pool.query(
-    "SELECT cost_per_unit FROM ingredients WHERE brand=$1 AND name=$2 ORDER BY updated_at DESC LIMIT 1",
+    "SELECT cost_per_unit, unit FROM ingredients WHERE brand=$1 AND name=$2 ORDER BY updated_at DESC LIMIT 1",
     [brand, name]
   );
   if (r.rows.length === 0) return fallback;
-  return Math.round(Number(r.rows[0].cost_per_unit) * 1.10 * 100) / 100;
+
+  const { cost_per_unit, unit } = r.rows[0];
+
+  const bulkQty =
+    ['g', 'ml'].includes(unit) ? 1000 :
+    (brand === 'iFuel' && unit === 'L') ? 200 :
+    (brand === 'iFuel' && unit === 'kg') ? 50 :
+    (brand === 'Coffee Spot' && unit === 'pc') ? 50 :
+    (brand === 'iPharma' && unit === 'pc') ? 100 :
+    1;
+
+  const markup = (brand === 'iFuel' || brand === 'iPharma') ? 1.70 : 1.10;
+
+  return Math.round(Number(cost_per_unit) * bulkQty * markup * 100) / 100;
 }
 
 router.get("/shop-items", async (req, res) => {
