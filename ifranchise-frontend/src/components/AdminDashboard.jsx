@@ -7322,6 +7322,27 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const ITEMS_PER_PAGE = 10;
   const UNITS = ["pcs","kg","g","liters","ml","tbsp","tsp","cups","bottles","packs","bags","boxes","cans","gallons"];
 
+const computeDisplayPrice = (cost, unit) => {
+  const bulkQty =
+    ['g', 'ml'].includes(unit) ? 1000 :
+    unit === 'L' ? 200 :
+    unit === 'kg' ? 50 :
+    unit === 'pc' ? 50 :
+    1;
+  return Math.round(Number(cost || 0) * bulkQty * 1.70 * 100) / 100;
+};
+
+const bulkLabelFor = (unit) => {
+  if (unit === 'g') return 'kg';
+  if (unit === 'ml') return 'L';
+  if (unit === 'L') return 'drum (200L)';
+  if (unit === 'kg') return 'cylinder (50kg)';
+  if (unit === 'pc') return 'pack (50pcs)';
+  return unit;
+};
+
+const markupLabelFor = () => '+ 70%';
+
   const fetchActivityLog = useCallback(async () => {
     try {
       const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
@@ -7402,7 +7423,7 @@ const items = useMemo(() => {
       brand: sp.brand,
       shop: match ? match.shop : sp.brand,
       cost: liveCost,
-      price: match ? Number(match.price) : computePrice(liveCost),
+      price: match ? Number(match.price) : computeDisplayPrice(liveCost, sp.unit, sp.brand),
       unit: match ? match.unit : "",
       is_visible: match ? !!match.is_visible : false,
       listed: !!match,
@@ -7656,7 +7677,7 @@ const bulkListItems = async (candidateItems) => {
             </div>
             <div style={{ padding: "22px 24px" }}>
               <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, lineHeight: 1.5 }}>
-                This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>.
+                This product comes from <strong>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is calculated automatically from Stock Inventory cost, bulk pack size, and brand markup.
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
                 <Field label="Brand">
@@ -7667,9 +7688,9 @@ const bulkListItems = async (candidateItems) => {
                 </Field>
                 <Field label="Shop Price" error={editErrors.cost}>
                   <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computePrice(editingItem.cost)) : "—"}</span>
+                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computeDisplayPrice(editingItem.cost, editingItem.unit, editingItem.brand)) : "—"}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
-                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} + 10%` : "no cost set"}
+                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} × ${bulkLabelFor(editingItem.unit, editingItem.brand)} ${markupLabelFor(editingItem.brand)}` : "no cost set"}
                     </span>
                   </div>
                 </Field>
@@ -7739,7 +7760,7 @@ const bulkListItems = async (candidateItems) => {
         <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: "-0.01em" }}>Mobile Shop Supplies</div>
-            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set at cost + 10% · click a row to select it for listing</div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set from cost, bulk size, and brand markup · click a row to select it for listing</div>
           </div>
           <span style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", fontWeight: 700, background: "rgba(255,255,255,0.15)", padding: "5px 12px", borderRadius: 20 }}>{items.length} product{items.length !== 1 ? "s" : ""}</span>
         </div>
@@ -7834,7 +7855,7 @@ const bulkListItems = async (candidateItems) => {
                           {item.cost > 0 ? (
                             <div>
                               <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
-                              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} + 70%</div>
                             </div>
                           ) : (
                             <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>

@@ -14,28 +14,26 @@ async function priceFromCost(brand, name, fallback) {
 
   const bulkQty =
     ['g', 'ml'].includes(unit) ? 1000 :
-    (brand === 'iFuel' && unit === 'L') ? 200 :
-    (brand === 'iFuel' && unit === 'kg') ? 50 :
-    (brand === 'Coffee Spot' && unit === 'pc') ? 50 :
-    (brand === 'iPharma' && unit === 'pc') ? 100 :
+    unit === 'L' ? 200 :
+    unit === 'kg' ? 50 :
+    unit === 'pc' ? 50 :
     1;
 
-  const markup = (brand === 'iFuel' || brand === 'iPharma') ? 1.70 : 1.10;
+  const markup = 1.70;
 
   return Math.round(Number(cost_per_unit) * bulkQty * markup * 100) / 100;
 }
 
 router.get("/shop-items", async (req, res) => {
-  const brand = (req.query.brand || "").trim();
-  if (!brand) {
-    return res.status(400).json({ error: "brand is required" });
-  }
   try {
+    const brand = (req.query.brand || "").trim();
     const cols = `id, name, price, unit, image_url, is_visible, shop, brand, stock, branches, ingredient_id`;
-    const result = await pool.query(
-      `SELECT ${cols} FROM shop_items WHERE LOWER(TRIM(brand)) = LOWER(TRIM($1)) ORDER BY created_at DESC`,
-      [brand]
-    );
+    const result = brand
+      ? await pool.query(
+          `SELECT ${cols} FROM shop_items WHERE LOWER(TRIM(brand)) = LOWER(TRIM($1)) ORDER BY created_at DESC`,
+          [brand]
+        )
+      : await pool.query(`SELECT ${cols} FROM shop_items ORDER BY created_at DESC`);
     res.json(result.rows);
   } catch (err) {
     console.error("GET /shop-items error:", err.message);
@@ -75,6 +73,7 @@ router.post("/shop-items", async (req, res) => {
     res.status(500).json({ error: "Failed to add shop item" });
   }
 });
+
 router.put("/shop-items/:id", async (req, res) => {
   try {
     const { name, price, unit, image_url, shop, brand, stock, is_visible, branches, performed_by, latitude, longitude, performed_by_role } = req.body;
