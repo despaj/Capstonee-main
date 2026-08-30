@@ -7490,23 +7490,21 @@ const filteredItems = items.filter((item) => {
   // updates it (PUT) if a listing already exists. Stock is not part of
   // this payload's concern here — price is always synced live from
   // Stock Inventory, never entered manually.
-  const saveEdit = async () => {
-    if (editLoading || !validateEdit()) return;
-    setEditLoading(true);
-    const coords = await getBrowserLocation();
-    const liveCost = getCostFor(editingItem.brand, editingItem.name);
-    const payload = {
-      name: editingItem.name,
-      price: computePrice(liveCost),
-      unit: editingItem.unit || "",
-      shop: editingItem.brand,
-      brand: editingItem.brand,
-      is_visible: editingItem.is_visible !== false,
-      performed_by: user?.name || "System",
-      performed_by_role: user?.role || "Unknown",
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
-    };
+const saveEdit = async () => {
+  if (editLoading || !validateEdit()) return;
+  setEditLoading(true);
+  const coords = await getBrowserLocation();
+  const payload = {
+    name: editingItem.name,
+    unit: editingItem.unit || "",
+    shop: editingItem.brand,
+    brand: editingItem.brand,
+    is_visible: editingItem.is_visible !== false,
+    performed_by: user?.name || "System",
+    performed_by_role: user?.role || "Unknown",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+  };
     try {
       const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
       const method = editingItem.id ? "PUT" : "POST";
@@ -7530,8 +7528,8 @@ const filteredItems = items.filter((item) => {
   };
 
   // Bulk-list one or more not-yet-listed products in a single action.
-  const bulkListItems = async (candidateItems) => {
-    const toList = candidateItems.filter((i) => !i.listed);
+const bulkListItems = async (candidateItems) => {
+  const toList = candidateItems.filter((i) => !i.listed);
     if (toList.length === 0) {
       setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
       return;
@@ -7539,20 +7537,18 @@ const filteredItems = items.filter((item) => {
     setBulkListing(true);
     const coords = await getBrowserLocation();
     let success = 0, failed = 0;
-    for (const it of toList) {
-      const liveCost = getCostFor(it.brand, it.name);
-      const payload = {
-        name: it.name,
-        price: computePrice(liveCost),
-        unit: it.unit || "",
-        shop: it.brand,
-        brand: it.brand,
-        is_visible: true,
-        performed_by: user?.name || "System",
-        performed_by_role: user?.role || "Unknown",
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-      };
+ for (const it of toList) {
+    const payload = {
+      name: it.name,
+      unit: it.unit || "",
+      shop: it.brand,
+      brand: it.brand,
+      is_visible: true,
+      performed_by: user?.name || "System",
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
       try {
         const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
