@@ -13,15 +13,16 @@ async function priceFromCost(brand, name, fallback) {
 }
 
 router.get("/shop-items", async (req, res) => {
+  const brand = (req.query.brand || "").trim();
+  if (!brand) {
+    return res.status(400).json({ error: "brand is required" });
+  }
   try {
-    const { brand } = req.query;
     const cols = `id, name, price, unit, image_url, is_visible, shop, brand, stock, branches, ingredient_id`;
-    const result = brand
-      ? await pool.query(
-          `SELECT ${cols} FROM shop_items WHERE LOWER(TRIM(brand)) = LOWER(TRIM($1)) ORDER BY created_at DESC`,
-          [brand]
-        )
-      : await pool.query(`SELECT ${cols} FROM shop_items ORDER BY created_at DESC`);
+    const result = await pool.query(
+      `SELECT ${cols} FROM shop_items WHERE LOWER(TRIM(brand)) = LOWER(TRIM($1)) ORDER BY created_at DESC`,
+      [brand]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error("GET /shop-items error:", err.message);
