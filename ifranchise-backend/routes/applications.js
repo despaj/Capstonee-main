@@ -44,7 +44,7 @@ router.get("/applications", async (req, res) => {
         NULL AS position, NULL AS business_nature,
         id_type, created_at,
         appointment_date, appointment_location, appointment_notes,
-        appointment_status, appointment_token
+        appointment_status, appointment_token, account_created_at
       FROM ipharma_applications
 
       UNION ALL
@@ -64,7 +64,7 @@ router.get("/applications", async (req, res) => {
         employer_name, business_address, position, business_nature,
         id_type, created_at,
         appointment_date, appointment_location, appointment_notes,
-        appointment_status, appointment_token
+        appointment_status, appointment_token, account_created_at
       FROM applications
 
       ORDER BY created_at DESC
@@ -358,6 +358,39 @@ router.put("/applications/:id/schedule-options", async (req, res) => {
   } catch (err) {
     console.error("Error sending schedule options:", err);
     res.status(500).json({ success: false, error: "Failed to send schedule options" });
+  }
+});
+
+router.patch("/applications/:id/account-created", async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isIpharma = rawId.startsWith("ip-");
+    const id = parseInt(isIpharma ? rawId.replace("ip-", "") : rawId);
+    const sourceTable = isIpharma ? "ipharma_applications" : "applications";
+    const { performed_by, role, latitude, longitude } = req.body;
+
+    const result = await pool.query(
+      `UPDATE ${sourceTable} SET account_created_at=NOW() WHERE id=$1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ success: false, error: "Application not found" });
+
+    const updatedApp = rowToApplication(result.rows[0]);
+
+    await logActivity(
+      "account_created",
+      updatedApp.name,
+      performed_by || "System",
+      { note: "Franchisee account created and credentials sent" },
+      req, updatedApp.franchise || (isIpharma ? "iPharma Mart" : null), "Applications",
+      latitude, longitude, role || "Unknown"
+    );
+
+    res.json({ success: true, application: updatedApp });
+  } catch (err) {
+    console.error("Error marking account created:", err);
+    res.status(500).json({ success: false, error: "Failed to mark account created" });
   }
 });
 

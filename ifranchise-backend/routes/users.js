@@ -8,9 +8,15 @@ const bcrypt = require("bcrypt");
 
 router.get("/users", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT id, name, first_name, last_name, middle_initial, suffix, email, role, brand, branch, age, address, contact_number, saved_address FROM users ORDER BY id"
-    );
+    const { branch } = req.query;
+    const result = branch
+      ? await pool.query(
+          "SELECT id, name, first_name, last_name, middle_initial, suffix, email, role, brand, branch, age, address, contact_number, saved_address FROM users WHERE TRIM(LOWER(branch)) = TRIM(LOWER($1)) ORDER BY id",
+          [branch]
+        )
+      : await pool.query(
+          "SELECT id, name, first_name, last_name, middle_initial, suffix, email, role, brand, branch, age, address, contact_number, saved_address FROM users ORDER BY id"
+        );
     const mapped = result.rows.map(r => ({
       ...r,
       firstName: r.first_name,
@@ -22,6 +28,7 @@ router.get("/users", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch users." });
   }
 });
+
 router.post("/users", async (req, res) => {
   try {
     let { name, firstName, lastName, middleInitial, suffix, email, role, brand, branch, password, performed_by, performed_by_role, latitude, longitude, restored } = req.body;

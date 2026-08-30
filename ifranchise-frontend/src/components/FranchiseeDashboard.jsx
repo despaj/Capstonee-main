@@ -14,7 +14,7 @@ import {
   Globe, MapPin, Phone, Mail, Edit2, Archive, Calendar, Pin, Megaphone,
   ArrowUpRight, ArrowDownRight, BarChart, RefreshCw, Eye, Clock, Info,
   Download, History, RotateCcw, UserPlus, CheckCircle, ChevronRight,
-  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown,
+  Lock, Unlock, CheckCircle2, Zap, Target, Activity, ArrowUp, ArrowDown, EyeOff,
   Brain, PieChart, LineChart, Sparkles, Shield, Send, Save, Receipt
 } from 'lucide-react';
 
@@ -287,6 +287,7 @@ export default function FranchiseeDashboard({ onLogout }) {
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [brands, setBrands] = useState([]);
 
@@ -328,6 +329,7 @@ export default function FranchiseeDashboard({ onLogout }) {
     sessionStorage.removeItem("tempUser");
     sessionStorage.removeItem("fr_activeModule");
     setShowLogoutModal(false);
+    setIsLoggingOut(false);
     window.location.href = "/admin-login";
   }
 };
@@ -508,20 +510,42 @@ export default function FranchiseeDashboard({ onLogout }) {
 
       {/* Logout modal */}
       {showLogoutModal && (
-        <div className="v-modal-overlay" style={{ zIndex: 3000 }} onClick={() => setShowLogoutModal(false)}>
+        <div
+          className="v-modal-overlay"
+          style={{ zIndex: 3000 }}
+          onClick={() => { if (!isLoggingOut) setShowLogoutModal(false); }}
+        >
           <div className="v-modal" style={{ maxWidth: 400, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
             <div style={{ width: 68, height: 68, borderRadius: '20px', background: 'linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '2rem', border: '1.5px solid rgba(239,68,68,0.15)' }}><LogOut size={28} /></div>
             <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Log out?</h2>
             <p style={{ color: '#94a3b8', fontSize: 13, margin: '8px 0 24px', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>You'll need to sign in again to access your account.</p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowLogoutModal(false)}>Cancel</button>
-              <button className="v-btn v-btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={confirmLogout}>
-                <LogOut size={14} /> Log out
+              <button
+                className="v-btn v-btn-secondary"
+                style={{ flex: 1, justifyContent: 'center', opacity: isLoggingOut ? 0.5 : 1, cursor: isLoggingOut ? 'not-allowed' : 'pointer' }}
+                onClick={() => setShowLogoutModal(false)}
+                disabled={isLoggingOut}
+              >
+                Cancel
+              </button>
+              <button
+                className="v-btn v-btn-danger"
+                style={{ flex: 1, justifyContent: 'center', opacity: isLoggingOut ? 0.85 : 1, cursor: isLoggingOut ? 'not-allowed' : 'pointer' }}
+                onClick={confirmLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut
+                  ? <><RefreshCw size={14} className="fr-spin" /> Logging out…</>
+                  : <><LogOut size={14} /> Log out</>}
               </button>
             </div>
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes fr-spin { to { transform: rotate(360deg); } }
+        .fr-spin { animation: fr-spin .8s linear infinite; }
+      `}</style>
     </div>
   );
 }
@@ -4812,7 +4836,12 @@ function FrStaffManagementContent({ user }) {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/users?branch=${encodeURIComponent(franchiseeBranch)}`);
       const d = await res.json();
-      setStaff((Array.isArray(d) ? d : []).filter(u => ['Staff', 'Manager'].includes(u.role)));
+      const normalizedBranch = franchiseeBranch.toLowerCase();
+      setStaff(
+        (Array.isArray(d) ? d : [])
+          .filter(u => ['Staff', 'Manager'].includes(u.role))
+          .filter(u => (u.branch || '').trim().toLowerCase() === normalizedBranch)
+      );
     } catch { setStaff([]); }
   };
 
@@ -5540,45 +5569,240 @@ function FrCommunicationContent() {
 }
 
 function FrProfileContent({ user }) {
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [formData, setFormData] = useState({
-    name: user?.name || '', email: user?.email || '', personalEmail: '',
+    firstName: '', lastName: '', middleInitial: '', suffix: '',
+    name: '', email: '', personalEmail: '', role: 'Franchisee',
     currentPassword: '', newPassword: '', confirmPassword: '',
   });
   const [showOtpModal,     setShowOtpModal]     = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [otp,              setOtp]              = useState('');
   const [otpSent,          setOtpSent]          = useState(false);
   const [otpError,         setOtpError]         = useState('');
+  const [passwordErrors,   setPasswordErrors]   = useState([]);
+  const [showPasswordValidation, setShowPasswordValidation] = useState(false);
+  const [showCurrentPw,    setShowCurrentPw]    = useState(false);
+  const [showNewPw,        setShowNewPw]        = useState(false);
+  const [showConfirmPw,    setShowConfirmPw]    = useState(false);
+  const [fieldErrors,      setFieldErrors]      = useState({});
+
+  const [alertModal,   setAlertModal]   = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const showAlert   = (message, type = "info") => setAlertModal({ message, type });
+  const showConfirm = (message, onConfirm)     => setConfirmModal({ message, onConfirm });
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      middleInitial: user?.middleInitial || '',
+      suffix: user?.suffix || '',
+      name: user?.name || '',
+      email: user?.email || '',
+      role: user?.role || 'Franchisee',
+      personalEmail: user?.personalEmail || '',
+    }));
+  }, [user]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
+
+    if (name === 'newPassword') {
+      if (value) {
+        setShowPasswordValidation(true);
+        setPasswordErrors(validatePasswordStrength(value).errors);
+      } else {
+        setShowPasswordValidation(false);
+        setPasswordErrors([]);
+      }
+    }
+  };
+
+  const validatePasswordStrength = (password) => {
+    const errors = [];
+    if (password.length < 8)                                            errors.push('minLength');
+    if (!/[A-Z]/.test(password))                                        errors.push('uppercase');
+    if (!/[a-z]/.test(password))                                        errors.push('lowercase');
+    if (!/\d/.test(password))                                           errors.push('number');
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password))       errors.push('specialChar');
+    return { isValid: errors.length === 0, errors };
+  };
+
+  const sendOtp = async () => {
+    try {
+      const emailToSend = formData.personalEmail || formData.email;
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailToSend }),
+      });
+      const data = await response.json();
+      if (data.success) { setOtpSent(true); showAlert(`OTP has been sent to ${emailToSend}`, "success"); }
+      else showAlert(data.message || data.error || 'Failed to send OTP.', "error");
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      showAlert("Failed to send OTP. Please try again.", "error");
+    }
+  };
+
+  const verifyOtpAndChangePassword = async () => {
+    try {
+      setOtpError('');
+      const emailToVerify = formData.personalEmail || formData.email;
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}/password`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword,
+          email: emailToVerify,
+          otp: otp.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowOtpModal(false);
+        setShowSuccessModal(true);
+        localStorage.removeItem('user');
+        localStorage.removeItem('tempUser');
+        // TODO: confirm the franchisee portal's actual login route
+        setTimeout(() => { window.location.href = '/login'; }, 3000);
+      } else {
+        setOtpError(data.error || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error("Error changing password:", error);
+      setOtpError("Failed to change password. Please try again.");
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!isUnlocked) return;
+
+    const errs = {};
+    const isPasswordChange = formData.currentPassword || formData.newPassword || formData.confirmPassword;
+
+    if (isPasswordChange) {
+      if (!formData.currentPassword) errs.currentPassword = 'Please enter your current password.';
+      if (!formData.newPassword)     errs.newPassword     = 'Please enter a new password.';
+      else {
+        const pv = validatePasswordStrength(formData.newPassword);
+        if (!pv.isValid) errs.newPassword = 'Password does not meet all requirements.';
+      }
+      if (!formData.confirmPassword) {
+        errs.confirmPassword = 'Please confirm your new password.';
+      } else if (formData.newPassword !== formData.confirmPassword) {
+        errs.confirmPassword = 'Passwords do not match.';
+      }
+      if (!formData.personalEmail && !formData.email) errs.personalEmail = 'An email is required to receive OTP.';
+
+      if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+      sendOtp();
+      setShowOtpModal(true);
+    } else {
+      updateProfile();
+    }
+  };
+
+  const updateProfile = async () => {
+    try {
+      const fullName = [formData.firstName, formData.middleInitial ? formData.middleInitial + "." : "", formData.lastName, formData.suffix].filter(Boolean).join(" ");
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/users/${user.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: fullName,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          middleInitial: formData.middleInitial || null,
+          suffix: formData.suffix || null,
+          email: formData.email,
+          role: formData.role,
+          brand: user.brand,   // must be sent, or the PUT nulls it out
+          branch: user.branch,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showAlert('Profile updated successfully!', 'success');
+        const updatedUser = { ...user, name: fullName, firstName: formData.firstName, lastName: formData.lastName, middleInitial: formData.middleInitial, suffix: formData.suffix, email: formData.email };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setIsUnlocked(false);
+      } else {
+        showAlert(data.error || 'Failed to update profile.', 'error');
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      showAlert("Failed to update profile. Please try again.", "error");
+    }
+  };
+
+  const handleCancel = () => {
+    showConfirm('Discard all unsaved changes?', () => {
+      setFormData({
+        firstName: user?.firstName || '', lastName: user?.lastName || '',
+        middleInitial: user?.middleInitial || '', suffix: user?.suffix || '',
+        name: user?.name || '', email: user?.email || '', personalEmail: '', role: user?.role || 'Franchisee',
+        currentPassword: '', newPassword: '', confirmPassword: '',
+      });
+      setOtp(''); setOtpSent(false); setShowOtpModal(false);
+      setShowPasswordValidation(false); setPasswordErrors([]);
+      setFieldErrors({}); setIsUnlocked(false);
+    });
+  };
 
   const initials = user?.name
     ? user.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
 
-  const sendOtp = async () => {
-    try {
-      const email = formData.personalEmail || formData.email;
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/send-otp-password-change`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
-      });
-      const d = await res.json();
-      if (d.success) { setOtpSent(true); alert(`OTP sent to ${email}`); }
-      else alert(d.error || 'Failed to send OTP');
-    } catch { alert('Failed to send OTP.'); }
-  };
+  const FieldError = ({ name }) => fieldErrors[name]
+    ? <span style={{ fontSize: 11, color: '#ef4444', marginTop: 4, display: 'block', fontWeight: 600 }}>{fieldErrors[name]}</span>
+    : null;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.currentPassword || formData.newPassword) {
-      if (formData.newPassword !== formData.confirmPassword) { alert("Passwords don't match!"); return; }
-      sendOtp(); setShowOtpModal(true);
-    } else {
-      alert('Profile updated successfully!');
-    }
-  };
+  const PwChecklist = () => (
+    <div style={{ marginTop: 8, fontSize: 12, padding: '10px 14px', background: '#f0f5e8', borderRadius: 10, border: '1.5px solid #c9dba0' }}>
+      <div style={{ marginBottom: 6, fontWeight: 700, color: '#12241B', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Password must contain:</div>
+      {[
+        ['minLength',   'At least 8 characters'],
+        ['uppercase',   'Uppercase letter (A-Z)'],
+        ['lowercase',   'Lowercase letter (a-z)'],
+        ['number',      'Number (0-9)'],
+        ['specialChar', 'Special character (!@#$%^&*...)'],
+      ].map(([key, text]) => (
+        <div key={key} style={{ color: passwordErrors.includes(key) ? '#ef4444' : '#3b791e', marginBottom: 3, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          <span>{passwordErrors.includes(key) ? '✗' : '✓'}</span> {text}
+        </div>
+      ))}
+    </div>
+  );
+
+  const EyeToggle = ({ show, onToggle, disabled }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', color: '#5C6B60', display: 'flex', alignItems: 'center', padding: 0 }}
+    >
+      {show ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  );
+
+  const fieldStyle = (disabled) => ({
+    fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 13, width: '100%', boxSizing: 'border-box',
+    padding: '10px 12px', borderRadius: 10, marginTop: 4,
+    border: `1.5px solid ${disabled ? '#e5e7eb' : '#c9dba0'}`,
+    background: disabled ? '#f5f8f5' : '#fff',
+    color: disabled ? '#9ca3af' : '#12241B',
+    cursor: disabled ? 'not-allowed' : 'text', outline: 'none',
+  });
 
   return (
     <div>
+      {/* ── Account Overview ── */}
       <div style={{ background:'linear-gradient(135deg,#12241B,#2c5c16)', borderRadius:18, padding:'22px 24px', marginBottom:18, display:'flex', alignItems:'center', gap:18, border:'1px solid rgba(255,255,255,.06)' }}>
-        <div style={{ width: 64, height: 64, borderRadius: 18, background:'#bdd43c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color:'#12241B', fontFamily:'Plus Jakarta Sans,sans-serif', boxShadow:'none', flexShrink: 0 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 18, background:'#bdd43c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 26, color:'#12241B', fontFamily:'Plus Jakarta Sans,sans-serif', flexShrink: 0 }}>
           {initials}
         </div>
         <div>
@@ -5591,54 +5815,152 @@ function FrProfileContent({ user }) {
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))', gap:16 }}>
-        <div className="v-card" style={{ padding:'20px 22px' }}>
+      {/* ── Lock/Unlock Banner ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: isUnlocked ? '#f0f5e8' : '#f5f8f5', border: `1.5px solid ${isUnlocked ? '#c9dba0' : '#e5e7eb'}`, borderRadius: 14, padding: '12px 20px', marginBottom: 20, transition: 'all 0.2s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isUnlocked ? <Unlock size={18} /> : <Lock size={18} />}
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{isUnlocked ? 'Editing Enabled' : 'Profile Locked'}</div>
+            <div style={{ fontSize: 11, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{isUnlocked ? 'Make your changes and save when done.' : 'Click Unlock to edit your profile.'}</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => { isUnlocked ? handleCancel() : setIsUnlocked(true); }}
+          className="v-btn"
+          style={{
+            background: isUnlocked ? 'var(--grad-red)' : 'linear-gradient(135deg,#2c5c16,#3b791e)',
+            color: '#fff', border: 'none',
+          }}
+        >
+          {isUnlocked ? <><X size={14} /> Cancel</> : <>Unlock</>}
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
+        {/* ── Personal Information ── */}
+        <div className="v-card" style={{ padding: '20px 22px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<User size={16} />}>Personal Information</VSectionTitle>
           </div>
           <form onSubmit={handleSubmit}>
-            {[['Full Name', 'name', 'text'], ['Work Email', 'email', 'email']].map(([label, name, type]) => (
-              <div key={name} className="v-form-group">
-                <label className="v-form-label">{label}</label>
-                <input type={type} value={formData[name]} onChange={e => setFormData(p => ({ ...p, [name]: e.target.value }))} className="v-form-input" />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 2 }}>
+                <label className="v-form-label">Last Name</label>
+                <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
               </div>
-            ))}
+              <div style={{ flex: 2 }}>
+                <label className="v-form-label">First Name</label>
+                <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="v-form-label">M.I.</label>
+                <input type="text" name="middleInitial" maxLength={1} value={formData.middleInitial} onChange={handleInputChange} disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="v-form-label">Suffix</label>
+                <input type="text" name="suffix" value={formData.suffix} onChange={handleInputChange} disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
+              </div>
+            </div>
+            <FieldError name="lastName" />
+
+            <div className="v-form-group">
+              <label className="v-form-label">Work Email</label>
+              <input type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
+              <FieldError name="email" />
+            </div>
+
             <div className="v-form-group">
               <label className="v-form-label">Personal Email <span style={{ textTransform: 'none', fontWeight: 500, color: '#94a3b8' }}>(for OTP)</span></label>
-              <input type="email" value={formData.personalEmail} onChange={e => setFormData(p => ({ ...p, personalEmail: e.target.value }))} placeholder="your.personal@email.com" className="v-form-input" />
+              <input type="email" name="personalEmail" value={formData.personalEmail} onChange={handleInputChange} placeholder="your.personal@email.com" disabled={!isUnlocked} style={fieldStyle(!isUnlocked)} />
+              <FieldError name="personalEmail" />
             </div>
+
+            <div className="v-form-group">
+              <label className="v-form-label">Role</label>
+              <input type="text" value={formData.role} disabled style={{ ...fieldStyle(true), background: '#f0f0f0' }} />
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
-              <button type="submit" className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center' }}><Check size={14} /> Save Changes</button>
+              <button type="submit" disabled={!isUnlocked} className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: isUnlocked ? 1 : 0.6, cursor: isUnlocked ? 'pointer' : 'not-allowed' }}>
+                <Check size={14} /> Save Changes
+              </button>
             </div>
           </form>
         </div>
 
-        <div className="v-card" style={{ padding:'20px 22px' }}>
+        {/* ── Change Password ── */}
+        <div className="v-card" style={{ padding: '20px 22px' }}>
           <div className="v-section-head">
             <VSectionTitle icon={<Lock size={16} />}>Change Password</VSectionTitle>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background:'#f0f5e8', border:'1px solid #c9dba0', borderRadius: 12, marginBottom: 20 }}>
             <Shield size={14} color="#3b791e" />
-            <span style={{ fontSize: 12, color: '#5C6B60', fontWeight: 600, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>OTP will be sent to your email for verification</span>
+            <span style={{ fontSize: 12, color: '#5C6B60', fontWeight: 600, fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
+              {isUnlocked ? 'An OTP will be sent to your email for verification' : 'Unlock your profile to change your password'}
+            </span>
           </div>
           <form onSubmit={handleSubmit}>
-            {[['Current Password', 'currentPassword'], ['New Password', 'newPassword'], ['Confirm Password', 'confirmPassword']].map(([label, name]) => (
-              <div key={name} className="v-form-group">
-                <label className="v-form-label">{label}</label>
-                <input type="password" value={formData[name]} onChange={e => setFormData(p => ({ ...p, [name]: e.target.value }))} className="v-form-input" />
+            <div className="v-form-group">
+              <label className="v-form-label">Current Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showCurrentPw ? 'text' : 'password'} name="currentPassword" value={formData.currentPassword}
+                  onChange={handleInputChange} disabled={!isUnlocked}
+                  placeholder={isUnlocked ? 'Enter current password' : '••••••••'}
+                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showCurrentPw} onToggle={() => setShowCurrentPw(v => !v)} disabled={!isUnlocked} />
               </div>
-            ))}
-            <button type="submit" className="v-btn v-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+              <FieldError name="currentPassword" />
+            </div>
+
+            <div className="v-form-group">
+              <label className="v-form-label">New Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showNewPw ? 'text' : 'password'} name="newPassword" value={formData.newPassword}
+                  onChange={handleInputChange} disabled={!isUnlocked}
+                  placeholder={isUnlocked ? 'Enter new password' : '••••••••'}
+                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showNewPw} onToggle={() => setShowNewPw(v => !v)} disabled={!isUnlocked} />
+              </div>
+              {isUnlocked && showPasswordValidation && <PwChecklist />}
+              <FieldError name="newPassword" />
+            </div>
+
+            <div className="v-form-group">
+              <label className="v-form-label">Confirm Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirmPw ? 'text' : 'password'} name="confirmPassword" value={formData.confirmPassword}
+                  onChange={handleInputChange} disabled={!isUnlocked}
+                  placeholder={isUnlocked ? 'Confirm new password' : '••••••••'}
+                  style={{ ...fieldStyle(!isUnlocked), paddingRight: 40 }}
+                />
+                <EyeToggle show={showConfirmPw} onToggle={() => setShowConfirmPw(v => !v)} disabled={!isUnlocked} />
+              </div>
+              {isUnlocked && formData.confirmPassword && (
+                <div style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: formData.newPassword === formData.confirmPassword ? '#3b791e' : '#ef4444', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {formData.newPassword === formData.confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                </div>
+              )}
+              <FieldError name="confirmPassword" />
+            </div>
+
+            <button type="submit" disabled={!isUnlocked} className="v-btn v-btn-primary" style={{ width: '100%', justifyContent: 'center', opacity: isUnlocked ? 1 : 0.6, cursor: isUnlocked ? 'pointer' : 'not-allowed' }}>
               <Lock size={14} /> Update Password
             </button>
           </form>
         </div>
       </div>
 
+      {/* ── OTP Modal ── */}
       {showOtpModal && (
         <div className="v-modal-overlay">
           <div className="v-modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
-            <div style={{ width: 60, height: 60, borderRadius: 16, background:'#f0f5e8', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '1.8rem', boxShadow:'none', color:'#3b791e', border:'1px solid #c9dba0' }}><Lock size={26} /></div>
+            <div style={{ width: 60, height: 60, borderRadius: 16, background:'#f0f5e8', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color:'#3b791e', border:'1px solid #c9dba0' }}><Lock size={26} /></div>
             <h2 className="v-modal-title" style={{ textAlign: 'center' }}>Verify OTP</h2>
             <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0 20px', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
               Code sent to <strong style={{ color: '#3b791e' }}>{formData.personalEmail || formData.email}</strong>
@@ -5650,16 +5972,66 @@ function FrProfileContent({ user }) {
               className="v-form-input"
               style={{ fontSize: '1.8rem', textAlign: 'center', letterSpacing: '0.6rem', fontFamily: 'monospace', marginBottom: 12 }}
             />
+            {otpSent && !otpError && (
+              <div style={{ padding: '10px 14px', background: 'rgba(59,121,30,0.08)', borderRadius: 10, border: '1px solid #c9dba0', color: '#3b791e', fontSize: 12, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
+                OTP sent successfully
+              </div>
+            )}
             {otpError && (
               <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.2)', borderRadius: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <X size={14} color="#ef4444" /><span style={{ color: '#ef4444', fontSize: 13, fontWeight: 700 }}>{otpError}</span>
               </div>
             )}
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <button type="button" onClick={sendOtp} style={{ background: 'none', border: 'none', color: '#3b791e', cursor: 'pointer', fontSize: 12, fontWeight: 700, textDecoration: 'underline' }}>Resend OTP</button>
+            </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button className="v-btn v-btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { setShowOtpModal(false); setOtp(''); setOtpSent(false); setOtpError(''); }}>Cancel</button>
-              <button className="v-btn v-btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: otp.length !== 6 ? 0.5 : 1 }} disabled={otp.length !== 6}>
+              <button
+                className="v-btn v-btn-primary"
+                style={{ flex: 1, justifyContent: 'center', opacity: otp.length !== 6 ? 0.5 : 1, cursor: otp.length !== 6 ? 'not-allowed' : 'pointer' }}
+                disabled={otp.length !== 6}
+                onClick={verifyOtpAndChangePassword}
+              >
                 <Check size={14} /> Verify & Change
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Success Modal ── */}
+      {showSuccessModal && (
+        <div className="v-modal-overlay">
+          <div className="v-modal" style={{ maxWidth: 420, textAlign: 'center' }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#f0f5e8', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '2.2rem' }}>✅</div>
+            <h2 className="v-modal-title">Password Changed!</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7, margin: '10px 0 20px', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
+              Your password has been updated successfully.<br />You'll be redirected to login shortly.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Alert Modal ── */}
+      {alertModal && (
+        <div className="v-modal-overlay" onClick={() => setAlertModal(null)}>
+          <div className="v-modal" style={{ maxWidth: 400, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: alertModal.type === 'error' ? '#ef4444' : '#12241B', marginBottom: 16 }}>{alertModal.message}</p>
+            <button className="v-btn v-btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setAlertModal(null)}>OK</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Modal ── */}
+      {confirmModal && (
+        <div className="v-modal-overlay" onClick={() => setConfirmModal(null)}>
+          <div className="v-modal" style={{ maxWidth: 400, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <h2 className="v-modal-title">Discard Changes?</h2>
+            <p style={{ fontSize: 13, color: '#5C6B60', lineHeight: 1.6, marginBottom: 24 }}>{confirmModal.message}</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button className="v-btn v-btn-secondary" onClick={() => setConfirmModal(null)}>Keep Editing</button>
+              <button className="v-btn" style={{ background: 'var(--grad-red)', color: '#fff', border: 'none' }} onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}>Discard</button>
             </div>
           </div>
         </div>

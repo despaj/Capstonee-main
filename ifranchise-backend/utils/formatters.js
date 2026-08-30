@@ -59,6 +59,7 @@ const rowToApplication = (row) => ({
   rescheduleOptionA:   row.reschedule_option_a,
   rescheduleOptionB:   row.reschedule_option_b,
   rescheduleOptionC:   row.reschedule_option_c,
+  accountCreatedAt:    row.account_created_at,
 });
 
 module.exports = { rowToApplication };

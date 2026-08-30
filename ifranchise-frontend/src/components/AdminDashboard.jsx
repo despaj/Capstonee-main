@@ -7375,7 +7375,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
   const getCostFor = useCallback((brandName, itemName) => {
     const b = normalize(brandName), n = normalize(itemName);
     const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? Number(match.cost || 0) : 0;
+    return match ? Number(match.cost_per_unit || 0) : 0;
   }, [stockItems]);
 
   // Every unique (brand, product name) combination that exists in Stock
@@ -7390,44 +7390,38 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [stockItems]);
 
-  // Merge each Stock Inventory product with its Mobile Shop listing
-  // override (if one has been set up). Products with no override yet
-  // are still shown, marked as "Not Listed", so staff can list them.
-  // Price is always computed live from cost — it's never stored as a
-  // free-standing editable number. Stock is intentionally not exposed
-  // here — it lives in Stock Inventory's FIFO/FEFO queues.
-  const items = useMemo(() => {
-    return uniqueStockProducts.map((sp) => {
-      const match = shopItems.find(
-        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
-      );
-      const liveCost = getCostFor(sp.brand, sp.name);
-      return {
-        id: match ? match.id : null,
-        name: sp.name,
-        brand: sp.brand,
-        shop: match ? match.shop : sp.brand,
-        cost: liveCost,
-        price: computePrice(liveCost),
-        unit: match ? match.unit : "",
-        is_visible: match ? !!match.is_visible : false,
-        listed: !!match,
-      };
-    });
-  }, [uniqueStockProducts, shopItems, getCostFor]);
-
-  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
-
-  const filteredItems = items.filter((item) => {
-    const q = searchQuery.toLowerCase();
-    const matchesQuery =
-      !q ||
-      item.name?.toLowerCase().includes(q) ||
-      item.shop?.toLowerCase().includes(q);
-    if (!matchesQuery) return false;
-    if (filterShop !== "all" && item.shop !== filterShop) return false;
-    return true;
+const items = useMemo(() => {
+  return uniqueStockProducts.map((sp) => {
+    const match = shopItems.find(
+      (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
+    );
+    const liveCost = getCostFor(sp.brand, sp.name);
+    return {
+      id: match ? match.id : null,
+      name: sp.name,
+      brand: sp.brand,
+      shop: match ? match.shop : sp.brand,
+      cost: liveCost,
+      price: match ? Number(match.price) : computePrice(liveCost),
+      unit: match ? match.unit : "",
+      is_visible: match ? !!match.is_visible : false,
+      listed: !!match,
+    };
   });
+}, [uniqueStockProducts, shopItems, getCostFor]);
+
+  const uniqueShops = [...new Set(items.map((i) => i.brand).filter(Boolean))].sort();
+
+const filteredItems = items.filter((item) => {
+  const q = searchQuery.toLowerCase();
+  const matchesQuery =
+    !q ||
+    item.name?.toLowerCase().includes(q) ||
+    item.brand?.toLowerCase().includes(q);
+  if (!matchesQuery) return false;
+  if (filterShop !== "all" && item.brand !== filterShop) return false;
+  return true;
+});
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
   const pageStartIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -7837,7 +7831,7 @@ function MobileShopContent({ user, brands: propBrands = [] }) {
                         style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
                       >
                         <td style={{ padding: "11px 14px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
-                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
+                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.brand}</span>
                         </td>
                         <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
                         <td style={{ padding: "11px 14px" }}>
@@ -8123,8 +8117,6 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [viewApp,      setViewApp]      = useState(null);
   const [accountApp,   setAccountApp]   = useState(null);
   const [alertModal, setAlertModal] = useState(null);
-  const [restoringId, setRestoringId] = useState(null);
-  const [createdAccountIds, setCreatedAccountIds] = useState(() => new Set());
   
   const showAlert = (title, message, type = "info") =>
   setAlertModal({ title, message, type });
@@ -8137,7 +8129,8 @@ function ApplicationsContent({user, applications: initialApps, brands: propBrand
   const [filterStatus,    setFilterStatus]    = useState("all");
   const [filterFranchise, setFilterFranchise] = useState("all");
   const [searchQuery,     setSearchQuery]     = useState("");
-
+  const [restoringId, setRestoringId] = useState(null);
+  
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);    
   const [processingId, setProcessingId] = useState(null);
@@ -8173,6 +8166,7 @@ const normalizeApp = (row) => ({
   appointmentLocation: row.appointment_location ?? row.appointmentLocation,
   appointmentNotes:    row.appointment_notes    ?? row.appointmentNotes,
   appointmentStatus:   row.appointment_status   ?? row.appointmentStatus,
+  accountCreatedAt:    row.account_created_at   ?? row.accountCreatedAt,
 });
 
   const fetchApplications = async () => {
@@ -9247,20 +9241,20 @@ const handleRestoreApplication = async (entry) => {
                       await handleApproveAndCreateAccount(viewApp);
                       setViewApp(prev => prev ? { ...prev, status: "approved" } : prev);
                     }}
-                    disabled={processingId !== null || createdAccountIds.has(viewApp.id)}
+                    disabled={processingId !== null || !!viewApp.accountCreatedAt}
                     style={{
                       display: "flex", alignItems: "center", gap: 7,
                       padding: "10px 22px", borderRadius: 10, border: "none",
-                      background: createdAccountIds.has(viewApp.id) ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
-                      color: createdAccountIds.has(viewApp.id) ? "#9e9e9e" : "#fff",
+                      background: viewApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                      color: viewApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                       fontSize: 13, fontWeight: 700,
-                      cursor: (processingId !== null || createdAccountIds.has(viewApp.id)) ? "not-allowed" : "pointer",
+                      cursor: (processingId !== null || viewApp.accountCreatedAt) ? "not-allowed" : "pointer",
                       fontFamily: "inherit",
                       boxShadow: "0 2px 10px rgba(0,180,90,0.3)",
-                      opacity: (processingId !== null || createdAccountIds.has(viewApp.id)) ? 0.6 : 1,
+                      opacity: (processingId !== null || viewApp.accountCreatedAt) ? 0.6 : 1,
                     }}
                   >
-                    <UserPlus size={14} /> {createdAccountIds.has(viewApp.id) ? "Account Created" : viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                    <UserPlus size={14} /> {viewApp.accountCreatedAt ? "Account Created" : viewApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
                   </button>
                 </>
               )}
@@ -9280,7 +9274,12 @@ const handleRestoreApplication = async (entry) => {
           roles={['Franchisee']}    
           onClose={() => setAccountApp(null)}
           onAlert={(message, type) => setAlertModal({ message, type })}
-          onCreated={(appId) => setCreatedAccountIds(prev => new Set(prev).add(appId))}
+          onCreated={(updatedApp) => {
+            const normalized = normalizeApp(updatedApp);
+            setApplications(prev => prev.map(a => a.id === normalized.id ? { ...a, ...normalized } : a));
+            setViewApp(prev => prev?.id === normalized.id ? { ...prev, ...normalized } : prev);
+            setMenuApp(prev => prev?.id === normalized.id ? { ...prev, ...normalized } : prev);
+          }}
         />
       )}
 
@@ -9336,20 +9335,20 @@ const handleRestoreApplication = async (entry) => {
                   await handleApproveAndCreateAccount(menuApp);
                   setMenuApp(null);
                 }}
-                disabled={processingId !== null || createdAccountIds.has(menuApp.id)}
+                disabled={processingId !== null || !!menuApp.accountCreatedAt}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "12px 16px", borderRadius: 11, border: "none",
-                  background: createdAccountIds.has(menuApp.id) ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
-                  color: createdAccountIds.has(menuApp.id) ? "#9e9e9e" : "#fff",
+                  background: menuApp.accountCreatedAt ? "#e0e0e0" : "linear-gradient(135deg,#00c853,#00897b)",
+                  color: menuApp.accountCreatedAt ? "#9e9e9e" : "#fff",
                   fontSize: 13, fontWeight: 700,
-                  cursor: (processingId !== null || createdAccountIds.has(menuApp.id)) ? "not-allowed" : "pointer",
+                  cursor: (processingId !== null || menuApp.accountCreatedAt) ? "not-allowed" : "pointer",
                   fontFamily: "inherit",
-                  opacity: (processingId !== null || createdAccountIds.has(menuApp.id)) ? 0.6 : 1,
+                  opacity: (processingId !== null || menuApp.accountCreatedAt) ? 0.6 : 1,
                 }}
               >
                 <UserPlus size={15} />
-                {createdAccountIds.has(menuApp.id) ? "Account Created" : menuApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
+                {menuApp.accountCreatedAt ? "Account Created" : menuApp.status === "approved" ? "Create Account" : "Approve & Create Account"}
               </button>
               <button
                 onClick={() => { handleApprove(menuApp.id); setMenuApp(null); }}
@@ -9788,12 +9787,6 @@ function CreateAccountModal({ applicant, user, onClose, onAlert, onCreated, role
     );
   });
 
-  useEffect(() => {
-    if (!selectedBrandId) { setBranches([]); return; }
-    const brand = brands.find(b => String(b.id) === String(selectedBrandId));
-    setBranches(brand?.branches || []);
-  }, [selectedBrandId, brands]);
-
   const handleSubmit = async (e) => {
   e.preventDefault();
   const form = e.target;
@@ -9804,19 +9797,30 @@ function CreateAccountModal({ applicant, user, onClose, onAlert, onCreated, role
   const name = [firstName, middleInitial ? middleInitial + "." : "", lastName, suffix].filter(Boolean).join(" ");
   const email = form.email.value, phone = form.phone.value;
     const role = selectedRole;    
-    const branch = form.branch.value;
+    const branch = form.branch.value.trim();
     const selectedBrand = brands.find(b => String(b.id) === String(selectedBrandId));
     const brand = selectedBrand?.name || '';
     const tempPassword = generateTempPassword();
     setSending(true);
     try {
+      const coords = await getBrowserLocation();
+
+      // Create the account first — if the email is a duplicate, we bail
+      // out before ever touching branches, so no orphan branch is created.
       const res = await fetch(`${process.env.REACT_APP_API_URL}/users`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, firstName, lastName, middleInitial: middleInitial || null, suffix: suffix || null, email, password: tempPassword, role, brand, branch }),
+        body: JSON.stringify({
+          name, firstName, lastName, middleInitial: middleInitial || null, suffix: suffix || null,
+          email, password: tempPassword, role, brand, branch,
+          performed_by: user?.name || 'System',
+          performed_by_role: user?.role || 'Unknown',
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
       });
       if (!res.ok) { const err = await res.json(); 
         
-        if (err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
+        if (err.error === "Email already exists" || err.error?.includes("duplicate key") || err.error?.includes("users_email_key") || err.code === "23505") {
           onAlert(`An account with the email "${email}" already exists. Please use a different email or check existing accounts.`, 'error');
           } else {
             onAlert(err.error || 'Failed to create account.', 'error');
@@ -9824,11 +9828,58 @@ function CreateAccountModal({ applicant, user, onClose, onAlert, onCreated, role
           return;
         }
 
+      // The applicant is the new franchisee — their assigned branch doesn't
+      // exist yet, so create it under the selected brand now that the
+      // account itself succeeded.
+      const branchRes = await fetch(`${process.env.REACT_APP_API_URL}/branches`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: branch,
+          brand_id: selectedBrandId,
+          performed_by: user?.name || 'System',
+          role: user?.role || 'Unknown',
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      if (!branchRes.ok) {
+        const branchErr = await branchRes.json();
+        onAlert(`Account was created, but the branch could not be created: ${branchErr.error || 'unknown error'}. Please add the branch manually.`, 'error');
+        return;
+      }
+
       await fetch(`${process.env.REACT_APP_API_URL}/send-credentials`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: email, name, password: tempPassword }),
       });
+
+      // Isolated on purpose: the account and branch already exist at this
+      // point. If marking account-created fails (network blip, stale
+      // deploy), we still want the success alert, the modal close, and a
+      // locally-disabled button — not a false "something went wrong".
+      let markedApplication = null;
+      try {
+        const markedRes = await fetch(`${process.env.REACT_APP_API_URL}/applications/${applicant?.id}/account-created`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            performed_by: user?.name || 'System',
+            role: user?.role || 'Unknown',
+            latitude: coords?.latitude,
+            longitude: coords?.longitude,
+          }),
+        });
+        if (markedRes.ok) {
+          const markedData = await markedRes.json();
+          markedApplication = markedData.application || null;
+        } else {
+          console.error('Failed to mark account-created:', await markedRes.text());
+        }
+      } catch (markErr) {
+        console.error('account-created request failed:', markErr);
+      }
+
       onAlert(`Account created and credentials sent to ${email}!`, 'success');
+      onCreated?.(markedApplication || { id: applicant?.id, account_created_at: new Date().toISOString() });
       onClose();
     } catch { onAlert('Something went wrong. Please try again.', 'error'); }
     finally { setSending(false); }
@@ -9895,10 +9946,13 @@ function CreateAccountModal({ applicant, user, onClose, onAlert, onCreated, role
           </div>
           <div style={{ marginBottom: 14 }}>
             <label style={bmLabel}>Assigned Branch</label>
-            <select name="branch" required disabled={!selectedBrandId} style={{ ...bmInput, marginTop: 4, appearance: 'none', cursor: 'pointer' }}>
-              <option value="">{!selectedBrandId ? 'Select a brand first' : branches.length === 0 ? 'No branches available' : 'Select Branch'}</option>
-              {branches.map(br => <option key={br.id ?? br.name} value={br.name ?? br}>{br.name ?? br}</option>)}
-            </select>
+            <input
+              name="branch" type="text" required
+              disabled={!selectedBrandId}
+              placeholder={!selectedBrandId ? 'Select a brand first' : 'e.g. Coffee Spot — Katipunan'}
+              style={{ ...bmInput, marginTop: 4, cursor: !selectedBrandId ? 'not-allowed' : 'text', background: !selectedBrandId ? '#f5f5f5' : bmInput.background }}
+            />
+            <p style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>This is a new branch — it'll be created under the selected brand automatically.</p>
           </div>
           <p style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>A temporary password will be auto-generated and emailed to the applicant.</p>
          <div style={{ display: 'flex', gap: 10 }}>
@@ -13961,9 +14015,6 @@ const initials = user.name
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE ACCOUNT MODAL
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GCASH QR CONFIRMATION MODAL
