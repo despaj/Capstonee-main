@@ -7329,7 +7329,7 @@ const computeDisplayPrice = (cost, unit) => {
     unit === 'kg' ? 50 :
     unit === 'pc' ? 50 :
     1;
-  return Math.round(Number(cost || 0) * bulkQty * 1.70 * 100) / 100;
+  return Math.round(Number(cost || 0) * bulkQty * 1.12 * 100) / 100;
 };
 
 const bulkLabelFor = (unit) => {
@@ -7341,7 +7341,7 @@ const bulkLabelFor = (unit) => {
   return unit;
 };
 
-const markupLabelFor = () => '+ 70%';
+const markupLabelFor = () => '+ 12%';
 
   const fetchActivityLog = useCallback(async () => {
     try {
@@ -7855,7 +7855,7 @@ const bulkListItems = async (candidateItems) => {
                           {item.cost > 0 ? (
                             <div>
                               <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
-                              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} + 70%</div>
+                              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} + 12%</div>
                             </div>
                           ) : (
                             <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
