@@ -1242,7 +1242,7 @@ export default function MenuInventoryContent({ user, brands: propBrands = [] }) 
   const ingRef = useRef(null);
 
 const emptyForm = useCallback(() => ({
-  name:"", category:"", branch:isAdmin?"":userBranch, brand:"",
+  name:"", category:"", branch:isAdmin?"":userBranch, branches: isAdmin ? [] : [userBranch], brand:"",
   cost:"", price:"", ingredients:[], image_url:"",
 }), [isAdmin, userBranch]);
 
@@ -1572,8 +1572,8 @@ const computedCost = useMemo(() => {
 
 const handleAddItem = async e => {
   e.preventDefault();
-  const branch = isAdmin ? formData.branch : userBranch;
-  const requestedBrand = formData.brand || branchToBrand[branch] || "";
+  const targetBranches = isAdmin ? (formData.branches || []) : [userBranch];
+  const requestedBrand = formData.brand || branchToBrand[targetBranches[0]] || "";
   if (isDirectBrandName(requestedBrand)) {
     showToast("info", "Use Stock Inventory", "Add iFuel and iPharma products in Stock Inventory. Menu Inventory mirrors them automatically.");
     return;
@@ -1582,13 +1582,13 @@ const handleAddItem = async e => {
   const missing = [];
   if (!formData.name?.trim())      missing.push("Name");
   if (!formData.category?.trim())  missing.push("Category");
-  if (!branch?.trim())             missing.push("Branch");
+  if (isAdmin && targetBranches.length === 0) missing.push("At least one branch");
   if (!formData.brand?.trim())     missing.push("Brand");
   if (formData.cost === "" || formData.cost == null)   missing.push("Cost");
   if (formData.price === "" || formData.price == null) missing.push("Price");
   if (!formData.image_url?.trim()) missing.push("Image");
-  if (formData.minStock === "" || formData.minStock == null) missing.push("Min stock");
-  const directProduct = isDirectBrandName(formData.brand || branchToBrand[branch] || "");
+  const directProduct = isDirectBrandName(requestedBrand);
+  if (directProduct && (formData.minStock === "" || formData.minStock == null)) missing.push("Min stock");
   if (!directProduct) {
     if (!formData.ingredients || formData.ingredients.length === 0) {
       missing.push("At least one ingredient");
@@ -1607,22 +1607,29 @@ const handleAddItem = async e => {
     return;
   }
 
-  const duplicate = findDuplicate(formData.name, branch, inventory);
-  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-
   setSaving(true);
   const coords = await getBrowserLocation();
-  const payload = {
-    ...formData,
-    branch,
-    min_stock: formData.minStock,
-    performed_by: userName,
-    performed_by_role: user?.role || "Unknown",
-    latitude: coords?.latitude,
-    longitude: coords?.longitude,
-    ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
-  };
-   try {
+  const results = [];
+
+  for (const branch of targetBranches) {
+    const duplicate = findDuplicate(formData.name, branch, inventory);
+    if (duplicate) {
+      results.push({ ok:false, branch, reason:"already exists in this branch" });
+      continue;
+    }
+
+    const payload = {
+      ...formData,
+      branch,
+      min_stock: formData.minStock,
+      performed_by: userName,
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
+    };
+
+    try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
       });
@@ -1641,30 +1648,117 @@ const handleAddItem = async e => {
           });
           const ingData = await ingRes.json();
           if (!ingData.success) {
-            showToast("error", "Ingredients not saved", ingData.error || "The item was added but its ingredients failed to save.");
-            setSaving(false);
-            return;
+            results.push({ ok:false, branch, reason:"ingredients failed to save" });
+            continue;
           }
         }
-        await refetch();
-        await fetchActivityLog();
-        setShowAddModal(false); setFormData(emptyForm()); resetIngPicker();
-      showToast("success", "Item added", `"${formData.name}" was added.`);
-      } else showToast("error", "Failed to add item", d.error || "Something went wrong.");
-    } catch { showToast("error", "Failed to add item", "Something went wrong. Please try again."); }
-    finally { setSaving(false); }
-  };
+        results.push({ ok:true, branch });
+      } else {
+        results.push({ ok:false, branch, reason: d.error || "failed to save" });
+      }
+    } catch {
+      results.push({ ok:false, branch, reason:"connection error" });
+    }
+  }
+
+  await refetch();
+  await fetchActivityLog();
+  setSaving(false);
+
+  const succeeded = results.filter(r => r.ok);
+  const failed = results.filter(r => !r.ok);
+
+  if (succeeded.length > 0 && failed.length === 0) {
+    setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
+    showToast("success", "Item added",
+      succeeded.length === 1
+        ? `"${formData.name}" was added to ${succeeded[0].branch}.`
+        : `"${formData.name}" was added to ${succeeded.length} branches.`);
+  } else if (succeeded.length > 0 && failed.length > 0) {
+    setShowAddModal(false); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
+    showToast("info", "Added with some skips",
+      `Added to ${succeeded.length} branch${succeeded.length===1?"":"es"}. Skipped: ${failed.map(f=>`${f.branch} (${f.reason})`).join(", ")}`);
+  } else {
+    showToast("error", "Failed to add item", failed.map(f=>`${f.branch}: ${f.reason}`).join("; ") || "Something went wrong.");
+  }
+};
 
   const handleEditItem = async e => {
-    e.preventDefault();
-    const branch     = isAdmin ? formData.branch : userBranch;
-    const directProduct = isDirectBrandName(formData.brand || branchToBrand[branch] || "");
-    const otherItems = inventory.filter(i => i.id !== editingItem.id);
-    const duplicate  = findDuplicate(formData.name, branch, otherItems);
-    if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
-    setSaving(true);
-    const coords = await getBrowserLocation();
-    const payload = {
+  e.preventDefault();
+  const originalBranch = editingItem.branch;
+  const selectedBranches = isAdmin ? (formData.branches || []) : [userBranch];
+
+  if (isAdmin && !selectedBranches.includes(originalBranch)) {
+    showToast("error", "Please fix the following", "The current branch can't be removed.");
+    return;
+  }
+
+  const directProduct = isDirectBrandName(formData.brand || branchToBrand[originalBranch] || "");
+  const otherItems = inventory.filter(i => i.id !== editingItem.id);
+  const duplicate  = findDuplicate(formData.name, originalBranch, otherItems);
+  if (duplicate) { showToast("error", "Duplicate item", `"${duplicate.name}" already exists in this branch.`); return; }
+
+  setSaving(true);
+  const coords = await getBrowserLocation();
+  const payload = {
+    ...formData,
+    branch: originalBranch,
+    min_stock: formData.minStock,
+    performed_by: userName,
+    performed_by_role: user?.role || "Unknown",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+    ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
+  };
+
+  let editSucceeded = false;
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+    });
+    const d = await res.json();
+    if (d.success) {
+      if (!directProduct) {
+        const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({
+            ingredients: (formData.ingredients||[]).map(ing => ({
+              ingredient_id: ing.stock_item_id,
+              quantity:      ing.qty_required,
+              unit:          ing.unit,
+            }))
+          })
+        });
+        const ingData = await ingRes.json();
+        if (!ingData.success) {
+          setSaving(false);
+          showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
+          return;
+        }
+      }
+      editSucceeded = true;
+    }
+  } catch {}
+
+  if (!editSucceeded) {
+    setSaving(false);
+    showToast("error", "Failed to update item", "Something went wrong. Please try again.");
+    return;
+  }
+
+  /* Fan out to newly-selected additional branches */
+  const extraBranches = selectedBranches.filter(b => b !== originalBranch);
+  const results = [];
+
+  for (const branch of extraBranches) {
+    const duplicateInBranch = findDuplicate(formData.name, branch, inventory);
+    if (duplicateInBranch) {
+      results.push({ ok:false, branch, reason:"already exists in this branch" });
+      continue;
+    }
+
+    const extraPayload = {
       ...formData,
       branch,
       min_stock: formData.minStock,
@@ -1674,47 +1768,50 @@ const handleAddItem = async e => {
       longitude: coords?.longitude,
       ...(directProduct ? { product_type: isFuelBrandName(formData.brand) ? "FUEL" : "DIRECT" } : {}),
     };
+
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}`, {
-        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(extraPayload)
       });
       const d = await res.json();
       if (d.success) {
-        if (!directProduct) {
-          const ingRes = await fetch(`${process.env.REACT_APP_API_URL}/inventory/${editingItem.id}/ingredients`, {
+        if (!directProduct && formData.ingredients && formData.ingredients.length > 0) {
+          await fetch(`${process.env.REACT_APP_API_URL}/inventory/${d.item.id}/ingredients`, {
             method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({
-              ingredients: (formData.ingredients||[]).map(ing => ({
+              ingredients: formData.ingredients.map(ing => ({
                 ingredient_id: ing.stock_item_id,
                 quantity:      ing.qty_required,
                 unit:          ing.unit,
               }))
             })
           });
-          const ingData = await ingRes.json();
-          if (!ingData.success) {
-            showToast("error", "Ingredients not saved", ingData.error || "The item was updated but its ingredients failed to save.");
-            setSaving(false);
-            return;
-          }
         }
+        results.push({ ok:true, branch });
+      } else {
+        results.push({ ok:false, branch, reason: d.error || "failed to save" });
+      }
+    } catch {
+      results.push({ ok:false, branch, reason:"connection error" });
+    }
+  }
 
-        const changed = [];
-        if (String(editingItem.stock)     !== String(formData.stock))    changed.push(`stock: ${editingItem.stock} → ${formData.stock}`);
-        if (String(editingItem.min_stock) !== String(formData.minStock)) changed.push(`min: ${editingItem.min_stock} → ${formData.minStock}`);
-        if (String(editingItem.price)     !== String(formData.price))    changed.push(`price: ₱${editingItem.price} → ₱${formData.price}`);
-        if (editingItem.category          !== formData.category)         changed.push(`category: ${editingItem.category} → ${formData.category}`);
-        const changesStr = changed.length > 0 ? changed.join("; ") : "Minor update";
-        void changesStr;
+  await refetch();
+  await fetchActivityLog();
+  setSaving(false);
+  setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); setFormBrandId(""); resetIngPicker();
 
-        await refetch();
-        await fetchActivityLog();
-        setShowEditModal(false); setEditingItem(null); setFormData(emptyForm()); resetIngPicker();
-      showToast("success", "Item updated", `"${formData.name}" was saved.`);
-      } else showToast("error", "Failed to update item", d.error || "Something went wrong.");
-    } catch { showToast("error", "Failed to update item", "Something went wrong. Please try again."); }
-    finally { setSaving(false); }
-  };
+  const succeeded = results.filter(r => r.ok);
+  const failed = results.filter(r => !r.ok);
+
+  if (extraBranches.length === 0) {
+    showToast("success", "Item updated", `"${formData.name}" was saved.`);
+  } else if (failed.length === 0) {
+    showToast("success", "Item updated", `"${formData.name}" updated, and added to ${succeeded.length} more branch${succeeded.length===1?"":"es"}.`);
+  } else {
+    showToast("info", "Updated with some skips", `"${formData.name}" was updated. ${succeeded.length} additional branch${succeeded.length===1?"":"es"} added, ${failed.length} skipped: ${failed.map(f=>`${f.branch} (${f.reason})`).join(", ")}`);
+  }
+};
 
   const handleDeleteItem = async id => {
     setDeletingId(id);
@@ -1799,7 +1896,7 @@ const openEditModal = item => {
   const branch = item.branch;
   const brandForItem = filterBrandName || branchToBrand[item.branch] || ""; 
   setFormData({
-    name:item.name, category:item.category, branch, brand:brandForItem,
+    name:item.name, category:item.category, branch, branches:[branch], brand:brandForItem,
     cost:item.cost||"", price:item.price,
     stock:item.stock ?? item.available_stock ?? 0,
     minStock:item.min_stock ?? 0,
@@ -2068,10 +2165,10 @@ const renderFormFields = () => {
                 const fd = new FormData();
                 fd.append("image", file);
                 try {
-                  const res = await fetch(`${process.env.REACT_APP_API_URL}/inventory/upload-image`, {
-                    method: "POST",
-                    body: fd,
-                  });
+                  const res = await fetch(`${process.env.REACT_APP_API_URL}/api/upload-menu-image`, {
+  method: "POST",
+  body: fd,
+});
                   const d = await res.json();
                   if (d.url) setFormData(p => ({ ...p, image_url: d.url }));
                   else showToast("error", "Upload failed", "The product image could not be uploaded.");
@@ -2107,29 +2204,65 @@ const renderFormFields = () => {
       </div>
 
       {isAdmin ? (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Branch *</label>
-          {(() => {
-            const selectedBrandObjForBranch = brandList.find(b => b.name === formData.brand);
-            const filteredBranches = selectedBrandObjForBranch
-              ? (selectedBrandObjForBranch.branches || []).map(br => typeof br === "string" ? br : br.name)
-              : [];
+  <div style={{ marginBottom:13 }}>
+    <label style={invLabelSt}>Branches * <span style={{ fontWeight:400, color:C.muted }}>(select one or more)</span></label>
+    {(() => {
+      const selectedBrandObjForBranch = brandList.find(b => b.name === formData.brand);
+      const filteredBranches = selectedBrandObjForBranch
+        ? (selectedBrandObjForBranch.branches || []).map(br => typeof br === "string" ? br : br.name)
+        : [];
+      if (!formData.brand) {
+        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>Select a brand first…</div>;
+      }
+      if (filteredBranches.length === 0) {
+        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>No branches found for this brand.</div>;
+      }
+      const lockedBranch = showEditModal ? editingItem?.branch : null;
+      const currentBranches = formData.branches || [];
+      const allSelected = filteredBranches.every(br => currentBranches.includes(br));
+      return (
+        <div style={{ border:`1.5px solid ${C.border}`, borderRadius:11, padding:"8px 4px", maxHeight:180, overflowY:"auto" }}>
+          <label style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor:"pointer", fontSize:12.5, fontWeight:700, color:C.greenDk, borderBottom:`1px solid ${C.border}`, marginBottom:4 }}>
+            <input type="checkbox" checked={allSelected}
+              onChange={e => setFormData(f => ({
+                ...f,
+                branches: e.target.checked ? filteredBranches : (lockedBranch ? [lockedBranch] : []),
+              }))}/>
+            Select all branches
+          </label>
+          {filteredBranches.map(br => {
+            const locked = br === lockedBranch;
             return (
-              <select style={{ ...invInputSt, opacity: !formData.brand ? 0.5 : 1, cursor: !formData.brand ? "not-allowed" : "pointer" }}
-                value={formData.branch} required disabled={!formData.brand}
-                onChange={e => setFormData(f => ({ ...f, branch: e.target.value }))}>
-                <option value="">{!formData.brand ? "Select a brand first…" : "Select branch…"}</option>
-                {filteredBranches.map(br => <option key={br} value={br}>{br}</option>)}
-              </select>
+              <label key={br} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor: locked ? "default" : "pointer", fontSize:13, color:C.ink, opacity: locked ? 0.75 : 1 }}>
+                <input type="checkbox" checked={currentBranches.includes(br)} disabled={locked}
+                  onChange={e => setFormData(f => ({
+                    ...f,
+                    branches: e.target.checked ? [...(f.branches||[]), br] : (f.branches||[]).filter(x => x !== br),
+                    branch: f.branch || br,
+                  }))}/>
+                {br}{locked && <span style={{ fontSize:10.5, fontWeight:700, color:C.greenDk, marginLeft:4 }}>(current — can't remove)</span>}
+              </label>
             );
-          })()}
+          })}
         </div>
-      ) : (
-        <div style={{ marginBottom:13 }}>
-          <label style={invLabelSt}>Branch</label>
-          <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
-        </div>
-      )}
+      );
+    })()}
+    {(formData.branches||[]).length > 0 && (
+      <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
+        {showEditModal
+          ? (formData.branches.length === 1
+              ? "Only updating the current branch."
+              : `Updating "${editingItem?.branch}" and adding this item to ${formData.branches.length - 1} more branch${formData.branches.length - 1 === 1 ? "" : "es"}: ${formData.branches.filter(b => b !== editingItem?.branch).join(", ")}`)
+          : `Will add this item to ${formData.branches.length} branch${formData.branches.length===1?"":"es"}: ${formData.branches.join(", ")}`}
+      </div>
+    )}
+  </div>
+) : (
+  <div style={{ marginBottom:13 }}>
+    <label style={invLabelSt}>Branch</label>
+    <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
+  </div>
+)}
 
       <div style={{ marginBottom:13 }}>
         <label style={invLabelSt}>Category</label>
@@ -2302,12 +2435,13 @@ return (
   onRequestDelete={setDeleteTarget}
   deletingId={deletingId}
   onQuickAdd={()=>{
-    const branch = isAdmin ? "Head Office" : userBranch;
-    setFormData({...emptyForm(), branch, brand: filterBrandName || ""});
-    fetchStockItems(branch, filterBrandName || "");
-    setFormBrandId(filterBrand ? String(filterBrand) : "");
-    setShowAddModal(true);
-  }}
+  const brandName = filterBrandName || "";
+  const branch = isAdmin ? "" : userBranch;
+  setFormData({...emptyForm(), branch, branches: isAdmin ? [] : [userBranch], brand: brandName});
+  fetchStockItems(branch, brandName);
+  setFormBrandId(filterBrand ? String(filterBrand) : "");
+  setShowAddModal(true);
+}}
   onBack={isAdmin ? goBackToBrands : null}
   onOpenDeleteHistory={()=>setShowDeleteHistory(true)}
   deleteHistoryCount={currentCardDeleteHistory.length}
@@ -2368,4 +2502,3 @@ return (
   </div>
 );
 }
-
