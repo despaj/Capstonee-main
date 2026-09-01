@@ -25,6 +25,93 @@ function computeNextOutCost(batches, brand, perishable) {
   return Number(sorted[0].cost_per_unit) || 0;
 }
 
+function slug(str, maxLen = 6) {
+  return String(str || "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, maxLen);
+}
+
+const CATEGORY_CODE_MAP = {
+  "coffee & base ingredients": "BASE",
+  "syrups & flavorings": "SYR",
+  "milk & dairy": "MLK",
+  "ice": "ICE",
+  "packaging & supplies": "PKG",
+  "vitamins & supplements": "VIT",
+  "antibiotic": "ANT",
+  "medicine": "MED",
+  "first aid": "AID",
+  "medical supplies": "SUP",
+  "health devices": "DEV",
+  "regular gasoline": "REG",
+  "ethanol-blended gasoline": "ETH",
+  "premium gasoline": "PRM",
+  "diesel": "DSL",
+};
+
+function inferCategoryCode(name, brand, category) {
+  const b = (brand || "").toLowerCase();
+  if (category) {
+    const mapped = CATEGORY_CODE_MAP[category.trim().toLowerCase()];
+    if (mapped) return mapped;
+    return slug(category, 4) || "MISC";
+  }
+  if (b.includes("ipharma")) return "MED";  
+  if (b.includes("ifuel")) return "FUEL";
+  const found = CATEGORY_KEYWORDS.find(c => c.match.test(name));
+  return found ? found.code : "MISC";
+}
+function extractVariant(name) {
+  const paren = String(name || "").match(/\(([^)]+)\)/);
+  if (paren) return slug(paren[1]);
+  const dose = String(name || "").match(/(\d+\s?(mg|ml|g|kg|oz|l))\b/i);
+  if (dose) return slug(dose[1]);
+  return "";
+}
+
+const MANUAL_ITEM_CODES = {
+  "cinnamon powder": "CNMPWD",
+  "matcha powder": "MTCPWD",
+};
+
+function abbreviateWord(word, len = 3) {
+  const clean = word.replace(/[^a-zA-Z]/g, "");
+  if (clean.length <= len) return clean.toUpperCase();
+  const firstChar = clean[0];
+  const rest = clean.slice(1).replace(/[aeiou]/gi, "");
+  return (firstChar + rest).slice(0, len).toUpperCase();
+}
+
+function extractItemCode(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (MANUAL_ITEM_CODES[key]) return MANUAL_ITEM_CODES[key];
+
+  const base = String(name || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\d+\s?(mg|ml|g|kg|oz|l)\b/ig, "")
+    .trim();
+  const words = base.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "ITEM";
+  return words.map(w => abbreviateWord(w, 3)).join("");
+}
+
+function buildSkuBase({ name, brand, category }) {
+  const catCode = inferCategoryCode(name, brand, category);
+  const itemCode = extractItemCode(name);
+  const variant = extractVariant(name);
+  return ["STK", catCode, itemCode, variant].filter(Boolean).join("-");
+}
+
+async function generateUniqueSku(client, { name, brand, category }) {
+  const base = buildSkuBase({ name, brand, category });
+  let candidate = base;
+  let n = 2;
+  while (true) {
+    const check = await client.query("SELECT 1 FROM ingredients WHERE sku=$1", [candidate]);
+    if (check.rows.length === 0) return candidate;
+    candidate = `${base}-${n}`;
+    n++;
+  }
+}
+
 router.get("/ingredients", async (req, res) => {
   try {
     const { branch, brand } = req.query;
@@ -46,21 +133,24 @@ router.get("/ingredients", async (req, res) => {
 });
 
 router.post("/ingredients", async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported, performed_by_role } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, category, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported, performed_by_role } = req.body;
     if (!name || !unit) return res.status(400).json({ error: "Name and unit are required" });
 
-    const result = await pool.query(
-      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [name, branch || null, brand || null, unit,
-       parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable]
-    );
+    await client.query("BEGIN");
+    const sku = await generateUniqueSku(client, { name, brand, category });
+
+    const result = await client.query(
+  `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, sku, category)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+  [name, branch || null, brand || null, unit, parseFloat(stock)||0, parseFloat(min_stock)||0,
+   parseFloat(cost_per_unit)||0, JSON.stringify(extra_fields||{}), !!perishable, sku, category || null]
+);
     const ingredient = result.rows[0];
 
     if (list_in_shop && shop_price && shop_brand) {
-      await pool.query(
+      await client.query(
         `INSERT INTO shop_items (name, price, unit, shop, brand, stock, is_visible, ingredient_id)
          VALUES ($1,$2,$3,$4,$5,$6,true,$7)
          ON CONFLICT (ingredient_id) DO UPDATE SET name=$1, price=$2, unit=$3, shop=$4, brand=$5, stock=$6`,
@@ -68,48 +158,44 @@ router.post("/ingredients", async (req, res) => {
       );
     }
 
+    await client.query("COMMIT");
+
     const action = restored ? "restore" : imported ? "import" : "create";
     await logActivity({
-      action,
-      itemName: ingredient.name,
-      performedBy: performed_by || "System",
-      details: {
-        branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit,
-        ...(restored ? { note: "Restored from delete history" } : {}),
-      },
-      req,
-      branch,
-      module: "Stock Inventory",
-      latitude,
-      longitude,
-      role: performed_by_role || "Unknown",
+      action, itemName: ingredient.name, performedBy: performed_by || "System",
+      details: { branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit, sku,
+        ...(restored ? { note: "Restored from delete history" } : {}) },
+      req, branch, module: "Stock Inventory", latitude, longitude, role: performed_by_role || "Unknown",
     });
 
     res.json({ success: true, item: ingredient });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("POST /ingredients error:", err);
     res.status(500).json({ error: "Failed to add ingredient" });
+  } finally {
+    client.release();
   }
 });
 
 router.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, performed_by, latitude, longitude, performed_by_role } = req.body;
+    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, category, performed_by, latitude, longitude, performed_by_role } = req.body;
     await client.query("BEGIN");
 
-    const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
+        const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
     if (before.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Ingredient not found" }); }
     const oldItem = before.rows[0];
+    const sku = oldItem.sku || await generateUniqueSku(client, { name, brand, category: req.body.category });
 
     const result = await client.query(
       `UPDATE ingredients SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6,
-       cost_per_unit=$7, extra_fields=$8, perishable=$9, updated_at=NOW() WHERE id=$10 RETURNING *`,
+ cost_per_unit=$7, extra_fields=$8, perishable=$9, sku=$10, category=$11, updated_at=NOW() WHERE id=$12 RETURNING *`,
       [name, branch || null, brand || null, unit,
        parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable, req.params.id]
+       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable, sku, category || null, req.params.id]
     );
-
     const updatedItem = result.rows[0];
     const updatedProductsCount = await recomputeProductCosts(client, req.params.id);
 
