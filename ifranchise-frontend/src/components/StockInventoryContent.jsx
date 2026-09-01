@@ -1493,7 +1493,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount=0, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation=null, refreshToken=0 }) {
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount=0, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation=null, refreshToken=0, restrictBranch="" }) {
   const [search, setSearch]       = useState("");
   const [branchF, setBranchF]     = useState(initialBranchFilter);
   const [categoryF, setCategoryF] = useState("");
@@ -1552,6 +1552,11 @@ useEffect(() => {
 }, [categoryF, categoryOptions]);
 
 useEffect(() => {
+  if (restrictBranch) {
+    setBranchF(restrictBranch);
+    didSetDefaultBranch.current = true;
+    return;
+  }
   if (initialBranchFilter) {
     setBranchF(initialBranchFilter);
     didSetDefaultBranch.current = true;
@@ -1562,7 +1567,7 @@ useEffect(() => {
     if (headOffice) setBranchF(headOffice);
     didSetDefaultBranch.current = true;
   }
-}, [initialBranchFilter, branchOptions]);
+}, [restrictBranch, initialBranchFilter, branchOptions]);
 
   useEffect(() => {
     setStatusF(initialStatusFilter);
@@ -1788,7 +1793,13 @@ return (
           <div style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={11}/></div>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
-<BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
+        {restrictBranch ? (
+          <div style={{ ...invInputSt, height:30, fontSize:11, width:"auto", minWidth:150, display:"flex", alignItems:"center", gap:6, background:"#f5f5f5", color:C.ink, cursor:"default" }}>
+            <StoreIcon size={11} color={C.green}/> {restrictBranch}
+          </div>
+        ) : (
+          <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
+        )}
         {isDirectProductBrand(brandObj?.name || brandDef.label) && (
           <select value={categoryF} onChange={e=>setCategoryF(e.target.value)}
             style={{ ...invInputSt, height:30, fontSize:11, width:150 }}
@@ -3057,6 +3068,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
     [brandList]
   );
   
+  const ownBrandDef = useMemo(() => {
+    if (isAdmin || !userBranch) return null;
+    const ownBrandObj = brandList.find(b =>
+      (b.branches || []).some(br => (typeof br === "string" ? br : br?.name) === userBranch)
+    );
+    if (!ownBrandObj) return null;
+    return connectedBrandDefs.find(bd => bd.match((ownBrandObj.name || "").toLowerCase())) || null;
+  }, [isAdmin, userBranch, brandList, connectedBrandDefs]);
+
+  const visibleBrandDefs = isAdmin ? connectedBrandDefs : (ownBrandDef ? [ownBrandDef] : []);
+  
   const allBranches = useMemo(() => {
     const out = [];
     brandList.forEach(b =>
@@ -3167,10 +3189,16 @@ const emptyForm = useCallback(() => ({
   }, []);
 
   useEffect(() => {
-    if (activeBrandKey && !connectedBrandDefs.some(bd => bd.key === activeBrandKey)) {
+    if (activeBrandKey && !visibleBrandDefs.some(bd => bd.key === activeBrandKey)) {
       setActiveBrandKey(null);
     }
-  }, [activeBrandKey, connectedBrandDefs]);
+  }, [activeBrandKey, visibleBrandDefs]);
+
+  useEffect(() => {
+    if (!isAdmin && ownBrandDef && activeBrandKey !== ownBrandDef.key) {
+      setActiveBrandKey(ownBrandDef.key);
+    }
+  }, [isAdmin, ownBrandDef, activeBrandKey]);
 
     useEffect(() => {
     if (!initialFocus?.brand) return;
@@ -3620,7 +3648,7 @@ const openEdit = async item => {
       {/* Landing screen: cards mirror Brand & Branch; deleting a brand removes its inventory card immediately */}
       {!activeBrandDef ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
-          {connectedBrandDefs.map(bd => (
+          {visibleBrandDefs.map(bd => (
             <BrandOverviewCard
               key={bd.key}
               brandDef={bd}
@@ -3629,7 +3657,7 @@ const openEdit = async item => {
               onClick={() => setActiveBrandKey(bd.key)}
             />
           ))}
-          {connectedBrandDefs.length === 0 && (
+          {visibleBrandDefs.length === 0 && (
             <div style={{ gridColumn:"1 / -1", padding:"38px 20px", textAlign:"center", border:`1.5px dashed ${C.border}`, borderRadius:16, color:C.muted, fontSize:13 }}>
               No active brands found. Add a brand in Brand &amp; Branch to create its Stock Inventory card.
             </div>
@@ -3666,9 +3694,10 @@ const openEdit = async item => {
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
             onOpenDeleteHistory={() => { setDeleteHistoryBrandKey(activeBrandDef.key); setShowDeleteHistory(true); }}
             deleteHistoryCount={deleteHistoryForBrand(activeBrandDef).length}
-            onBack={() => setActiveBrandKey(null)}
-            initialBranchFilter={initialFocus?.branch || ""}   // ← new
-            initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
+            onBack={isAdmin ? () => setActiveBrandKey(null) : undefined}
+            restrictBranch={!isAdmin ? userBranch : ""}
+            initialBranchFilter={initialFocus?.branch || ""}
+            initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}
             expanded
             readOnly={isReadOnly} 
             userName={userName}

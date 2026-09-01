@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import logo from '../assets/logo.png';
 import Receipts from './Receipts';
 import jsPDF from 'jspdf';
+import ifranchisejpg from '../assets/ifranchisejpg.jpg';
+import franchisync from '../assets/franchisyncjpg.jpg';
 import {
   Home, Box, FileText, FileCheck, Users, BarChart2, MessageCircle,
   User, ShoppingCart, LogOut, Search, Package, AlertTriangle,
@@ -294,8 +296,8 @@ export default function ManagerDashboard() {
 };
   const navigation = [
     { id: 'dashboard',      label: 'Dashboard',       icon: <Home size={20} /> },
-   { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
     { id: 'stockInventory', label: 'Stock Inventory', icon: <Layers size={20} /> },
+    { id: 'menuInventory',  label: 'Menu Inventory',  icon: <Box size={20} /> },
     { id: 'pos',            label: 'POS',             icon: <DollarSign size={20} /> },
     // { id: 'receipts',       label: 'Liquidation',     icon: <FileText size={20} /> },
     { id: 'reports',        label: 'Sales & Reports', icon: <BarChart2 size={20} /> },
@@ -3447,8 +3449,108 @@ function FrReceiptsContent({ user }) {
   );
 }
 
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    if (toast.type === "loading") return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+  const isErr = toast.type === "error";
+  const isLoading = toast.type === "loading";
+
+  return (
+    <div style={{
+      position:"fixed", top:22, right:22, zIndex:4000, display:"flex", alignItems:"flex-start", gap:12,
+      maxWidth:380, padding:"16px 18px", borderRadius:14,
+      background: isErr ? "#fef2f2" : "#F6F7F1",
+      borderLeft: `5px solid ${isErr ? "#dc2626" : "#3b791e"}`,
+      border: `1px solid ${isErr ? "#fecaca" : "#D4DBC8"}`,
+      borderLeftWidth: 5,
+      boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
+      fontFamily:"'Plus Jakarta Sans',sans-serif",
+      animation:"toastIn .22s ease",
+    }}>
+      <div style={{
+        flexShrink:0, width:32, height:32, borderRadius:"50%", display:"flex",
+        alignItems:"center", justifyContent:"center",
+        background: isErr ? "#dc2626" : "#3b791e", color:"#fff",
+        boxShadow: `0 4px 10px ${isErr ? "rgba(220,38,38,0.4)" : "rgba(59,121,30,0.4)"}`,
+      }}>
+        {isErr
+          ? <AlertTriangle size={16}/>
+          : isLoading
+            ? <RefreshCw size={16} style={{ animation:"spin 0.8s linear infinite" }}/>
+            : <Check size={16}/>}
+      </div>
+
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:14, fontWeight:800, color: isErr ? "#7f1d1d" : "#12241B" }}>
+          {toast.title}
+        </div>
+        {toast.message && (
+          <div style={{ fontSize:12.5, color: isErr ? "#991b1b" : "#3f5f4f", marginTop:3, lineHeight:1.4 }}>
+            {toast.message}
+          </div>
+        )}
+      </div>
+
+      {!isLoading && (
+        <button onClick={onClose} style={{
+          background:"none", border:"none",
+          color: isErr ? "#991b1b" : "#3f5f4f",
+          cursor:"pointer", padding:2, flexShrink:0,
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <X size={14}/>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ConfirmDeleteReportModal({ report, deleting, onConfirm, onCancel }) {
+
+  const fmtPeriod = (period) => {
+  if (!period) return "—";
+  const parts = period.split("→").map(s => s.trim());
+  if (parts.length !== 2) return period;
+  const fmtOne = (d) => {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+  return `${fmtOne(parts[0])} - ${fmtOne(parts[1])}`;
+};
+
+  if (!report) return null;
+  return (
+    <div onClick={onCancel} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2500, padding:20, backdropFilter:"blur(4px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:420, boxShadow:"0 24px 64px rgba(0,0,0,0.16)", border:"1px solid #fecaca", fontFamily:"Plus Jakarta Sans,sans-serif", overflow:"hidden" }}>
+        <div style={{ background:"#fef2f2", padding:"20px 24px 16px", borderBottom:"1px solid #fecaca" }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"#991b1b", marginBottom:5, fontFamily:"Plus Jakarta Sans,sans-serif" }}>Delete Report</div>
+          <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.6 }}>
+            Delete the report for <strong>{fmtPeriod(report.period)}</strong>? It will be recoverable for 30 days.
+          </div>
+        </div>
+        <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
+          <button onClick={onCancel} disabled={deleting} className="v-btn v-btn-secondary v-btn-sm" style={{ opacity: deleting ? 0.5 : 1 }}>Cancel</button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 18px", borderRadius:9, border:"none", background: deleting ? "#ef9a9a" : "#dc2626", color:"#fff", fontWeight:700, fontSize:13, cursor: deleting ? "not-allowed" : "pointer", fontFamily:"inherit" }}>
+            {deleting
+              ? <><div style={{ width:12, height:12, border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", borderRadius:"50%", animation:"spin .8s linear infinite" }} /> Deleting…</>
+              : "Yes, Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MaReportsContent({ user, transactions = [] }){
-  const branch = (user?.branch || '').trim().toLowerCase();
+  const branch = (user?.branch || '').trim();
   const today = new Date();
   const fmt8 = d => d.toISOString().slice(0, 10);
 
@@ -3467,57 +3569,87 @@ function MaReportsContent({ user, transactions = [] }){
   const [deletedReports, setDeletedReports] = useState([]);
   const [retrieving, setRetrieving] = useState(null);
   const [viewSubmittedId, setViewSubmittedId] = useState(null);
+  const [reportTab, setReportTab] = useState('generated');
 
   const PAGE_SIZE = 5;
   const [genPage,  setGenPage]  = useState(0);
   const [subPage,  setSubPage]  = useState(0);
   const [delPage,  setDelPage]  = useState(0);
-  
+
+  const [toast, setToast] = useState(null);
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
+  const [logoB64, setLogoB64] = useState(null);
+  const [iFranchiseLogoB64, setIFranchiseLogoB64] = useState(null);
+
+  const showToast = (type, title, message) => setToast({ type, title, message });
+
+  const fmtPeriod = (period) => {
+  if (!period) return "—";
+  const parts = period.split("→").map(s => s.trim());
+  if (parts.length !== 2) return period;
+  const fmtOne = (d) => {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  };
+  return `${fmtOne(parts[0])} - ${fmtOne(parts[1])}`;
+};
+
+  const getBrowserLocation = () => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+};
+
   useEffect(() => { setGenPage(0); }, [reports]);
   useEffect(() => { setSubPage(0); }, [submittedReports]);
   useEffect(() => { setDelPage(0); }, [deletedReports]);
+
+  useEffect(() => {
+  loadImageAsBase64(franchisync).then(setLogoB64).catch(err => console.warn("Failed to load left logo:", err));
+  loadImageAsBase64Circular(ifranchisejpg).then(setIFranchiseLogoB64).catch(err => console.warn("Failed to load right logo:", err));
+}, []);
 
 useEffect(() => {
   const fetchSavedReports = async () => {
     try {
       const [savedRes, liveRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/generated-reports?branch=${encodeURIComponent(branch)}`),
-        fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${encodeURIComponent(branch)}`),
+        fetch(`${process.env.REACT_APP_API_URL}/generated-reports`),
+        fetch(`${process.env.REACT_APP_API_URL}/reports?branch=${branch}`),
       ]);
 
       const savedData = await savedRes.json();
       const liveData = await liveRes.json();
 
       const liveStatusMap = {};
-      liveData.forEach(r => {
-        liveStatusMap[r.id] = r.status;
-      });
+      liveData.forEach(r => { liveStatusMap[r.id] = r.status; });
 
-      const loaded = savedData
-        .map(item => {
-          const snapshot =
-            typeof item.snapshot === 'string'
-              ? JSON.parse(item.snapshot)
-              : item.snapshot;
-
-          return {
-            id: item.reportId,
-            localId: `saved-${item.id}`,
-            generatedDate: item.savedAt
-              ? new Date(item.savedAt).toLocaleString('en-PH')
-              : snapshot.submittedAt
+      const loaded = savedData.map(item => {
+        const snapshot = typeof item.snapshot === 'string'
+          ? JSON.parse(item.snapshot)
+          : item.snapshot;
+        return {
+          id: item.reportId,
+          localId: `saved-${item.id}`,
+          generatedDate: item.savedAt
+            ? new Date(item.savedAt).toLocaleString('en-PH')
+            : snapshot.submittedAt
               ? new Date(snapshot.submittedAt).toLocaleString('en-PH')
               : '—',
-            period: snapshot.period || '—',
-            content: snapshot.content || '',
-            saved: true,
-            status: liveStatusMap[item.reportId] ?? snapshot.status,
-          };
-        })
-        .filter(r => {
-          const s = (r.status || '').toLowerCase();
-          return s !== 'submitted' && s !== 'deleted';
-        });
+          period: snapshot.period || '—',
+          content: snapshot.content || '',
+          saved: true,
+          status: liveStatusMap[item.reportId] ?? snapshot.status,
+        };
+      }).filter(r => r.status !== 'submitted' && r.status !== 'deleted');
 
       setReports(loaded);
     } catch (err) {
@@ -3542,66 +3674,59 @@ const fetchKpiStats = async (from, to) => {
   setKpiLoading(false);
 };
 
-
 useEffect(() => {
   const fetchHistory = async () => {
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/history?branch=${branch}`);
       const data = await res.json();
 
-      setSubmittedReports(data.map(h => ({
-        id: h.id,
-        content: h.content || '',
-        generatedDate: h.generatedDate
-          ? new Date(h.generatedDate).toLocaleString('en-PH', {
-              month: 'short', day: 'numeric', year: 'numeric',
-              hour: '2-digit', minute: '2-digit'
-            })
-          : '—',
-        period: h.period,
-        submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
-        expiresAt: h.expiresAt,
-        comments: h.comments || [],
-        remark: h.remark || '',
-        status: h.status || 'submitted',   // ← was already there, but ensure it flows through
-      })));
+    setSubmittedReports(data.map(h => ({
+      id: h.id,
+      content: h.content || '',
+      generatedDate: h.generatedDate
+        ? new Date(h.generatedDate).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—',
+      period: h.period,
+      submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
+      expiresAt: h.expiresAt,
+      comments: h.comments || [],
+      remark: h.remark || '',
+      status: h.status,
+    })));
     } catch (err) {
       console.error('Failed to load history:', err);
     }
   };
-
-  if (branch) fetchHistory();   // fires on every branch change → always loads correct branch
+  if (branch) fetchHistory();
 
   const onFocus = () => { if (branch) fetchHistory(); };
   window.addEventListener('focus', onFocus);
   return () => window.removeEventListener('focus', onFocus);
-}, [branch]);   // ← branch as dependency is correct; problem is the backend query below
+}, [branch]);
 
-const fetchDeletedReports = async () => {
-  if (!branch) return;
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`);
-    const data = await res.json();
-    setDeletedReports(data.map(r => ({
-      id: r.id,
-      localId: `deleted-${r.id}`,
-      period: r.period,
-      generatedDate: r.generatedDate
-        ? new Date(r.generatedDate).toLocaleString('en-PH')
-        : '—',
-      deletedAt: r.deletedAt
-        ? new Date(r.deletedAt).toLocaleString('en-PH')
-        : '—',
-      expiresAt: r.expiresAt,
-      content: r.content,
-    })));
-  } catch (err) {
-    console.error('Failed to load deleted reports:', err);
-  }
-};
-
-// Then useEffect just calls it
 useEffect(() => {
+  const fetchDeletedReports = async () => {
+    if (!branch) return;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/deleted?branch=${branch}`);
+      const data = await res.json();
+      setDeletedReports(data.map(r => ({
+        id: r.id,
+        localId: `deleted-${r.id}`,
+        period: r.period,
+        generatedDate: r.generatedDate
+          ? new Date(r.generatedDate).toLocaleString('en-PH')
+          : '—',
+        deletedAt: r.deletedAt
+          ? new Date(r.deletedAt).toLocaleString('en-PH')
+          : '—',
+        expiresAt: r.expiresAt,
+        content: r.content,
+      })));
+    } catch (err) {
+      console.error('Failed to load deleted reports:', err);
+    }
+  };
   fetchDeletedReports();
 }, [branch]);
 
@@ -3610,7 +3735,7 @@ useEffect(() => {
 }, [dateFrom, dateTo]);
 
   const generateReport = async () => {
-  if (!dateFrom || !dateTo) { alert('Please select a date range first.'); return; }
+  if (!dateFrom || !dateTo) { showToast("error", "Missing Date Range", "Please select a date range first."); return; }
   setGenerating(true);
   setAiReport('');
   try {
@@ -3796,12 +3921,10 @@ ${topItems}
       };
 
       setReports(prev => {
-        // Remove any existing report with the same period first
-        const filtered = prev.filter(r => r.period !== `${dateFrom} → ${dateTo}`);
-        const exists = filtered.some(r => r.id === realId);
-        if (exists) return filtered.map(r => r.id === realId ? { ...r, ...newReport } : r);
-        return [newReport, ...filtered];
-      });
+        const exists = prev.some(r => r.id === realId);
+        if (exists) return prev.map(r => r.id === realId ? { ...r, ...newReport } : r);
+        return [newReport, ...prev];
+        });
 
       } catch {
         setAiReport('Failed to generate report. Please try again.');
@@ -3809,37 +3932,52 @@ ${topItems}
       setGenerating(false);
     };
 
-  const deleteReport = async report => {
-    if (!window.confirm(`Delete report for ${report.period}? It will be recoverable for 30 days.`)) return;
+const deleteReport = async report => {
+  setDeletingId(report.localId || report.id);
 
-    if (!report.id) {
-      setDeletedReports(prev => [{
-        ...report,
-        deletedAt: new Date().toLocaleString('en-PH'),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      }, ...prev]);
-      setReports(prev => prev.filter(r => r.localId !== report.localId));
-      if (viewReportId === report.id) setViewReportId(null);
-      return;
-    }
+  if (!report.id) {
+    setDeletedReports(prev => [{
+      ...report,
+      deletedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, ...prev]);
+    setReports(prev => prev.filter(r => r.localId !== report.localId));
+    if (viewReportId === report.id) setViewReportId(null);
+    setDeletingId(null);
+    setConfirmDeleteTarget(null);
+    return;
+  }
 
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error('Delete failed');
-      const data = await res.json();
+  try {
+    const coords = await getBrowserLocation();
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/soft-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        performedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    const data = await res.json();
 
-      setReports(prev => prev.filter(r => r.id !== report.id));
-      if (viewReportId === report.id) setViewReportId(null);
-      
-      // Refetch deleted reports from backend instead of optimistic update
-      await fetchDeletedReports();  // ← replace the optimistic push with this
-      
-    } catch {
-      alert('Failed to delete report. Please try again.');
-    }
-  };
+    setDeletedReports(prev => [{
+      ...report,
+      deletedAt: new Date().toLocaleString('en-PH'),
+      expiresAt: data.expiresAt,
+    }, ...prev]);
+    setReports(prev => prev.filter(r => r.id !== report.id));
+    if (viewReportId === report.id) setViewReportId(null);
+    showToast("success", "Report Deleted", `Report for ${fmtPeriod(report.period)} moved to history.`);
+  } catch {
+    showToast("error", "Delete Failed", "Failed to delete report. Please try again.");
+  } finally {
+    setDeletingId(null);
+    setConfirmDeleteTarget(null);
+  }
+};
 
 const retrieveReport = async report => {
   if (!report.id) {
@@ -3852,10 +3990,18 @@ const retrieveReport = async report => {
     return;
   }
 
-  setRetrieving(report.id);
+setRetrieving(report.id);
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/retrieve`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        performedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      }),
     });
     if (!res.ok) throw new Error('Retrieve failed');
     const data = await res.json();
@@ -3871,262 +4017,242 @@ const retrieveReport = async report => {
       saved: false,
     }, ...prev]);
     setDeletedReports(prev => prev.filter(r => r.id !== report.id));
+    showToast("success", "Report Restored", `Report for ${fmtPeriod(report.period)} has been restored.`);
   } catch {
-    alert('Failed to retrieve report. Please try again.');
+    showToast("error", "Retrieve Failed", "Failed to retrieve report. Please try again.");
   }
   setRetrieving(null);
 };
 
-  const downloadReport = report => {
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 18;
-    const contentW = pageW - margin * 2;
-    let y = 0;
-
-    const addPage = () => {
-      doc.addPage();
-      y = margin;
+const loadImageAsBase64 = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
     };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
 
-    const checkY = (needed = 8) => {
-      if (y + needed > pageH - margin) addPage();
+const loadImageAsBase64Circular = (url) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      const offsetX = (img.width - size) / 2;
+      const offsetY = (img.height - size) / 2;
+      ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+      ctx.restore();
+      resolve(canvas.toDataURL("image/png"));
     };
+    img.onerror = reject;
+    img.src = url;
+  });
+};
 
-    const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
-      doc.setFontSize(fontSize);
-      doc.setFont('helvetica', style);
-      doc.setTextColor(...color);
-      const lines = doc.splitTextToSize(text, contentW - indent);
-      lines.forEach(line => {
-        checkY(fontSize * 0.45 + 2);
-        doc.text(line, margin + indent, y);
-        y += fontSize * 0.45 + 1.5;
-      });
-    };
+const downloadReport = report => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = 0;
 
-    const writeDivider = (color = [180, 180, 180]) => {
-      checkY(6);
-      doc.setDrawColor(...color);
-      doc.setLineWidth(0.3);
-      doc.line(margin, y, pageW - margin, y);
-      y += 4;
-    };
+  const addPage = () => { doc.addPage(); y = margin; };
+  const checkY = (needed = 8) => { if (y + needed > pageH - margin) addPage(); };
 
-    y = margin;
-
-    doc.setFillColor(13, 43, 30);
-    doc.rect(0, 0, pageW, 38, 'F');
-
-    doc.setFontSize(15);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 14, { align: 'center' });
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(160, 220, 190);
-    const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
-    
-    doc.text(`REP-${String(report.id).padStart(5, '0')}   |   Branch: ${branch}   |   Period: ${safePeriod}`, pageW / 2, 22, { align: 'center' });
-    doc.text(`Generated: ${report.generatedDate}`, pageW / 2, 28, { align: 'center' });
-    doc.setFontSize(8);
-    doc.setTextColor(120, 180, 150);
-    doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 33.5, { align: 'center' });
-
-    y = 46;
-
-    const cleanContent = report.content
-      .replace(/₱/g, 'PHP ')
-      .replace(/±/g, 'PHP ')
-      .replace(/→/g, 'to')
-      .replace(/!'/g, 'to')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/\u2013/g, '-')
-      .replace(/\u2014/g, '--')
-      .replace(/\u2026/g, '...')
-      .replace(/[═─━]+/g, '')
-      .replace(/^.*FRANCHISE SALES.*$/gm, '')
-      .replace(/^.*Branch:.*Period:.*$/gm, '')
-      .replace(/^.*Date Prepared:.*$/gm, '')
-      .replace(/^.*This report was automatically.*$/gm, '')
-      .replace(/^.*transaction data for.*$/gm, '')
-      .replace(/^.*report generation date.*$/gm, '')
-      .replace(/[^\x00-\x7F]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    const lines = cleanContent.split('\n');
-
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed) { y += 3; return; }
-
-      if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
-        checkY(14);
-        y += 4;
-        doc.setFillColor(0, 137, 123);
-        doc.rect(margin, y - 4, 3, 9, 'F');
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(13, 43, 30);
-        doc.text(trimmed, margin + 6, y + 2);
-        y += 8;
-        writeDivider([0, 137, 123]);
-      }
-      else if (/^\d+\.\s+/.test(trimmed)) {
-        checkY(8);
-        const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
-        doc.setFontSize(9.5);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 137, 123);
-        doc.text(num.replace('.', ''), margin + 2, y);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(40, 40, 40);
-        const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
-        wrapped.forEach((wl, i) => {
-          if (i > 0) checkY(6);
-          doc.text(wl, margin + 9, y);
-          y += 5.5;
-        });
-      }
-      else {
-        writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
-        y += 1;
-      }
-    });
-
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFillColor(245, 247, 245);
-      doc.rect(0, pageH - 12, pageW, 12, 'F');
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 140, 130);
-      const safePeriod = report.period.replace(/→/g, 'to').replace(/!'/g, 'to').replace(/[^\x00-\x7F]/g, '');
-      doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
-      doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
-    }
-
-    doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  const writeLine = (text, fontSize = 10, style = 'normal', color = [30, 30, 30], indent = 0) => {
+    doc.setFontSize(fontSize); doc.setFont('helvetica', style); doc.setTextColor(...color);
+    const lines = doc.splitTextToSize(text, contentW - indent);
+    lines.forEach(line => { checkY(fontSize * 0.45 + 2); doc.text(line, margin + indent, y); y += fontSize * 0.45 + 1.5; });
+  };
+  const writeDivider = (color = [180, 180, 180]) => {
+    checkY(6); doc.setDrawColor(...color); doc.setLineWidth(0.3);
+    doc.line(margin, y, pageW - margin, y); y += 4;
   };
 
+  y = margin;
+
+  // ── Header, copied from ReportsContent.generatePdfDoc ──
+  doc.setFillColor(22, 73, 51);
+  doc.rect(0, 0, pageW, 2.5, 'F');
+
+  const logoW = 12, logoH = 12, wideLogoW = 34, wideLogoH = 12, gap = 6, logoY = 8;
+  const totalWidth = logoW + gap + wideLogoW;
+  const startX = (pageW - totalWidth) / 2;
+  try {
+    if (iFranchiseLogoB64) doc.addImage(iFranchiseLogoB64, 'PNG', startX, logoY, logoW, logoH);
+    if (logoB64) doc.addImage(logoB64, 'PNG', startX + logoW + gap, logoY, wideLogoW, wideLogoH);
+  } catch (err) {
+    console.warn('Failed to add logos to PDF:', err);
+  }
+
+  const badgeText = `REP-${String(report.id).padStart(5, '0')}`;
+  doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+  const badgeW = doc.getTextWidth(badgeText) + 10;
+  doc.setDrawColor(13, 43, 30); doc.setLineWidth(0.4);
+  doc.roundedRect(pageW - margin - badgeW, 8, badgeW, 8, 2, 2, 'S');
+  doc.setTextColor(13, 43, 30);
+  doc.text(badgeText, pageW - margin - badgeW / 2, 13, { align: 'center' });
+
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 43, 30);
+  doc.text('SALES & PERFORMANCE REPORT', pageW / 2, 30, { align: 'center' });
+
+  const ruleWidth = 46;
+  doc.setDrawColor(22, 73, 51);
+  doc.setLineWidth(0.6);
+  doc.line(pageW / 2 - ruleWidth / 2, 33.5, pageW / 2 + ruleWidth / 2, 33.5);
+
+  const safePeriod = fmtPeriod(report.period).replace(/[^\x20-\x7E]/g, '');
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 122, 101);
+  doc.text('CONFIDENTIAL — FOR INTERNAL USE ONLY', pageW / 2, 38.5, { align: 'center' });
+
+  doc.setDrawColor(220, 230, 225);
+  doc.setLineWidth(0.3);
+  doc.line(margin, 42, pageW - margin, 42);
+
+  y = 50;
+
+  // ── Body — same cleaning + parsing as before ──
+  const cleanContent = report.content
+    .replace(/₱/g, 'PHP ')
+    .replace(/±/g, 'PHP ')
+    .replace(/→/g, 'to')
+    .replace(/!'/g, 'to')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2013/g, '-')
+    .replace(/\u2014/g, '--')
+    .replace(/\u2026/g, '...')
+    .replace(/[═─━]+/g, '')
+    .replace(/^.*FRANCHISE SALES.*$/gm, '')
+    .replace(/^.*Branch:.*Period:.*$/gm, '')
+    .replace(/^.*Date Prepared:.*$/gm, '')
+    .replace(/^.*This report was automatically.*$/gm, '')
+    .replace(/^.*transaction data for.*$/gm, '')
+    .replace(/^.*report generation date.*$/gm, '')
+    .replace(/[^\x00-\x7F]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  cleanContent.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) { y += 3; return; }
+
+    if (/^(I{1,3}V?|VI{0,3}|VII)\.\s+\S/.test(trimmed)) {
+      checkY(14); y += 4;
+      doc.setFillColor(0, 137, 123); doc.rect(margin, y - 4, 3, 9, 'F');
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(13, 43, 30);
+      doc.text(trimmed, margin + 6, y + 2); y += 8; writeDivider([0, 137, 123]);
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      checkY(8);
+      const [num, ...rest] = trimmed.split(/(?<=^\d+\.)\s+/);
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 137, 123);
+      doc.text(num.replace('.', ''), margin + 2, y);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40);
+      const wrapped = doc.splitTextToSize(rest.join(' '), contentW - 10);
+      wrapped.forEach((wl, i) => { if (i > 0) checkY(6); doc.text(wl, margin + 9, y); y += 5.5; });
+    } else {
+      writeLine(trimmed, 9.5, 'normal', [50, 50, 50]);
+      y += 1;
+    }
+  });
+
+  // ── Footer, copied from ReportsContent.generatePdfDoc ──
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(22, 73, 51);
+    doc.rect(0, pageH - 12, pageW, 0.6, 'F');
+    doc.setFillColor(245, 247, 245);
+    doc.rect(0, pageH - 11.4, pageW, 11.4, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 140, 130);
+    doc.text(`${branch} Branch  |  ${safePeriod}`, margin, pageH - 5);
+    doc.text(`Page ${i} of ${totalPages}`, pageW - margin, pageH - 5, { align: 'right' });
+  }
+
+  doc.save(`report_${branch.replace(/\s+/g, '_')}_${report.period.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+};
+
 const saveReport = async report => {
-  if (!report.id) { alert('No report ID found. Try regenerating.'); return; }
+  if (!report.id) { showToast("error", "Save Failed", "No report ID found. Try regenerating."); return; }
+  setSavingId(report.id);
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/${report.id}/save`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const responseData = await res.json();
-    if (res.status === 409) { alert('Report already saved.'); return; }
+    if (res.status === 409) { showToast("error", "Already Saved", "This report has already been saved."); return; }
     if (!res.ok) throw new Error(responseData.error || 'Unknown error');
 
     setReports(prev => prev.map(r => r.id === report.id ? { ...r, saved: true } : r));
-    alert('Report saved successfully!');
-  } catch(err) {
-    alert('Failed to save report.');
+    showToast("success", "Report Saved", "The report has been saved successfully.");
+  } catch {
+    showToast("error", "Save Failed", "Failed to save report. Please try again.");
+  } finally {
+    setSavingId(null);
   }
 };
 
 const submitReport = async report => {
-   console.log('[SUBMIT] Called with report.id:', report.id, '| saved:', report.saved, '| period:', report.period);
-   if (!report.id) {
-    console.error('[SUBMIT] Aborted — report has no id');
-    alert('Report ID missing. Try saving again.');
-    return;
-  }
   setSubmitting(report.id);
   try {
+    const coords = await getBrowserLocation();
     const res = await fetch(`${process.env.REACT_APP_API_URL}/reports/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reportId: report.id,
-        reportNumber: `REP-${String(report.id).padStart(5, '0')}`,
+        reportNumber: fmtReportId(report.id), 
         branch,
         period: report.period,
         generatedDate: report.generatedDate,
         content: report.content,
         submittedBy: user?.name || user?.email || 'Branch Manager',
+        role: user?.role || 'Branch Manager',
         brand: user?.brand || '',
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       }),
     });
-
-    console.log('[SUBMIT] Response status:', res.status, res.ok);
 
     if (!res.ok) throw new Error('Submit failed');
     const data = await res.json();
 
-    console.log('[SUBMIT] Backend response data:', data);
-    console.log('[SUBMIT] Current submittedReports before update:', submittedReports);
-
-    const newEntry = {
+    setSubmittedReports(prev => [{
       id: report.id,
       localId: report.localId,
-      generatedDate: report.generatedDate
-        ? new Date(report.generatedDate).toLocaleString('en-PH', {
-            month: 'short', day: 'numeric', year: 'numeric',
-            hour: '2-digit', minute: '2-digit'
-          })
-        : '—',
+      generatedDate: report.generatedDate 
+    ? new Date(report.generatedDate).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—',
       period: report.period,
       content: report.content,
       submittedAt: new Date().toLocaleString('en-PH'),
       expiresAt: data.expiresAt,
-      status: 'submitted',
-    };
+    }, ...prev]);
 
-    console.log('[SUBMIT] New entry being added to submittedReports:', newEntry);
-
-    setSubmittedReports(prev => {
-      const updated = [newEntry, ...prev];
-      console.log('[SUBMIT] submittedReports after update:', updated);
-      return updated;
-    });
-
-    setReports(prev => {
-      const updated = prev.filter(r => r.id !== report.id);
-      console.log('[SUBMIT] reports (generated) after removal:', updated);
-      return updated;
-    });
-
-    console.log('[SUBMIT] Done — report should now appear in Submitted Reports tab.');
-
-    const historyRes = await fetch(
-  `${process.env.REACT_APP_API_URL}/reports/history?branch=${encodeURIComponent(branch)}`
-);
-
-const historyData = await historyRes.json();
-
-setSubmittedReports(
-  historyData.map(h => ({
-    id: h.id,
-    content: h.content || '',
-    generatedDate: h.generatedDate
-      ? new Date(h.generatedDate).toLocaleString('en-PH', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '—',
-    period: h.period,
-    submittedAt: new Date(h.submittedAt).toLocaleString('en-PH'),
-    expiresAt: h.expiresAt,
-    comments: h.comments || [],
-    remark: h.remark || '',
-    status: h.status || 'submitted',
-  }))
-);
-
-  } catch (err) {
-    console.error('[SUBMIT] ERROR caught:', err);
-    alert('Failed to submit report. Please try again.');
+    setReports(prev => prev.filter(r => r.id !== report.id));
+    showToast("success", "Report Submitted", `Report for ${fmtPeriod(report.period)} sent for review.`);
+  } catch {
+    showToast("error", "Submit Failed", "Failed to submit report. Please try again.");
   }
   setSubmitting(null);
 };
@@ -4136,8 +4262,8 @@ setSubmittedReports(
   const totalPages = Math.ceil(total / PAGE_SIZE);
   if (totalPages <= 1) return null;
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(0,168,76,0.1)', background: '#f9fefb' }}>
-      <span style={{ fontSize: 12, color: '#5a7a65' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderTop: '1px solid rgba(59,121,30,0.1)', background: '#f9fefb' }}>
+      <span style={{ fontSize: 12, color: '#5C6B60' }}>
         Showing <strong>{(page * PAGE_SIZE + 1)}–{Math.min((page + 1) * PAGE_SIZE, total)}</strong> of <strong>{total}</strong>
       </span>
       <div style={{ display: 'flex', gap: 4 }}>
@@ -4151,7 +4277,7 @@ setSubmittedReports(
 };
 
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
     <div className="v-stat-grid">
       <VKpi
         label="Cost of Sales"
@@ -4176,17 +4302,24 @@ setSubmittedReports(
       />
       <VKpi
         label="Reports Generated"
-        value={reports.length + submittedReports.length}
+        value={reports.length + history.length}
         sub="This session"
         icon={<FileText size={20} />}
         color="purple"
       />
+      <ConfirmDeleteReportModal
+        report={confirmDeleteTarget}
+        deleting={deletingId !== null}
+        onConfirm={() => confirmDeleteTarget && deleteReport(confirmDeleteTarget)}
+        onCancel={() => { if (!deletingId) setConfirmDeleteTarget(null); }}
+      />
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
 
     
 
       {/* Generate Report Card */}
-      <div className="v-card" style={{ padding: '22px 24px', marginBottom: 20 }}>
+      <div className="v-card" style={{ padding:'20px 22px', marginBottom:16 }}>
         <div className="v-section-head">
           <VSectionTitle icon={<Sparkles size={16} />}>Generate AI Sales Report</VSectionTitle>
         </div>
@@ -4214,7 +4347,7 @@ setSubmittedReports(
 
         {/* Quick Presets */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Montserrat,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', alignSelf: 'center', fontFamily: 'Plus Jakarta Sans,sans-serif', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick:</span>
           {[
             { label: 'This Week', from: fmt8(new Date(today.getTime() - 7*24*60*60*1000)), to: fmt8(today) },
             { label: 'This Month', from: fmt8(new Date(today.getFullYear(), today.getMonth(), 1)), to: fmt8(today) },
@@ -4227,26 +4360,44 @@ setSubmittedReports(
         </div>
 
         {aiReport && (
-          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 16, padding: '20px 22px' }}>
+          <div style={{ marginTop: 20, background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 16, padding: '20px 22px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Sparkles size={14} color="#00897b" /> AI Report Preview
+              <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Sparkles size={14} color="#3b791e" /> AI Report Preview
               </div>
-              <span style={{ fontSize: 11, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
+              <span style={{ fontSize: 11, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>Period: {dateFrom} → {dateTo}</span>
             </div>
-            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
+            <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8, maxHeight: 320, overflowY: 'auto' }}>{aiReport}</pre>
           </div>
         )}
       </div>
 
+      {/* Sales report navigation — same compact tab layout as AdminDashboard */}
+      <div style={{ display:'flex', gap:3, background:'#F6F7F1', border:'1px solid #E1E6D8', borderRadius:12, padding:4, width:'fit-content', marginBottom:16, flexWrap:'wrap' }}>
+        {[
+          { id:'generated', label:'Generated Reports', icon:FileCheck, count:reports.length },
+          { id:'submitted', label:'Submitted Reports', icon:Send, count:submittedReports.length },
+          { id:'history', label:'Report History', icon:History, count:deletedReports.length },
+        ].map(t => {
+          const Icon = t.icon;
+          const active = reportTab === t.id;
+          return (
+            <button key={t.id} onClick={()=>setReportTab(t.id)} style={{ display:'inline-flex', alignItems:'center', gap:6, height:34, padding:'0 14px', borderRadius:9, border:'none', background:active?'#3b791e':'transparent', color:active?'#fff':'#5C6B60', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              <Icon size={13}/>{t.label}<span style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:9.5, background:active?'rgba(255,255,255,.18)':'#fff', border:active?'none':'1px solid #E1E6D8' }}>{t.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Generated Reports Table */}
-      <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+      {reportTab === 'generated' && (
+      <div className="v-card" style={{ padding:'18px 20px', marginBottom:16 }}>
         <div className="v-section-head">
           <VSectionTitle icon={<FileCheck size={16} />}>Generated Reports</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>{reports.length} pending submission</span>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>{reports.length} pending submission</span>
         </div>
         {reports.length === 0 ? (
-          <VEmptyState icon="📊" title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
+          <VEmptyState icon={<BarChart2 size={30} />} title="No reports generated yet" sub="Select a date range and click Generate Report to create an AI-powered sales report." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
@@ -4257,10 +4408,10 @@ setSubmittedReports(
               {reports.slice(genPage * PAGE_SIZE, (genPage + 1) * PAGE_SIZE).map(r => (
                 <React.Fragment key={r.localId}>
                   <tr>
-                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                    <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                       {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
                     </td>
-                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 14, fontWeight: 400, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {r.generatedDate}
                     </td>
                     <td>
@@ -4277,33 +4428,31 @@ setSubmittedReports(
                         <button
                           className="v-btn v-btn-sm v-btn-blue"
                           onClick={() => saveReport(r)}
-                          disabled={r.saved}
-                          style={{ opacity: r.saved ? 0.6 : 1 }}
+                          disabled={r.saved || savingId === r.id}
+                          style={{ opacity: (r.saved || savingId === r.id) ? 0.6 : 1 }}
                         >
-                          <Save size={12} /> {r.saved ? 'Saved' : 'Save'}
+                          {savingId === r.id
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Saving…</>
+                            : <><Save size={12} /> {r.saved ? 'Saved' : 'Save'}</>}
                         </button>
                         <button
-  className="v-btn v-btn-primary v-btn-sm"
-  onClick={() => {
-    const snapshot = { ...r };
-    console.log('[BUTTON] onClick fired with report:', snapshot.id, snapshot);
-    submitReport(snapshot);
-  }}
-  disabled={submitting === r.id || !r.saved}
-  style={{ opacity: (submitting === r.id || !r.saved) ? 0.5 : 1 }}
-  title={!r.saved ? 'Save the report first before submitting' : ''}
->
+                          className="v-btn v-btn-primary v-btn-sm"
+                          onClick={() => submitReport(r)}
+                          disabled={submitting === r.id || !r.saved}
+                          style={{ opacity: (submitting === r.id || !r.saved) ? 0.5 : 1 }}
+                          title={!r.saved ? 'Save the report first before submitting' : ''}
+                        >
                           {submitting === r.id
                             ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Sending…</>
                             : <><Send size={12} /> Submit to Admin</>}
                         </button>
-                        <button
-                          className="v-btn v-btn-sm"
-                          onClick={() => deleteReport(r)}
-                          style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
+                       <button
+                        className="v-btn v-btn-sm"
+                        onClick={() => setConfirmDeleteTarget(r)}
+                        style={{ background: '#fff0f0', color: '#dc2626', border: '1px solid #fecaca' }}
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
                       </div>
                     </td>
                   </tr>
@@ -4311,9 +4460,9 @@ setSubmittedReports(
                   {viewReportId === r.id && (
                     <tr>
                       <td colSpan={4} style={{ padding: 0, border: 'none' }}>
-                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                               {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'} — {r.period}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -4325,7 +4474,7 @@ setSubmittedReports(
                               </button>
                             </div>
                           </div>
-                          <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
+                          <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>{r.content}</pre>
                         </div>
                       </td>
                     </tr>
@@ -4339,16 +4488,18 @@ setSubmittedReports(
           </div>
         )}
       </div>
+      )}
 {/* Submitted Reports */}
-    <div className="v-card" style={{ padding: '20px 22px', marginBottom: 20 }}>
+    {reportTab === 'submitted' && (
+    <div className="v-card" style={{ padding:'18px 20px', marginBottom:16 }}>
       <div className="v-section-head">
         <VSectionTitle icon={<Send size={16} />}>Submitted Reports</VSectionTitle>
-        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+        <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
           {submittedReports.length} submitted to admin
         </span>
       </div>
       {submittedReports.length === 0 ? (
-        <VEmptyState icon="📤" title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
+        <VEmptyState icon={<Send size={30} />} title="No submitted reports yet" sub="Reports submitted to admin will appear here." />
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="v-table">
@@ -4366,24 +4517,24 @@ setSubmittedReports(
               {submittedReports.slice(subPage * PAGE_SIZE, (subPage + 1) * PAGE_SIZE).map(h => (
                 <React.Fragment key={h.id}>
                   <tr>
-                    <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                    <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                       REP-{String(h.id).padStart(5, '0')}
                     </td>
-                    <td style={{ fontSize: 12, color: '#5a7a65', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 12, color: '#5C6B60', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {h.submittedAt}
                     </td>
                     <td>
                       <span className="v-badge v-badge-blue">{h.period}</span>
                     </td>
-                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                    <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                       {h.generatedDate || '—'}
                     </td>
 <td>
   {(() => {
     const s = (h.status || 'submitted').toLowerCase();
     const cfg = {
-      approved: { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Approved' },
-      submitted: { bg: '#dbeafe', color: '#1e40af', dot: '#3b82f6', label: 'Submitted' },
+      approved:  { bg: '#dcfce7', color: '#166534', dot: '#22c55e', label: 'Acknowledged' },
+      submitted: { bg: '#faeeda', color: '#633806', dot: '#BA7517', label: 'Pending' },
     };
     const { bg, color, dot, label } = cfg[s] || cfg.submitted;
     return (
@@ -4411,9 +4562,9 @@ setSubmittedReports(
                   {viewSubmittedId === h.id && (
                     <tr>
                       <td colSpan={6} style={{ padding: 0, border: 'none' }}>
-                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(0,168,76,0.04),rgba(0,137,123,0.03))', border: '1.5px solid rgba(0,168,76,0.15)', borderRadius: 14, padding: '18px 20px' }}>
+                        <div style={{ margin: '8px 0 12px', background: 'linear-gradient(135deg,rgba(59,121,30,0.04),rgba(59,121,30,0.03))', border: '1.5px solid rgba(59,121,30,0.15)', borderRadius: 14, padding: '18px 20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <div style={{ fontWeight: 800, fontSize: 13, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif' }}>
+                            <div style={{ fontWeight: 800, fontSize: 13, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                               REP-{String(h.id).padStart(5, '0')} — {h.period}
                             </div>
                             <div style={{ display: 'flex', gap: 8 }}>
@@ -4432,7 +4583,7 @@ setSubmittedReports(
                             </div>
                           </div>
                           {h.content ? (
-                            <pre style={{ fontFamily: 'Poppins,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                            <pre style={{ fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
                               {h.content}
                             </pre>
                           ) : (
@@ -4453,17 +4604,19 @@ setSubmittedReports(
         </div>
       )}
     </div>
+    )}
 
       {/* Report History (deleted reports) */}
-      <div className="v-card" style={{ padding: '20px 22px' }}>
+      {reportTab === 'history' && (
+      <div className="v-card" style={{ padding:'18px 20px' }}>
         <div className="v-section-head">
           <VSectionTitle icon={<Archive size={16} />}>Report History</VSectionTitle>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
             {deletedReports.length} deleted · recoverable for 30 days
           </span>
         </div>
         {deletedReports.length === 0 ? (
-          <VEmptyState icon="🗑️" title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
+          <VEmptyState icon={<Trash2 size={30} />} title="No deleted reports" sub="Deleted reports will appear here and are recoverable for 30 days." />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v-table">
@@ -4486,23 +4639,23 @@ setSubmittedReports(
 
                   return (
                     <tr key={r.id || r.localId || i}>
-                      <td style={{ fontWeight: 800, color: '#0d2b1e', fontFamily: 'Montserrat,sans-serif', fontSize: 12 }}>
+                      <td style={{ fontWeight: 800, color: '#12241B', fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: 12 }}>
                         {r.id ? `REP-${String(r.id).padStart(5, '0')}` : '—'}
                       </td>
-                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Poppins,sans-serif' }}>
+                      <td style={{ fontSize: 12, color: '#ef4444', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                         {r.deletedAt}
                       </td>
                       <td><span className="v-badge v-badge-blue">{r.period}</span></td>
-                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Poppins,sans-serif' }}>
+                      <td style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
                         {r.generatedDate}
                       </td>
                       <td>
                         <span style={{
-                          fontSize: 12, fontWeight: 700, fontFamily: 'Poppins,sans-serif',
+                          fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans,sans-serif',
                           color: isExpiringSoon ? '#ef4444' : '#94a3b8',
                         }}>
                           {daysLeft !== null ? (
-                            isExpiringSoon ? `⚠ ${daysLeft}d left` : `${daysLeft}d left`
+                            isExpiringSoon ? `Expiring · ${daysLeft}d left` : `${daysLeft}d left`
                           ) : '—'}
                         </span>
                       </td>
@@ -4512,14 +4665,14 @@ setSubmittedReports(
                           onClick={() => retrieveReport(r)}
                           disabled={retrieving === r.id}
                           style={{
-                            background: '#f0fdf5',
-                            color: '#00897b',
-                            border: '1px solid #b2dfdb',
+                            background: '#F6F7F1',
+                            color: '#3b791e',
+                            border: '1px solid #D4DBC8',
                             opacity: retrieving === r.id ? 0.6 : 1,
                           }}
                         >
                           {retrieving === r.id
-                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(0,137,123,0.3)', borderTopColor: '#00897b', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
+                            ? <><div style={{ width: 10, height: 10, border: '2px solid rgba(59,121,30,0.3)', borderTopColor: '#3b791e', borderRadius: '50%', animation: 'spin .8s linear infinite' }} /> Retrieving…</>
                             : <><RefreshCw size={12} /> Retrieve</>}
                         </button>
                       </td>
@@ -4532,6 +4685,7 @@ setSubmittedReports(
           </div>
       )}
       </div>
+      )}
     </div>
   );
 }
