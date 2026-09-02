@@ -717,10 +717,11 @@ function normalizeStockItem(row) {
   const resolvedCategory = backendCategory || getPersistedStockCategory(row.id);
 
   return {
-    ...row,
-    brand: String(row.brand ?? row.brand_name ?? "").trim(),
-    category: resolvedCategory,
-  };
+  ...row,
+  brand: String(row.brand ?? row.brand_name ?? "").trim(),
+  category: resolvedCategory,
+  sku: row.sku || "",
+};
 }
 
 // iFuel and iPharma use Stock Inventory as the single product source of truth.
@@ -835,6 +836,21 @@ function DeleteConfirmModal({ item, deleting, onConfirm, onCancel }) {
             </div>
           ))}
         </div>
+        <div style={{ fontSize:10.5, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
+  {(isDirectProductBrand(item.brand) || item.category) && (
+    <>
+      <span style={{ opacity:.45 }}>•</span>
+      <span style={{ color:item.category?C.greenDk:C.warn, fontWeight:700 }}>{item.category || "Uncategorized"}</span>
+    </>
+  )}
+  {item.sku && (
+    <>
+      <span style={{ opacity:.45 }}>•</span>
+      <span style={{ fontFamily:"monospace", fontSize:9.5, color:"#9ca3af" }}>{item.sku}</span>
+    </>
+  )}
+</div>
         <div style={{ padding:"14px 24px", display:"flex", justifyContent:"flex-end", gap:8 }}>
           <button onClick={onCancel} disabled={deleting} style={{ ...btnSt, opacity: deleting ? 0.5 : 1 }}>Cancel</button>
       <button onClick={onConfirm} disabled={deleting}
@@ -1147,7 +1163,7 @@ function DeleteHistoryPanel({ history, restoringId, onRestore, onClose }) {
                 <div>
                   <div style={{ fontWeight:700, fontSize:13, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.name}</div>
                   <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
-                    {d.brand||"—"}{isDirectProductBrand(d.brand) ? ` · ${d.category || "Uncategorized"}` : ""}
+                    {d.brand||"—"}{(isDirectProductBrand(d.brand) || d.category) ? ` · ${d.category || "Uncategorized"}` : ""}
                   </div>
                 </div>
                 <div style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.branch}</div>
@@ -1274,11 +1290,15 @@ function FifoQueue({ product, batches, loading, onEditBatch, onDeleteBatch, onVi
     <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, gap:8 }}>
         <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{product.name}</div>
-          <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
-            {totalStock} {product.unit} · {sorted.length} active batch{sorted.length===1?"":"es"} · min {product.min_stock}
-          </div>
-        </div>  
+  <div style={{ fontSize:14, fontWeight:800, color:C.ink, fontFamily:"monospace", display:"flex", alignItems:"center", gap:7, overflow:"hidden" }}>
+  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{product.sku || "—"}</span>
+</div>
+<div style={{ fontSize:11, color:C.muted, marginTop:2, display:"flex", alignItems:"center", gap:6 }}>
+  <span style={{ fontSize:9.5, fontWeight:700, color:C.ink }}>{product.name}</span>
+  <span style={{ opacity:.45 }}>•</span>
+  <span>{totalStock} {product.unit} · {sorted.length} active batch{sorted.length===1?"":"es"} · min {product.min_stock}</span>
+</div>
+</div>
       </div>
 
       <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 10px", borderRadius:8,
@@ -1493,7 +1513,7 @@ function BranchOnlyFilter({ branches, activeBranch, onChangeBranch }) {
    BRAND CARD — filters + (left, scrollable) product list + (right) FIFO/FEFO queue
    pass expanded=true for the single-brand full-width view
 ───────────────────────────────────────────────────────────────────────── */
-function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount=0, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation=null, refreshToken=0 }) {
+function BrandCard({ brandDef, brandObj, items, apiUrl, onEdit, onDelete, onQuickAdd, onReceiveStock, onOpenDeleteHistory, deleteHistoryCount=0, onBack, expanded=false, initialBranchFilter="", initialStatusFilter="", readOnly=false, userName, userRole, showUiModal, setToast, onItemsChanged, focusMutation=null, refreshToken=0, restrictBranch="" }) {
   const [search, setSearch]       = useState("");
   const [branchF, setBranchF]     = useState(initialBranchFilter);
   const [categoryF, setCategoryF] = useState("");
@@ -1515,11 +1535,7 @@ const branchOptions = useMemo(() => {
   return (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
 }, [brandObj]);
 
-const categoryOptions = useMemo(() => {
-  return isDirectProductBrand(brandObj?.name || brandDef.label)
-    ? getBrandCategories(brandObj)
-    : [];
-}, [brandObj, brandDef]);
+const categoryOptions = useMemo(() => getBrandCategories(brandObj), [brandObj]);
 
   const brandItems = useMemo(
     () => items
@@ -1552,6 +1568,11 @@ useEffect(() => {
 }, [categoryF, categoryOptions]);
 
 useEffect(() => {
+  if (restrictBranch) {
+    setBranchF(restrictBranch);
+    didSetDefaultBranch.current = true;
+    return;
+  }
   if (initialBranchFilter) {
     setBranchF(initialBranchFilter);
     didSetDefaultBranch.current = true;
@@ -1562,7 +1583,7 @@ useEffect(() => {
     if (headOffice) setBranchF(headOffice);
     didSetDefaultBranch.current = true;
   }
-}, [initialBranchFilter, branchOptions]);
+}, [restrictBranch, initialBranchFilter, branchOptions]);
 
   useEffect(() => {
     setStatusF(initialStatusFilter);
@@ -1789,15 +1810,15 @@ return (
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{ ...invInputSt, height:30, fontSize:12, paddingLeft:24 }}/>
         </div>
 <BranchOnlyFilter branches={branchOptions} activeBranch={branchF} onChangeBranch={setBranchF}/>
-        {isDirectProductBrand(brandObj?.name || brandDef.label) && (
-          <select value={categoryF} onChange={e=>setCategoryF(e.target.value)}
-            style={{ ...invInputSt, height:30, fontSize:11, width:150 }}
-            disabled={categoryOptions.length === 0}
-            title={categoryOptions.length === 0 ? "Add categories in Brand & Branch first" : "Filter by Brand & Branch category"}>
-            <option value="">{categoryOptions.length === 0 ? "No Categories" : "All Categories"}</option>
-            {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-          </select>
-        )}
+        {categoryOptions.length > 0 && (
+  <select value={categoryF} onChange={e=>setCategoryF(e.target.value)}
+    style={{ ...invInputSt, height:30, fontSize:11, width:150 }}
+    title="Filter by Brand & Branch category">
+    <option value="">All Categories</option>
+    {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+  </select>
+)}
+        
         <select value={unitF} onChange={e=>setUnitF(e.target.value)} style={{ ...invInputSt, height:30, fontSize:11, width:100 }}>
           <option value="">All Units</option>
           {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -1822,20 +1843,22 @@ return (
               <div key={item.id} onClick={() => setSelectedId(item.id)}
                 style={{ padding:"10px 14px", cursor:"pointer", borderLeft:`3px solid ${active?C.lime:"transparent"}`, background:active?"#f6f8ef":C.white, borderBottom:`1px solid ${C.bg}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
-                  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
-                </div>
-                <div style={{ fontSize:10.5, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
-                  {isDirectProductBrand(item.brand || brandObj?.name || brandDef.label) && (
-                    <>
-                      <span style={{ opacity:.45 }}>•</span>
-                      <span style={{ color:item.category?C.greenDk:C.warn, fontWeight:700 }}>
-                        {item.category || "Uncategorized"}
-                      </span>
-                    </>
-                  )}
-                </div>
+  <span style={{ fontSize:12.5, fontWeight:active?800:600, color:C.ink, fontFamily:"monospace", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.sku || "—"}</span>
+  {low && <span style={{ fontSize:9, fontWeight:800, color:C.warn, background:C.warnBg, padding:"1px 6px", borderRadius:4, flexShrink:0 }}>LOW</span>}
+</div>
+<div style={{ fontSize:10.5, color:C.muted, marginTop:3, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+  <span style={{ fontSize:9.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+  <span style={{ opacity:.45 }}>•</span>
+  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.branch}</span>
+  {isDirectProductBrand(item.brand || brandObj?.name || brandDef.label) && (
+    <>
+      <span style={{ opacity:.45 }}>•</span>
+      <span style={{ color:item.category?C.greenDk:C.warn, fontWeight:700 }}>
+        {item.category || "Uncategorized"}
+      </span>
+    </>
+  )}
+</div>
                 <div style={{ marginTop:5 }}>
                   <MiniBar pct={stockPct} color={low?C.warn:C.green} height={4}/>
                 </div>
@@ -1900,25 +1923,48 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0,16);
   };
-  const [productId, setProductId] = useState(initialProduct?.id || "");
-  const [form, setForm] = useState({
+
+  const defaultBatchForm = () => ({
     stock:"", cost_batch:"", supplier:"", mfg_date:"", received_at: nowLocal(), exp_date:"", notes:"",
     lot_number:"", ndc_code:"", dosage_form:"", strength:"", storage_requirement:"", controlled_substance:false,
     tank_id:"", grade:"", octane_rating:"", delivery_temp:"", truck_id:"", volume_correction:"",
+    noExpiry:false,
   });
-  const [saving, setSaving] = useState(false);
 
-  const product = brandItems.find(i => String(i.id) === String(productId)) || null;
+  const [selectedIds, setSelectedIds] = useState(initialProduct?.id != null ? [initialProduct.id] : []);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [formsById, setFormsById] = useState(() =>
+    initialProduct?.id != null ? { [initialProduct.id]: defaultBatchForm() } : {}
+  );
+  const [savedIds, setSavedIds] = useState(() => new Set());
+  const [saving, setSaving] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+
+  useEffect(() => {
+    if (activeIndex >= selectedIds.length) setActiveIndex(Math.max(0, selectedIds.length - 1));
+  }, [selectedIds, activeIndex]);
+
+  const toggleProduct = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setFormsById(prev => prev[id] ? prev : { ...prev, [id]: defaultBatchForm() });
+    setSavedIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev); next.delete(id); return next;
+    });
+  };
+
+  const activeId = selectedIds[activeIndex];
+  const product  = brandItems.find(i => String(i.id) === String(activeId)) || null;
+  const form     = formsById[activeId] || defaultBatchForm();
+  const setF = (k, v) => setFormsById(prev => ({ ...prev, [activeId]: { ...(prev[activeId] || defaultBatchForm()), [k]: v } }));
+
   const pharma = isPharmaBrand(product?.brand);
   const fuel   = isFuelBrand(product?.brand);
   const directProduct = isDirectProductBrand(product?.brand);
 
-  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const qty = parseFloat(form.stock) || 0;
   const batchCost = parseFloat(form.cost_batch) || 0;
   const unitCost = qty > 0 && batchCost > 0 ? batchCost / qty : 0;
-
-  const [noExpiry, setNoExpiry] = useState(false);
 
   const expiryRule = useMemo(
     () => getCategoryShelfLifeRule(product?.brand, product?.category, form.grade),
@@ -1930,43 +1976,25 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     [form.mfg_date, expiryRule]
   );
 
-  const canUseNoExpiry = expiryRule
-    ? !!expiryRule.allowNoExpiry
-    : !pharma && !fuel;
+  const canUseNoExpiry = expiryRule ? !!expiryRule.allowNoExpiry : !pharma && !fuel;
 
   useEffect(() => {
-    if (!canUseNoExpiry && noExpiry) setNoExpiry(false);
-  }, [canUseNoExpiry, noExpiry]);
+    if (!canUseNoExpiry && form.noExpiry) setF("noExpiry", false);
+  }, [canUseNoExpiry, form.noExpiry, activeId]);
 
-  // Exact category rules (iPharma 3 years / 9 months) are auto-filled from
-  // manufacture date so the user does not have to manually calculate them.
-  // Fuel windows are prefilled with the recommended/latest date only when the
-  // expiry field is still empty; the user may choose another date in-range.
   useEffect(() => {
-    if (!product || noExpiry || !form.mfg_date || !expiryRule) return;
+    if (!product || form.noExpiry || !form.mfg_date || !expiryRule) return;
     const bounds = getExpiryBoundsFromManufacture(form.mfg_date, expiryRule);
-
     if (expiryRule.kind === "exact" && bounds.recommendedStr) {
-      setForm(f => f.exp_date === bounds.recommendedStr ? f : ({ ...f, exp_date: bounds.recommendedStr }));
+      if (form.exp_date !== bounds.recommendedStr) setF("exp_date", bounds.recommendedStr);
       return;
     }
-
-    if (
-      (expiryRule.kind === "range" || expiryRule.kind === "max") &&
-      bounds.recommendedStr &&
-      !form.exp_date
-    ) {
-      setForm(f => ({ ...f, exp_date: bounds.recommendedStr }));
+    if ((expiryRule.kind === "range" || expiryRule.kind === "max") && bounds.recommendedStr && !form.exp_date) {
+      setF("exp_date", bounds.recommendedStr);
     }
   }, [
-    product?.id,
-    form.mfg_date,
-    noExpiry,
-    expiryRule?.kind,
-    expiryRule?.months,
-    expiryRule?.minMonths,
-    expiryRule?.maxMonths,
-    expiryRule?.recommendedMonths,
+    activeId, product?.id, form.mfg_date, form.noExpiry,
+    expiryRule?.kind, expiryRule?.months, expiryRule?.minMonths, expiryRule?.maxMonths, expiryRule?.recommendedMonths,
   ]);
 
   const basicReceivedDateStr = useMemo(() => {
@@ -2000,148 +2028,202 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
     if (!updateRes.ok) throw new Error("Failed to sync product totals after receiving stock.");
   };
 
-  const validate = () => {
+  const validateProductForm = (prod, f) => {
     const errors = [];
+    if (!prod) { errors.push("Please select a product to receive stock for."); return errors; }
+    const isPharma = isPharmaBrand(prod.brand);
+    const isFuel   = isFuelBrand(prod.brand);
 
-    if (!product) errors.push("Please select a product to receive stock for.");
-    if (!isPositiveOrZeroNumber(form.stock) || parseFloat(form.stock) <= 0) {
+    if (!isPositiveOrZeroNumber(f.stock) || parseFloat(f.stock) <= 0) {
       errors.push("Quantity received must be a number greater than 0.");
     }
-    if (form.cost_batch !== "" && !isPositiveOrZeroNumber(form.cost_batch)) {
+    if (f.cost_batch !== "" && !isPositiveOrZeroNumber(f.cost_batch)) {
       errors.push("Total batch cost must be a valid number of 0 or more.");
     }
-    if (form.cost_batch && Number(form.cost_batch) > 0 && (!form.stock || Number(form.stock) <= 0)) {
+    if (f.cost_batch && Number(f.cost_batch) > 0 && (!f.stock || Number(f.stock) <= 0)) {
       errors.push("Enter the quantity received before the total batch cost, so cost per unit can be calculated.");
     }
-
-    if (form.mfg_date && !isValidDateStr(form.mfg_date)) {
-      errors.push("Manufacture date is not a valid date.");
-    }
-    if (form.received_at && !isValidDateStr(form.received_at)) {
-      errors.push("Date & time received is not a valid date.");
-    }
-
+    if (f.mfg_date && !isValidDateStr(f.mfg_date)) errors.push("Manufacture date is not a valid date.");
+    if (f.received_at && !isValidDateStr(f.received_at)) errors.push("Date & time received is not a valid date.");
     if (
-      form.mfg_date &&
-      form.received_at &&
-      isValidDateStr(form.mfg_date) &&
-      isValidDateStr(form.received_at) &&
-      new Date(form.received_at) < new Date(form.mfg_date)
+      f.mfg_date && f.received_at && isValidDateStr(f.mfg_date) && isValidDateStr(f.received_at) &&
+      new Date(f.received_at) < new Date(f.mfg_date)
     ) {
       errors.push("Date received cannot be before the manufacture date.");
     }
 
-    if (product && (pharma || fuel)) {
+    if (isPharma || isFuel) {
       errors.push(...validateCategoryShelfLife({
-        brand: product.brand,
-        category: product.category,
-        grade: form.grade,
-        mfgDate: form.mfg_date,
-        expiryDate: form.exp_date,
-        noExpiry,
+        brand: prod.brand, category: prod.category, grade: f.grade,
+        mfgDate: f.mfg_date, expiryDate: f.exp_date, noExpiry: f.noExpiry,
       }));
-    } else if (!noExpiry) {
-      if (!form.exp_date) {
+    } else if (!f.noExpiry) {
+      if (!f.exp_date) {
         errors.push("Expiry date is required.");
-      } else if (!isValidDateStr(form.exp_date)) {
+      } else if (!isValidDateStr(f.exp_date)) {
         errors.push("Expiry date is not a valid date.");
-      } else if (
-        form.received_at &&
-        isValidDateStr(form.received_at) &&
-        new Date(form.exp_date) < new Date(form.received_at)
-      ) {
+      } else if (f.received_at && isValidDateStr(f.received_at) && new Date(f.exp_date) < new Date(f.received_at)) {
         errors.push("Expiry date cannot be earlier than the date received.");
       }
     }
 
     if (
-      !noExpiry &&
-      form.exp_date &&
-      isValidDateStr(form.exp_date) &&
-      form.received_at &&
-      isValidDateStr(form.received_at) &&
-      new Date(form.received_at) > new Date(form.exp_date)
+      !f.noExpiry && f.exp_date && isValidDateStr(f.exp_date) &&
+      f.received_at && isValidDateStr(f.received_at) &&
+      new Date(f.received_at) > new Date(f.exp_date)
     ) {
       errors.push("Date received cannot be after the expiry date.");
     }
 
-    if (
-      !noExpiry &&
-      form.exp_date &&
-      isValidDateStr(form.exp_date) &&
-      product &&
-      computeExpiryStatus(form.exp_date, product.brand) === "expired"
-    ) {
+    if (!f.noExpiry && f.exp_date && isValidDateStr(f.exp_date) && computeExpiryStatus(f.exp_date, prod.brand) === "expired") {
       errors.push("Expiry date is already in the past.");
     }
 
-    if (pharma && form.controlled_substance && !form.lot_number) {
+    if (isPharma && f.controlled_substance && !f.lot_number) {
       errors.push("LOT Number is required for controlled substances.");
     }
 
     return [...new Set(errors)];
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
-    const errors = validate();
-    if (errors.length > 0) {
-      showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
-      return;
-    }
-    setSaving(true);
-    const coords = await getBrowserLocation();
-    const body = {
-      ingredient_id: product.id,
-      stock: parseFloat(form.stock) || 0,
-      cost_per_unit: unitCost ? Math.round(unitCost * 100) / 100 : 0,
-      supplier: form.supplier || null,
-      mfg_date: form.mfg_date || null,
-      supply_date: form.received_at ? new Date(form.received_at).toISOString() : null,
-      exp_date: form.exp_date || null,
-      notes: form.notes || null,
-      performed_by: userName,
-      performed_by_role: userRole || "Unknown",
+  const buildBody = (prod, f, uName, uRole, coords) => {
+    const isPharma = isPharmaBrand(prod.brand);
+    const isFuel   = isFuelBrand(prod.brand);
+    const q = parseFloat(f.stock) || 0;
+    const bc = parseFloat(f.cost_batch) || 0;
+    const uc = q > 0 && bc > 0 ? bc / q : 0;
+    return {
+      ingredient_id: prod.id,
+      stock: q,
+      cost_per_unit: uc ? Math.round(uc * 100) / 100 : 0,
+      supplier: f.supplier || null,
+      mfg_date: f.mfg_date || null,
+      supply_date: f.received_at ? new Date(f.received_at).toISOString() : null,
+      exp_date: f.noExpiry ? null : (f.exp_date || null),
+      notes: f.notes || null,
+      performed_by: uName,
+      performed_by_role: uRole || "Unknown",
       latitude: coords?.latitude,
       longitude: coords?.longitude,
-      ...(pharma ? {
-        lot_number: form.lot_number || null,
-        ndc_code: form.ndc_code || null,
-        dosage_form: form.dosage_form || null,
-        strength: form.strength || null,
-        storage_requirement: form.storage_requirement || null,
-        controlled_substance: !!form.controlled_substance,
+      ...(isPharma ? {
+        lot_number: f.lot_number || null, ndc_code: f.ndc_code || null, dosage_form: f.dosage_form || null,
+        strength: f.strength || null, storage_requirement: f.storage_requirement || null,
+        controlled_substance: !!f.controlled_substance,
       } : {}),
-      ...(fuel ? {
-        tank_id: form.tank_id || null,
-        grade: form.grade || null,
-        octane_rating: form.octane_rating || null,
-        delivery_temp: form.delivery_temp || null,
-        truck_id: form.truck_id || null,
-        volume_correction: form.volume_correction || null,
+      ...(isFuel ? {
+        tank_id: f.tank_id || null, grade: f.grade || null, octane_rating: f.octane_rating || null,
+        delivery_temp: f.delivery_temp || null, truck_id: f.truck_id || null, volume_correction: f.volume_correction || null,
       } : {}),
     };
-    try {
-      const res = await fetch(`${apiUrl}/ingredient-batches`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || d?.success === false) {
-        throw new Error(d?.error || "Failed to save the received batch.");
+  };
+
+  const saveAndContinue = () => {
+    const errs = validateProductForm(product, form);
+    if (errs.length > 0) {
+      showUiModal({ type:"error", title:"Please fix the following", lines: errs.map(t=>({ text:t, warn:true })) });
+      return;
+    }
+    const nextSaved = new Set(savedIds);
+    nextSaved.add(activeId);
+    setSavedIds(nextSaved);
+
+    let nextIdx = -1;
+    for (let i = activeIndex + 1; i < selectedIds.length; i++) {
+      if (!nextSaved.has(selectedIds[i])) { nextIdx = i; break; }
+    }
+    if (nextIdx === -1) {
+      for (let i = 0; i < selectedIds.length; i++) {
+        if (!nextSaved.has(selectedIds[i])) { nextIdx = i; break; }
       }
+    }
+    if (nextIdx !== -1) setActiveIndex(nextIdx);
+  };
 
-      // Recalculate the product total and next-out cost BEFORE refreshing the UI.
-      // This fixes received stock being saved as a batch but not appearing in
-      // the product list/Menu Inventory immediately.
-      await syncIngredientStock(product);
-      await Promise.resolve(onDone?.(product));
-      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:product.id, brand:product.brand } }));
+  const submitAll = async () => {
+    setSaving(true);
+    const coords = await getBrowserLocation();
+    const results = [];
+    let lastProduct = null;
 
-      setToast({ type: "success", title: "Stock Received", message: `${body.stock} ${product.unit} of "${product.name}" logged.` });
-    } catch (err) {
-      setToast({ type: "error", title: "Receive Stock Failed", message: err?.message || "Failed to log the received stock." });
-    } finally {
-      setSaving(false);
+    for (const id of selectedIds) {
+      const prod = brandItems.find(i => String(i.id) === String(id));
+      const f = formsById[id];
+      if (!prod || !f) { results.push({ ok:false, name:"Unknown product", reason:"missing data" }); continue; }
+      const body = buildBody(prod, f, userName, userRole, coords);
+      try {
+        const res = await fetch(`${apiUrl}/ingredient-batches`, {
+          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d?.success === false) {
+          results.push({ ok:false, name:prod.name, reason: d?.error || "failed to save" });
+          continue;
+        }
+        await syncIngredientStock(prod);
+        lastProduct = prod;
+        results.push({ ok:true, name:prod.name });
+      } catch (err) {
+        results.push({ ok:false, name:prod.name, reason: err?.message || "connection error" });
+      }
+    }
+
+    setSaving(false);
+
+    if (lastProduct) {
+      await Promise.resolve(onDone?.(lastProduct));
+      window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:lastProduct.id, brand:lastProduct.brand } }));
+    }
+
+    const succeeded = results.filter(r => r.ok);
+    const failed = results.filter(r => !r.ok);
+
+    if (succeeded.length > 0 && failed.length === 0) {
+      setToast({
+        type: "success", title: "Stock Received",
+        message: succeeded.length === 1
+          ? `Batch logged for "${succeeded[0].name}".`
+          : `Batches logged for ${succeeded.length} products.`,
+      });
+    } else if (succeeded.length > 0) {
+      showUiModal({
+        type:"info", title:"Received With Some Failures",
+        message:`${succeeded.length} product(s) logged. ${failed.length} failed.`,
+        lines: failed.map(f => ({ text:`${f.name}: ${f.reason}`, warn:true })),
+      });
+    } else {
+      showUiModal({
+        type:"error", title:"Failed to Receive Stock",
+        message:"None of the selected products were saved.",
+        lines: failed.map(f => ({ text:`${f.name}: ${f.reason}`, warn:true })),
+      });
     }
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedIds.length === 0) {
+      showUiModal({ type:"error", title:"Please fix the following", lines:[{ text:"Select at least one product.", warn:true }] });
+      return;
+    }
+    if (selectedIds.length === 1) {
+      const errs = validateProductForm(product, form);
+      if (errs.length > 0) {
+        showUiModal({ type:"error", title:"Please fix the following", lines: errs.map(t=>({ text:t, warn:true })) });
+        return;
+      }
+      await submitAll();
+      return;
+    }
+    if (savedIds.size < selectedIds.length) {
+      showUiModal({ type:"error", title:"Please fix the following", lines:[{ text:"Save each product before adding them to the queue.", warn:true }] });
+      return;
+    }
+    await submitAll();
+  };
+
+  const multiMode = selectedIds.length >= 2;
+  const filteredBrandItems = brandItems.slice().sort((a,b)=>a.name.localeCompare(b.name))
+    .filter(i => !productSearch || i.name.toLowerCase().includes(productSearch.toLowerCase()));
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(13,43,30,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2200, padding:20, backdropFilter:"blur(4px)" }}>
@@ -2150,223 +2232,319 @@ function ReceiveStockModal({ brandDef, brandItems, initialProduct, apiUrl, userN
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
             <div>
               <div style={{ fontSize:18, fontWeight:900, letterSpacing:"0.02em" }}>RECEIVE STOCK</div>
-              <div style={{ fontSize:12, opacity:0.9, marginTop:2 }}>Log incoming inventory for {brandDef.label} · batch auto-queued by {pharma?"FEFO":"FIFO"} rules</div>
+              <div style={{ fontSize:12, opacity:0.9, marginTop:2 }}>
+                Log incoming inventory for {brandDef.label}
+                {multiMode ? ` · ${selectedIds.length} products selected` : ""}
+              </div>
             </div>
             <button onClick={onClose} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:"50%", width:30, height:30, display:"flex", alignItems:"center", justifyContent:"center" }}><XIcon size={14}/></button>
           </div>
         </div>
 
-        <form noValidate onSubmit={submit} style={{ padding:24, display:"grid", gap:14 }}>
-          <div style={{ fontSize:10.5, fontWeight:800, color:C.muted, letterSpacing:"0.06em", borderBottom:`1px solid ${C.border}`, paddingBottom:6 }}>BATCH DETAILS</div>
-
+        <form noValidate onSubmit={handleSubmit} style={{ padding:24, display:"grid", gap:14 }}>
           <div>
-            <label style={invLabelSt}>Product *</label>
-            <select style={invInputSt} value={productId} required onChange={e=>setProductId(e.target.value)}>
-              <option value="">Select product…</option>
-              {brandItems.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => (
-                <option key={i.id} value={i.id}>{i.name} ({i.branch})</option>
+            <label style={invLabelSt}>Products * <span style={{ fontWeight:400, color:C.muted }}>(select one or more)</span></label>
+            <div style={{ position:"relative", marginBottom:6 }}>
+              <div style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:C.muted }}><SearchIcon size={12}/></div>
+              <input value={productSearch} onChange={e=>setProductSearch(e.target.value)} placeholder="Search products…" style={{ ...invInputSt, paddingLeft:30 }}/>
+            </div>
+            <div style={{ border:`1.5px solid ${C.border}`, borderRadius:11, padding:"8px 4px", maxHeight:180, overflowY:"auto" }}>
+              {filteredBrandItems.length === 0 ? (
+                <div style={{ padding:"8px 10px", fontSize:12, color:C.muted }}>No products found.</div>
+              ) : filteredBrandItems.map(i => (
+                <label key={i.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor:"pointer", fontSize:13, color:C.ink }}>
+                  <input type="checkbox" checked={selectedIds.includes(i.id)} onChange={() => toggleProduct(i.id)}/>
+                  {i.name} <span style={{ fontSize:11, color:C.muted }}>({i.branch})</span>
+                </label>
               ))}
-            </select>
-          </div>
-
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div>
-              <label style={invLabelSt}>Quantity ({product?.unit || "unit"}) *</label>
-              <input type="number" min="0" step="0.01" style={invInputSt} value={form.stock} required placeholder="0.00" onChange={e=>setF("stock", e.target.value)}/>
             </div>
-            <div>
-              <label style={invLabelSt}>Total Batch Cost (₱)</label>
-              <input type="number" min="0" step="0.01" style={invInputSt} value={form.cost_batch} placeholder="e.g. 4000.00" onChange={e=>setF("cost_batch", e.target.value)}/>
-              <div style={{ fontSize:10, color:C.muted, marginTop:4 }}>What you paid for this whole batch — not per unit</div>
-            </div>
-          </div>
-          {batchCost > 0 && qty > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div style={{ padding:"10px 13px", borderRadius:9, background:C.bg, border:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:11.5, fontWeight:700, color:C.muted }}>Cost / Unit</div>
-                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>₱{batchCost.toFixed(2)} ÷ {qty} {product?.unit || "unit"}</div>
-                <div style={{ fontSize:18, fontWeight:900, color:C.ink, marginTop:4 }}>₱{unitCost.toFixed(2)}</div>
+            {selectedIds.length > 0 && (
+              <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
+                {selectedIds.length} product{selectedIds.length===1?"":"s"} selected
               </div>
-              <div style={{ padding:"10px 13px", borderRadius:9, background:C.greenLt, border:`1px solid ${C.greenMid}` }}>
-                <div style={{ fontSize:11.5, fontWeight:700, color:C.greenDk }}>{directProduct ? "Auto Selling Price" : "Shop Price"}</div>
-                <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>
-                  {directProduct ? "cost/unit + 30% operations + 40% profit" : "cost/unit + 10% (weighted avg across batches)"}
+            )}
+          </div>
+
+          {selectedIds.length === 0 ? (
+            <div style={{ padding:"20px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>
+              Select at least one product above to continue.
+            </div>
+          ) : (
+            <>
+              {multiMode && (
+                <div>
+                  <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+                    {selectedIds.map((id, idx) => (
+                      <div key={id} style={{ flex:1, height:4, borderRadius:4, background: savedIds.has(id) ? C.green : idx===activeIndex ? C.amber : C.border }}/>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, gap:8 }}>
+                    <button type="button" disabled={activeIndex===0} onClick={()=>setActiveIndex(i=>Math.max(0,i-1))}
+                      style={{ ...smallBtnSt, border:`1px solid ${C.border}`, opacity: activeIndex===0?0.4:1, minWidth:0, overflow:"hidden" }}>
+                      <ArrowLeftIcon size={12}/>
+                      <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {selectedIds[activeIndex-1] ? (brandItems.find(x=>x.id===selectedIds[activeIndex-1])?.name || "") : ""}
+                      </span>
+                    </button>
+                    <span style={{ fontSize:11, color:C.muted, flexShrink:0 }}>product {activeIndex+1} of {selectedIds.length}</span>
+                    <button type="button" disabled={activeIndex===selectedIds.length-1} onClick={()=>setActiveIndex(i=>Math.min(selectedIds.length-1,i+1))}
+                      style={{ ...smallBtnSt, border:`1px solid ${C.border}`, opacity: activeIndex===selectedIds.length-1?0.4:1, minWidth:0, overflow:"hidden" }}>
+                      <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {selectedIds[activeIndex+1] ? (brandItems.find(x=>x.id===selectedIds[activeIndex+1])?.name || "") : ""}
+                      </span>
+                      <ArrowRightIcon size={12}/>
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize:18, fontWeight:900, color:C.greenDk, marginTop:4 }}>
-                  ₱{(directProduct ? computeDirectSellingPrice(unitCost) : unitCost * 1.10).toFixed(2)}
-                </div>
+              )}
+
+              <div style={{ fontSize:10.5, fontWeight:800, color:C.muted, letterSpacing:"0.06em", borderBottom:`1px solid ${C.border}`, paddingBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span>BATCH DETAILS — {product?.name || "—"}</span>
+                {multiMode && savedIds.has(activeId) && (
+                  <span style={{ color:C.greenDk, display:"inline-flex", alignItems:"center", gap:4 }}><CheckCircleIcon size={12}/> Saved</span>
+                )}
               </div>
-            </div>
-          )}
-          <div>
-            <label style={invLabelSt}>Supplier</label>
-            <input style={invInputSt} value={form.supplier} placeholder="Supplier name" onChange={e=>setF("supplier", e.target.value)}/>
-          </div>
 
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div>
-              <label style={invLabelSt}>Manufacture Date</label>
-              <input type="date" style={invInputSt} value={form.mfg_date} onChange={e=>setF("mfg_date", e.target.value)}/>
-            </div>
-            <div>
-              <label style={invLabelSt}>Date &amp; Time Received</label>
-              <input type="datetime-local" style={invInputSt} value={form.received_at} onChange={e=>setF("received_at", e.target.value)}/>
-            </div>
-          </div>
-
-<div>
-  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-    <label style={{ ...invLabelSt, marginBottom:0 }}>
-      {canUseNoExpiry ? "Expiry Date" : "Expiry Date *"}
-    </label>
-    {canUseNoExpiry && (
-      <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
-        <input
-          type="checkbox"
-          checked={noExpiry}
-          onChange={e => {
-            setNoExpiry(e.target.checked);
-            if (e.target.checked) setF("exp_date", "");
-          }}
-        />
-        No expiry date
-      </label>
-    )}
-  </div>
-
-  <input
-    type="date"
-    style={{
-      ...invInputSt,
-      opacity:
-        noExpiry ||
-        (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
-        expiryRule?.kind === "missing-category" ||
-        expiryRule?.kind === "unconfigured-fuel"
-          ? 0.5
-          : 1
-    }}
-    value={form.exp_date}
-    min={minExpiryDateStr || undefined}
-    max={maxExpiryDateStr || undefined}
-    required={!noExpiry}
-    disabled={
-      noExpiry ||
-      (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
-      expiryRule?.kind === "missing-category" ||
-      expiryRule?.kind === "unconfigured-fuel"
-    }
-    onChange={e=>setF("exp_date", e.target.value)}
-  />
-
-  <div style={{
-    fontSize:11,
-    color:
-      expiryRule?.kind === "missing-category" ||
-      expiryRule?.kind === "unconfigured-fuel"
-        ? C.warn
-        : C.muted,
-    marginTop:5,
-    lineHeight:1.45
-  }}>
-    {expiryRule
-      ? shelfLifeHelperText(expiryRule, expiryBounds, product?.category)
-      : (
-        <>
-          Expiry must not be earlier than the date received.
-          {minExpiryDateStr && <> Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>.</>}
-        </>
-      )}
-  </div>
-</div>
-
-          {pharma && (
-            <div style={{ display:"grid", gap:12, padding:14, background:"#eef2ff", border:"1px solid #c7d2fe", borderRadius:10 }}>
-              <div style={{ fontSize:10.5, fontWeight:800, color:"#3730a3", letterSpacing:"0.06em" }}>PHARMACY DETAILS</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                 <div>
-                  <label style={invLabelSt}>LOT Number</label>
-                  <input style={invInputSt} value={form.lot_number} onChange={e=>setF("lot_number", e.target.value)}/>
+                  <label style={invLabelSt}>Quantity ({product?.unit || "unit"}) *</label>
+                  <input type="number" min="0" step="0.01" style={invInputSt} value={form.stock} required placeholder="0.00" onChange={e=>setF("stock", e.target.value)}/>
                 </div>
                 <div>
-                  <label style={invLabelSt}>NDC Code</label>
-                  <input style={invInputSt} value={form.ndc_code} onChange={e=>setF("ndc_code", e.target.value)}/>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Dosage Form</label>
-                  <select style={invInputSt} value={form.dosage_form} onChange={e=>setF("dosage_form", e.target.value)}>
-                    <option value="">Select…</option>
-                    {DOSAGE_FORMS.map(d=><option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Strength</label>
-                  <input style={invInputSt} value={form.strength} placeholder="e.g. 500mg" onChange={e=>setF("strength", e.target.value)}/>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Storage Requirement</label>
-                  <select style={invInputSt} value={form.storage_requirement} onChange={e=>setF("storage_requirement", e.target.value)}>
-                    <option value="">Select…</option>
-                    {STORAGE_REQS.map(s=><option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:18 }}>
-                  <input type="checkbox" id="controlled" checked={form.controlled_substance} onChange={e=>setF("controlled_substance", e.target.checked)}/>
-                  <label htmlFor="controlled" style={{ fontSize:12, fontWeight:700, color:"#3730a3", cursor:"pointer" }}>Controlled substance</label>
+                  <label style={invLabelSt}>Total Batch Cost (₱)</label>
+                  <input type="number" min="0" step="0.01" style={invInputSt} value={form.cost_batch} placeholder="e.g. 4000.00" onChange={e=>setF("cost_batch", e.target.value)}/>
+                  <div style={{ fontSize:10, color:C.muted, marginTop:4 }}>What you paid for this whole batch — not per unit</div>
                 </div>
               </div>
-            </div>
-          )}
+              {batchCost > 0 && qty > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  <div style={{ padding:"10px 13px", borderRadius:9, background:C.bg, border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:11.5, fontWeight:700, color:C.muted }}>Cost / Unit</div>
+                    <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>₱{batchCost.toFixed(2)} ÷ {qty} {product?.unit || "unit"}</div>
+                    <div style={{ fontSize:18, fontWeight:900, color:C.ink, marginTop:4 }}>₱{unitCost.toFixed(2)}</div>
+                  </div>
+                  <div style={{ padding:"10px 13px", borderRadius:9, background:C.greenLt, border:`1px solid ${C.greenMid}` }}>
+                    <div style={{ fontSize:11.5, fontWeight:700, color:C.greenDk }}>{directProduct ? "Auto Selling Price" : "Shop Price"}</div>
+                    <div style={{ fontSize:10, color:C.muted, marginTop:2 }}>
+                      {directProduct ? "cost/unit + 30% operations + 40% profit" : "cost/unit + 10% (weighted avg across batches)"}
+                    </div>
+                    <div style={{ fontSize:18, fontWeight:900, color:C.greenDk, marginTop:4 }}>
+                      ₱{(directProduct ? computeDirectSellingPrice(unitCost) : unitCost * 1.10).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label style={invLabelSt}>Supplier</label>
+                <input style={invInputSt} value={form.supplier} placeholder="Supplier name" onChange={e=>setF("supplier", e.target.value)}/>
+              </div>
 
-          {fuel && (
-            <div style={{ display:"grid", gap:12, padding:14, background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:10 }}>
-              <div style={{ fontSize:10.5, fontWeight:800, color:"#1e40af", letterSpacing:"0.06em" }}>FUEL DETAILS</div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                 <div>
-                  <label style={invLabelSt}>Tank ID</label>
-                  <input style={invInputSt} value={form.tank_id} onChange={e=>setF("tank_id", e.target.value)}/>
+                  <label style={invLabelSt}>Manufacture Date</label>
+                  <input type="date" style={invInputSt} value={form.mfg_date} onChange={e=>setF("mfg_date", e.target.value)}/>
                 </div>
                 <div>
-                  <label style={invLabelSt}>Grade</label>
-                  <select style={invInputSt} value={form.grade} onChange={e=>setF("grade", e.target.value)}>
-                    <option value="">Select…</option>
-                    {FUEL_GRADES.map(g=><option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Octane Rating</label>
-                  <input style={invInputSt} value={form.octane_rating} placeholder="e.g. 95" onChange={e=>setF("octane_rating", e.target.value)}/>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Delivery Temp (°F)</label>
-                  <input type="number" style={invInputSt} value={form.delivery_temp} onChange={e=>setF("delivery_temp", e.target.value)}/>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Truck / Tanker ID</label>
-                  <input style={invInputSt} value={form.truck_id} onChange={e=>setF("truck_id", e.target.value)}/>
-                </div>
-                <div>
-                  <label style={invLabelSt}>Net Volume @ 60°F</label>
-                  <input style={invInputSt} value={form.volume_correction} placeholder="API corrected volume" onChange={e=>setF("volume_correction", e.target.value)}/>
+                  <label style={invLabelSt}>Date &amp; Time Received</label>
+                  <input type="datetime-local" style={invInputSt} value={form.received_at} onChange={e=>setF("received_at", e.target.value)}/>
                 </div>
               </div>
-            </div>
+
+              <div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                  <label style={{ ...invLabelSt, marginBottom:0 }}>
+                    {canUseNoExpiry ? "Expiry Date" : "Expiry Date *"}
+                  </label>
+                  {canUseNoExpiry && (
+                    <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:C.muted, cursor:"pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={form.noExpiry}
+                        onChange={e => {
+                          setF("noExpiry", e.target.checked);
+                          if (e.target.checked) setF("exp_date", "");
+                        }}
+                      />
+                      No expiry date
+                    </label>
+                  )}
+                </div>
+
+                <input
+                  type="date"
+                  style={{
+                    ...invInputSt,
+                    opacity:
+                      form.noExpiry ||
+                      (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                      expiryRule?.kind === "missing-category" ||
+                      expiryRule?.kind === "unconfigured-fuel"
+                        ? 0.5
+                        : 1
+                  }}
+                  value={form.exp_date}
+                  min={minExpiryDateStr || undefined}
+                  max={maxExpiryDateStr || undefined}
+                  required={!form.noExpiry}
+                  disabled={
+                    form.noExpiry ||
+                    (!!expiryRule?.requiresManufactureDate && !form.mfg_date) ||
+                    expiryRule?.kind === "missing-category" ||
+                    expiryRule?.kind === "unconfigured-fuel"
+                  }
+                  onChange={e=>setF("exp_date", e.target.value)}
+                />
+
+                <div style={{
+                  fontSize:11,
+                  color:
+                    expiryRule?.kind === "missing-category" ||
+                    expiryRule?.kind === "unconfigured-fuel"
+                      ? C.warn
+                      : C.muted,
+                  marginTop:5,
+                  lineHeight:1.45
+                }}>
+                  {expiryRule
+                    ? shelfLifeHelperText(expiryRule, expiryBounds, product?.category)
+                    : (
+                      <>
+                        Expiry must not be earlier than the date received.
+                        {minExpiryDateStr && <> Earliest allowed: <strong style={{ color:C.ink }}>{fmtDate(minExpiryDateStr)}</strong>.</>}
+                      </>
+                    )}
+                </div>
+              </div>
+
+              {pharma && (
+                <div style={{ display:"grid", gap:12, padding:14, background:"#eef2ff", border:"1px solid #c7d2fe", borderRadius:10 }}>
+                  <div style={{ fontSize:10.5, fontWeight:800, color:"#3730a3", letterSpacing:"0.06em" }}>PHARMACY DETAILS</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <div>
+                      <label style={invLabelSt}>LOT Number</label>
+                      <input style={invInputSt} value={form.lot_number} onChange={e=>setF("lot_number", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>NDC Code</label>
+                      <input style={invInputSt} value={form.ndc_code} onChange={e=>setF("ndc_code", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Dosage Form</label>
+                      <select style={invInputSt} value={form.dosage_form} onChange={e=>setF("dosage_form", e.target.value)}>
+                        <option value="">Select…</option>
+                        {DOSAGE_FORMS.map(d=><option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Strength</label>
+                      <input style={invInputSt} value={form.strength} placeholder="e.g. 500mg" onChange={e=>setF("strength", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Storage Requirement</label>
+                      <select style={invInputSt} value={form.storage_requirement} onChange={e=>setF("storage_requirement", e.target.value)}>
+                        <option value="">Select…</option>
+                        {STORAGE_REQS.map(s=><option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:18 }}>
+                      <input type="checkbox" id={`controlled-${activeId}`} checked={form.controlled_substance} onChange={e=>setF("controlled_substance", e.target.checked)}/>
+                      <label htmlFor={`controlled-${activeId}`} style={{ fontSize:12, fontWeight:700, color:"#3730a3", cursor:"pointer" }}>Controlled substance</label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {fuel && (
+                <div style={{ display:"grid", gap:12, padding:14, background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:10 }}>
+                  <div style={{ fontSize:10.5, fontWeight:800, color:"#1e40af", letterSpacing:"0.06em" }}>FUEL DETAILS</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <div>
+                      <label style={invLabelSt}>Tank ID</label>
+                      <input style={invInputSt} value={form.tank_id} onChange={e=>setF("tank_id", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Grade</label>
+                      <select style={invInputSt} value={form.grade} onChange={e=>setF("grade", e.target.value)}>
+                        <option value="">Select…</option>
+                        {FUEL_GRADES.map(g=><option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Octane Rating</label>
+                      <input style={invInputSt} value={form.octane_rating} placeholder="e.g. 95" onChange={e=>setF("octane_rating", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Delivery Temp (°F)</label>
+                      <input type="number" style={invInputSt} value={form.delivery_temp} onChange={e=>setF("delivery_temp", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Truck / Tanker ID</label>
+                      <input style={invInputSt} value={form.truck_id} onChange={e=>setF("truck_id", e.target.value)}/>
+                    </div>
+                    <div>
+                      <label style={invLabelSt}>Net Volume @ 60°F</label>
+                      <input style={invInputSt} value={form.volume_correction} placeholder="API corrected volume" onChange={e=>setF("volume_correction", e.target.value)}/>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={invLabelSt}>Notes</label>
+                <textarea style={{ ...invInputSt, height:64, padding:"8px 11px", resize:"vertical" }} value={form.notes} placeholder="Optional notes…" onChange={e=>setF("notes", e.target.value)}/>
+              </div>
+
+              {multiMode && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:8, padding:"10px 0", borderTop:`1px solid ${C.border}` }}>
+                  {selectedIds.map((id, idx) => {
+                    const p = brandItems.find(x=>x.id===id);
+                    const isSaved = savedIds.has(id);
+                    const isActive = idx === activeIndex;
+                    return (
+                      <button type="button" key={id} onClick={()=>setActiveIndex(idx)}
+                        style={{
+                          display:"inline-flex", alignItems:"center", gap:5, fontSize:11, padding:"3px 9px", borderRadius:20,
+                          border:`1px solid ${isSaved?C.greenMid:isActive?C.amberBorder:C.border}`,
+                          background: isSaved?C.greenLt:isActive?C.amberBg:C.white,
+                          color: isSaved?C.greenDk:isActive?C.warn:C.muted,
+                          cursor:"pointer",
+                        }}>
+                        {isSaved
+                          ? <CheckCircleIcon size={11}/>
+                          : isActive
+                            ? <EditIcon size={11}/>
+                            : <span style={{ width:8, height:8, borderRadius:"50%", border:`1.5px dashed ${C.muted}` }}/>}
+                        {p?.name || "—"}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display:"flex", gap:8 }}>
+                {multiMode && (
+                  <button type="button" onClick={saveAndContinue} disabled={saving}
+                    style={{ ...btnAmberSt, flex:1, justifyContent:"center", height:46, fontSize:13.5, opacity:saving?0.6:1, cursor:saving?"not-allowed":"pointer" }}>
+                    <Check size={14}/> Save and continue
+                  </button>
+                )}
+                <button type="submit"
+                  disabled={saving || selectedIds.length===0 || (multiMode && savedIds.size < selectedIds.length)}
+                  style={{
+                    ...btnPrimarySt, flex:1, justifyContent:"center", height:46, fontSize:13.5,
+                    opacity: (saving || selectedIds.length===0 || (multiMode && savedIds.size < selectedIds.length)) ? 0.5 : 1,
+                    cursor: (saving || selectedIds.length===0 || (multiMode && savedIds.size < selectedIds.length)) ? "not-allowed" : "pointer",
+                  }}>
+                  <PlusIcon size={14}/> {saving ? "Saving…" : multiMode ? `Add all ${selectedIds.length} to queue` : "Receive & Add to Queue"}
+                </button>
+              </div>
+            </>
           )}
-
-          <div>
-            <label style={invLabelSt}>Notes</label>
-            <textarea style={{ ...invInputSt, height:64, padding:"8px 11px", resize:"vertical" }} value={form.notes} placeholder="Optional notes…" onChange={e=>setF("notes", e.target.value)}/>
-          </div>
-
-          <button type="submit" disabled={saving} style={{ ...btnAmberSt, width:"100%", justifyContent:"center", height:46, fontSize:13.5, opacity:saving?0.6:1, cursor:saving?"not-allowed":"pointer" }}>
-            <PlusIcon size={14}/> {saving ? "Saving…" : "Receive & Add to Queue"}
-          </button>
         </form>
       </div>
     </div>
   );
 }
-
 /* ─────────────────────────────────────────────────────────────────────────
    BATCH DELETE HISTORY PANEL
 ───────────────────────────────────────────────────────────────────────── */
@@ -3057,6 +3235,17 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
     [brandList]
   );
   
+  const ownBrandDef = useMemo(() => {
+    if (isAdmin || !userBranch) return null;
+    const ownBrandObj = brandList.find(b =>
+      (b.branches || []).some(br => (typeof br === "string" ? br : br?.name) === userBranch)
+    );
+    if (!ownBrandObj) return null;
+    return connectedBrandDefs.find(bd => bd.match((ownBrandObj.name || "").toLowerCase())) || null;
+  }, [isAdmin, userBranch, brandList, connectedBrandDefs]);
+
+  const visibleBrandDefs = isAdmin ? connectedBrandDefs : (ownBrandDef ? [ownBrandDef] : []);
+  
   const allBranches = useMemo(() => {
     const out = [];
     brandList.forEach(b =>
@@ -3112,10 +3301,11 @@ export default function StockInventoryContent({ user, brands: propBrands = [], i
   const excelRef = useRef(null);
 
 const emptyForm = useCallback(() => ({
-  name:"", branch: isAdmin ? "" : userBranch, brand:"", category:"",
+  name:"", branch: isAdmin ? "" : userBranch, branches: isAdmin ? [] : [userBranch], brand:"", category:"",
   unit:"pcs", min_stock:0, cost_per_unit:"", perishable:false,
   listInShop: false,
-  shopCategory:"", 
+  shopCategory:"",
+  sku:"",
 }), [isAdmin, userBranch]);
 
   const [form, setForm] = useState(emptyForm);
@@ -3167,10 +3357,16 @@ const emptyForm = useCallback(() => ({
   }, []);
 
   useEffect(() => {
-    if (activeBrandKey && !connectedBrandDefs.some(bd => bd.key === activeBrandKey)) {
+    if (activeBrandKey && !visibleBrandDefs.some(bd => bd.key === activeBrandKey)) {
       setActiveBrandKey(null);
     }
-  }, [activeBrandKey, connectedBrandDefs]);
+  }, [activeBrandKey, visibleBrandDefs]);
+
+  useEffect(() => {
+    if (!isAdmin && ownBrandDef && activeBrandKey !== ownBrandDef.key) {
+      setActiveBrandKey(ownBrandDef.key);
+    }
+  }, [isAdmin, ownBrandDef, activeBrandKey]);
 
     useEffect(() => {
     if (!initialFocus?.brand) return;
@@ -3189,7 +3385,7 @@ const emptyForm = useCallback(() => ({
       .then(d => { setBatches(Array.isArray(d) ? d : []); setBatchLoading(false); });
   }, [activeBatchIngredient]);
 
-  /* ── import excel ── */
+  
   const importExcel = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -3292,7 +3488,7 @@ const emptyForm = useCallback(() => ({
     reader.readAsArrayBuffer(file);
   };
 
-  /* ── filtered + sorted ── */
+
   const filtered = useMemo(() => {
     const q   = search.toLowerCase();
     const now = new Date(); now.setHours(0,0,0,0);
@@ -3326,160 +3522,289 @@ const emptyForm = useCallback(() => ({
   const pageItems  = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
 
   const saveItem = async e => {
-    e.preventDefault();
-    const errors = [];
-    if (!form.name || !form.name.trim()) errors.push("Ingredient name is required.");
-    if (!form.brand) errors.push("Brand is required.");
-    if (isAdmin && !form.branch) errors.push("Branch is required.");
+  e.preventDefault();
+  const errors = [];
+  if (!form.name || !form.name.trim()) errors.push("Ingredient name is required.");
+  if (!form.brand) errors.push("Brand is required.");
+  if (isAdmin) {
+    if (editing) { if (!form.branch) errors.push("Branch is required."); }
+    else { if (form.branches.length === 0) errors.push("Select at least one branch."); }
+  }
 
-    // iFuel/iPharma categories come ONLY from Brand & Branch Management.
-    if (isDirectProductBrand(form.brand)) {
-      const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === form.brand.toLowerCase());
-      const allowedCategories = getBrandCategories(selectedBrandObj);
-      if (allowedCategories.length === 0) {
-        errors.push(`No categories are configured for ${form.brand}. Add a category in Brand & Branch Management first.`);
-      } else if (!form.category) {
-        errors.push("Category is required for iFuel and iPharma products.");
+  {
+    const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === (form.brand || "").toLowerCase());
+    const allowedCategories = getBrandCategories(selectedBrandObj);
+    if (allowedCategories.length > 0) {
+      if (!form.category) {
+        errors.push(`Category is required for ${form.brand} products.`);
       } else if (!allowedCategories.some(cat => cat.toLowerCase() === String(form.category).toLowerCase())) {
         errors.push(`"${form.category}" is no longer an active ${form.brand} category. Select a category from Brand & Branch Management.`);
       }
     }
+  }
+  if (!form.unit) errors.push("Unit is required.");
+  if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
+  if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
+    errors.push("Stock must be a valid number of 0 or more.");
+  }
+  if (errors.length > 0) {
+    showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
+    return;
+  }
 
-    if (!form.unit) errors.push("Unit is required.");
-    if (!isPositiveOrZeroNumber(form.min_stock)) errors.push("Minimum stock must be a valid number of 0 or more.");
-  
-    if (editing && form.stock !== undefined && form.stock !== "" && !isPositiveOrZeroNumber(form.stock)) {
-      errors.push("Stock must be a valid number of 0 or more.");
+  setSavingItem(true);
+  const coords = await getBrowserLocation();
+
+
+  /* ── EDIT: update the original branch's record, and optionally create the
+   same ingredient in newly-selected additional branches ── */
+if (editing) {
+  if (form.branches.length === 0 || !form.branches.includes(editing.branch)) {
+    setSavingItem(false);
+    showUiModal({ type:"error", title:"Please fix the following", lines:[{ text:"The current branch can't be removed.", warn:true }] });
+    return;
+  }
+
+  const payload = {
+    ...form,
+    cost_per_unit: form.cost_per_unit,
+    stock: form.stock ?? 0,
+    branch: editing.branch,
+    name: capitalizeName(form.name.trim()),
+    performed_by: userName,
+    performed_by_role: user?.role || "Unknown",
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+    ...((!isAdmin) ? { cost_per_unit: editing.cost_per_unit } : {}),
+  };
+
+  let editSucceeded = false;
+  let updatedItem = null;
+
+  try {
+    const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients/${editing.id}`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload),
+    });
+    const d = await res.json();
+    if (d.success) {
+      editSucceeded = true;
+      if (isDirectProductBrand(payload.brand) && editing.id != null) {
+        persistStockCategory(editing.id, payload.category);
+      }
+
+      if (form.listInShop && form.cost_per_unit) {
+        const computedShopPrice = isDirectProductBrand(form.brand)
+          ? computeDirectSellingPrice(form.cost_per_unit)
+          : Math.round(parseFloat(form.cost_per_unit) * 1.10 * 100) / 100;
+        try {
+          const ingredientId = editing.id;
+          const shopRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+          const shopData = await shopRes.json();
+          const existingShopItem = Array.isArray(shopData)
+            ? shopData.find(s => s.ingredient_id === ingredientId)
+            : null;
+          const shopBody = {
+            name: payload.name, price: computedShopPrice, unit: form.unit || "",
+            shop: form.shopCategory, brand: payload.brand || "",
+            performed_by: userName, latitude: payload.latitude, longitude: payload.longitude,
+          };
+          if (existingShopItem) {
+            await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`, {
+              method:"PUT", headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({ ...existingShopItem, ...shopBody }),
+            });
+          } else {
+            await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
+              method:"POST", headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({
+                ...shopBody, stock:0,
+                image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
+                is_visible:true, branches:[], ingredient_id: ingredientId,
+              }),
+            });
+          }
+        } catch {}
+      }
+
+      updatedItem = normalizeStockItem({
+        ...(editing || {}), ...payload, ...(d.item || {}),
+        id: d.item?.id ?? editing?.id,
+        category: d.item?.category ?? payload.category ?? editing?.category ?? "",
+        brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
+      });
     }
-    if (errors.length > 0) {
-      showUiModal({ type:"error", title:"Please fix the following", lines: errors.map(t=>({ text:t, warn:true })) });
-      return;
-    }
+  } catch {
+    // handled below via editSucceeded flag
+  }
 
-    setSavingItem(true);
+  if (!editSucceeded) {
+    setSavingItem(false);
+    setToast({ type: "error", title: "Failed to Save", message: "Failed to update the ingredient. Please check your connection." });
+    return;
+  }
 
-    const coords = await getBrowserLocation();
-    const payload = {
+  /* Fan out to any newly-checked additional branches */
+  const extraBranches = form.branches.filter(b => b !== editing.branch);
+  const results = [];
+
+  for (const branchName of extraBranches) {
+    const extraPayload = {
       ...form,
-      cost_per_unit: editing ? form.cost_per_unit : 0,
-      stock: editing ? (form.stock ?? 0) : 0,
-      branch: isAdmin ? form.branch : userBranch,
+      cost_per_unit: 0,
+      stock: 0,
+      branch: branchName,
       name: capitalizeName(form.name.trim()),
       performed_by: userName,
       performed_by_role: user?.role || "Unknown",
       latitude: coords?.latitude,
       longitude: coords?.longitude,
-      ...((!isAdmin && editing) ? { cost_per_unit: editing.cost_per_unit } : {}),
-    };
-    if (!editing) {
-      const duplicate = items.find(
-        i => normalizeName(i.name) === normalizeName(payload.name) && i.branch.trim().toLowerCase() === payload.branch.trim().toLowerCase()
-      );
-      if (duplicate) {
-        showUiModal({ type:"error", title:"Duplicate Ingredient", message:`"${payload.name}" already exists in ${payload.branch}. Please use a different name.` });
-        return;
-      }
     };
 
-    const url    = editing ? `${process.env.REACT_APP_API_URL}/ingredients/${editing.id}` : `${process.env.REACT_APP_API_URL}/ingredients`;
-    const method = editing ? "PUT" : "POST";
+    const duplicate = items.find(
+      i => normalizeName(i.name) === normalizeName(extraPayload.name) && i.branch.trim().toLowerCase() === branchName.trim().toLowerCase()
+    );
+    if (duplicate) {
+      results.push({ ok:false, branch:branchName, reason:"already exists in this branch" });
+      continue;
+    }
 
     try {
-      const res = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      const d   = await res.json();
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(extraPayload),
+      });
+      const d = await res.json();
       if (d.success) {
-        const persistedItemId = d.item?.id ?? editing?.id;
-
-        // Persist the selected category before refetching. Some current
-        // /ingredients API responses do not return/save the category field,
-        // which previously caused fetchItems() to immediately replace the
-        // selected category with an empty value.
-        if (isDirectProductBrand(payload.brand) && persistedItemId != null) {
-          persistStockCategory(persistedItemId, payload.category);
+        if (isDirectProductBrand(extraPayload.brand) && d.item?.id != null) {
+          persistStockCategory(d.item.id, extraPayload.category);
         }
-
-        let changesStr = null;
-        if (editing) {
-          const changed=[];
-          if (String(editing.stock)!==String(payload.stock)) changed.push(`stock: ${editing.stock}→${payload.stock}`);
-          if (String(editing.min_stock)!==String(payload.min_stock)) changed.push(`min: ${editing.min_stock}→${payload.min_stock}`);
-          if (String(editing.cost_per_unit)!==String(payload.cost_per_unit)) changed.push(`cost: ₱${editing.cost_per_unit}→₱${payload.cost_per_unit}`);
-          if (editing.unit!==payload.unit) changed.push(`unit: ${editing.unit}→${payload.unit}`);
-          if (String(editing.category || "") !== String(payload.category || "")) changed.push(`category: ${editing.category || "—"}→${payload.category || "—"}`);
-          changesStr = changed.length>0 ? changed.join("; ") : "Minor update";
-        }
-        if (form.listInShop && form.cost_per_unit) {
-          const computedShopPrice = isDirectProductBrand(form.brand)
-            ? computeDirectSellingPrice(form.cost_per_unit)
-            : Math.round(parseFloat(form.cost_per_unit) * 1.10 * 100) / 100;
-          try {
-            const ingredientId = editing ? editing.id : d.item.id;
-            const shopRes  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
-            const shopData = await shopRes.json();
-            const existingShopItem = Array.isArray(shopData)
-              ? shopData.find(s => s.ingredient_id === ingredientId)
-              : null;
-
-            const shopBody = {
-              name: payload.name,
-              price: computedShopPrice,
-              unit: form.unit || "",
-              shop: form.shopCategory,
-              brand: payload.brand || "",
-              performed_by: userName,
-              latitude: payload.latitude,
-              longitude: payload.longitude,
-            };
-
-            if (existingShopItem) {
-              await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${existingShopItem.id}`, {
-                method:"PUT", headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({ ...existingShopItem, ...shopBody }),
-              });
-            } else {
-              await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-                method:"POST", headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({
-                  ...shopBody,
-                  stock:0,
-                  image_url:"https://placehold.co/150x150/e8f5e9/2e7d32?text="+encodeURIComponent(payload.name.slice(0,8)),
-                  is_visible:true,
-                  branches:[],
-                  ingredient_id: ingredientId,
-                }),
-              });
-            }
-          } catch {}
-        }
-        const savedItem = normalizeStockItem({
-          ...(editing || {}),
-          ...payload,
-          ...(d.item || {}),
-          id: d.item?.id ?? editing?.id,
-          category: d.item?.category ?? payload.category ?? editing?.category ?? "",
-          brand: d.item?.brand ?? payload.brand ?? editing?.brand ?? "",
-        });
-
-        const freshRows = await fetchItems();
-        const freshItem = freshRows.find(row => String(row.id) === String(savedItem.id)) || savedItem;
-        setFocusMutation({ item:freshItem, stamp:Date.now(), reason:editing ? "edit" : "add" });
-        setStockRefreshToken(v => v + 1);
-        window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:freshItem.id, brand:freshItem.brand } }));
-
-        await fetchActivityLog();
-        closeModal();
-        setToast({ type: "success", title: editing ? "Ingredient Updated" : "Ingredient Added", message: editing ? `"${payload.name}" has been updated.` : `"${payload.name}" has been added.` });
+        results.push({ ok:true, branch:branchName });
       } else {
-        setToast({ type: "error", title: "Failed to Save", message: d.error || "An unexpected error occurred." });
+        results.push({ ok:false, branch:branchName, reason: d.error || "failed to save" });
       }
     } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to save. Please check your connection." });
-    } finally {
-    setSavingItem(false);
+      results.push({ ok:false, branch:branchName, reason:"connection error" });
+    }
   }
-  };
 
-  const handleDeleteItem = (item) => setDeleteTarget(item);
+  const freshRows = await fetchItems();
+  await fetchActivityLog();
+
+  const freshItem = freshRows.find(row => String(row.id) === String(updatedItem.id)) || updatedItem;
+  setFocusMutation({ item:freshItem, stamp:Date.now(), reason:"edit" });
+  setStockRefreshToken(v => v + 1);
+  window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:freshItem.id, brand:freshItem.brand } }));
+
+  setSavingItem(false);
+  closeModal();
+
+  const succeeded = results.filter(r => r.ok);
+  const failed = results.filter(r => !r.ok);
+
+  if (extraBranches.length === 0) {
+    setToast({ type: "success", title: "Ingredient Updated", message: `"${payload.name}" has been updated.` });
+  } else if (failed.length === 0) {
+    setToast({
+      type: "success", title: "Ingredient Updated",
+      message: `"${payload.name}" updated, and added to ${succeeded.length} more branch${succeeded.length===1?"":"es"}.`,
+    });
+  } else {
+    showUiModal({
+      type:"info", title:"Updated With Some Skips",
+      message:`"${payload.name}" was updated. ${succeeded.length} additional branch${succeeded.length===1?"":"es"} were added, ${failed.length} were skipped.`,
+      lines: failed.map(f => ({ text:`${f.branch}: ${f.reason}`, warn:true })),
+    });
+  }
+  return;
+}
+
+  
+  const targetBranches = isAdmin ? form.branches : [userBranch];
+  const results = [];
+  let lastCreatedItem = null;
+
+  for (const branchName of targetBranches) {
+    const payload = {
+      ...form,
+      cost_per_unit: 0,
+      stock: 0,
+      branch: branchName,
+      name: capitalizeName(form.name.trim()),
+      performed_by: userName,
+      performed_by_role: user?.role || "Unknown",
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+    };
+
+    const duplicate = items.find(
+      i => normalizeName(i.name) === normalizeName(payload.name) && i.branch.trim().toLowerCase() === branchName.trim().toLowerCase()
+    );
+    if (duplicate) {
+      results.push({ ok:false, branch:branchName, reason:"already exists in this branch" });
+      continue;
+    }
+
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (d.success) {
+        if (isDirectProductBrand(payload.brand) && d.item?.id != null) {
+          persistStockCategory(d.item.id, payload.category);
+        }
+        lastCreatedItem = normalizeStockItem({ ...payload, ...(d.item || {}) });
+        results.push({ ok:true, branch:branchName });
+      } else {
+        results.push({ ok:false, branch:branchName, reason: d.error || "failed to save" });
+      }
+    } catch {
+      results.push({ ok:false, branch:branchName, reason:"connection error" });
+    }
+  }
+
+  const succeeded = results.filter(r => r.ok);
+  const failed = results.filter(r => !r.ok);
+
+  const freshRows = await fetchItems();
+  await fetchActivityLog();
+
+  if (lastCreatedItem) {
+    const freshItem = freshRows.find(row =>
+      normalizeName(row.name) === normalizeName(lastCreatedItem.name) &&
+      String(row.branch || "").toLowerCase() === String(lastCreatedItem.branch || "").toLowerCase()
+    ) || lastCreatedItem;
+    setFocusMutation({ item:freshItem, stamp:Date.now(), reason:"add" });
+    setStockRefreshToken(v => v + 1);
+    window.dispatchEvent(new CustomEvent("stock-inventory-updated", { detail:{ ingredientId:freshItem.id, brand:freshItem.brand } }));
+  }
+
+  setSavingItem(false);
+
+  if (succeeded.length > 0 && failed.length === 0) {
+    closeModal();
+    setToast({
+      type:"success", title:"Ingredient Added",
+      message: succeeded.length === 1
+        ? `"${form.name.trim()}" has been added to ${succeeded[0].branch}.`
+        : `"${form.name.trim()}" has been added to ${succeeded.length} branches.`,
+    });
+  } else if (succeeded.length > 0 && failed.length > 0) {
+    closeModal();
+    showUiModal({
+      type:"info", title:"Added With Some Skips",
+      message:`"${form.name.trim()}" was added to ${succeeded.length} branch${succeeded.length===1?"":"es"}. ${failed.length} branch${failed.length===1?"":"es"} were skipped.`,
+      lines: failed.map(f => ({ text:`${f.branch}: ${f.reason}`, warn:true })),
+    });
+  } else {
+    showUiModal({
+      type:"error", title:"Failed to Add Ingredient",
+      message:`Could not add "${form.name.trim()}" to any of the selected branches.`,
+      lines: failed.map(f => ({ text:`${f.branch}: ${f.reason}`, warn:true })),
+    });
+  }
+};
+
+const handleDeleteItem = (item) => setDeleteTarget(item);
 
 const confirmDelete = async () => {
   if (!deleteTarget) return;
@@ -3510,7 +3835,7 @@ const confirmDelete = async () => {
 };
 
 const handleRestore = async (entry) => {
-  setRestoringId(entry.id); // ← was: setToast({ type: "loading", ... })
+  setRestoringId(entry.id);
   try {
     const d = entry.data;
     const coords = await getBrowserLocation();
@@ -3552,19 +3877,21 @@ const openEdit = async item => {
     }
   } catch {}
   setForm({
-    name: item.name, brand: item.brand || "", branch: item.branch || "", category: item.category || "",
+    name: item.name, brand: item.brand || "", branch: item.branch || "", branches: [item.branch || ""],
+    category: item.category || "",
     unit: item.unit || "pcs", stock: item.stock, min_stock: item.min_stock,
     cost_per_unit: item.cost_per_unit || "",
     perishable: !!item.perishable,
-    listInShop: !!shopMatch,                                              // stays true if already listed
+    listInShop: !!shopMatch,
     shopCategory: shopMatch ? (shopMatch.shop || item.brand || "Coffee Spot") : (item.brand || "Coffee Spot"),
+    sku: item.sku || "",
   });
   setShowModal(true);
 };
 
   const closeModal = () => { setShowModal(false); setEditing(null); setForm(emptyForm()); };
 
-  /* ── Table header components ── */
+ 
   const SortTh = ({ col, label, minW, align="left" }) => {
     const active = sort.col === col;
     return (
@@ -3598,7 +3925,7 @@ const openEdit = async item => {
       });
   };
 
-  /* ── render ── */
+  
   return (
     <div style={{ fontFamily:"'Plus Jakarta Sans', sans-serif", color:C.ink }}>
       <style>{`
@@ -3620,7 +3947,7 @@ const openEdit = async item => {
       {/* Landing screen: cards mirror Brand & Branch; deleting a brand removes its inventory card immediately */}
       {!activeBrandDef ? (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
-          {connectedBrandDefs.map(bd => (
+          {visibleBrandDefs.map(bd => (
             <BrandOverviewCard
               key={bd.key}
               brandDef={bd}
@@ -3629,7 +3956,7 @@ const openEdit = async item => {
               onClick={() => setActiveBrandKey(bd.key)}
             />
           ))}
-          {connectedBrandDefs.length === 0 && (
+          {visibleBrandDefs.length === 0 && (
             <div style={{ gridColumn:"1 / -1", padding:"38px 20px", textAlign:"center", border:`1.5px dashed ${C.border}`, borderRadius:16, color:C.muted, fontSize:13 }}>
               No active brands found. Add a brand in Brand &amp; Branch to create its Stock Inventory card.
             </div>
@@ -3647,28 +3974,30 @@ const openEdit = async item => {
             onDelete={handleDeleteItem}
             onManageBatches={(item) => { if (item) { setActiveBatchIngredient(item); setBatches([]); } }}
             onQuickAdd={(bd2, preferredBranch="") => {
-              setEditing(null);
-              const matchedBrand = brandList.find(b => bd2.match((b.name||"").toLowerCase()));
-              const brandCategories = getBrandCategories(matchedBrand);
-              const allowedBranches = (matchedBrand?.branches || []).map(br => typeof br === "string" ? br : br?.name).filter(Boolean);
-              const initialBranch = !isAdmin
-                ? userBranch
-                : (preferredBranch && allowedBranches.includes(preferredBranch) ? preferredBranch : "");
-              setForm({
-                ...emptyForm(),
-                branch: initialBranch,
-                brand: matchedBrand ? matchedBrand.name : "",
-                category: brandCategories.length === 1 ? brandCategories[0] : "",
-                shopCategory: matchedBrand ? matchedBrand.name : "",
-              });
-              setShowModal(true);
-            }}
+  setEditing(null);
+  const matchedBrand = brandList.find(b => bd2.match((b.name||"").toLowerCase()));
+  const brandCategories = getBrandCategories(matchedBrand);
+  const allowedBranches = (matchedBrand?.branches || []).map(br => typeof br === "string" ? br : br?.name).filter(Boolean);
+  const initialBranch = !isAdmin
+    ? userBranch
+    : (preferredBranch && allowedBranches.includes(preferredBranch) ? preferredBranch : "");
+  setForm({
+    ...emptyForm(),
+    branch: initialBranch,
+    branches: isAdmin ? (initialBranch ? [initialBranch] : []) : [userBranch], // ← new
+    brand: matchedBrand ? matchedBrand.name : "",
+    category: brandCategories.length === 1 ? brandCategories[0] : "",
+    shopCategory: matchedBrand ? matchedBrand.name : "",
+  });
+  setShowModal(true);
+}}
             onReceiveStock={(bd2, product) => setReceiveTarget({ brandDef: bd2, product })}
             onOpenDeleteHistory={() => { setDeleteHistoryBrandKey(activeBrandDef.key); setShowDeleteHistory(true); }}
             deleteHistoryCount={deleteHistoryForBrand(activeBrandDef).length}
-            onBack={() => setActiveBrandKey(null)}
-            initialBranchFilter={initialFocus?.branch || ""}   // ← new
-            initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}   // ← new
+            onBack={isAdmin ? () => setActiveBrandKey(null) : undefined}
+            restrictBranch={!isAdmin ? userBranch : ""}
+            initialBranchFilter={initialFocus?.branch || ""}
+            initialStatusFilter={initialFocus?.lowStockOnly ? "low" : ""}
             expanded
             readOnly={isReadOnly} 
             userName={userName}
@@ -3693,68 +4022,109 @@ const openEdit = async item => {
             </div>
             <form noValidate onSubmit={saveItem} style={{ display:"grid", gap:14 }}>
               <div>
-                <label style={invLabelSt}>Ingredient Name *</label>
-                <input style={invInputSt} value={form.name}
-                  onChange={e=>setForm(f=>({...f,name:e.target.value.replace(/\b\w/g,c=>c.toUpperCase())}))}
-                  required placeholder="e.g. Coffee Beans"/>
-              </div>
+  <label style={invLabelSt}>Ingredient Name *</label>
+  <input style={invInputSt} value={form.name}
+    onChange={e=>setForm(f=>({...f,name:e.target.value.replace(/\b\w/g,c=>c.toUpperCase())}))}
+    required placeholder="e.g. Coffee Beans"/>
+</div>
 
-              <div>
-                <label style={invLabelSt}>Brand</label>
+{editing && form.sku && (
+    <div>
+      <label style={invLabelSt}>SKU</label>
+      <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center", gap:6, fontFamily:"monospace" }}>
+        {form.sku}
+        <span style={{ fontSize:10, color:C.muted, fontWeight:400, fontFamily:"inherit" }}>(auto-generated)</span>
+      </div>
+    </div>
+  )}
+
+<div>
+  <label style={invLabelSt}>Brand</label>
                 <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>
                   {form.brand || currentBrandName || "—"}
                 </div>
               </div>
 
-              {isDirectProductBrand(form.brand || currentBrandName) && (() => {
-                const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === String(form.brand || currentBrandName).toLowerCase());
-                const categoryOptions = getBrandCategories(selectedBrandObj);
-                return (
-                  <div>
-                    <label style={invLabelSt}>Category *</label>
-                    <select
-                      style={{ ...invInputSt, opacity:categoryOptions.length?1:.6, cursor:categoryOptions.length?"pointer":"not-allowed" }}
-                      value={form.category || ""}
-                      disabled={categoryOptions.length === 0}
-                      onChange={e=>setForm(f=>({...f, category:e.target.value}))}
-                      required
-                    >
-                      <option value="">{categoryOptions.length ? "Select category…" : "No categories configured"}</option>
-                      {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                    <div style={{ fontSize:10.5, color:categoryOptions.length?C.muted:C.warn, marginTop:5, lineHeight:1.45 }}>
-                      {categoryOptions.length
-                        ? <>Categories are synced from <strong>Brand &amp; Branch Management</strong>. Add, rename, or remove categories there.</>
-                        : <>Add at least one category to <strong>{form.brand || currentBrandName}</strong> in Brand &amp; Branch Management before saving this product.</>}
-                    </div>
-                  </div>
-                );
-              })()}
+              {(() => {
+  const selectedBrandObj = brandList.find(b => (b.name || "").toLowerCase() === String(form.brand || currentBrandName).toLowerCase());
+  const categoryOptions = getBrandCategories(selectedBrandObj);
+  if (categoryOptions.length === 0) return null;
+  return (
+    <div>
+      <label style={invLabelSt}>Category *</label>
+      <select style={invInputSt} value={form.category || ""} onChange={e=>setForm(f=>({...f, category:e.target.value}))} required>
+        <option value="">Select category…</option>
+        {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+      </select>
+      <div style={{ fontSize:10.5, color:C.muted, marginTop:5, lineHeight:1.45 }}>
+        Categories are synced from <strong>Brand &amp; Branch Management</strong>. Add, rename, or remove categories there.
+      </div>
+    </div>
+  );
+})()}
 
               {isAdmin ? (
-                <div>
-                  <label style={invLabelSt}>Branch *</label>
-                  {(() => {
-                    const selectedBrandObj = brandList.find(b => b.name === form.brand);
-                    const filteredBranches = selectedBrandObj
-                      ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
-                      : [];
-                    return (
-                      <select style={{ ...invInputSt, opacity: !form.brand ? 0.5 : 1, cursor: !form.brand ? "not-allowed" : "pointer" }}
-                        value={form.branch} required disabled={!form.brand}
-                        onChange={e => setForm(f => ({ ...f, branch: e.target.value }))}>
-                        <option value="">{!form.brand ? "Select a brand first…" : "Select branch…"}</option>
-                        {filteredBranches.map(br => <option key={br} value={br}>{br}</option>)}
-                      </select>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <div>
-                  <label style={invLabelSt}>Branch</label>
-                  <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
-                </div>
-              )}
+  <div>
+    <label style={invLabelSt}>
+      Branches * <span style={{ fontWeight:400, color:C.muted }}>(select one or more)</span>
+    </label>
+    {(() => {
+      const selectedBrandObj = brandList.find(b => b.name === form.brand);
+      const filteredBranches = selectedBrandObj
+        ? (selectedBrandObj.branches || []).map(br => typeof br === "string" ? br : br.name)
+        : [];
+      if (!form.brand) {
+        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>Select a brand first…</div>;
+      }
+      if (filteredBranches.length === 0) {
+        return <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, display:"flex", alignItems:"center" }}>No branches found for this brand.</div>;
+      }
+      const lockedBranch = editing ? editing.branch : null;
+      const allSelected = filteredBranches.every(br => form.branches.includes(br));
+      return (
+        <div style={{ border:`1.5px solid ${C.border}`, borderRadius:11, padding:"8px 4px", maxHeight:180, overflowY:"auto" }}>
+          <label style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor:"pointer", fontSize:12.5, fontWeight:700, color:C.greenDk, borderBottom:`1px solid ${C.border}`, marginBottom:4 }}>
+            <input type="checkbox" checked={allSelected}
+              onChange={e => setForm(f => ({
+                ...f,
+                branches: e.target.checked
+                  ? filteredBranches
+                  : (lockedBranch ? [lockedBranch] : []),
+              }))}/>
+            Select all branches
+          </label>
+          {filteredBranches.map(br => {
+            const locked = br === lockedBranch;
+            return (
+              <label key={br} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 10px", cursor: locked ? "default" : "pointer", fontSize:13, color:C.ink, opacity: locked ? 0.75 : 1 }}>
+                <input type="checkbox" checked={form.branches.includes(br)} disabled={locked}
+                  onChange={e => setForm(f => ({
+                    ...f,
+                    branches: e.target.checked ? [...f.branches, br] : f.branches.filter(x => x !== br),
+                  }))}/>
+                {br}{locked && <span style={{ fontSize:10.5, fontWeight:700, color:C.greenDk }}>(current — can't remove)</span>}
+              </label>
+            );
+          })}
+        </div>
+      );
+    })()}
+    {form.branches.length > 0 && (
+      <div style={{ fontSize:11, color:C.muted, marginTop:5 }}>
+        {editing
+          ? (form.branches.length === 1
+              ? "Only updating the current branch."
+              : `Updating "${editing.branch}" and adding this ingredient to ${form.branches.length - 1} more branch${form.branches.length - 1 === 1 ? "" : "es"}: ${form.branches.filter(b => b !== editing.branch).join(", ")}`)
+          : `Will add this ingredient to ${form.branches.length} branch${form.branches.length===1?"":"es"}: ${form.branches.join(", ")}`}
+      </div>
+    )}
+  </div>
+) : (
+  <div>
+    <label style={invLabelSt}>Branch</label>
+    <div style={{ ...invInputSt, height:"auto", padding:"9px 12px", background:"#f5f5f5", color:C.muted, fontWeight:700, display:"flex", alignItems:"center" }}>{userBranch||"—"}</div>
+  </div>
+)}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               <div>
                 <label style={invLabelSt}>Unit *</label>
@@ -3930,6 +4300,8 @@ const openEdit = async item => {
           onClose={() => setActiveBatchIngredient(null)}
         />
       )}
+
+      
 
       <Toast toast={toast} onClose={() => setToast(null)} />
 
