@@ -2667,17 +2667,6 @@
       return items.slice(0, 5);
     }, [branchProfitability]);
 
-    const gpLine = useMemo(() => {
-      return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
-    }, [kpiData, values]);
-
-    const priorYearValues = useMemo(() => {
-      return kpiData?.priorYearValues?.length === values.length ? kpiData.priorYearValues : [];
-    }, [kpiData, values]);
-
-    const hasGpData = gpLine.length === values.length && values.length > 0;
-    const hasPriorYearData = priorYearValues.length === values.length && values.length > 0;
-
     const hasData = total > 0;
     const grossProfit = kpiData?.salesProfit ?? null;
     const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
@@ -2788,24 +2777,13 @@
         <div ref={panelRef} style={{ padding: "18px 20px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
+              <ChartLabel><LineChart size={11} color="#00897b" /> Sales revenue over time · {getRangeLabel()}</ChartLabel>
               {hasData ? (
                 <>
-                  <ComboChart barData={hasPriorYearData ? [values, priorYearValues] : [values]} lineData={hasGpData ? gpLine : []} labels={labels} height={220} />
-                  <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
-                    {[
-                      { color: PAL[0], label: "Sales — selected period" },
-                      ...(hasPriorYearData ? [{ color: PAL[1], label: "Prior-year sales" }] : []),
-                      ...(hasGpData ? [{ color: "#1d4ed8", label: "Gross Profit %", line: true }] : []),
-                    ].map((l, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                        {l.line
-                          ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
-                          : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
-                        }
-                        <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
-                      </div>
-                    ))}
+                  <DashboardLineGraph labels={labels} values={values} height={280} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, marginBottom: 14 }}>
+                    <svg width={24} height={10}><line x1="0" y1="5" x2="24" y2="5" stroke="#3b791e" strokeWidth="3" /><circle cx="12" cy="5" r="3" fill="#fff" stroke="#3b791e" strokeWidth="2" /></svg>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#5a7a65", fontFamily: FONT }}>Actual sales revenue</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                     {[
@@ -6529,7 +6507,7 @@
         <div className="qa-dashboard-tabs" style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:16, padding:7, marginBottom:16, display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:7, boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
           {[
             { id:"overview", number:"01", label:"Overview", question:"What needs attention?", icon:Home },
-            { id:"sales_ai", number:"02", label:"Sales Trend & Prescriptive Analysis", question:"Why is performance changing?", icon:Brain },
+            { id:"sales_ai", number:"02", label:"Sales Trend Analysis", question:"How are actual sales changing?", icon:LineChart },
             { id:"ghost", number:"03", label:"Ghost Stock Anomalies", question:"Where are losses coming from?", icon:ShieldCheck },
           ].map(tab=>{
             const active = dashboardTab === tab.id;
@@ -6551,6 +6529,16 @@
               view={dashboardTab==="ghost"?"ghost":"overview"}
               onOpenSalesAi={()=>setDashboardTab("sales_ai")}
             />
+          </div>
+        )}
+
+        {!viewArchive && dashboardTab === "ghost" && (
+          <div style={{ marginTop:18 }}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"17px 18px", margin:"0 0 14px", borderRadius:14, background:"linear-gradient(135deg,#eff6ff,#f8fbff)", border:"1px solid #bfdbfe" }}>
+              <span style={{ width:34, height:34, borderRadius:10, display:"inline-flex", alignItems:"center", justifyContent:"center", background:"#2563eb", color:"#fff", flexShrink:0 }}><Brain size={17}/></span>
+              <div><div style={{ fontSize:14, fontWeight:850, color:"#1e3a5f" }}>AI Prescriptive Guidance</div><div style={{ fontSize:10.8, color:"#52627a", lineHeight:1.55, marginTop:4 }}>Use the detected ghost-stock and revenue-leakage evidence to generate prioritized corrective actions for the selected branches.</div></div>
+            </div>
+            <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} showStockAnomalies={false} />
           </div>
         )}
 
@@ -7060,17 +7048,11 @@
           <div style={{order:4}}>
             <div style={{ background:"linear-gradient(135deg,#F4F8F0,#fff)", border:"1px solid #DCE9DB", borderLeft:"5px solid #3b791e", borderRadius:14, padding:"14px 16px", marginBottom:16 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:850, color:"#12241B" }}><LineChart size={16} color="#3b791e"/> Read the actual sales evidence first</div>
-              <div style={{ fontSize:10.8, color:"#5C6B60", lineHeight:1.55, marginTop:5 }}>Use the trend, period comparison, and branch profitability below to understand the change. Then run AI Prescriptive Analysis for prioritized actions. Stock-loss evidence is kept in the Ghost Stock Anomalies tab.</div>
+              <div style={{ fontSize:10.8, color:"#5C6B60", lineHeight:1.55, marginTop:5 }}>Use the actual revenue line, period summary, and branch profitability below to understand sales movement. Corrective recommendations are kept with the loss evidence in Ghost Stock Anomalies.</div>
             </div>
 
             <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
 
-            <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"17px 18px", margin:"18px 0 14px", borderRadius:14, background:"linear-gradient(135deg,#eff6ff,#f8fbff)", border:"1px solid #bfdbfe" }}>
-              <span style={{ width:34, height:34, borderRadius:10, display:"inline-flex", alignItems:"center", justifyContent:"center", background:"#2563eb", color:"#fff", flexShrink:0 }}><Brain size={17}/></span>
-              <div><div style={{ fontSize:14, fontWeight:850, color:"#1e3a5f" }}>AI Prescriptive Guidance</div><div style={{ fontSize:10.8, color:"#52627a", lineHeight:1.55, marginTop:4 }}>Generate a forecast and a ranked action plan from the currently filtered transactions. Recommendations should explain the evidence, owner, and next move—not repeat the stock anomaly list.</div></div>
-            </div>
-
-            <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} showStockAnomalies={false} />
           </div>
         )}
         </div>
