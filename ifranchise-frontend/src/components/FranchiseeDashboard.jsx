@@ -1,3 +1,5 @@
+// UI/UX copied from the admin dashboard reference; franchisee functionality is preserved.
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -24,12 +26,12 @@ const VIBE_CSS = `
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body, #root, button, input, textarea, select, option { font-family:'Plus Jakarta Sans',sans-serif; }
   :root {
-  --g1:#509820; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
+  --g1:#bdd43c; --g2:#3b791e; --g3:#2c5c16; --g4:#12241B;
   --green-primary:#3b791e; --green-dark:#2c5c16; --green-light:#509820;
   --green-accent:#bdd43c; --green-bg:#f0f5e8; --green-mid:#c9dba0; --white:#ffffff;
-  --off-white:#F0EFE7; --gray-100:#F3F4F6; --gray-200:#E5E7EB;
-  --gray-300:#D1D5DB; --gray-400:#9CA3AF; --gray-500:#6B7280;
-  --gray-600:#4B5563; --gray-700:#374151; --gray-800:#1F2937;
+  --off-white:#F6F7F1; --gray-100:#F3F4F1; --gray-200:#E1E6D8;
+  --gray-300:#D4DBC8; --gray-400:#9CA89C; --gray-500:#6B7A65;
+  --gray-600:#4B5A45; --gray-700:#374132; --gray-800:#1F2A1B;
   --text-dark:#12241B; --text-gray:#5C6B60;
   --shadow:rgba(59,121,30,0.07); --shadow-strong:rgba(59,121,30,0.16);
   --blue:#3B82F6; --red:#dc2626; --orange:#d97706; --success:#2e7d32;
@@ -42,8 +44,8 @@ const VIBE_CSS = `
   --amber:#f59e0b; --amber-bg:#fffbeb; --amber-border:#fde68a;
   --grad-main:linear-gradient(135deg,#509820,#3b791e);
   --grad-dark:linear-gradient(135deg,#12241B,#2c5c16);
-  --grad-gold:linear-gradient(135deg,#e9cd30,#ffa875);
-  --grad-bg:linear-gradient(140deg,#f0f5e8 0%,#F6F7F1 45%,#f0f5e8 100%);
+  --grad-gold:linear-gradient(135deg,#e9cd30,#bdd43c);
+  --grad-bg:#F6F7F1;
   --grad-blue:linear-gradient(135deg,#3b82f6,#1d4ed8);
   --grad-orange:linear-gradient(135deg,#f59e0b,#d97706);
   --grad-red:linear-gradient(135deg,#ef4444,#dc2626);
@@ -357,15 +359,17 @@ export default function FranchiseeDashboard({ onLogout }) {
           display:flex;
           min-height:100vh;
           background:#F6F7F1;
+          background-image:radial-gradient(#E1E6D8 1px, transparent 1px);
+          background-size:22px 22px;
           color:#12241B;
         }
         .fr-sidebar {
-          width:${sidebarCollapsed ? '76px' : '264px'};
+          width:${sidebarCollapsed ? '76px' : '272px'};
           background:#fff;
           border-right:1px solid #E1E6D8;
           box-shadow:none;
           position:fixed; left:0; top:0; height:100vh;
-          transition:width 0.25s ease;
+          transition:width 0.3s ease;
           z-index:1000;
           overflow-y:auto; overflow-x:hidden;
           padding:18px 14px;
@@ -376,14 +380,14 @@ export default function FranchiseeDashboard({ onLogout }) {
           min-height:56px;
         }
         .fr-logo-mark {
-          width:40px; height:40px;
-          border-radius:12px;
-          background:#fff;
+          width:38px; height:38px;
+          border-radius:10px;
+          background:#12241B;
           display:flex; align-items:center; justify-content:center;
           flex-shrink:0;
           overflow:hidden;
         }
-        .fr-logo-mark img { width:100%; height:100%; object-fit:contain; display:block; }
+        .fr-logo-mark img { width:100%; height:100%; object-fit:contain; display:block; border-radius:10px; }
         .fr-brand { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:16px; color:#12241B; white-space:nowrap; }
         .fr-toggle {
           background:#fff; border:1px solid #E1E6D8; cursor:pointer;
@@ -409,7 +413,7 @@ export default function FranchiseeDashboard({ onLogout }) {
         .fr-nav-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; width:22px; height:22px; }
         .fr-nav-label { display:${sidebarCollapsed ? 'none' : 'block'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .fr-nav-bar { position:absolute; right:6px; top:20%; height:60%; width:3px; border-radius:2px; background:#bdd43c; }
-        .fr-main { flex:1; margin-left:${sidebarCollapsed ? '76px' : '264px'}; transition:margin-left 0.25s ease; min-width:0; }
+        .fr-main { flex:1; margin-left:${sidebarCollapsed ? '76px' : '272px'}; transition:margin-left 0.3s ease; min-width:0; }
         .fr-topbar {
           background:#fff; padding:16px 30px; box-shadow:none; display:flex; justify-content:space-between; align-items:center;
           position:sticky; top:0; z-index:100; border-bottom:1px solid #E1E6D8; min-height:72px;
@@ -423,9 +427,9 @@ export default function FranchiseeDashboard({ onLogout }) {
           font-size:14px; font-weight:800; color:#bdd43c; cursor:pointer; transition:all .15s; box-shadow:none; font-family:'Plus Jakarta Sans',sans-serif;
         }
         .fr-avatar:hover { transform:translateY(-1px); }
-        .fr-content { padding:24px 30px 36px; max-width:1460px; margin:0 auto; width:100%; }
+        .fr-content { padding:20px 30px 40px; max-width:1400px; margin:0 auto; width:100%; }
         @media(max-width:768px){
-          .fr-sidebar{width:${sidebarCollapsed ? '0' : '264px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
+          .fr-sidebar{width:${sidebarCollapsed ? '0' : '272px'};transform:translateX(${sidebarCollapsed ? '-100%' : '0'});}
           .fr-main{margin-left:0;}
           .fr-topbar,.fr-content{padding:16px;}
         }
@@ -436,11 +440,10 @@ export default function FranchiseeDashboard({ onLogout }) {
         <div className="fr-sidebar-header">
           {!sidebarCollapsed && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="fr-logo-mark"><img src={logo} alt="iFranchise" /></div>
-              <span className="fr-brand">iFranchise</span>
+              <img src={franchisync} alt="FranchiSync" style={{ height: 50, width: 'auto', maxWidth: 190, objectFit: 'contain' }} />
             </div>
           )}
-          {sidebarCollapsed && <div className="fr-logo-mark" style={{ margin: '0 auto' }}><img src={logo} alt="iFranchise" /></div>}
+          {sidebarCollapsed && <div className="fr-logo-mark" style={{ margin: '0 auto' }}><img src={ifranchisejpg} alt="iFranchise" /></div>}
           {!sidebarCollapsed && (
             <button className="fr-toggle" onClick={() => setSidebarCollapsed(true)}><X size={16} /></button>
           )}

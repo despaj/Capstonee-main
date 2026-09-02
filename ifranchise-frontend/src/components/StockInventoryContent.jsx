@@ -1398,11 +1398,11 @@ function BrandOverviewCard({ brandDef, brandObj, items, onClick }) {
   const validBranches = (brandObj?.branches || []).map(br => typeof br === "string" ? br : br.name);
   const brandItems = items.filter(i => itemBelongsToBrand(i, brandDef, brandObj));
   const lowCount = brandItems.filter(i => Number(i.stock) < Number(i.min_stock)).length;
-  const totalStock = brandItems.reduce((sum, i) => sum + Number(i.stock || 0), 0);
+  // Show the number of inventory items that currently have stock, not the
+  // combined quantity of every item's units.
   const stockedItems = brandItems.filter(i => Number(i.stock || 0) > 0).length;
-  const isCoffeeSpot = brandDef.key === "coffee";
-  const stockMetricLabel = isCoffeeSpot ? "Stocked Items" : "Stock";
-  const stockMetricValue = isCoffeeSpot ? stockedItems : totalStock.toLocaleString();
+  const stockMetricLabel = "Stocked Items";
+  const stockMetricValue = stockedItems;
   const branchCount = validBranches.length;
 
   return (
