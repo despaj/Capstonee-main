@@ -1,7 +1,4 @@
 
-
-//get the ui ux sidebar, overall design here. all fonts, colors, all except the function
-
   import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
   import { Link, useNavigate } from 'react-router-dom';
   import * as XLSX from 'xlsx';
@@ -2559,9 +2556,16 @@
   const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
 
     const branchData = useMemo(() => {
-      if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
+      if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) {
+        return kpiData.branchBreakdown.slice(0, 6).map(item => {
+          const branchName = String(item?.branch || item?.label || "").trim();
+          const brandMatch = brands.find(brand => (brand?.branches || []).some(br => String(typeof br === "string" ? br : (br?.name || br?.branch || br?.branch_name || "")).trim() === branchName));
+          const brandName = item?.brand || item?.brand_name || brandMatch?.name || brandMatch?.brand || brandMatch?.brand_name || "Brand not set";
+          return { ...item, label:`${branchName || item?.label || "Branch"} · ${brandName}`, branch:branchName, brand:brandName };
+        });
+      }
       return branchPerformance.slice(0, 6);
-    }, [kpiData, branchPerformance]);
+    }, [kpiData, branchPerformance, brands]);
 
     const branchAttentionItems = useMemo(() => {
       const rows = Array.isArray(branchProfitability)
@@ -2574,10 +2578,12 @@
       const usedBranches = new Set();
 
       const addItem = (row, config) => {
-        if (!row?.branch || usedBranches.has(row.branch) || items.length >= 5) return;
-        usedBranches.add(row.branch);
+        const branchKey = `${row?.brand || "Unassigned Brand"}::${row?.branch || ""}`;
+        if (!row?.branch || usedBranches.has(branchKey) || items.length >= 4) return;
+        usedBranches.add(branchKey);
         items.push({
           branch: row.branch,
+          brand: row.brand || "Unassigned Brand",
           ...config,
         });
       };
@@ -2988,6 +2994,10 @@
                           }}>
                             {item.status}
                           </span>
+                        </div>
+
+                        <div style={{fontSize:9.5,fontWeight:700,color:"#789086",marginTop:-2,marginBottom:5,fontFamily:FONT}}>
+                          {item.brand}
                         </div>
 
                         <div style={{
@@ -4268,7 +4278,7 @@
             <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
             {!isBuyers && p.branchBreakdown && (
               <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
-                {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+                {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br} · ${p.brand || p.brandName || selectedBrand?.name || "Brand not set"}: ${q}`).join(" | ")}
               </div>
             )}
           </div>
@@ -4315,7 +4325,7 @@
         <div style={{ padding: "18px 20px" }}>
           {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
-            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product / Brand","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product / Brand"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={`${r.name}-${r.branch}-${r.brand}`} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,color:"#183126"}}><div style={{fontWeight:800}}>{r.name}</div><div style={{fontSize:9.3,color:"#789086",fontWeight:650,marginTop:3}}>{r.brand || selectedBrand?.name || "Brand not set"}{r.branch&&r.branch!=="Unassigned"?` · ${r.branch}`:""}</div></td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
           </div>}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
@@ -4813,6 +4823,7 @@
     branchRows = [],
     brandRows = [],
     skuRows = [],
+    productRows = [],
     anomalies = [],
     month,
     growthTargetPct,
@@ -4954,7 +4965,7 @@
     let entity = "branch";
     let emptyMessage = "No branch evidence is available for this KPI and filter.";
     let columns = [
-      ["Branch", "left", r=>r.branch],
+      ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
       ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
       ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
       ["MoM", "right", r=>r.vsLastMonth==null?"—":`${r.vsLastMonth>=0?"+":""}${r.vsLastMonth.toFixed(1)}%`],
@@ -4964,7 +4975,7 @@
     if (metric === "posRevenue") {
       rows = [...branchRows].sort((a,b)=>b.posRevenue-a.posRevenue);
       columns = [
-        ["Branch", "left", r=>r.branch],
+        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
         ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
         ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
         ["POS − HQ", "right", r=>`${r.posRevenue-r.hqRevenue>=0?"+":"−"}${fmtAmt(Math.abs(r.posRevenue-r.hqRevenue))}`],
@@ -4973,7 +4984,7 @@
     } else if (metric === "target" || metric === "targetGap") {
       rows = [...branchRows].sort((a,b)=>Number(b.targetGap||0)-Number(a.targetGap||0));
       columns = [
-        ["Branch", "left", r=>r.branch],
+        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
         ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
         ["Target Attainment", "right", r=>r.targetPct==null?"—":`${r.targetPct.toFixed(1)}%`],
         ["Target Gap", "right", r=>r.targetGap==null?"—":fmtAmt(r.targetGap)],
@@ -4982,7 +4993,7 @@
     } else if (metric === "coverage") {
       rows = [...branchRows].sort((a,b)=>Number(a.orderCoverage??999)-Number(b.orderCoverage??999));
       columns = [
-        ["Branch", "left", r=>r.branch],
+        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
         ["Coverage", "right", r=>r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`],
         ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
         ["Stock Variance", "right", r=>r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`],
@@ -4991,7 +5002,7 @@
     } else if (metric === "atRisk") {
       rows = [...highRiskRows, ...watchRows];
       columns = [
-        ["Branch", "left", r=>r.branch],
+        ["Branch / Brand", "left", r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
         ["Reason", "left", r=>r.reason||"No explanation returned."],
         ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
         ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
@@ -5023,10 +5034,44 @@
       emptyMessage = "No brand sell-through evidence is available for the active filters.";
     }
 
+    // POS/at-risk KPIs use sold-product evidence. Supply, target, and coverage
+    // KPIs use the stock-flow SKU rows so unlike evidence is never mixed.
+    if (metric === "posRevenue" || metric === "atRisk") {
+      const evidenceKey = (row) => `${String(row?.brand || "").trim().toLowerCase()}::${String(row?.branch || "").trim().toLowerCase()}`;
+      const riskBranchBrands = new Set([...highRiskRows, ...watchRows].map(evidenceKey));
+      rows = metric === "atRisk"
+        ? productRows.filter(row => riskBranchBrands.has(evidenceKey(row)))
+        : productRows;
+      entity = "product";
+      columns = [
+        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>SKU {r.sku}</div></>],
+        ["Brand / Branch", "left", r=><><b>{r.brand || "Brand not set"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.branch}</div></>],
+        ["Units Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
+        ["POS Revenue", "right", r=>fmtAmt(r.revenue)],
+        ["Transactions", "right", r=>Number(r.transactionCount||0).toLocaleString()],
+        ["Last Sale", "right", r=>r.lastSale ? new Date(r.lastSale).toLocaleDateString("en-PH") : "—"],
+      ];
+      emptyMessage = metric === "atRisk"
+        ? "No sold SKU evidence is available for the currently flagged branches."
+        : "No sold SKU evidence is available for the active filters and month.";
+    } else if (metric !== "unexplained" && metric !== "sellThrough") {
+      rows = skuRows;
+      entity = "sku";
+      columns = [
+        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>SKU {r.sku}</div></>],
+        ["Brand / Branch", "left", r=><><b>{r.brand || "Brand not set"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.branch}</div></>],
+        ["HQ Received", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
+        ["POS Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
+        ["Recorded Stock", "right", r=>r.endingStock==null?"—":Number(r.endingStock).toLocaleString()],
+        ["Variance", "right", r=>r.stockVariance==null?"—":`${Number(r.stockVariance)>0?"+":""}${Number(r.stockVariance).toLocaleString()}`],
+      ];
+      emptyMessage = "No SKU stock-flow evidence is available for the active filters and month.";
+    }
+
     const openRow = row => {
-      if (entity === "sku") onOpenSku?.(row);
+      if (entity === "sku" || entity === "product") onOpenSku?.(row);
       else if (entity === "brand") onOpenBrand?.(row);
-      else onOpenBranch?.(row);
+      else if (entity === "branch") onOpenBranch?.(row);
     };
     const th = {padding:"10px 11px",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:"#71806F",background:"#F6FAF3",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"};
     const td = {padding:"11px",fontSize:10.8,color:"#334155",borderBottom:"1px solid #EEF3EC",verticalAlign:"top"};
@@ -5050,7 +5095,7 @@
             <thead><tr>{columns.map(([label,align])=><th key={label} style={{...th,textAlign:align}}>{label}</th>)}</tr></thead>
             <tbody>
               {rows.length ? rows.slice(0,20).map((row,index)=>(
-                <tr key={row.id ?? `${entity}-${index}`} onClick={()=>openRow(row)} style={{cursor:"pointer",background:index%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=index%2?"#FBFDF9":"#fff"}>
+                <tr key={row.id ?? `${entity}-${index}`} onClick={()=>openRow(row)} style={{cursor:entity==="product"?"default":"pointer",background:index%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=index%2?"#FBFDF9":"#fff"}>
                   {columns.map(([label,align,render])=><td key={label} style={{...td,textAlign:align}}>{render(row)}</td>)}
                 </tr>
               )) : <tr><td colSpan={columns.length} style={{padding:28,textAlign:"center",fontSize:10.8,color:"#82907F",lineHeight:1.6}}>{emptyMessage}</td></tr>}
@@ -5132,6 +5177,7 @@
     const [branchesApi, setBranchesApi] = useState([]);
     const [brandsApi, setBrandsApi] = useState([]);
     const [anomaliesApi, setAnomaliesApi] = useState([]);
+    const [productsApi, setProductsApi] = useState([]);
     const [rawOrders, setRawOrders] = useState([]);
     const [rawInventory, setRawInventory] = useState([]);
     const [loadError, setLoadError] = useState("");
@@ -5140,9 +5186,9 @@
     const branchCatalog = useMemo(() => {
       const map = new Map();
       (brands || []).forEach(b => {
-        const brandName = String(b?.name || b?.brand || "").trim();
+        const brandName = String(b?.name || b?.brand || b?.brand_name || b?.brandName || "").trim();
         (Array.isArray(b?.branches) ? b.branches : []).forEach(br => {
-          const name = typeof br === "string" ? br : String(br?.name || br?.branch || br?.branch_name || "").trim();
+          const name = typeof br === "string" ? br : String(br?.name || br?.branch || br?.branch_name || br?.branchName || "").trim();
           if (!name) return;
           const current = map.get(name) || { name, id: typeof br === "object" ? (br?.id ?? br?.branch_id ?? name) : name, location:"", brandNames:[] };
           if (typeof br === "object") current.location = String(br?.location || br?.address || br?.city || current.location || "").trim();
@@ -5152,6 +5198,19 @@
       });
       return Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name));
     }, [brands]);
+
+    const resolveBranchBrand = useCallback((branchName, directBrand = "") => {
+      const direct = String(directBrand || "").trim();
+      if (direct && !/^unassigned|unknown|—$/i.test(direct)) return direct;
+      const normalizedBranch = String(branchName || "").trim().toLowerCase();
+      const catalogMatch = branchCatalog.find(item => String(item.name || "").trim().toLowerCase() === normalizedBranch);
+      if (catalogMatch?.brandNames?.length) return catalogMatch.brandNames.join(", ");
+      const transactionBrands = Array.from(new Set((transactions || [])
+        .filter(tx => String(tx?.branch || tx?.branch_name || tx?.branchName || "").trim().toLowerCase() === normalizedBranch)
+        .map(tx => String(tx?.brand || tx?.brand_name || tx?.brandName || tx?.franchise_brand || "").trim())
+        .filter(Boolean)));
+      return transactionBrands.join(", ") || "Brand not set";
+    }, [branchCatalog, transactions]);
 
     const brandOptions = useMemo(() => (brands || []).map(b=>({ id:b?.id ?? b?.brand_id ?? b?.name, name:String(b?.name || b?.brand || "").trim() })).filter(b=>b.name).sort((a,b)=>a.name.localeCompare(b.name)), [brands]);
     const branchOptions = useMemo(() => {
@@ -5199,6 +5258,7 @@
         `${API}/dashboard/b2b/branches?${params.toString()}`,
         `${API}/dashboard/b2b/brands?${params.toString()}`,
         `${API}/dashboard/b2b/anomalies?${params.toString()}`,
+        `${API}/dashboard/b2b/products?${params.toString()}`,
       ];
 
       const settled = await Promise.allSettled(endpoints.map(fetchJson));
@@ -5210,15 +5270,17 @@
         const br = settled[1].status === "fulfilled" ? settled[1].value : [];
         const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
         const an = settled[3].status === "fulfilled" ? settled[3].value : [];
+        const pr = settled[4].status === "fulfilled" ? settled[4].value : [];
         setOverviewApi(o?.data || o || null);
         setBranchesApi(Array.isArray(br) ? br : Array.isArray(br?.branches) ? br.branches : Array.isArray(br?.data) ? br.data : []);
         setBrandsApi(Array.isArray(bd) ? bd : Array.isArray(bd?.brands) ? bd.brands : Array.isArray(bd?.data) ? bd.data : []);
         setAnomaliesApi(Array.isArray(an) ? an : Array.isArray(an?.anomalies) ? an.anomalies : Array.isArray(an?.data) ? an.data : []);
+        setProductsApi(Array.isArray(pr) ? pr : Array.isArray(pr?.products) ? pr.products : Array.isArray(pr?.data) ? pr.data : []);
         setRawOrders([]);
         setRawInventory([]);
       } else {
         setSourceMode("fallback");
-        setOverviewApi(null); setBranchesApi([]); setBrandsApi([]); setAnomaliesApi([]);
+        setOverviewApi(null); setBranchesApi([]); setBrandsApi([]); setAnomaliesApi([]); setProductsApi([]);
         const inventoryParams = new URLSearchParams();
         if (branch) inventoryParams.set("branch", branch);
         const [ordersResult, stockInventoryResult, posInventoryResult] = await Promise.allSettled([
@@ -5329,8 +5391,14 @@
           riskLabel = "Watch";
           reason = "POS is stable/up while HQ supply revenue is declining.";
         }
+        const branchBrands = Array.from(new Set([
+          ...(cat?.brandNames || []),
+          ...currO.map(b2bBrandName),
+          ...currT.map(b2bBrandName),
+          ...currI.map(b2bBrandName),
+        ].filter(Boolean)));
         return {
-          id:cat?.id ?? name, branch:name, location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
+          id:cat?.id ?? name, branch:name, brand:resolveBranchBrand(name, branchBrands.join(", ")), location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
           vsLastMonth:hqGrowth, posGrowth, targetPct, orderCoverage, stockVariance,
           suppliedQty, soldQty, openingStock:openingQty, endingStock,
           risk:riskLabel, reason, targetGap:Math.max(0,targetV-hq), prevHqRevenue:prevHq,
@@ -5369,6 +5437,7 @@
       const riskRows = branchRows.filter(r=>r.risk!=="Normal").map(r=>({
         id:`fallback-${r.branch}`,
         branch:r.branch,
+        brand:r.brand,
         severity:r.risk,
         rule:r.hqRevenue===0 && r.posRevenue>0 ? "No Recent HQ Order + Active Sales" : "High POS, Low HQ Orders",
         reason:r.reason,
@@ -5445,7 +5514,7 @@
       const atRisk = new Set(allAnomalies.map(row=>row.branch).filter(Boolean)).size;
 
       return { hqRevenue, prevHqRevenue, posRevenue, prevPosRevenue, target, attainment, gap, coverage, unexplained, sellThrough, atRisk, branchRows, brandRows, anomalies:allAnomalies, skuRows, trend };
-    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct]);
+    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct, resolveBranchBrand]);
 
     const normalizedOverview = useMemo(() => {
       const o = overviewApi || {};
@@ -5482,6 +5551,10 @@
       return branchesApi.map((r,i)=>({
         id:r?.branch_id ?? r?.id ?? r?.branch ?? i,
         branch:String(r?.branch_name || r?.branch || r?.name || "Unknown Branch"),
+        brand:resolveBranchBrand(
+          r?.branch_name || r?.branch || r?.name,
+          r?.brand_name || r?.brand || r?.brandName
+        ),
         location:String(r?.location || r?.address || "—"),
         hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
         posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue, r?.franchisee_pos_revenue),
@@ -5494,7 +5567,7 @@
         risk:String(r?.risk || r?.risk_status || r?.anomaly_status || "Normal"),
         reason:String(r?.reason || r?.risk_reason || ""),
       })).filter(r=>(!branch||r.branch===branch)&&(!risk||risk==="all"||String(r.risk).toLowerCase().includes(risk.toLowerCase().replace("high-risk","high"))));
-    }, [sourceMode, branchesApi, fallback.branchRows, branch, risk]);
+    }, [sourceMode, branchesApi, fallback.branchRows, resolveBranchBrand, branch, risk]);
 
     const brandRows = useMemo(() => {
       if (sourceMode === "fallback" || !brandsApi.length) return fallback.brandRows;
@@ -5547,6 +5620,83 @@
 
     const skuRows = fallback.skuRows;
 
+    const transactionProductEvidenceRows = useMemo(() => {
+      const productMap = new Map();
+      const parseItems = raw => {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; }
+          catch { return []; }
+        }
+        return [];
+      };
+
+      (transactions || []).forEach(tx => {
+        if (!b2bIsCompletedTx(tx) || b2bMonthKey(b2bDateOfTx(tx)) !== month) return;
+        const txBranch = b2bBranchName(tx) || String(tx?.branch || "Unassigned Branch");
+        const txBrand = resolveBranchBrand(txBranch, b2bBrandName(tx));
+        if (branch && txBranch !== branch) return;
+        if (brand && !txBrand.split(",").map(value=>value.trim()).includes(brand)) return;
+
+        const txItems = parseItems(tx?.items);
+        const itemGrossTotal = txItems.reduce((sum, item) => {
+          const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+          return sum + (Number(item?.price ?? 0) || 0) * qty;
+        }, 0);
+        const transactionNetTotal = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
+        const netAllocationRatio = itemGrossTotal > 0 && transactionNetTotal > 0
+          ? transactionNetTotal / itemGrossTotal
+          : 1;
+
+        txItems.forEach((item, itemIndex) => {
+          const sku = String(item?.id ?? item?.inventory_id ?? item?.product_id ?? item?.sku ?? `ITEM-${itemIndex + 1}`);
+          const product = String(item?.name || item?.product_name || item?.item_name || "Unnamed Product");
+          const soldQty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+          const grossLineRevenue = Number(item?.total ?? item?.line_total ?? 0) || (Number(item?.price ?? 0) || 0) * soldQty;
+          const lineRevenue = grossLineRevenue * netAllocationRatio;
+          const key = `${txBrand}::${txBranch}::${sku}::${product}`;
+          const existing = productMap.get(key) || {
+            id:key, sku, product, brand:txBrand, branch:txBranch,
+            soldQty:0, revenue:0, transactionIds:new Set(), lastSale:null,
+          };
+          existing.soldQty += soldQty;
+          existing.revenue += lineRevenue;
+          existing.transactionIds.add(tx?.id ?? `${txBranch}-${tx?.created_at}`);
+          const saleDate = b2bDateOfTx(tx);
+          if (saleDate && (!existing.lastSale || new Date(saleDate) > new Date(existing.lastSale))) existing.lastSale = saleDate;
+          productMap.set(key, existing);
+        });
+      });
+
+      return Array.from(productMap.values())
+        .map(row => ({ ...row, transactionCount:row.transactionIds.size, transactionIds:undefined }))
+        .sort((a,b) => b.revenue-a.revenue || b.soldQty-a.soldQty);
+    }, [transactions, month, branch, brand, resolveBranchBrand]);
+
+    const productEvidenceRows = useMemo(() => {
+      const rows = sourceMode === "aggregated" && productsApi.length
+        ? productsApi.map((row, index) => ({
+            id:row?.product_id ?? row?.id ?? index,
+            productId:row?.product_id ?? row?.id ?? null,
+            sku:String(row?.sku_name || row?.sku || row?.product_name || row?.name || "Unnamed Product"),
+            product:String(row?.product_name || row?.name || row?.sku_name || "Unnamed Product"),
+            brand:String(row?.brand_name || row?.brand || "Brand not set"),
+            branch:String(row?.branch_name || row?.branch || "Unassigned Branch"),
+            branchId:row?.branch_id ?? null,
+            brandId:row?.brand_id ?? null,
+            soldQty:b2bNum(row?.sold_qty, row?.quantity_sold),
+            revenue:b2bNum(row?.line_revenue, row?.revenue, row?.net_revenue),
+            transactionCount:b2bNum(row?.transaction_count, row?.transactions),
+            lastSale:row?.last_sale || row?.lastSale || null,
+          }))
+        : transactionProductEvidenceRows;
+      return [...rows].sort((a,b) =>
+        String(a.brand).localeCompare(String(b.brand)) ||
+        String(a.branch).localeCompare(String(b.branch)) ||
+        String(a.product).localeCompare(String(b.product))
+      );
+    }, [sourceMode, productsApi, transactionProductEvidenceRows]);
+
     const sortedBranchRows = useMemo(() => [...branchRows].sort((a,b)=>{
       const rank = v => String(v||"").toLowerCase().includes("high") ? 3 : (String(v||"").toLowerCase().includes("watch") || String(v||"").toLowerCase().includes("medium")) ? 2 : 1;
       return (rank(b.risk)-rank(a.risk)) || ((b.targetGap||0)-(a.targetGap||0)) || (b.hqRevenue-a.hqRevenue);
@@ -5598,10 +5748,12 @@
 
     const openSku = async (row) => {
       setDrilldown({ type:"sku", title:row.product, loading:true, data:row });
-      const selectedBranchRow = branch ? branchCatalog.find(b=>b.name===branch) : null;
-      if (sourceMode === "aggregated" && selectedBranchRow) {
+      const selectedBranchRow = row?.branchId
+        ? { id:row.branchId, name:row.branch }
+        : branchCatalog.find(b=>b.name===row.branch && (!row.brand || b.brandNames.includes(row.brand)));
+      if (sourceMode === "aggregated" && selectedBranchRow && (row?.productId ?? row?.id) != null) {
         try {
-          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row.id), month });
+          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row?.productId ?? row.id), month });
           const data = await fetchJson(`${API}/dashboard/b2b/reconcile?${q.toString()}`);
           setDrilldown({ type:"sku", title:row.product, loading:false, data:{ ...row, ...(data?.data || data) } });
           return;
@@ -5742,9 +5894,9 @@
           <div className="b2b-filter-grid">
             <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Month</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}/></label>
             <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Brand</span><select value={brand} onChange={e=>setBrand(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="">All Brands</option>{brandOptions.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
-            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Branch / Location</span><select value={branch} onChange={e=>setBranch(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="">All Branches</option>{branchOptions.map(b=><option key={b.id} value={b.name}>{b.name}{b.location&&b.location!=="—"?` — ${b.location}`:""}</option>)}</select></label>
-            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Risk Status</span><select value={risk} onChange={e=>setRisk(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="all">All Statuses</option><option value="high">High Risk</option><option value="watch">Watch</option><option value="normal">Normal</option></select></label>
-            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Target Growth %</span><input type="number" min="0" max="500" value={growthTargetPct} onChange={e=>setGrowthTargetPct(Math.max(0,Number(e.target.value)||0))} style={{...invInputSt,marginTop:5,height:37}}/></label>
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Branch / Brand / Location</span><select value={branch} onChange={e=>setBranch(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="">All Branches</option>{branchOptions.map(b=><option key={b.id} value={b.name}>{b.name} — {b.brandNames?.join(", ") || "Unassigned Brand"}{b.location&&b.location!=="—"?` — ${b.location}`:""}</option>)}</select></label>
+            {isGhostView && <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Risk Status</span><select value={risk} onChange={e=>setRisk(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="all">All Statuses</option><option value="high">High Risk</option><option value="watch">Watch</option><option value="normal">Normal</option></select></label>}
+            {isOverviewView && <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Target Growth %</span><input type="number" min="0" max="500" value={growthTargetPct} onChange={e=>setGrowthTargetPct(Math.max(0,Number(e.target.value)||0))} style={{...invInputSt,marginTop:5,height:37}}/></label>}
           </div>
         </div>
 
@@ -5789,10 +5941,8 @@
         {isOverviewView && (
         <div className="b2b-kpi-grid b2b-overview-kpi-grid" style={{marginBottom:12}}>
           <B2BMetricCard label="FranchiSync Supply Revenue" value={fmtAmt(normalizedOverview.hqRevenue)} icon={Package} tone="green" loading={loading} onClick={()=>openKpi("hqRevenue", "FranchiSync Supply Revenue")} note={`${hqMoM==null?"No prior-month baseline":`${hqMoM>=0?"+":""}${hqMoM.toFixed(1)}% vs last month`} · fulfilled/delivered HQ orders`} />
-          <B2BMetricCard label="Monthly Target" value={hasPreviousHqRevenue?fmtAmt(normalizedOverview.target):"—"} icon={Target} tone="amber" loading={loading} onClick={()=>openKpi("target", "Monthly Target")} note={hasPreviousHqRevenue?`${normalizedOverview.targetAttainment==null?"—":`${normalizedOverview.targetAttainment.toFixed(1)}%`} attained · ${growthTargetPct}% above previous HQ supply revenue`:"Target appears after a previous-month HQ baseline is available"} />
           <B2BMetricCard label="Target Gap" value={hasPreviousHqRevenue?fmtAmt(normalizedOverview.targetGap):"—"} icon={TrendingDown} tone={normalizedOverview.targetGap>0?"red":"green"} loading={loading} onClick={()=>openKpi("targetGap", "Target Gap")} note={!hasPreviousHqRevenue?"No previous-month baseline":normalizedOverview.targetGap>0?"HQ supply revenue still needed to hit target":"Target achieved for the selected month"} />
           <B2BMetricCard label="Franchisee POS Revenue" value={fmtAmt(normalizedOverview.posRevenue)} icon={ShoppingCart} tone="blue" loading={loading} onClick={()=>openKpi("posRevenue", "Franchisee POS Revenue")} note={`${posMoM==null?"No prior-month baseline":`${posMoM>=0?"+":""}${posMoM.toFixed(1)}% vs last month`} · paid/completed POS`} />
-          <B2BMetricCard label="HQ Supply Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Supply Coverage")} note={normalizedOverview.coverage==null?"Needs verified opening stock and inventory movements":"Share of sold units supported by official stock flow"} />
           <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="High POS with weak HQ ordering or stock mismatch" />
         </div>
         )}
@@ -5802,7 +5952,6 @@
           <B2BMetricCard label="HQ Order Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Order Coverage")} note={normalizedOverview.coverage==null?"Requires authorized stock-flow reconciliation":"Authorized HQ stock coverage of reported sell-through"} />
           <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note={`${anomalies.filter(a=>String(a.severity).toLowerCase().includes("high")).length} high-risk · ranked anomaly list`} />
           <B2BMetricCard label="Unexplained Stock" value={normalizedOverview.unexplained==null?"—":Number(normalizedOverview.unexplained).toLocaleString()} icon={Layers} tone={normalizedOverview.unexplained>0?"red":"green"} loading={loading} onClick={()=>openKpi("unexplained", "Unexplained Stock")} note={normalizedOverview.unexplained==null?"Requires opening/receipts/transfers/POS/disposal linkage":"Positive/negative stock variance requiring investigation"} />
-          <B2BMetricCard label="Sell-through" value={normalizedOverview.sellThrough==null?"—":`${normalizedOverview.sellThrough.toFixed(1)}%`} icon={Activity} tone="green" loading={loading} onClick={()=>openKpi("sellThrough", "Sell-through")} note={normalizedOverview.sellThrough==null?"Requires sellable-unit stock flow":"POS sold units ÷ sellable units available"} />
         </div>
         )}
 
@@ -5815,16 +5964,16 @@
         <div className="b2b-overview-grid" style={{marginBottom:15}}>
           <div style={sectionCard}>
             <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
-              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Monthly supply orders versus POS revenue by store location</div></div>
-              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top HQ branch: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBranch?.branch||"—"}</b><br/>Highest POS: <b style={{color:"#2563eb"}}>{monthlyLeaders.posBranch?.branch||"—"}</b></div>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Supply and POS performance by branch, brand and location</div></div>
+              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top HQ: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBranch?`${monthlyLeaders.hqBranch.branch} · ${monthlyLeaders.hqBranch.brand}`:"—"}</b><br/>Highest POS: <b style={{color:"#2563eb"}}>{monthlyLeaders.posBranch?`${monthlyLeaders.posBranch.branch} · ${monthlyLeaders.posBranch.brand}`:"—"}</b></div>
             </div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}><thead><tr>{["Branch / Location","HQ Supply","POS Revenue","Coverage","Status"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.branch}</div><div style={{fontSize:9.4,fontWeight:500,color:"#8A9687",marginTop:2}}>{r.location||"—"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>)}{!branchRows.length&&<tr><td colSpan="5" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch data for the selected month.</td></tr>}</tbody></table></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Coverage","Status"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#789086",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>)}{!branchRows.length&&<tr><td colSpan="5" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch data for the selected month.</td></tr>}</tbody></table></div>
           </div>
 
           <div style={sectionCard}>
             <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
               <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Which brand earns the most for FranchiSync this month</div></div>
-              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Largest POS–HQ gap: <b style={{color:"#b42318"}}>{monthlyLeaders.leakageBranch?.branch||"—"}</b></div>
+              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Largest POS–HQ gap: <b style={{color:"#b42318"}}>{monthlyLeaders.leakageBranch?`${monthlyLeaders.leakageBranch.branch} · ${monthlyLeaders.leakageBranch.brand}`:"—"}</b></div>
             </div>
             <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{Number(r.suppliedQty||0).toLocaleString()} / {Number(r.soldQty||0).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
           </div>
@@ -5835,34 +5984,13 @@
         <div className="b2b-two-col" style={{marginBottom:15,gridTemplateColumns:"1fr"}}>
           <div style={sectionCard}>
             <div style={{ display:"flex", justifyContent:"space-between", gap:12, marginBottom:12, alignItems:"flex-start" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Loss Risk by Branch</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Highest risk first. Use coverage and stock variance to locate the likely source of loss, then click a branch for evidence.</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{sortedBranchRows.length} branches</span></div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}><thead><tr>{["Branch / Location","HQ Supply Revenue","POS Revenue","vs Last Month","Target %","Order Coverage","Stock Variance","Risk"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.branch}</div><div style={{fontSize:9.7,fontWeight:500,color:"#8A9687",marginTop:2}}>{r.location||"—"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",color:r.vsLastMonth!=null&&r.vsLastMonth<0?"#c0392b":"#2c5c16",fontWeight:700}}>{r.vsLastMonth==null?"—":`${r.vsLastMonth>=0?"+":""}${r.vsLastMonth.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.targetPct==null?"—":`${r.targetPct.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()} units`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>):<tr><td colSpan="8" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No branch performance data for the selected filters.</td></tr>}</tbody></table></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}><thead><tr>{["Branch / Brand","HQ Supply","POS Revenue","Order Coverage","Stock Variance","Risk"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,color:"#12241B"}}><div style={{fontWeight:850}}>{r.branch}</div><div style={{fontSize:9.5,fontWeight:650,color:"#789086",marginTop:3}}>{r.brand||"Brand not set"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()} units`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>):<tr><td colSpan="6" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No branch risk data for the selected filters.</td></tr>}</tbody></table></div>
           </div>
 
           <div style={{...sectionCard,display:"none"}}>
             <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Store Location View</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3,marginBottom:13}}>Fast location scan · click a store to open branch detail</div>
-            <div style={{display:"grid",gap:8,maxHeight:390,overflowY:"auto",paddingRight:2}}>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><button key={r.id} onClick={()=>openBranch(r)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 11px",border:"1px solid #E7EEE4",borderRadius:11,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div style={{display:"flex",gap:8,alignItems:"flex-start",minWidth:0}}><MapPin size={14} color="#3b791e" style={{flexShrink:0,marginTop:1}}/><div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:800,color:"#12241B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.branch}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.location||"Location not set"}</div></div></div><B2BRiskBadge risk={r.risk}/></button>):<DashboardEmptyState message="No store locations available."/>}</div>
+            <div style={{display:"grid",gap:8,maxHeight:390,overflowY:"auto",paddingRight:2}}>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><button key={r.id} onClick={()=>openBranch(r)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 11px",border:"1px solid #E7EEE4",borderRadius:11,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div style={{display:"flex",gap:8,alignItems:"flex-start",minWidth:0}}><MapPin size={14} color="#3b791e" style={{flexShrink:0,marginTop:1}}/><div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:800,color:"#12241B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.branch}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.brand||"Brand not set"}</div></div></div><B2BRiskBadge risk={r.risk}/></button>):<DashboardEmptyState message="No store locations available."/>}</div>
           </div>
-        </div>
-        )}
-
-        {isGhostView && (
-        <div style={{ ...sectionCard, marginBottom:15 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>HQ supply revenue, franchisee POS sell-through, quantities and stock variance per brand</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{brandRows.length} brands</span></div>
-          <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:880}}><thead><tr>{["Brand","HQ Supply Revenue","POS Revenue","Qty Supplied","Qty Sold","Ending Stock","Sell-through","Stock Variance"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{brandRows.length?brandRows.map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right"}}>{r.suppliedQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.soldQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.endingStock==null?"—":r.endingStock.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.sellThrough==null?"—":`${r.sellThrough.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b",fontWeight:700}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`}</td></tr>):<tr><td colSpan="8" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No brand performance data for the selected filters.</td></tr>}</tbody></table></div>
-        </div>
-        )}
-
-        {isGhostView && (
-        <div style={{ ...sectionCard, marginBottom:15 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Sales & Stocks Reconciliation</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Quantity-level SKU comparison. Click a row for opening → receipts → POS → disposal → transfer → closing evidence.</div></div>{!stockDataReady&&<span style={{fontSize:9.5,fontWeight:800,padding:"4px 8px",borderRadius:20,background:"#fffbeb",color:"#92400e",border:"1px solid #fde68a"}}>MOVEMENT LINKAGE REQUIRED</span>}</div>
-          <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}><thead><tr>{["SKU / Product","Branch","Brand","Opening","HQ Received","POS Sold","Disposal / Transfer","Recorded Closing","Variance"].map((h,i)=><th key={h} style={{...th,textAlign:i<3?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{skuRows.length?skuRows.map((r,i)=><tr key={`${r.id}-${r.branch}-${r.brand}`} onClick={()=>openSku(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.product}</div><div style={{fontSize:9.4,fontWeight:600,color:"#94a3b8",marginTop:2}}>SKU {r.sku}</div></td><td style={{...td,fontWeight:700}}>{r.branch}</td><td style={{...td}}>{r.brand}</td><td style={{...td,textAlign:"right"}}>{r.openingStock==null?"—":r.openingStock.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{r.suppliedQty.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{r.soldQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.disposal==null&&r.transfers==null?"—":b2bNum(r.disposal)+b2bNum(r.transfers)}</td><td style={{...td,textAlign:"right"}}>{r.endingStock==null?"—":r.endingStock.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`}</td></tr>):<tr><td colSpan="9" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No SKU order/POS activity for the selected month and filters.</td></tr>}</tbody></table></div>
-        </div>
-        )}
-
-        {isGhostView && (
-        <div style={sectionCard}>
-          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Ghost Stock / Revenue Leakage</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Ranked anomalies with reason and recommended action</div></div><span style={{fontSize:10.5,fontWeight:800,color:anomalies.length?"#c0392b":"#2c5c16"}}>{anomalies.length} flagged</span></div>
-          {anomalies.length ? <div style={{display:"grid",gap:9}}>{anomalies.map((a,i)=><button key={a.id??i} onClick={()=>{ const br=branchRows.find(r=>r.branch===a.branch); if(br) openBranch(br); else setDrilldown({type:"anomaly",title:a.rule,loading:false,data:a}); }} style={{display:"grid",gridTemplateColumns:"minmax(150px,.8fr) minmax(180px,1fr) minmax(260px,1.6fr) auto",gap:12,alignItems:"center",padding:"12px 13px",border:"1px solid #E7EEE4",borderRadius:12,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div><div style={{fontSize:11,fontWeight:800,color:"#12241B"}}>{a.branch||"—"}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2}}>{[a.brand,a.sku].filter(Boolean).join(" · ")||b2bMonthLabel(month)}</div></div><div><B2BRiskBadge risk={a.severity}/><div style={{fontSize:10.5,fontWeight:800,color:"#334155",marginTop:5}}>{a.rule}</div></div><div><div style={{fontSize:10.5,color:"#5C6B60",lineHeight:1.45}}>{a.reason}</div><div style={{fontSize:9.8,color:"#3b791e",fontWeight:700,marginTop:4}}>Action: {a.recommendation}</div></div><ChevronRight size={15} color="#94a3b8"/></button>)}</div> : <div style={{padding:"24px 14px",textAlign:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8"}}><CheckCircle2 size={22} color="#3b791e"/><div style={{fontSize:11.5,fontWeight:800,color:"#2c5c16",marginTop:7}}>No anomaly detected from the data currently available.</div><div style={{fontSize:10,color:"#7A887B",marginTop:3}}>{stockDataReady?"Stock reconciliation rules are included.":"Stock-based anomaly rules will appear after inventory movement linkage is available."}</div></div>}
         </div>
         )}
 
@@ -5874,9 +6002,35 @@
                 {drilldown.loading ? <div style={{padding:40,textAlign:"center",color:"#6B7A65"}}><RefreshCw size={22} style={{animation:"spin .8s linear infinite"}}/><div style={{marginTop:8,fontSize:11.5}}>Loading drilldown evidence…</div></div> : (
                   <>
                     {drilldown.warning && <div style={{marginBottom:12,padding:"10px 12px",borderRadius:10,background:"#fffbeb",border:"1px solid #fde68a",color:"#92400e",fontSize:10.8,lineHeight:1.5}}>{drilldown.warning}</div>}
-                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Target Attainment" value={b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct)==null?"—":`${b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct).toFixed(1)}%`} icon={Target} tone="amber" note="Open monthly target evidence" onClick={()=>openKpi("target","Target Attainment")}/><B2BMetricCard label="Order Coverage" value={b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage)==null?"—":`${b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage).toFixed(1)}%`} icon={ShieldCheck} note="Open stock-flow coverage" onClick={()=>openKpi("coverage","Order Coverage")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Location / context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
+                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Target Attainment" value={b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct)==null?"—":`${b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct).toFixed(1)}%`} icon={Target} tone="amber" note="Open monthly target evidence" onClick={()=>openKpi("target","Target Attainment")}/><B2BMetricCard label="Order Coverage" value={b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage)==null?"—":`${b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage).toFixed(1)}%`} icon={ShieldCheck} note="Open stock-flow coverage" onClick={()=>openKpi("coverage","Order Coverage")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Branch context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Brand: <b>{drilldown.data?.brand || "Unassigned Brand"}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
                     {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Qty Supplied" value={b2bNum(drilldown.data?.supplied_qty,drilldown.data?.suppliedQty).toLocaleString()} icon={Package} note="Open HQ order coverage" onClick={()=>openKpi("coverage","Quantity Supplied")}/><B2BMetricCard label="Qty Sold" value={b2bNum(drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()} icon={TrendingUp} tone="blue" note="Open sell-through evidence" onClick={()=>openKpi("sellThrough","Quantity Sold")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the reconciliation table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
-                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:720}}><thead><tr>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#6B7A65",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
+                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}><thead><tr><th style={{...th,textAlign:"left"}}>Product / Brand</th>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"left"}}><b>{drilldown.data?.product || drilldown.data?.sku || "SKU"}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{drilldown.data?.brand || "Brand not set"}{drilldown.data?.branch?` · ${drilldown.data.branch}`:""}</div></td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#6B7A65",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
+                    {drilldown.type === "sku" && Array.isArray(drilldown.data?.ingredients) && (
+                      <div style={{marginTop:14}}>
+                        <div style={{fontSize:12.5,fontWeight:850,color:"#12241B",marginBottom:4}}>Specific ingredients for this product</div>
+                        <div style={{fontSize:10.2,color:"#6B7A65",lineHeight:1.5,marginBottom:9}}>
+                          {drilldown.data?.brand || "Brand not set"} · {drilldown.data?.branch || "Branch not set"} · {drilldown.data?.product || drilldown.data?.sku || "Product"}
+                        </div>
+                        <div style={tableWrap}>
+                          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
+                            <thead><tr>{["Ingredient","Required usage","HQ received","Current stock","Unit","Variance"].map((label,index)=><th key={label} style={{...th,textAlign:index===0?"left":"right"}}>{label}</th>)}</tr></thead>
+                            <tbody>
+                              {drilldown.data.ingredients.length ? [...drilldown.data.ingredients]
+                                .sort((a,b)=>String(a?.ingredient_name||"").localeCompare(String(b?.ingredient_name||"")))
+                                .map((ingredient,index)=><tr key={ingredient?.ingredient_id ?? `${ingredient?.ingredient_name}-${index}`} style={{background:index%2?"#FBFDF9":"#fff"}}>
+                                  <td style={{...td,textAlign:"left",fontWeight:800,color:"#12241B"}}>{ingredient?.ingredient_name || "Unnamed ingredient"}</td>
+                                  <td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(ingredient?.expected_pos_usage).toLocaleString()}</td>
+                                  <td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(ingredient?.hq_received).toLocaleString()}</td>
+                                  <td style={{...td,textAlign:"right"}}>{b2bNullableNum(ingredient?.closing_stock)==null?"—":b2bNum(ingredient?.closing_stock).toLocaleString()}</td>
+                                  <td style={{...td,textAlign:"right"}}>{ingredient?.unit || "—"}</td>
+                                  <td style={{...td,textAlign:"right",fontWeight:800,color:b2bNullableNum(ingredient?.variance)==null?"#94a3b8":"#c0392b"}}>{b2bNullableNum(ingredient?.variance)==null?"—":b2bNum(ingredient?.variance).toLocaleString()}</td>
+                                </tr>) : <tr><td colSpan="6" style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:10.8}}>No recipe ingredients are linked to this product for this brand and branch.</td></tr>}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div style={{marginTop:9,fontSize:9.8,color:"#82907F",lineHeight:1.5}}>Required usage = POS units sold × recipe quantity. Ingredient rows are restricted to the selected product’s exact brand and branch.</div>
+                      </div>
+                    )}
                     {drilldown.type === "kpi" && (
                       <B2BKpiBreakdown
                         metric={drilldown.data?.metric}
@@ -5884,6 +6038,7 @@
                         branchRows={sortedBranchRows}
                         brandRows={brandRows}
                         skuRows={skuRows}
+                        productRows={productEvidenceRows}
                         anomalies={anomalies}
                         month={month}
                         growthTargetPct={growthTargetPct}
@@ -5929,28 +6084,28 @@
     };
     const columns = id === "transactions"
       ? [
-          ["Branch","left",r=>r.branch],
+          ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
           ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
           ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
           ["Revenue","right",r=>fmtAmt(r.revenue)],
         ]
       : id === "averageSale"
         ? [
-            ["Branch","left",r=>r.branch],
+            ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
             ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
             ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
             ["Revenue","right",r=>fmtAmt(r.revenue)],
           ]
         : id === "activeBranches"
           ? [
-              ["Branch","left",r=>r.branch],
+              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
               ["Revenue","right",r=>fmtAmt(r.revenue)],
               ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
               ["Avg. Sale","right",r=>fmtAmt(r.avgOrder)],
               ["Margin","right",r=>r.hasCogs?`${Number(r.margin||0).toFixed(1)}%`:"No COGS"],
             ]
           : [
-              ["Branch","left",r=>r.branch],
+              ["Branch / Brand","left",r=><><b>{r.branch}</b><div style={{fontSize:9,color:"#789086",marginTop:2}}>{r.brand || "Unassigned Brand"}</div></>],
               ["Revenue","right",r=>fmtAmt(r.revenue)],
               ["Revenue Share","right",r=>totalRevenue>0?`${(Number(r.revenue||0)/totalRevenue*100).toFixed(1)}%`:"—"],
               ["Gross Profit","right",r=>r.hasCogs?fmtAmt(r.grossProfit):"No COGS"],
@@ -6205,9 +6360,14 @@
       const grouped = {};
       filteredTransactions.forEach(tx => {
         const branch = tx.branch || "Unassigned";
-        grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+        const brand = tx.brand || tx.brand_name || tx.franchise_brand || "Unassigned Brand";
+        const key = `${brand}::${branch}`;
+        grouped[key] = (grouped[key] || 0) + Number(tx.total || tx.total_amount || 0);
       });
-      return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+      return Object.entries(grouped).map(([key, value]) => {
+        const [brand, branch] = key.split("::");
+        return { label:`${branch} · ${brand}`, value, branch, brand };
+      }).sort((a,b) => b.value - a.value);
     }, [filteredTransactions, viewArchive]);
 
     const branchProfitability = useMemo(() => {
@@ -6217,6 +6377,8 @@
 
       filteredTransactions.forEach((tx) => {
         const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+        const brand = String(tx?.brand || tx?.brand_name || tx?.franchise_brand || "Unassigned Brand").trim() || "Unassigned Brand";
+        const groupKey = `${brand}::${branch}`;
         const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
 
         let cogs = Number(
@@ -6259,9 +6421,10 @@
           }
         }
 
-        if (!grouped[branch]) {
-          grouped[branch] = {
+        if (!grouped[groupKey]) {
+          grouped[groupKey] = {
             branch,
+            brand,
             revenue: 0,
             cogs: 0,
             transactions: 0,
@@ -6269,9 +6432,9 @@
           };
         }
 
-        grouped[branch].revenue += revenue;
-        grouped[branch].cogs += cogs;
-        grouped[branch].transactions += 1;
+        grouped[groupKey].revenue += revenue;
+        grouped[groupKey].cogs += cogs;
+        grouped[groupKey].transactions += 1;
 
         if (
           cogs > 0 ||
@@ -6280,7 +6443,7 @@
           tx?.cost_of_goods != null ||
           tx?.cost_of_goods_sold != null
         ) {
-          grouped[branch].hasCogs = true;
+          grouped[groupKey].hasCogs = true;
         }
       });
 
@@ -6530,6 +6693,19 @@
               onOpenSalesAi={()=>setDashboardTab("sales_ai")}
             />
           </div>
+        )}
+
+        {!viewArchive && dashboardTab === "ghost" && (
+          <SalesVsStockSection
+            preset={preset}
+            appliedRange={appliedRange}
+            rangeMode={rangeMode}
+            filterBranch={filterBranch}
+            filterBrand={filterBrand}
+            selectedBrand={selectedBrand}
+            total={total}
+            transactions={filteredTransactions}
+          />
         )}
 
         {!viewArchive && dashboardTab === "ghost" && (
@@ -6870,7 +7046,7 @@
                   <thead>
                     <tr style={{background:"#F6FAF3"}}>
                       {[
-                        { label:"Branch", align:"left" },
+                        { label:"Branch / Brand", align:"left" },
                         { label:"Revenue", align:"right" },
                         { label:"Gross Profit", align:"right" },
                         { label:"Margin", align:"center" },
@@ -6936,11 +7112,9 @@
                               }}>
                                 {index + 1}
                               </span>
-                              <span style={{
-                                fontSize:11.5,fontWeight:800,color:"#12241B",
-                                whiteSpace:"nowrap"
-                              }}>
-                                {row.branch}
+                              <span style={{minWidth:0}}>
+                                <span style={{display:"block",fontSize:11.5,fontWeight:800,color:"#12241B",whiteSpace:"nowrap"}}>{row.branch}</span>
+                                <span style={{display:"block",fontSize:9.4,fontWeight:650,color:"#789086",marginTop:2,whiteSpace:"nowrap"}}>{row.brand || "Unassigned Brand"}</span>
                               </span>
                             </div>
                           </td>
