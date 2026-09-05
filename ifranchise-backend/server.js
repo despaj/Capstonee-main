@@ -37,6 +37,7 @@ app.use("/", require("./routes/announcements"));
 app.use("/", require("./routes/notifications"));
 app.use("/", require("./routes/reports"));
 app.use("/", require("./routes/dashboard"));
+app.use("/", require("./routes/b2bDashboard"));
 app.use("/", require("./routes/activityLogs"));
 app.use("/", require("./routes/paymongo"));
 app.use("/", require("./routes/psgc"));

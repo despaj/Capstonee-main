@@ -18,7 +18,8 @@ import {
   Unlock, CheckCircle2, FileText, Eye, Download, RefreshCw,
   BarChart, Calendar, Archive, Package, Info, Clock, Pin,
   Megaphone, ChevronDown, ArrowUpRight,ArrowDownRight, PieChart,
-  Activity, TrendingDown, Target, ShoppingCart, Brain, Zap, Printer
+  Activity, TrendingDown, Target, ShoppingCart, Brain, Zap, Printer,
+  ArrowUp, ArrowDown, LineChart, ShieldCheck
 } from 'lucide-react';
 
 const C = {
@@ -686,7 +687,7 @@ export default function FranchiseAdminDashboard() {
         </div>
 
         <div className="fa-content">
-          {activeModule === 'dashboard'      && <FADashboardContent transactions={transactions} brands={brands} />}
+          {activeModule === 'dashboard'      && <FADashboardContent transactions={transactions} brands={brands} user={user} />}
           {activeModule === 'inventory'      && <FAMenuInventoryContent user={user} brands={brands} />}
           {activeModule === 'stockInventory' && <StockInventoryContent user={user} brands={brands} />}
           {activeModule === 'mobileOrders'   && <FAMobileOrdersContent user={user} brands={brands} />}
@@ -752,1098 +753,1345 @@ const CheckCircleIcon = ({ size=22, color="currentColor" }) => <svg width={size}
 const InfoIcon        = ({ size=22, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
 const LoaderIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 0.9s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
 const UploadIcon      = ({ size=28, color="currentColor" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>;
+  function SalesTrendSection({
+    values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
+    getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
+    transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
+    branchProfitability = [],
+  }) {
+    const panelRef = useRef(null);
+    const [pdfBusy, setPdfBusy] = useState(false);
 
-function SalesTrendSection({
-  values, labels, kpiData, total, avg, peak, low, peakLabel, pctChange, trending,
-  getRangeLabel, filterLabel, filterBrand, filterBranch, brands = [],
-  transactionCount = 0, averageTransaction = 0, branchPerformance = [], brandPerformance = [],
-  branchProfitability = [], categoryPerformance = [],
-}) {
-  const panelRef = useRef(null);
-  const [pdfBusy, setPdfBusy] = useState(false);
+    const isFiltered = !!(filterBrand || filterBranch);
 
-  const isFiltered = !!(filterBrand || filterBranch);
+  const selectedBrandObj = useMemo(
+      () => brands.find(b => String(b.id) === String(filterBrand)),
+      [brands, filterBrand]
+    );
 
- const selectedBrandObj = useMemo(
-    () => brands.find(b => String(b.id) === String(filterBrand)),
-    [brands, filterBrand]
-  );
+    const catData = useMemo(() => {
+      return Array.isArray(kpiData?.categoryBreakdown) ? kpiData.categoryBreakdown : [];
+    }, [kpiData]);
 
-  const catData = useMemo(() => {
-    if (Array.isArray(kpiData?.categoryBreakdown) && kpiData.categoryBreakdown.length) {
-      return kpiData.categoryBreakdown;
-    }
-    return Array.isArray(categoryPerformance) ? categoryPerformance : [];
-  }, [kpiData, categoryPerformance]);
+    const brandBreakdownData = useMemo(() => {
+      if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
+        return kpiData.brandBreakdown;
+      }
+      return brandPerformance;
+    }, [kpiData, brandPerformance]);
+    
 
-  const brandBreakdownData = useMemo(() => {
-    if (Array.isArray(kpiData?.brandBreakdown) && kpiData.brandBreakdown.length) {
-      return kpiData.brandBreakdown;
-    }
-    return brandPerformance;
-  }, [kpiData, brandPerformance]);
-  
+    const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
+    const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
+  const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
 
-  const categoryPanelData  = isFiltered ? catData : brandBreakdownData;
-  const categoryPanelTitle = isFiltered ? "Sales by Category" : "Sales by Brand";
-const CategoryPanelIcon  = isFiltered ? PieChart : Globe;
+    const branchData = useMemo(() => {
+      if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
+      return branchPerformance.slice(0, 6);
+    }, [kpiData, branchPerformance]);
 
-  const branchData = useMemo(() => {
-    if (Array.isArray(kpiData?.branchBreakdown) && kpiData.branchBreakdown.length) return kpiData.branchBreakdown.slice(0, 6);
-    return branchPerformance.slice(0, 6);
-  }, [kpiData, branchPerformance]);
+    const branchAttentionItems = useMemo(() => {
+      const rows = Array.isArray(branchProfitability)
+        ? branchProfitability.filter(row => Number(row?.revenue || 0) > 0)
+        : [];
 
-  const branchAttentionItems = useMemo(() => {
-    const rows = Array.isArray(branchProfitability)
-      ? branchProfitability.filter(row => Number(row?.revenue || 0) > 0)
-      : [];
+      if (!rows.length) return [];
 
-    if (!rows.length) return [];
+      const items = [];
+      const usedBranches = new Set();
 
-    const items = [];
-    const usedBranches = new Set();
+      const addItem = (row, config) => {
+        if (!row?.branch || usedBranches.has(row.branch) || items.length >= 5) return;
+        usedBranches.add(row.branch);
+        items.push({
+          branch: row.branch,
+          ...config,
+        });
+      };
 
-    const addItem = (row, config) => {
-      if (!row?.branch || usedBranches.has(row.branch) || items.length >= 5) return;
-      usedBranches.add(row.branch);
-      items.push({
-        branch: row.branch,
-        ...config,
-      });
+      // 1. Data quality comes first. A 100% margin caused by zero COGS should
+      //    never be presented as a genuine high-margin success.
+      rows
+        .filter(row => Number(row.cogs || 0) <= 0)
+        .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+        .forEach(row => {
+          addItem(row, {
+            status: "DATA CHECK",
+            tone: "info",
+            title: "Verify cost data",
+            detail: `${Number(row.margin || 0).toFixed(1)}% margin with no recorded COGS.`,
+            action: "Confirm transaction cost-of-goods data before interpreting profitability.",
+          });
+        });
+
+      // 2. Low-margin branches need management attention.
+      rows
+        .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) < 25)
+        .sort((a, b) => Number(a.margin || 0) - Number(b.margin || 0))
+        .forEach(row => {
+          addItem(row, {
+            status: "MARGIN WATCH",
+            tone: "warning",
+            title: "Margin requires review",
+            detail: `${Number(row.margin || 0).toFixed(1)}% margin on ${fmtAmt(row.revenue)} revenue.`,
+            action: "Review product costs, pricing, discounts and sales mix.",
+          });
+        });
+
+      // 3. High-margin branches may be good candidates for controlled growth.
+      rows
+        .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) >= 40)
+        .sort((a, b) => Number(b.margin || 0) - Number(a.margin || 0))
+        .forEach(row => {
+          addItem(row, {
+            status: "GROWTH OPPORTUNITY",
+            tone: "success",
+            title: "Strong margin performance",
+            detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.avgOrder)} average order.`,
+            action: "Assess whether sales volume can be increased while preserving current margins.",
+          });
+        });
+
+      // 4. Flag branches whose transaction volume is materially below the group.
+      const avgTransactions =
+        rows.reduce((sum, row) => sum + Number(row.transactions || 0), 0) /
+        Math.max(rows.length, 1);
+
+      rows
+        .filter(row =>
+          Number(row.transactions || 0) > 0 &&
+          Number(row.transactions || 0) < Math.max(2, avgTransactions * 0.5)
+        )
+        .sort((a, b) => Number(a.transactions || 0) - Number(b.transactions || 0))
+        .forEach(row => {
+          addItem(row, {
+            status: "LOW VOLUME",
+            tone: "neutral",
+            title: "Low transaction activity",
+            detail: `${Number(row.transactions || 0).toLocaleString()} transaction${Number(row.transactions || 0) === 1 ? "" : "s"} · ${fmtAmt(row.avgOrder)} average order.`,
+            action: "Review traffic, local demand and branch-level selling activity.",
+          });
+        });
+
+      // 5. If space remains, surface one stable branch as a positive benchmark.
+      rows
+        .filter(row =>
+          Number(row.cogs || 0) > 0 &&
+          Number(row.margin || 0) >= 25 &&
+          Number(row.margin || 0) < 40
+        )
+        .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+        .forEach(row => {
+          addItem(row, {
+            status: "STABLE",
+            tone: "healthy",
+            title: "Healthy operating range",
+            detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.revenue)} revenue.`,
+            action: "Maintain performance and monitor for changes in cost or transaction volume.",
+          });
+        });
+
+      return items.slice(0, 5);
+    }, [branchProfitability]);
+
+    const hasData = total > 0;
+    const grossProfit = kpiData?.salesProfit ?? null;
+    const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
+    const avgOrder    = kpiData?.avgOrder ?? averageTransaction ?? 0;
+
+    const analysisBullets = useMemo(() => {
+      if (!hasData) return [];
+      const bullets = [];
+      bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
+      if (grossProfit != null) bullets.push(`Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`);
+      bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
+      bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
+      bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
+      if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
+      if (categoryPanelData.length) {
+        const top = categoryPanelData[0];
+        bullets.push(`${top.label} is the top-performing ${isFiltered ? "category" : "brand"} at ${fmtShort(top.value)} (${Math.round((top.value / total) * 100)}% of revenue).`);
+      }
+      if (branchData.length) {
+        const topBranch = branchData[0];
+        bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
+      }
+      return bullets;
+    }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, categoryPanelData, branchData, kpiData, getRangeLabel, filterLabel, isFiltered]);
+
+    // ── Print ──
+    const handlePrint = () => {
+      if (!panelRef.current) return;
+      const printContents = panelRef.current.innerHTML;
+      const win = window.open("", "_blank");
+      if (!win) { alert("Please allow pop-ups to print this report."); return; }
+      win.document.write(`
+        <html>
+          <head>
+            <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+              * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              html, body { margin: 0; background: #ffffff !important; }
+              @media print { @page { margin: 14mm; } button { display: none !important; } }
+            </style>
+          </head>
+          <body>${printContents}</body>
+        </html>
+      `);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 400);
     };
 
-    // 1. Data quality comes first. A 100% margin caused by zero COGS should
-    //    never be presented as a genuine high-margin success.
-    rows
-      .filter(row => Number(row.cogs || 0) <= 0)
-      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
-      .forEach(row => {
-        addItem(row, {
-          status: "DATA CHECK",
-          tone: "info",
-          title: "Verify cost data",
-          detail: `${Number(row.margin || 0).toFixed(1)}% margin with no recorded COGS.`,
-          action: "Confirm transaction cost-of-goods data before interpreting profitability.",
+    // ── Download PDF ──
+    const handleDownloadPDF = async () => {
+      if (!panelRef.current) return;
+      setPdfBusy(true);
+      try {
+        const margin = 30;
+        const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+        const pageWidth    = pdf.internal.pageSize.getWidth();
+        const pageHeight   = pdf.internal.pageSize.getHeight();
+        const contentWidth = pageWidth - margin * 2;
+
+        const canvas = await html2canvas(panelRef.current, {
+          scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: panelRef.current.scrollWidth,
         });
-      });
+        const imgData      = canvas.toDataURL("image/png");
+        const imgHeight     = (canvas.height * contentWidth) / canvas.width;
+        const pageContentH  = pageHeight - margin * 2 - 20;
+        const totalPages    = Math.max(1, Math.ceil(imgHeight / pageContentH));
 
-    // 2. Low-margin branches need management attention.
-    rows
-      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) < 25)
-      .sort((a, b) => Number(a.margin || 0) - Number(b.margin || 0))
-      .forEach(row => {
-        addItem(row, {
-          status: "MARGIN WATCH",
-          tone: "warning",
-          title: "Margin requires review",
-          detail: `${Number(row.margin || 0).toFixed(1)}% margin on ${fmtAmt(row.revenue)} revenue.`,
-          action: "Review product costs, pricing, discounts and sales mix.",
-        });
-      });
-
-    // 3. High-margin branches may be good candidates for controlled growth.
-    rows
-      .filter(row => Number(row.cogs || 0) > 0 && Number(row.margin || 0) >= 40)
-      .sort((a, b) => Number(b.margin || 0) - Number(a.margin || 0))
-      .forEach(row => {
-        addItem(row, {
-          status: "GROWTH OPPORTUNITY",
-          tone: "success",
-          title: "Strong margin performance",
-          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.avgOrder)} average order.`,
-          action: "Assess whether sales volume can be increased while preserving current margins.",
-        });
-      });
-
-    // 4. Flag branches whose transaction volume is materially below the group.
-    const avgTransactions =
-      rows.reduce((sum, row) => sum + Number(row.transactions || 0), 0) /
-      Math.max(rows.length, 1);
-
-    rows
-      .filter(row =>
-        Number(row.transactions || 0) > 0 &&
-        Number(row.transactions || 0) < Math.max(2, avgTransactions * 0.5)
-      )
-      .sort((a, b) => Number(a.transactions || 0) - Number(b.transactions || 0))
-      .forEach(row => {
-        addItem(row, {
-          status: "LOW VOLUME",
-          tone: "neutral",
-          title: "Low transaction activity",
-          detail: `${Number(row.transactions || 0).toLocaleString()} transaction${Number(row.transactions || 0) === 1 ? "" : "s"} · ${fmtAmt(row.avgOrder)} average order.`,
-          action: "Review traffic, local demand and branch-level selling activity.",
-        });
-      });
-
-    // 5. If space remains, surface one stable branch as a positive benchmark.
-    rows
-      .filter(row =>
-        Number(row.cogs || 0) > 0 &&
-        Number(row.margin || 0) >= 25 &&
-        Number(row.margin || 0) < 40
-      )
-      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
-      .forEach(row => {
-        addItem(row, {
-          status: "STABLE",
-          tone: "healthy",
-          title: "Healthy operating range",
-          detail: `${Number(row.margin || 0).toFixed(1)}% margin · ${fmtAmt(row.revenue)} revenue.`,
-          action: "Maintain performance and monitor for changes in cost or transaction volume.",
-        });
-      });
-
-    return items.slice(0, 5);
-  }, [branchProfitability]);
-
-  const gpLine = useMemo(() => {
-    return kpiData?.gpSeries?.length === values.length ? kpiData.gpSeries : [];
-  }, [kpiData, values]);
-
-  const priorYearValues = useMemo(() => {
-    return kpiData?.priorYearValues?.length === values.length ? kpiData.priorYearValues : [];
-  }, [kpiData, values]);
-
-  const hasGpData = gpLine.length === values.length && values.length > 0;
-  const hasPriorYearData = priorYearValues.length === values.length && values.length > 0;
-
-  const hasData = total > 0;
-  const grossProfit = kpiData?.salesProfit ?? null;
-  const txCount     = kpiData?.txCount ?? transactionCount ?? 0;
-  const avgOrder    = kpiData?.avgOrder ?? averageTransaction ?? 0;
-
-  const analysisBullets = useMemo(() => {
-    if (!hasData) return [];
-    const bullets = [];
-    bullets.push(`Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`);
-    if (grossProfit != null) bullets.push(`Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`);
-    bullets.push(`${txCount.toLocaleString()} transactions processed with an average order of ${fmtAmt(avgOrder)}.`);
-    bullets.push(`Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`);
-    bullets.push(`Peak revenue of ${fmtAmt(peak)} was recorded on ${peakLabel}, outperforming the period average by ${fmtAmt(peak - avg)}.`);
-    if (low < avg * 0.5) bullets.push(`Lowest period at ${fmtAmt(low)} — significantly below average, consider investigating that interval.`);
-    if (categoryPanelData.length) {
-      const top = categoryPanelData[0];
-      bullets.push(`${top.label} is the top-performing ${isFiltered ? "category" : "brand"} at ${fmtShort(top.value)} (${Math.round((top.value / total) * 100)}% of revenue).`);
-    }
-    if (branchData.length) {
-      const topBranch = branchData[0];
-      bullets.push(`${topBranch.label} leads branch revenue at ${fmtShort(topBranch.value)}.`);
-    }
-    return bullets;
-  }, [hasData, total, grossProfit, txCount, avgOrder, trending, pctChange, peak, peakLabel, avg, low, categoryPanelData, branchData, kpiData, getRangeLabel, filterLabel, isFiltered]);
-
-  // ── Print ──
-  const handlePrint = () => {
-    if (!panelRef.current) return;
-    const printContents = panelRef.current.innerHTML;
-    const win = window.open("", "_blank");
-    if (!win) { alert("Please allow pop-ups to print this report."); return; }
-    win.document.write(`
-      <html>
-        <head>
-          <title>Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            html, body { margin: 0; background: #ffffff !important; }
-            @media print { @page { margin: 14mm; } button { display: none !important; } }
-          </style>
-        </head>
-        <body>${printContents}</body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 400);
-  };
-
-  // ── Download PDF ──
-  const handleDownloadPDF = async () => {
-    if (!panelRef.current) return;
-    setPdfBusy(true);
-    try {
-      const margin = 30;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      const pageWidth    = pdf.internal.pageSize.getWidth();
-      const pageHeight   = pdf.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - margin * 2;
-
-      const canvas = await html2canvas(panelRef.current, {
-        scale: 2, backgroundColor: "#ffffff", useCORS: true, windowWidth: panelRef.current.scrollWidth,
-      });
-      const imgData      = canvas.toDataURL("image/png");
-      const imgHeight     = (canvas.height * contentWidth) / canvas.width;
-      const pageContentH  = pageHeight - margin * 2 - 20;
-      const totalPages    = Math.max(1, Math.ceil(imgHeight / pageContentH));
-
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
-        const yOffset = margin - page * pageContentH;
-        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
-        pdf.setDrawColor(224, 242, 241);
-        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(148, 163, 184);
-        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
-      }
-      pdf.save(`Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      alert("Could not generate PDF. Please try again.");
-    } finally {
-      setPdfBusy(false);
-    }
-  };
-
-  return (
-    <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader
-        icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`}
-        action={
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={handlePrint}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-              <Printer size={13} /> Print
-            </button>
-            <button onClick={handleDownloadPDF} disabled={pdfBusy}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
-              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
-              {pdfBusy ? "Preparing…" : "Download PDF"}
-            </button>
-          </div>
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+          const yOffset = margin - page * pageContentH;
+          pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+          pdf.setDrawColor(224, 242, 241);
+          pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
         }
-      />
-      <div ref={panelRef} style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <ChartLabel><BarChart2 size={11} color="#00897b" /> Sales Trend %</ChartLabel>
-            {hasData ? (
-              <>
-                <ComboChart barData={hasPriorYearData ? [values, priorYearValues] : [values]} lineData={hasGpData ? gpLine : []} labels={labels} height={220} />
-                <div style={{ display: "flex", gap: 16, marginTop: 10, marginBottom: 14, flexWrap: "wrap" }}>
-                  {[
-                    { color: PAL[0], label: "Sales — selected period" },
-                    ...(hasPriorYearData ? [{ color: PAL[1], label: "Prior-year sales" }] : []),
-                    ...(hasGpData ? [{ color: "#1d4ed8", label: "Gross Profit %", line: true }] : []),
-                  ].map((l, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      {l.line
-                        ? <svg width={22} height={10}><line x1="0" y1="5" x2="22" y2="5" stroke={l.color} strokeWidth="2.5" /><circle cx="11" cy="5" r="3" fill={l.color} /></svg>
-                        : <div style={{ width: 12, height: 10, borderRadius: 3, background: l.color }} />
-                      }
-                      <span style={{ fontSize: 10.5, fontWeight: 600, color: "#5a7a65", fontFamily: FONT }}>{l.label}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-                  {[
-                    { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
-                    { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
-                  ].map((card, i) => (
-                    <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
-                        <card.icon size={16} color={card.color} />
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
-                        <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
-                <BarChart2 size={28} color="#b2dfdb" />
-                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
-                  No data found for {getRangeLabel()}
-                </div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
-              </div>
-            )}
-          </div>
+        pdf.save(`Sales_Trend_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      } catch (err) {
+        console.error("PDF export failed:", err);
+        alert("Could not generate PDF. Please try again.");
+      } finally {
+        setPdfBusy(false);
+      }
+    };
 
-          <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-              <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
+    return (
+      <PanelCard style={{ marginBottom: 22 }}>
+        <CardHeader
+          icon={TrendingUp} title="Sales Trend Analysis" sub={`${getRangeLabel()} · ${filterLabel}`}
+          action={
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handlePrint}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                <Printer size={13} /> Print
+              </button>
+              <button onClick={handleDownloadPDF} disabled={pdfBusy}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+                <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+                {pdfBusy ? "Preparing…" : "Download PDF"}
+              </button>
             </div>
-            {hasData ? (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
-                  {[
-                    { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-                    { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-                    { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-                    { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
-                      <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
-                      <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
-                      <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                  {analysisBullets.slice(3).map((text, i) => {
-                    const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
-                    const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
-                    const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
-                    const dc = dotColors[i % dotColors.length];
-                    const bc = bgColors[i % bgColors.length];
-                    const bd = bdrColors[i % bdrColors.length];
-                    return (
-                      <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
-                        <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+          }
+        />
+        <div ref={panelRef} style={{ padding: "18px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, marginBottom: 14, alignItems: "stretch" }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <ChartLabel><LineChart size={11} color="#00897b" /> Sales revenue over time · {getRangeLabel()}</ChartLabel>
+              {hasData ? (
+                <>
+                  <DashboardLineGraph labels={labels} values={values} height={280} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, marginBottom: 14 }}>
+                    <svg width={24} height={10}><line x1="0" y1="5" x2="24" y2="5" stroke="#3b791e" strokeWidth="3" /><circle cx="12" cy="5" r="3" fill="#fff" stroke="#3b791e" strokeWidth="2" /></svg>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#5a7a65", fontFamily: FONT }}>Actual sales revenue</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                    {[
+                      { label: "Total Revenue", text: `Total revenue for ${getRangeLabel()} is ${fmtAmt(kpiData?.totalSales ?? total)} across ${filterLabel}.`, icon: TrendingUp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                      ...(grossProfit != null ? [{ label: "Gross Profit", text: `Recorded gross profit is ${fmtAmt(grossProfit)}, a ${Math.round((grossProfit / Math.max((kpiData?.totalSales ?? total), 1)) * 100)}% margin.`, icon: BarChart2, color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" }] : []),
+                      { label: "Period Trend",  text: `Revenue is ${trending ? "trending upward" : "trending downward"} at ${trending ? "+" : ""}${pctChange}% from start to end of period.`, icon: trending ? ArrowUpRight : ArrowDownRight, color: trending ? "#059669" : "#dc2626", bg: trending ? "#ecfdf5" : "#fef2f2", border: trending ? "#a7f3d0" : "#fecaca" },
+                    ].map((card, i) => (
+                      <div key={i} style={{ background: card.bg, border: `1px solid ${card.border}`, borderRadius: 11, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fff", border: `1px solid ${card.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 6px ${card.border}` }}>
+                          <card.icon size={16} color={card.color} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 9.5, fontWeight: 800, color: card.color, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 3 }}>{card.label}</div>
+                          <div style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{card.text}</div>
+                        </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div style={{ flex: 1, minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fffe", borderRadius: 12, border: "1.5px dashed #b2dfdb" }}>
+                  <BarChart2 size={28} color="#b2dfdb" />
+                  <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, color: "#5a7a65", fontFamily: FONT, textAlign: "center", padding: "0 20px" }}>
+                    No data found for {getRangeLabel()}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: FONT }}>Try a different range, brand, or branch</div>
                 </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <Info size={22} color="#b2dfdb" />
-                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+            </div>
 
-        {/* Period Summary column removed — 2-column spaced layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "stretch" }}>
-          <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
-           <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
-            {categoryPanelData.length > 0 ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                  <DonutChartSVG
-                    segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))}
-                    size={150}
-                    centerLabel={hasData ? fmtShort(categoryPanelData.reduce((s, d) => s + (d.value || 0), 0)) : "—"}
-                    centerSub="total"
-                    showLegend={false}
-                  />
-                </div>
-                <div style={{ height: 1, background: "#e0f2f1", margin: "2px 0 14px" }} />
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-                  {isFiltered ? "Category Breakdown" : "Brand Breakdown"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <HBarChart data={categoryPanelData.slice(0, 8).map(d => ({ label: d.label, value: d.value }))} />
-                </div>
-              </>
-            ) : (
-              <div style={{ flex: 1, minHeight: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12, textAlign: "center", padding: "0 10px" }}>
-                {isFiltered ? "No category data available for this brand/branch yet." : "No data"}
+            <div style={{ background: "linear-gradient(160deg,#f0fdf5,#eaf5ec)", border: "1px solid #c8e6c9", borderRadius: 14, padding: "16px 14px", display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <div style={{ width: 3, height: 15, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#00695c", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Period Analysis</span>
               </div>
-            )}
+              {hasData ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 12 }}>
+                    {[
+                      { label: "Peak",    value: fmtAmt(peak),                        sub: `on ${peakLabel}`,            color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                      { label: "Low",     value: fmtAmt(low),                         sub: "Period min",                 color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                      { label: "Average", value: fmtAmt(avg),                         sub: `${labels.length} pts`,       color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                      { label: "Trend",   value: `${trending?"+":""}${pctChange}%`,   sub: trending?"Upward":"Downward", color: trending?"#059669":"#dc2626", bg: trending?"#ecfdf5":"#fef2f2", border: trending?"#a7f3d0":"#fecaca" },
+                    ].map((s, i) => (
+                      <div key={i} style={{ background: s.bg, borderRadius: 9, padding: "8px 9px", border: `1px solid ${s.border}` }}>
+                        <div style={{ fontSize: 8.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, marginBottom: 2 }}>{s.label}</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: s.color, fontFamily: FONT, lineHeight: 1.15 }}>{s.value}</div>
+                        <div style={{ fontSize: 9, color: "#5a7a65", fontFamily: FONT, marginTop: 1 }}>{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT, marginBottom: 8 }}>Key Observations</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                    {analysisBullets.slice(3).map((text, i) => {
+                      const dotColors = ["#7c3aed","#059669","#d97706","#dc2626","#00897b","#1d4ed8"];
+                      const bgColors  = ["#f5f3ff","#ecfdf5","#fffbeb","#fef2f2","#f0fdf5","#eff6ff"];
+                      const bdrColors = ["#ddd6fe","#a7f3d0","#fde68a","#fecaca","#d1eedd","#bfdbfe"];
+                      const dc = dotColors[i % dotColors.length];
+                      const bc = bgColors[i % bgColors.length];
+                      const bd = bdrColors[i % bdrColors.length];
+                      return (
+                        <div key={i} style={{ background: bc, border: `1px solid ${bd}`, borderRadius: 9, padding: "8px 10px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: dc, flexShrink: 0, marginTop: 4 }} />
+                          <span style={{ fontSize: 11, color: "#0d2b1e", lineHeight: 1.55, fontFamily: FONT }}>{text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <Info size={22} color="#b2dfdb" />
+                  <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6, margin: 0, fontFamily: FONT }}>Select a date range and branch to see analysis.</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div style={{
-            background: "#f8fffe",
-            border: "1px solid #e0f2f1",
-            borderRadius: 14,
-            padding: "18px 20px"
-          }}>
-            <ChartLabel>
-              <Target size={11} color="#00897b" />
-              Branch Attention & Opportunities
-            </ChartLabel>
 
+          {/* Period Summary column removed — 2-column spaced layout */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "18px 20px" }}>
+            <ChartLabel><CategoryPanelIcon size={11} color="#00897b" /> {categoryPanelTitle}</ChartLabel>
+              {categoryPanelData.length > 0
+                ? <DonutChartSVG segments={categoryPanelData.map((d, i) => ({ label: d.label, value: d.value, color: PAL[i % PAL.length] }))} size={150} centerLabel={hasData ? fmtShort(total) : "—"} centerSub="total" />
+                : <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontFamily: FONT, fontSize: 12 }}>No data</div>
+              }
+            </div>
             <div style={{
-              fontSize: 10.5,
-              color: "#789086",
-              lineHeight: 1.5,
-              marginTop: -3,
-              marginBottom: 12,
-              fontFamily: FONT
+              background: "#f8fffe",
+              border: "1px solid #e0f2f1",
+              borderRadius: 14,
+              padding: "18px 20px"
             }}>
-              Priority observations from branch profitability and transaction data
-            </div>
+              <ChartLabel>
+                <Target size={11} color="#00897b" />
+                Branch Attention & Opportunities
+              </ChartLabel>
 
-            {branchAttentionItems.length > 0 ? (
               <div style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8
+                fontSize: 10.5,
+                color: "#789086",
+                lineHeight: 1.5,
+                marginTop: -3,
+                marginBottom: 12,
+                fontFamily: FONT
               }}>
-                {branchAttentionItems.map((item, index) => {
-                  const tone = {
-                    info: {
-                      bg: "#eff6ff",
-                      border: "#bfdbfe",
-                      accent: "#2563eb",
-                      badgeBg: "#dbeafe",
-                      badgeText: "#1e40af",
-                    },
-                    warning: {
-                      bg: "#fffbeb",
-                      border: "#fde68a",
-                      accent: "#d97706",
-                      badgeBg: "#fef3c7",
-                      badgeText: "#92400e",
-                    },
-                    success: {
-                      bg: "#ecfdf5",
-                      border: "#a7f3d0",
-                      accent: "#059669",
-                      badgeBg: "#d1fae5",
-                      badgeText: "#047857",
-                    },
-                    neutral: {
+                Priority observations from branch profitability and transaction data
+              </div>
+
+              {branchAttentionItems.length > 0 ? (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8
+                }}>
+                  {branchAttentionItems.map((item, index) => {
+                    const tone = {
+                      info: {
+                        bg: "#eff6ff",
+                        border: "#bfdbfe",
+                        accent: "#2563eb",
+                        badgeBg: "#dbeafe",
+                        badgeText: "#1e40af",
+                      },
+                      warning: {
+                        bg: "#fffbeb",
+                        border: "#fde68a",
+                        accent: "#d97706",
+                        badgeBg: "#fef3c7",
+                        badgeText: "#92400e",
+                      },
+                      success: {
+                        bg: "#ecfdf5",
+                        border: "#a7f3d0",
+                        accent: "#059669",
+                        badgeBg: "#d1fae5",
+                        badgeText: "#047857",
+                      },
+                      neutral: {
+                        bg: "#f8fafc",
+                        border: "#e2e8f0",
+                        accent: "#64748b",
+                        badgeBg: "#f1f5f9",
+                        badgeText: "#475569",
+                      },
+                      healthy: {
+                        bg: "#f0f5e8",
+                        border: "#c9dba0",
+                        accent: "#3b791e",
+                        badgeBg: "#e8f0dd",
+                        badgeText: "#2c5c16",
+                      },
+                    }[item.tone] || {
                       bg: "#f8fafc",
                       border: "#e2e8f0",
                       accent: "#64748b",
                       badgeBg: "#f1f5f9",
                       badgeText: "#475569",
-                    },
-                    healthy: {
-                      bg: "#f0f5e8",
-                      border: "#c9dba0",
-                      accent: "#3b791e",
-                      badgeBg: "#e8f0dd",
-                      badgeText: "#2c5c16",
-                    },
-                  }[item.tone] || {
-                    bg: "#f8fafc",
-                    border: "#e2e8f0",
-                    accent: "#64748b",
-                    badgeBg: "#f1f5f9",
-                    badgeText: "#475569",
-                  };
+                    };
 
-                  return (
-                    <div
-                      key={`${item.branch}-${index}`}
-                      style={{
-                        background: tone.bg,
-                        border: `1px solid ${tone.border}`,
-                        borderLeft: `3px solid ${tone.accent}`,
-                        borderRadius: 10,
-                        padding: "9px 10px"
-                      }}
-                    >
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        marginBottom: 5
-                      }}>
+                    return (
+                      <div
+                        key={`${item.branch}-${index}`}
+                        style={{
+                          background: tone.bg,
+                          border: `1px solid ${tone.border}`,
+                          borderLeft: `3px solid ${tone.accent}`,
+                          borderRadius: 10,
+                          padding: "9px 10px"
+                        }}
+                      >
                         <div style={{
-                          fontSize: 11.5,
-                          fontWeight: 800,
-                          color: "#102a1c",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          fontFamily: FONT
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginBottom: 5
                         }}>
-                          {item.branch}
+                          <div style={{
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            color: "#102a1c",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            fontFamily: FONT
+                          }}>
+                            {item.branch}
+                          </div>
+
+                          <span style={{
+                            flexShrink: 0,
+                            fontSize: 8.5,
+                            fontWeight: 800,
+                            letterSpacing: ".05em",
+                            textTransform: "uppercase",
+                            padding: "2px 6px",
+                            borderRadius: 20,
+                            background: tone.badgeBg,
+                            color: tone.badgeText,
+                            fontFamily: FONT
+                          }}>
+                            {item.status}
+                          </span>
                         </div>
 
-                        <span style={{
-                          flexShrink: 0,
-                          fontSize: 8.5,
-                          fontWeight: 800,
-                          letterSpacing: ".05em",
-                          textTransform: "uppercase",
-                          padding: "2px 6px",
-                          borderRadius: 20,
-                          background: tone.badgeBg,
-                          color: tone.badgeText,
+                        <div style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          color: "#334155",
+                          lineHeight: 1.45,
                           fontFamily: FONT
                         }}>
-                          {item.status}
-                        </span>
+                          {item.title}
+                        </div>
+
+                        <div style={{
+                          fontSize: 10,
+                          color: "#64748b",
+                          lineHeight: 1.5,
+                          marginTop: 2,
+                          fontFamily: FONT
+                        }}>
+                          {item.detail}
+                        </div>
+
+                        <div style={{
+                          fontSize: 9.7,
+                          fontWeight: 700,
+                          color: tone.accent,
+                          lineHeight: 1.45,
+                          marginTop: 4,
+                          fontFamily: FONT
+                        }}>
+                          {item.action}
+                        </div>
                       </div>
-
-                      <div style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        color: "#334155",
-                        lineHeight: 1.45,
-                        fontFamily: FONT
-                      }}>
-                        {item.title}
-                      </div>
-
-                      <div style={{
-                        fontSize: 10,
-                        color: "#64748b",
-                        lineHeight: 1.5,
-                        marginTop: 2,
-                        fontFamily: FONT
-                      }}>
-                        {item.detail}
-                      </div>
-
-                      <div style={{
-                        fontSize: 9.7,
-                        fontWeight: 700,
-                        color: tone.accent,
-                        lineHeight: 1.45,
-                        marginTop: 4,
-                        fontFamily: FONT
-                      }}>
-                        {item.action}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{
-                height: 130,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#94a3b8",
-                fontFamily: FONT,
-                fontSize: 11.5,
-                textAlign: "center",
-                lineHeight: 1.6,
-                padding: 16
-              }}>
-                No branch profitability observations are available for this filter.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </PanelCard>
-  );
-}
-
-function PrescriptiveSection({ transactions, filterLabel, preset, total, values, labels = [], kpiData }) {
-  const [analysis, setAnalysis] = useState(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
-  const [lastRun,  setLastRun]  = useState(null);
-  const [pdfBusy,  setPdfBusy]  = useState(false);
-
-  const exportRef = useRef(null); // offscreen report layout used for Print + PDF
-
-  const runAnalysis = async () => {
-    if (!transactions?.length) { setError("No transaction data available."); return; }
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transactions, preset, filterLabel }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAnalysis(data.analysis);
-        setLastRun(new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" }));
-      } else {
-        setError(data.error || "Analysis failed.");
-      }
-    } catch { setError("Could not reach the AI service."); }
-    finally { setLoading(false); }
-  };
-
-  const projRev = analysis?.projectedRevenue ?? null;
-  const projChg = analysis?.projectedChange ?? null;
-  const peakDay = analysis?.peakDay ?? null;
-  const slowDay = analysis?.slowestDay ?? null;
-  const conf = analysis?.confidence ?? null;
-
-  // Prescriptive anomaly groups.
-  // "ghost_sales" is the backend's existing anomalyType for a branch that
-  // recorded sales while one or more inventory items are already at zero stock.
-  const ghostStockAnomalies = useMemo(() => {
-    const rows = Array.isArray(analysis?.stockAnomalies)
-      ? analysis.stockAnomalies
-      : [];
-
-    return rows.filter((a) => {
-      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
-      return type === "ghost_sales" || type === "ghost_stock";
-    });
-  }, [analysis]);
-
-  // Preserve the other anomaly types instead of removing existing functionality.
-  const otherStockAnomalies = useMemo(() => {
-    const rows = Array.isArray(analysis?.stockAnomalies)
-      ? analysis.stockAnomalies
-      : [];
-
-    return rows.filter((a) => {
-      const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
-      return type !== "ghost_sales" && type !== "ghost_stock";
-    });
-  }, [analysis]);
-
-  const typeStyle = (type) => ({
-    success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
-    warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
-    info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
-  }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
-
-  const preRunBullets = useMemo(() => {
-    if (!total) return [];
-    return [
-      `${transactions?.length?.toLocaleString() ?? 0} transaction records are available to the AI service.`,
-      `Recorded revenue represented by the selected dashboard series is ${fmtAmt(total)}.`,
-      `The evidence charts below show the historical values supplied for analysis. AI forecasts only appear after Run AI Analysis is completed.`,
-    ];
-  }, [total, transactions]);
-
-  // ── Print (opens the offscreen report layout in a new tab) ─────────────
-  const handlePrint = () => {
-    if (!exportRef.current) return;
-    const printContents = exportRef.current.innerHTML;
-    const win = window.open("", "_blank");
-    if (!win) { alert("Please allow pop-ups to print this report."); return; }
-   win.document.write(`
-      <html>
-        <head>
-          <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-            * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            html, body { margin: 0; background: #ffffff !important; }
-            @media print { @page { margin: 14mm; } button { display: none !important; } }
-          </style>
-        </head>
-        <body>${printContents}</body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 400);
-  };
-
-  // ── Download as an actual PDF file (same layout as Print) ──────────────
-  const handleDownloadPDF = async () => {
-    if (!exportRef.current) return;
-    setPdfBusy(true);
-    try {
-      const margin = 30; // pt
-      const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-      const pageWidth    = pdf.internal.pageSize.getWidth();
-      const pageHeight   = pdf.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - margin * 2;
-
-      const canvas = await html2canvas(exportRef.current, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        windowWidth: exportRef.current.scrollWidth,
-      });
-      const imgData    = canvas.toDataURL("image/png");
-      const imgHeight   = (canvas.height * contentWidth) / canvas.width;
-      const pageContentH = pageHeight - margin * 2 - 20; // reserve a little for page number
-      const totalPages   = Math.max(1, Math.ceil(imgHeight / pageContentH));
-
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
-        const yOffset = margin - page * pageContentH;
-        pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
-
-        pdf.setDrawColor(224, 242, 241);
-        pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        pdf.setTextColor(148, 163, 184);
-        pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
-      }
-
-      pdf.save(`Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      alert("Could not generate PDF. Please try again.");
-    } finally {
-      setPdfBusy(false);
-    }
-  };
-
-  return (
-    <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader
-        icon={Brain}
-        title="AI Prescriptive Analysis"
-        sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
-        gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={handlePrint}
-              title="Print"
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-              <Printer size={13} /> Print
-            </button>
-            <button onClick={handleDownloadPDF} disabled={pdfBusy}
-              title="Download as PDF"
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
-              <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
-              {pdfBusy ? "Preparing…" : "Download PDF"}
-            </button>
-            <button onClick={runAnalysis} disabled={loading}
-              style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
-              <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
-              {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
-            </button>
-          </div>
-        }
-      />
-
-      {/* ── Live dashboard view (unchanged, compact) ── */}
-      <div style={{ padding: "18px 20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,.8fr)", gap: 16, marginBottom: 20 }}>
-          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:8 }}>
-              <div>
-                <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>Historical Revenue Evidence</div>
-                <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, fontFamily:FONT }}>Actual dashboard series used as evidence for the AI analysis</div>
-              </div>
-              <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20, background:"#eff6ff", color:"#1d4ed8", fontFamily:FONT }}>SOURCE DATA</span>
-            </div>
-            <DashboardLineGraph labels={labels} values={values} height={210} />
-          </div>
-          <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
-            <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>AI Output Evidence</div>
-            <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, marginBottom:12, fontFamily:FONT }}>Forecast fields stay empty until the AI returns them</div>
-            {analysis ? (
-              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-                {[
-                  ["Projected 7-Day Revenue", projRev != null ? fmtAmt(projRev) : "Not returned"],
-                  ["Projected Change", projChg != null ? `${projChg >= 0 ? "+" : ""}${Number(projChg).toFixed(1)}%` : "Not returned"],
-                  ["Peak Day", peakDay || "Not returned"],
-                  ["Slowest Day", slowDay || "Not returned"],
-                  ["Confidence", conf != null ? `${conf}%` : "Not returned"],
-                ].map(([label,value]) => <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"9px 10px", borderRadius:9, background:"#f8fbff", border:"1px solid #e5edf8" }}><span style={{fontSize:10.5,color:"#64748b",fontWeight:700}}>{label}</span><strong style={{fontSize:11,color:"#1e3a5f",textAlign:"right"}}>{value}</strong></div>)}
-              </div>
-            ) : <div style={{ minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", border:"1px dashed #bfdbfe", borderRadius:10, background:"#f8fbff", color:"#64748b", fontSize:11.5, textAlign:"center", padding:18 }}>Run AI Analysis to generate forecast evidence and recommendations.</div>}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)" }} />
-                <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>
-                  {analysis ? "AI Summary" : "Data Overview"} · {filterLabel}
-                </span>
-              </div>
-              {analysis ? (
-                <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+                    );
+                  })}
+                </div>
               ) : (
-                <>
-                  {preRunBullets.length > 0
-                    ? preRunBullets.map((b, i) => <BulletItem key={i} text={b} color="#3b82f6" />)
-                    : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
-                  }
-                  {error && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
-                      <AlertTriangle size={13} color="#dc2626" />
-                      <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                <div style={{
+                  height: 130,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#94a3b8",
+                  fontFamily: FONT,
+                  fontSize: 11.5,
+                  textAlign: "center",
+                  lineHeight: 1.6,
+                  padding: 16
+                }}>
+                  No branch profitability observations are available for this filter.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </PanelCard>
+    );
+  }
+
+  function PrescriptiveSection({ transactions, filterLabel, preset, total, values, labels = [], kpiData, showStockAnomalies = true }) {
+    const [analysis, setAnalysis] = useState(null);
+    const [loading,  setLoading]  = useState(false);
+    const [error,    setError]    = useState(null);
+    const [lastRun,  setLastRun]  = useState(null);
+    const [pdfBusy,  setPdfBusy]  = useState(false);
+
+    const exportRef = useRef(null); // offscreen report layout used for Print + PDF
+
+    const runAnalysis = async () => {
+      if (!transactions?.length) { setError("No transaction data available."); return; }
+      setLoading(true); setError(null);
+      try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/ai/dashboard-analysis`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transactions, preset, filterLabel }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAnalysis(data.analysis);
+          setLastRun(new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" }));
+        } else {
+          setError(data.error || "Analysis failed.");
+        }
+      } catch { setError("Could not reach the AI service."); }
+      finally { setLoading(false); }
+    };
+
+    const projRev = analysis?.projectedRevenue ?? null;
+    const projChg = analysis?.projectedChange ?? null;
+    const peakDay = analysis?.peakDay ?? null;
+    const slowDay = analysis?.slowestDay ?? null;
+    const conf = analysis?.confidence ?? null;
+
+    // Prescriptive anomaly groups.
+    // "ghost_sales" is the backend's existing anomalyType for a branch that
+    // recorded sales while one or more inventory items are already at zero stock.
+    const ghostStockAnomalies = useMemo(() => {
+      const rows = Array.isArray(analysis?.stockAnomalies)
+        ? analysis.stockAnomalies
+        : [];
+
+      return rows.filter((a) => {
+        const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+        return type === "ghost_sales" || type === "ghost_stock";
+      });
+    }, [analysis]);
+
+    // Preserve the other anomaly types instead of removing existing functionality.
+    const otherStockAnomalies = useMemo(() => {
+      const rows = Array.isArray(analysis?.stockAnomalies)
+        ? analysis.stockAnomalies
+        : [];
+
+      return rows.filter((a) => {
+        const type = String(a?.anomalyType ?? a?.type ?? "").toLowerCase();
+        return type !== "ghost_sales" && type !== "ghost_stock";
+      });
+    }, [analysis]);
+
+    const typeStyle = (type) => ({
+      success: { borderColor: "#059669", bg: "#ecfdf5", color: "#065f46", badgeBg: "#d1fae5", dot: "#059669" },
+      warning: { borderColor: "#d97706", bg: "#fffbeb", color: "#92400e", badgeBg: "#fef3c7", dot: "#f59e0b" },
+      info:    { borderColor: "#2563eb", bg: "#eff6ff", color: "#1e40af", badgeBg: "#dbeafe", dot: "#3b82f6" },
+    }[type] || { borderColor: "#6b7280", bg: "#f9fafb", color: "#374151", badgeBg: "#f3f4f6", dot: "#6b7280" });
+
+    const preRunBullets = useMemo(() => {
+      if (!total) return [];
+      return [
+        `${transactions?.length?.toLocaleString() ?? 0} transaction records are available to the AI service.`,
+        `Recorded revenue represented by the selected dashboard series is ${fmtAmt(total)}.`,
+        `The evidence charts below show the historical values supplied for analysis. AI forecasts only appear after Run AI Analysis is completed.`,
+      ];
+    }, [total, transactions]);
+
+    // ── Print (opens the offscreen report layout in a new tab) ─────────────
+    const handlePrint = () => {
+      if (!exportRef.current) return;
+      const printContents = exportRef.current.innerHTML;
+      const win = window.open("", "_blank");
+      if (!win) { alert("Please allow pop-ups to print this report."); return; }
+    win.document.write(`
+        <html>
+          <head>
+            <title>Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+              * { box-sizing: border-box; font-family: 'Montserrat', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              html, body { margin: 0; background: #ffffff !important; }
+              @media print { @page { margin: 14mm; } button { display: none !important; } }
+            </style>
+          </head>
+          <body>${printContents}</body>
+        </html>
+      `);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 400);
+    };
+
+    // ── Download as an actual PDF file (same layout as Print) ──────────────
+    const handleDownloadPDF = async () => {
+      if (!exportRef.current) return;
+      setPdfBusy(true);
+      try {
+        const margin = 30; // pt
+        const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+        const pageWidth    = pdf.internal.pageSize.getWidth();
+        const pageHeight   = pdf.internal.pageSize.getHeight();
+        const contentWidth = pageWidth - margin * 2;
+
+        const canvas = await html2canvas(exportRef.current, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          windowWidth: exportRef.current.scrollWidth,
+        });
+        const imgData    = canvas.toDataURL("image/png");
+        const imgHeight   = (canvas.height * contentWidth) / canvas.width;
+        const pageContentH = pageHeight - margin * 2 - 20; // reserve a little for page number
+        const totalPages   = Math.max(1, Math.ceil(imgHeight / pageContentH));
+
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+          const yOffset = margin - page * pageContentH;
+          pdf.addImage(imgData, "PNG", margin, yOffset, contentWidth, imgHeight, undefined, "FAST");
+
+          pdf.setDrawColor(224, 242, 241);
+          pdf.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(`Page ${page + 1} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: "right" });
+        }
+
+        pdf.save(`Prescriptive_Analysis_${filterLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      } catch (err) {
+        console.error("PDF export failed:", err);
+        alert("Could not generate PDF. Please try again.");
+      } finally {
+        setPdfBusy(false);
+      }
+    };
+
+    return (
+      <PanelCard style={{ marginBottom: 22 }}>
+        <CardHeader
+          icon={Brain}
+          title="AI Prescriptive Analysis"
+          sub={`Powered by Groq · llama-3.3-70b${lastRun ? ` · Last run ${lastRun}` : ""}`}
+          gradient="linear-gradient(135deg,#1e3a5f,#1d4ed8)"
+          action={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={handlePrint}
+                title="Print"
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                <Printer size={13} /> Print
+              </button>
+              <button onClick={handleDownloadPDF} disabled={pdfBusy}
+                title="Download as PDF"
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(0,200,83,0.22)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: pdfBusy ? "not-allowed" : "pointer", fontFamily: FONT, opacity: pdfBusy ? 0.7 : 1 }}>
+                <Download size={13} style={{ animation: pdfBusy ? "spin 0.8s linear infinite" : "none" }} />
+                {pdfBusy ? "Preparing…" : "Download PDF"}
+              </button>
+              <button onClick={runAnalysis} disabled={loading}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+                <Zap size={12} style={{ animation: loading ? "spin 0.8s linear infinite" : "none" }} />
+                {loading ? "Analyzing…" : analysis ? "Re-run AI" : "Run AI Analysis"}
+              </button>
+            </div>
+          }
+        />
+
+        {/* ── Live dashboard view (unchanged, compact) ── */}
+        <div style={{ padding: "18px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,.8fr)", gap: 16, marginBottom: 20 }}>
+            <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:8 }}>
+                <div>
+                  <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>Historical Revenue Evidence</div>
+                  <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, fontFamily:FONT }}>Actual dashboard series used as evidence for the AI analysis</div>
+                </div>
+                <span style={{ fontSize:9.5, fontWeight:800, padding:"3px 8px", borderRadius:20, background:"#eff6ff", color:"#1d4ed8", fontFamily:FONT }}>SOURCE DATA</span>
+              </div>
+              <DashboardLineGraph labels={labels} values={values} height={210} />
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #dbeafe", borderRadius: 14, padding: "15px 16px" }}>
+              <div style={{ fontSize:12.5, fontWeight:800, color:"#1e3a5f", fontFamily:FONT }}>AI Output Evidence</div>
+              <div style={{ fontSize:10.5, color:"#64748b", marginTop:2, marginBottom:12, fontFamily:FONT }}>Forecast fields stay empty until the AI returns them</div>
+              {analysis ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                  {[
+                    ["Projected 7-Day Revenue", projRev != null ? fmtAmt(projRev) : "Not returned"],
+                    ["Projected Change", projChg != null ? `${projChg >= 0 ? "+" : ""}${Number(projChg).toFixed(1)}%` : "Not returned"],
+                    ["Peak Day", peakDay || "Not returned"],
+                    ["Slowest Day", slowDay || "Not returned"],
+                    ["Confidence", conf != null ? `${conf}%` : "Not returned"],
+                  ].map(([label,value]) => <div key={label} style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"9px 10px", borderRadius:9, background:"#f8fbff", border:"1px solid #e5edf8" }}><span style={{fontSize:10.5,color:"#64748b",fontWeight:700}}>{label}</span><strong style={{fontSize:11,color:"#1e3a5f",textAlign:"right"}}>{value}</strong></div>)}
+                </div>
+              ) : <div style={{ minHeight:180, display:"flex", alignItems:"center", justifyContent:"center", border:"1px dashed #bfdbfe", borderRadius:10, background:"#f8fbff", color:"#64748b", fontSize:11.5, textAlign:"center", padding:18 }}>Run AI Analysis to generate forecast evidence and recommendations.</div>}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ background: "linear-gradient(160deg,#eff6ff,#dbeafe)", border: "1px solid #bfdbfe", borderRadius: 14, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)" }} />
+                  <span style={{ fontSize: 10, fontWeight: 800, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>
+                    {analysis ? "AI Summary" : "Data Overview"} · {filterLabel}
+                  </span>
+                </div>
+                {analysis ? (
+                  <p style={{ fontSize: 12.5, color: "#0d2b1e", lineHeight: 1.75, margin: 0, fontFamily: FONT }}>{analysis.summary}</p>
+                ) : (
+                  <>
+                    {preRunBullets.length > 0
+                      ? preRunBullets.map((b, i) => <BulletItem key={i} text={b} color="#3b82f6" />)
+                      : <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: FONT, fontStyle: "italic" }}>Load transactions and run AI Analysis to generate insights.</p>
+                    }
+                    {error && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 9, marginTop: 8 }}>
+                        <AlertTriangle size={13} color="#dc2626" />
+                        <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 600, fontFamily: FONT }}>{error}</span>
+                      </div>
+                    )}
+                    {loading && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                        <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Ghost Stock Anomalies Across Branches — directly under AI Summary */}
+              {analysis && showStockAnomalies && (
+                <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 14, padding: "14px 15px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: ghostStockAnomalies.length > 0 ? 10 : 0, flexWrap: "wrap" }}>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: "#dc2626",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      fontFamily: FONT
+                    }}>
+                      Ghost Stock Anomalies Across Branches
+                    </span>
+
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
+                      color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b",
+                      fontFamily: FONT
+                    }}>
+                      {ghostStockAnomalies.length}
+                    </span>
+                  </div>
+
+                  <div style={{
+                    marginBottom: 11,
+                    padding: "10px 12px",
+                    borderRadius: 9,
+                    background: "#fff7f7",
+                    border: "1px solid #fee2e2",
+                    fontSize: 11.5,
+                    color: "#7f1d1d",
+                    lineHeight: 1.6,
+                    fontFamily: FONT
+                  }}>
+                    <strong>What is a ghost stock anomaly?</strong>{" "}
+                    A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+                  </div>
+
+                  {ghostStockAnomalies.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {ghostStockAnomalies.map((a, i) => {
+                        const severity = String(a?.severity || "critical").toLowerCase();
+                        const severityColor =
+                          severity === "critical"
+                            ? "#dc2626"
+                            : severity === "warning"
+                              ? "#d97706"
+                              : "#2563eb";
+
+                        return (
+                          <div
+                            key={`${a?.branch || "branch"}-${i}`}
+                            style={{
+                              background: "linear-gradient(145deg,#fff7f7,#fef2f2)",
+                              border: "1px solid #fecaca",
+                              borderLeft: `4px solid ${severityColor}`,
+                              borderRadius: 12,
+                              padding: "13px 14px"
+                            }}
+                          >
+                            <div style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 7,
+                              marginBottom: 8,
+                              flexWrap: "wrap"
+                            }}>
+                              <AlertTriangle size={13} color={severityColor} />
+
+                              <span style={{
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                padding: "2px 7px",
+                                borderRadius: 20,
+                                background: "#fee2e2",
+                                color: "#991b1b",
+                                textTransform: "uppercase",
+                                fontFamily: FONT
+                              }}>
+                                Ghost Stock
+                              </span>
+
+                              <span style={{
+                                fontSize: 12,
+                                fontWeight: 800,
+                                color: "#0d2b1e",
+                                fontFamily: FONT
+                              }}>
+                                {a?.branch || "Unknown Branch"}
+                              </span>
+
+                              <span style={{
+                                marginLeft: "auto",
+                                fontSize: 9,
+                                fontWeight: 800,
+                                padding: "2px 7px",
+                                borderRadius: 20,
+                                background: severity === "critical" ? "#fee2e2" : severity === "warning" ? "#fef3c7" : "#dbeafe",
+                                color: severity === "critical" ? "#991b1b" : severity === "warning" ? "#92400e" : "#1e40af",
+                                textTransform: "uppercase",
+                                fontFamily: FONT
+                              }}>
+                                {severity}
+                              </span>
+                            </div>
+
+                            <BulletItem
+                              text={a?.finding || "Sales activity was detected while related inventory is already recorded at zero stock."}
+                              color={severityColor}
+                              size="small"
+                            />
+
+                            <div style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 7,
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              background: "rgba(255,255,255,0.78)",
+                              border: "1px solid #fecaca",
+                              marginTop: 7
+                            }}>
+                              <CheckCircle size={12} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
+                              <span style={{
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: "#0d2b1e",
+                                lineHeight: 1.55,
+                                fontFamily: FONT
+                              }}>
+                                {a?.action || "Verify the branch's physical stock, reconcile recent sales against inventory movements, and correct the stock record before further replenishment decisions."}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 9,
+                      padding: "10px 11px",
+                      borderRadius: 9,
+                      background: "#f8fafc",
+                      border: "1px dashed #cbd5e1"
+                    }}>
+                      <CheckCircle size={14} color="#059669" />
+                      <span style={{
+                        fontSize: 11.5,
+                        color: "#64748b",
+                        lineHeight: 1.55,
+                        fontFamily: FONT
+                      }}>
+                        No ghost stock anomaly was detected in the branches included in this analysis.
+                      </span>
                     </div>
                   )}
-                  {loading && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-                      <div style={{ width: 18, height: 18, border: "2.5px solid #dbeafe", borderTopColor: "#2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Sending {transactions?.length} transactions to Groq…</span>
-                    </div>
-                  )}
-                </>
+                </div>
+              )}
+
+              {/* Preserve non-ghost stock/sales anomalies below the ghost-stock section */}
+              {analysis && showStockAnomalies && otherStockAnomalies.length > 0 && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "#d97706" }} />
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: "#92400e",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      fontFamily: FONT
+                    }}>
+                      Other Stock vs Sales Anomalies
+                    </span>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: "#fef3c7",
+                      color: "#92400e",
+                      fontFamily: FONT
+                    }}>
+                      {otherStockAnomalies.length}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {otherStockAnomalies.map((a, i) => {
+                      const cfg = {
+                        low_stock_no_reorder: {
+                          bg: "#fffbeb",
+                          border: "#fde68a",
+                          label: "Not Reordering",
+                          labelBg: "#fef3c7",
+                          labelColor: "#92400e",
+                          dot: "#d97706"
+                        },
+                        dead_stock: {
+                          bg: "#eff6ff",
+                          border: "#bfdbfe",
+                          label: "Dead Stock",
+                          labelBg: "#dbeafe",
+                          labelColor: "#1e40af",
+                          dot: "#2563eb"
+                        },
+                      }[a?.anomalyType] || {
+                        bg: "#f8fffe",
+                        border: "#d1eedd",
+                        label: "Anomaly",
+                        labelBg: "#e0f2f1",
+                        labelColor: "#00695c",
+                        dot: "#00897b"
+                      };
+
+                      return (
+                        <div key={i} style={{
+                          background: cfg.bg,
+                          border: `1px solid ${cfg.border}`,
+                          borderRadius: 12,
+                          padding: "13px 14px"
+                        }}>
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 7,
+                            flexWrap: "wrap"
+                          }}>
+                            <span style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: "50%",
+                              background: cfg.dot,
+                              display: "inline-block"
+                            }} />
+                            <span style={{
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                              padding: "2px 7px",
+                              borderRadius: 20,
+                              background: cfg.labelBg,
+                              color: cfg.labelColor,
+                              textTransform: "uppercase",
+                              fontFamily: FONT
+                            }}>
+                              {cfg.label}
+                            </span>
+                            <span style={{
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: "#0d2b1e",
+                              fontFamily: FONT
+                            }}>
+                              {a?.branch || "Unknown Branch"}
+                            </span>
+                          </div>
+
+                          <BulletItem text={a?.finding} color={cfg.dot} size="small" />
+
+                          {a?.action && (
+                            <div style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 6,
+                              padding: "7px 9px",
+                              borderRadius: 7,
+                              background: "rgba(255,255,255,0.65)",
+                              border: `1px solid ${cfg.border}`,
+                              marginTop: 6
+                            }}>
+                              <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
+                              <span style={{
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: "#0d2b1e",
+                                lineHeight: 1.55,
+                                fontFamily: FONT
+                              }}>
+                                {a.action}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Ghost Stock Anomalies Across Branches — directly under AI Summary */}
-            {analysis && (
-              <div style={{ background: "#fff", border: "1px solid #fecaca", borderRadius: 14, padding: "14px 15px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: ghostStockAnomalies.length > 0 ? 10 : 0, flexWrap: "wrap" }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#dc2626" }} />
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: "#dc2626",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    fontFamily: FONT
-                  }}>
+            <div>
+              {analysis?.recommendations?.length > 0 ? (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {analysis.recommendations.map((rec, i) => {
+                      const s = typeStyle(rec.type);
+                      return (
+                        <div key={i} style={{ background: s.bg, border: `1px solid ${s.borderColor}25`, borderRadius: 12, padding: "12px 12px 12px 16px", position: "relative", overflow: "hidden" }}>
+                          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.borderColor, borderRadius: "4px 0 0 4px" }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
+                            <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", background: s.badgeBg, padding: "2px 7px", borderRadius: 20, fontFamily: FONT }}>{rec.branch || rec.type}</span>
+                          </div>
+                          <BulletItem text={rec.text} color={s.dot} size="small" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+                  <Brain size={32} color="#bfdbfe" />
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
+                  <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
+                    {transactions?.length
+                      ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
+                      : "Load transactions then run the AI analysis."
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── OFFSCREEN report layout — used only by Print & Download PDF ── */}
+        <div style={{ position: "absolute", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
+          <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#0d2b1e" }}>
+
+            {/* Letterhead */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #00c853" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                <img src={logoIfranchise} alt="iFranchise Business Services Corp." style={{ height: 58, width: "auto" }} />
+                <div style={{ width: 1, height: 44, background: "#d1eedd" }} />
+                <img src={logoSync} alt="FranchiSync" style={{ height: 46, width: "auto" }} />
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  iFranchise Business Services Corp.
+                </div>
+                <div style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 2 }}>
+                  {new Date().toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            {/* Title block */}
+            <div style={{ marginBottom: 26 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#0d2b1e", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
+                AI Prescriptive Analysis Report
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#00897b", background: "#e0f2f1", padding: "4px 12px", borderRadius: 20 }}>
+                  {filterLabel}
+                </span>
+                {lastRun && (
+                  <span style={{ fontSize: 13, color: "#5a7a65", fontWeight: 600 }}>
+                    AI run at {lastRun}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* KPI summary grid — larger, readable */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 30 }}>
+              {[
+                { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior period` : "Not yet calculated", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+                { label: "Peak Day Forecast",        value: peakDay || "—", sub: "Highest revenue day", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+                { label: "Slowest Day Forecast",     value: slowDay || "—", sub: "Lowest revenue day", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+                { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — needs more data") : "Not yet calculated", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+              ].map((card, i) => (
+                <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 14, padding: "18px 20px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+                    {card.label}
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
+                  <div style={{ fontSize: 12.5, color: "#5a7a65", marginTop: 6 }}>{card.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Executive summary */}
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
+                  {analysis ? "Executive Summary" : "Data Overview"}
+                </span>
+              </div>
+              {analysis ? (
+                <p style={{ fontSize: 14.5, lineHeight: 1.85, margin: 0, color: "#1a1a1a" }}>{analysis.summary}</p>
+              ) : (
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 2, color: "#1a1a1a" }}>
+                  {preRunBullets.map((b, i) => <li key={i}>{b}</li>)}
+                </ul>
+              )}
+            </div>
+
+            {/* Ghost Stock Anomalies Across Branches */}
+            {analysis && showStockAnomalies && (
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
                     Ghost Stock Anomalies Across Branches
                   </span>
-
                   <span style={{
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    padding: "2px 8px",
+                    padding: "3px 10px",
                     borderRadius: 20,
                     background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
-                    color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b",
-                    fontFamily: FONT
+                    color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b"
                   }}>
                     {ghostStockAnomalies.length}
                   </span>
                 </div>
 
                 <div style={{
-                  marginBottom: 11,
-                  padding: "10px 12px",
+                  marginBottom: 14,
+                  padding: "11px 13px",
                   borderRadius: 9,
                   background: "#fff7f7",
                   border: "1px solid #fee2e2",
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   color: "#7f1d1d",
-                  lineHeight: 1.6,
-                  fontFamily: FONT
+                  lineHeight: 1.65
                 }}>
                   <strong>What is a ghost stock anomaly?</strong>{" "}
                   A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
                 </div>
 
                 {ghostStockAnomalies.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {ghostStockAnomalies.map((a, i) => {
-                      const severity = String(a?.severity || "critical").toLowerCase();
-                      const severityColor =
-                        severity === "critical"
-                          ? "#dc2626"
-                          : severity === "warning"
-                            ? "#d97706"
-                            : "#2563eb";
-
-                      return (
-                        <div
-                          key={`${a?.branch || "branch"}-${i}`}
-                          style={{
-                            background: "linear-gradient(145deg,#fff7f7,#fef2f2)",
-                            border: "1px solid #fecaca",
-                            borderLeft: `4px solid ${severityColor}`,
-                            borderRadius: 12,
-                            padding: "13px 14px"
-                          }}
-                        >
-                          <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 7,
-                            marginBottom: 8,
-                            flexWrap: "wrap"
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {ghostStockAnomalies.map((a, i) => (
+                      <div
+                        key={`${a?.branch || "branch"}-${i}`}
+                        style={{
+                          background: "#fef2f2",
+                          border: "1.5px solid #fecaca",
+                          borderLeft: "5px solid #dc2626",
+                          borderRadius: 12,
+                          padding: "16px 18px"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: "3px 10px",
+                            borderRadius: 20,
+                            background: "#fff",
+                            color: "#991b1b",
+                            textTransform: "uppercase"
                           }}>
-                            <AlertTriangle size={13} color={severityColor} />
-
-                            <span style={{
-                              fontSize: 9.5,
-                              fontWeight: 800,
-                              padding: "2px 7px",
-                              borderRadius: 20,
-                              background: "#fee2e2",
-                              color: "#991b1b",
-                              textTransform: "uppercase",
-                              fontFamily: FONT
-                            }}>
-                              Ghost Stock
-                            </span>
-
-                            <span style={{
-                              fontSize: 12,
-                              fontWeight: 800,
-                              color: "#0d2b1e",
-                              fontFamily: FONT
-                            }}>
-                              {a?.branch || "Unknown Branch"}
-                            </span>
-
-                            <span style={{
-                              marginLeft: "auto",
-                              fontSize: 9,
-                              fontWeight: 800,
-                              padding: "2px 7px",
-                              borderRadius: 20,
-                              background: severity === "critical" ? "#fee2e2" : severity === "warning" ? "#fef3c7" : "#dbeafe",
-                              color: severity === "critical" ? "#991b1b" : severity === "warning" ? "#92400e" : "#1e40af",
-                              textTransform: "uppercase",
-                              fontFamily: FONT
-                            }}>
-                              {severity}
-                            </span>
-                          </div>
-
-                          <BulletItem
-                            text={a?.finding || "Sales activity was detected while related inventory is already recorded at zero stock."}
-                            color={severityColor}
-                            size="small"
-                          />
-
-                          <div style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 7,
-                            padding: "8px 10px",
-                            borderRadius: 8,
-                            background: "rgba(255,255,255,0.78)",
-                            border: "1px solid #fecaca",
-                            marginTop: 7
+                            Ghost Stock
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700 }}>
+                            {a?.branch || "Unknown Branch"}
+                          </span>
+                          <span style={{
+                            marginLeft: "auto",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: "3px 10px",
+                            borderRadius: 20,
+                            background: "#fee2e2",
+                            color: "#991b1b",
+                            textTransform: "uppercase"
                           }}>
-                            <CheckCircle size={12} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
-                            <span style={{
-                              fontSize: 11.5,
-                              fontWeight: 600,
-                              color: "#0d2b1e",
-                              lineHeight: 1.55,
-                              fontFamily: FONT
-                            }}>
-                              {a?.action || "Verify the branch's physical stock, reconcile recent sales against inventory movements, and correct the stock record before further replenishment decisions."}
-                            </span>
-                          </div>
+                            {a?.severity || "critical"}
+                          </span>
                         </div>
-                      );
-                    })}
+
+                        <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                          {a?.finding || "Sales activity was detected while related inventory is recorded at zero stock."}
+                        </p>
+
+                        <div style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 8,
+                          padding: "9px 12px"
+                        }}>
+                          → {a?.action || "Verify physical stock, reconcile inventory movements, and correct the branch stock record."}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 9,
-                    padding: "10px 11px",
-                    borderRadius: 9,
+                    fontSize: 13,
+                    color: "#64748b",
                     background: "#f8fafc",
-                    border: "1px dashed #cbd5e1"
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: 10,
+                    padding: "12px 14px"
                   }}>
-                    <CheckCircle size={14} color="#059669" />
-                    <span style={{
-                      fontSize: 11.5,
-                      color: "#64748b",
-                      lineHeight: 1.55,
-                      fontFamily: FONT
-                    }}>
-                      No ghost stock anomaly was detected in the branches included in this analysis.
-                    </span>
+                    No ghost stock anomaly was detected in the branches included in this analysis.
                   </div>
                 )}
               </div>
             )}
 
-            {/* Preserve non-ghost stock/sales anomalies below the ghost-stock section */}
-            {analysis && otherStockAnomalies.length > 0 && (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "#d97706" }} />
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: "#92400e",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    fontFamily: FONT
-                  }}>
+            {/* Preserve other stock/sales anomalies in exported reports */}
+            {analysis && showStockAnomalies && otherStockAnomalies.length > 0 && (
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "#d97706" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
                     Other Stock vs Sales Anomalies
                   </span>
                   <span style={{
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 700,
-                    padding: "2px 8px",
+                    padding: "3px 10px",
                     borderRadius: 20,
                     background: "#fef3c7",
-                    color: "#92400e",
-                    fontFamily: FONT
+                    color: "#92400e"
                   }}>
                     {otherStockAnomalies.length}
                   </span>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {otherStockAnomalies.map((a, i) => {
                     const cfg = {
-                      low_stock_no_reorder: {
-                        bg: "#fffbeb",
-                        border: "#fde68a",
-                        label: "Not Reordering",
-                        labelBg: "#fef3c7",
-                        labelColor: "#92400e",
-                        dot: "#d97706"
-                      },
-                      dead_stock: {
-                        bg: "#eff6ff",
-                        border: "#bfdbfe",
-                        label: "Dead Stock",
-                        labelBg: "#dbeafe",
-                        labelColor: "#1e40af",
-                        dot: "#2563eb"
-                      },
-                    }[a?.anomalyType] || {
-                      bg: "#f8fffe",
-                      border: "#d1eedd",
-                      label: "Anomaly",
-                      labelBg: "#e0f2f1",
-                      labelColor: "#00695c",
-                      dot: "#00897b"
-                    };
+                      low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
+                      dead_stock: { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
+                    }[a?.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
 
                     return (
                       <div key={i} style={{
                         background: cfg.bg,
-                        border: `1px solid ${cfg.border}`,
+                        border: `1.5px solid ${cfg.border}`,
                         borderRadius: 12,
-                        padding: "13px 14px"
+                        padding: "16px 18px"
                       }}>
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          marginBottom: 7,
-                          flexWrap: "wrap"
-                        }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                           <span style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            background: cfg.dot,
-                            display: "inline-block"
-                          }} />
-                          <span style={{
-                            fontSize: 9.5,
+                            fontSize: 11,
                             fontWeight: 800,
-                            padding: "2px 7px",
+                            padding: "3px 10px",
                             borderRadius: 20,
-                            background: cfg.labelBg,
-                            color: cfg.labelColor,
-                            textTransform: "uppercase",
-                            fontFamily: FONT
+                            background: "#fff",
+                            textTransform: "uppercase"
                           }}>
                             {cfg.label}
                           </span>
-                          <span style={{
-                            fontSize: 12,
-                            fontWeight: 700,
-                            color: "#0d2b1e",
-                            fontFamily: FONT
-                          }}>
+                          <span style={{ fontSize: 14, fontWeight: 700 }}>
                             {a?.branch || "Unknown Branch"}
                           </span>
                         </div>
 
-                        <BulletItem text={a?.finding} color={cfg.dot} size="small" />
+                        <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
+                          {a?.finding}
+                        </p>
 
                         {a?.action && (
                           <div style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 6,
-                            padding: "7px 9px",
-                            borderRadius: 7,
-                            background: "rgba(255,255,255,0.65)",
-                            border: `1px solid ${cfg.border}`,
-                            marginTop: 6
+                            fontSize: 13,
+                            fontWeight: 600,
+                            background: "rgba(255,255,255,0.7)",
+                            borderRadius: 8,
+                            padding: "9px 12px"
                           }}>
-                            <CheckCircle size={12} color={cfg.dot} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span style={{
-                              fontSize: 11.5,
-                              fontWeight: 600,
-                              color: "#0d2b1e",
-                              lineHeight: 1.55,
-                              fontFamily: FONT
-                            }}>
-                              {a.action}
-                            </span>
+                            → {a.action}
                           </div>
                         )}
                       </div>
@@ -1852,1191 +2100,2208 @@ function PrescriptiveSection({ transactions, filterLabel, preset, total, values,
                 </div>
               </div>
             )}
-          </div>
 
-          <div>
-            {analysis?.recommendations?.length > 0 ? (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                  <div style={{ width: 3, height: 14, borderRadius: 2, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                  <span style={{ fontSize: 10, fontWeight: 800, color: "#0d2b1e", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT }}>Actionable Recommendations</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#e0f2f1", color: "#00695c", fontFamily: FONT }}>{analysis.recommendations.length}</span>
+            {/* Recommendations */}
+            {analysis?.recommendations?.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+                  <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Actionable Recommendations</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#e0f2f1", color: "#00695c" }}>
+                    {analysis.recommendations.length}
+                  </span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {analysis.recommendations.map((rec, i) => {
                     const s = typeStyle(rec.type);
                     return (
-                      <div key={i} style={{ background: s.bg, border: `1px solid ${s.borderColor}25`, borderRadius: 12, padding: "12px 12px 12px 16px", position: "relative", overflow: "hidden" }}>
-                        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: s.borderColor, borderRadius: "4px 0 0 4px" }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
-                          <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: "0.07em", background: s.badgeBg, padding: "2px 7px", borderRadius: 20, fontFamily: FONT }}>{rec.branch || rec.type}</span>
-                        </div>
-                        <BulletItem text={rec.text} color={s.dot} size="small" />
+                      <div key={i} style={{ background: s.bg, border: `1.5px solid ${s.borderColor}40`, borderLeft: `5px solid ${s.borderColor}`, borderRadius: 10, padding: "14px 18px" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: s.color, background: s.badgeBg, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>
+                          {rec.branch || rec.type}
+                        </span>
+                        <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: "8px 0 0" }}>{rec.text}</p>
                       </div>
                     );
                   })}
                 </div>
-              </>
-            ) : (
-              <div style={{ background: "#fafbff", border: "1.5px dashed #dbeafe", borderRadius: 14, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
-                <Brain size={32} color="#bfdbfe" />
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>Recommendations will appear here</div>
-                <p style={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.65, margin: 0, fontFamily: FONT }}>
-                  {transactions?.length
-                    ? `${transactions.length} transactions ready. Click "Run AI Analysis" to generate prescriptive recommendations.`
-                    : "Load transactions then run the AI analysis."
-                  }
-                </p>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #e0f2f1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+                Generated by FranchiSync · Franchise Business Services Corp.
+              </span>
+              <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
+                AI analysis powered by Groq
+              </span>
+            </div>
+          </div>
+        </div>
+      </PanelCard>
+    );
+  }
+
+  function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total, transactions = [] }) {
+    const [data,    setData]    = useState(null);
+    const [inventoryRows, setInventoryRows] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [tab,     setTab]     = useState("top10");
+
+    const fetchData = useCallback(async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (rangeMode === "preset") params.set("preset", preset);
+        else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+        else params.set("preset", "month");
+        if (filterBranch) params.set("branch", filterBranch);
+        else if (filterBrand && selectedBrand) {
+          const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+          if (names.length) params.set("branches", names.join(","));
+        }
+        const [analyticsRes, inventoryRes] = await Promise.all([
+          fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
+          fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
+        ]);
+        const json = analyticsRes.ok ? await analyticsRes.json() : {};
+        const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
+        setData(json);
+        setInventoryRows(Array.isArray(inventoryJson) ? inventoryJson : []);
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
+    }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const top10     = data?.top10 ?? [];
+    const fast      = data?.fastMoving ?? [];
+    const slow      = data?.slowMoving ?? [];
+    const totalSKUs = data?.totalProducts ?? 0;
+    const fastCount = fast.length;
+    const slowCount = slow.length;
+
+    const stockEvidence = useMemo(() => {
+      /*
+        Build the stock charts from the SAME filtered transaction records used by
+        the dashboard instead of relying only on top10/fast/slow lists.
+
+        This fixes the empty charts when a sold product exists in transactions
+        and inventory but was omitted from one of the analytics summary arrays.
+      */
+
+      const normalizeName = (value) =>
+        String(value || "")
+          .trim()
+          .toLowerCase()
+          .replace(/&/g, "and")
+          .replace(/[^a-z0-9]+/g, "");
+
+      const normalizeText = (value) =>
+        String(value || "").trim().toLowerCase();
+
+      const parseItems = (raw) => {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      };
+
+      // Number of days represented by the current dashboard filter.
+      let periodDays = 30;
+
+      if (rangeMode === "preset") {
+        periodDays =
+          preset === "day"
+            ? 1
+            : preset === "week"
+              ? 7
+              : preset === "year"
+                ? 365
+                : 30;
+      } else if (appliedRange?.from && appliedRange?.to) {
+        periodDays = Math.max(
+          1,
+          Math.ceil(
+            (
+              new Date(appliedRange.to + "T23:59:59") -
+              new Date(appliedRange.from + "T00:00:00")
+            ) / 864e5
+          )
+        );
+      }
+
+      /*
+        Aggregate actual units sold from the already-filtered transactions.
+        Store both an ID key and a normalized-name key because older transaction
+        rows may not consistently contain the inventory/ingredient ID.
+      */
+      const soldById = new Map();
+      const soldByName = new Map();
+
+      (Array.isArray(transactions) ? transactions : []).forEach((tx) => {
+        const txBranch = normalizeText(tx?.branch);
+
+        parseItems(tx?.items).forEach((item) => {
+          const qty = Number(
+            item?.qty ??
+            item?.quantity ??
+            item?.quantity_sold ??
+            0
+          );
+
+          if (!Number.isFinite(qty) || qty <= 0) return;
+
+          const itemId =
+            item?.ingredient_id ??
+            item?.inventory_id ??
+            item?.product_id ??
+            item?.id ??
+            null;
+
+          const itemName =
+            item?.name ??
+            item?.product_name ??
+            item?.item_name ??
+            item?.title ??
+            "";
+
+          /*
+            Include branch in the name key where possible so two branches selling
+            products with the same name don't accidentally share sales quantities.
+          */
+          const nameKey = normalizeName(itemName);
+
+          if (itemId != null && itemId !== "") {
+            const idKey = `${txBranch}|${String(itemId)}`;
+            soldById.set(idKey, (soldById.get(idKey) || 0) + qty);
+
+            // Compatibility key for rows where inventory has no branch.
+            const globalIdKey = `|${String(itemId)}`;
+            soldById.set(globalIdKey, (soldById.get(globalIdKey) || 0) + qty);
+          }
+
+          if (nameKey) {
+            const branchNameKey = `${txBranch}|${nameKey}`;
+            soldByName.set(
+              branchNameKey,
+              (soldByName.get(branchNameKey) || 0) + qty
+            );
+
+            // Compatibility key for inventory records without a branch value.
+            const globalNameKey = `|${nameKey}`;
+            soldByName.set(
+              globalNameKey,
+              (soldByName.get(globalNameKey) || 0) + qty
+            );
+          }
+        });
+      });
+
+      const selectedBranchNames =
+        filterBrand && selectedBrand
+          ? (selectedBrand.branches || [])
+              .map((br) => typeof br === "string" ? br : br?.name)
+              .filter(Boolean)
+          : [];
+
+      const inventoryInScope = (Array.isArray(inventoryRows) ? inventoryRows : [])
+        .filter((inv) => {
+          const invBranch = String(inv?.branch || "").trim();
+          const invBrand = normalizeText(inv?.brand);
+
+          if (filterBranch) {
+            return invBranch === filterBranch;
+          }
+
+          if (filterBrand && selectedBrand) {
+            const branchMatches =
+              selectedBranchNames.length === 0 ||
+              selectedBranchNames.includes(invBranch);
+
+            const brandMatches =
+              !invBrand ||
+              invBrand === normalizeText(selectedBrand?.name);
+
+            return branchMatches && brandMatches;
+          }
+
+          return true;
+        });
+
+      const rows = inventoryInScope
+        .map((inv) => {
+          const invBranch = normalizeText(inv?.branch);
+          const invName = normalizeName(inv?.name);
+
+          const invId =
+            inv?.id ??
+            inv?.ingredient_id ??
+            inv?.inventory_id ??
+            null;
+
+          let sold = 0;
+
+          if (invId != null && invId !== "") {
+            sold =
+              soldById.get(`${invBranch}|${String(invId)}`) ??
+              soldById.get(`|${String(invId)}`) ??
+              0;
+          }
+
+          // Fallback to normalized product name for older transactions.
+          if (sold <= 0 && invName) {
+            sold =
+              soldByName.get(`${invBranch}|${invName}`) ??
+              soldByName.get(`|${invName}`) ??
+              0;
+          }
+
+          /*
+            These two charts are sales-vs-stock charts, so only products that
+            actually have sales in the selected period are meaningful.
+          */
+          if (!(sold > 0)) return null;
+
+          const stock = Number(inv?.stock ?? 0);
+          const reorder = Number(
+            inv?.min_stock ??
+            inv?.reorder_point ??
+            inv?.minimum_stock ??
+            0
+          );
+
+          const dailySales = sold / Math.max(periodDays, 1);
+          const daysLeft = dailySales > 0 ? stock / dailySales : null;
+          const ratio = sold > 0 ? stock / sold : null;
+
+          let status = "OK";
+          let recommendation = "Monitor stock level";
+
+          if (
+            stock <= reorder ||
+            (daysLeft != null && daysLeft < 14)
+          ) {
+            status = "CRITICAL";
+            recommendation = "Restock urgently";
+          } else if (
+            (daysLeft != null && daysLeft > 90) ||
+            (ratio != null && ratio > 3)
+          ) {
+            status = "OVERSTOCK";
+            recommendation = "Reduce ordering / promote";
+          } else if (
+            daysLeft != null &&
+            daysLeft < 30
+          ) {
+            status = "WATCH";
+            recommendation = "Reorder soon";
+          }
+
+          return {
+            id: invId,
+            name: inv?.name || "Unnamed Product",
+            branch: inv?.branch || "Unassigned",
+            brand: inv?.brand || "",
+            stock,
+            reorder,
+            sold,
+            daysLeft,
+            ratio,
+            status,
+            recommendation,
+            unit: inv?.unit || "units",
+          };
+        })
+        .filter(Boolean);
+
+      /*
+        Put the products with the greatest sales first, while still keeping
+        critical items visible near the top.
+      */
+      rows.sort((a, b) => {
+        const priority = {
+          CRITICAL: 0,
+          WATCH: 1,
+          OK: 2,
+          OVERSTOCK: 3,
+        };
+
+        const p = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+        return p !== 0 ? p : b.sold - a.sold;
+      });
+
+      return rows.slice(0, 10);
+    }, [
+      transactions,
+      inventoryRows,
+      preset,
+      rangeMode,
+      appliedRange,
+      filterBranch,
+      filterBrand,
+      selectedBrand,
+    ]);
+
+    const revenuePie = top10.slice(0, 5).map((p, i) => ({
+      label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
+      value: p.totalRevenue,
+      color: PAL[i],
+    }));
+    const moverPie = totalSKUs > 0 ? [
+      { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
+      { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
+      { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
+    ].filter(d => d.value > 0) : [];
+
+    const TABS = [
+      { id: "top10",  label: "Top Products",   icon: BarChart2    },
+      { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
+      { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
+      { id: "buyers", label: "Top Performers", icon: Target       },
+    ];
+    const tabSt = (a) => ({
+      padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
+      cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
+      background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
+      color:      a ? "#fff" : "#5a7a65",
+      boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
+    });
+    const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
+
+    const renderList = () => {
+      const isBuyers = tab === "buyers";
+      const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
+      if (!list?.length) return (
+        <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+      );
+      const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
+      const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
+      return list.slice(0, 8).map((p, i) => (
+        <div key={p.name}
+          style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
+          onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
+            {i + 1}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
+            {!isBuyers && p.branchBreakdown && (
+              <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
+                {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* ── OFFSCREEN report layout — used only by Print & Download PDF ── */}
-      <div style={{ position: "absolute", left: -99999, top: 0, width: 0, height: 0, overflow: "hidden" }}>
-        <div ref={exportRef} style={{ width: 800, background: "#fff", padding: "44px 48px 36px", fontFamily: FONT, color: "#0d2b1e" }}>
-
-          {/* Letterhead */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 18, marginBottom: 26, borderBottom: "4px solid #00c853" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <img src={logoIfranchise} alt="iFranchise Business Services Corp." style={{ height: 58, width: "auto" }} />
-              <div style={{ width: 1, height: 44, background: "#d1eedd" }} />
-              <img src={logoSync} alt="FranchiSync" style={{ height: 46, width: "auto" }} />
-            </div>
+          {!isBuyers && (
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                iFranchise Business Services Corp.
-              </div>
-              <div style={{ fontSize: 10.5, color: "#94a3b8", marginTop: 2 }}>
-                {new Date().toLocaleString()}
+              <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
+              <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
+                <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
               </div>
             </div>
+          )}
+          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
+            {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
           </div>
-
-          {/* Title block */}
-          <div style={{ marginBottom: 26 }}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: "#0d2b1e", letterSpacing: "-0.5px", lineHeight: 1.2 }}>
-              AI Prescriptive Analysis Report
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#00897b", background: "#e0f2f1", padding: "4px 12px", borderRadius: 20 }}>
-                {filterLabel}
-              </span>
-              {lastRun && (
-                <span style={{ fontSize: 13, color: "#5a7a65", fontWeight: 600 }}>
-                  AI run at {lastRun}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* KPI summary grid — larger, readable */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 30 }}>
-            {[
-              { label: "Projected 7-Day Revenue", value: projRev ? fmtAmt(projRev) : "—", sub: projRev ? `${projChg >= 0 ? "+" : ""}${projChg.toFixed(1)}% vs prior period` : "Not yet calculated", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-              { label: "Peak Day Forecast",        value: peakDay || "—", sub: "Highest revenue day", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-              { label: "Slowest Day Forecast",     value: slowDay || "—", sub: "Lowest revenue day", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-              { label: "Confidence Score",         value: conf ? `${conf}%` : "—", sub: conf ? (conf >= 80 ? "High confidence" : conf >= 60 ? "Medium confidence" : "Low — needs more data") : "Not yet calculated", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-            ].map((card, i) => (
-              <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: 14, padding: "18px 20px" }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
-                  {card.label}
+          <div style={{ paddingLeft: 8 }}>
+            {isBuyers
+              ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
+              : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
+                  </div>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
                 </div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: card.color, lineHeight: 1.1 }}>{card.value}</div>
-                <div style={{ fontSize: 12.5, color: "#5a7a65", marginTop: 6 }}>{card.sub}</div>
+            }
+          </div>
+        </div>
+      ));
+    };
+
+    return (
+      <PanelCard style={{ marginBottom: 22 }}>
+        <CardHeader
+          icon={Package}
+          title="Sales vs Stock Recommendations"
+          sub="Product performance · fast/slow movers · stock health"
+          action={
+            <button onClick={fetchData} disabled={loading}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
+              <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          }
+        />
+        <div style={{ padding: "18px 20px" }}>
+          {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+          </div>}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
+            {[
+              { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
+              { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
+              { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
+            { label: "Avg Units Sold / Product", value: data?.avgQty ? `${Number(data.avgQty).toLocaleString()} units` : "—", color: "#1e40af", bg: "#eff6ff", border: "#bfdbfe", icon: Activity },
+            ].map((s, i) => (
+              <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                  <s.icon size={11} color={s.color} />
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
               </div>
             ))}
           </div>
 
-          {/* Executive summary */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-              <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
-                {analysis ? "Executive Summary" : "Data Overview"}
-              </span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
+            <div>
+              <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
+                {TABS.map(t => (
+                  <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
+                    <t.icon size={11} /> {t.label}
+                  </button>
+                ))}
+              </div>
+              {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
+                <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
+                  <span>#</span><span>Name</span>
+                  {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
+                  <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
+                  <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
+                </div>
+              )}
+              {loading
+                ? <div style={{ padding: "36px 0", textAlign: "center" }}>
+                    <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
+                    <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
+                  </div>
+                : renderList()
+              }
             </div>
-            {analysis ? (
-              <p style={{ fontSize: 14.5, lineHeight: 1.85, margin: 0, color: "#1a1a1a" }}>{analysis.summary}</p>
-            ) : (
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, lineHeight: 2, color: "#1a1a1a" }}>
-                {preRunBullets.map((b, i) => <li key={i}>{b}</li>)}
-              </ul>
-            )}
-          </div>
 
-          {/* Ghost Stock Anomalies Across Branches */}
-          {analysis && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#dc2626" }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
-                  Ghost Stock Anomalies Across Branches
-                </span>
-                <span style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 20,
-                  background: ghostStockAnomalies.length > 0 ? "#fee2e2" : "#f1f5f9",
-                  color: ghostStockAnomalies.length > 0 ? "#991b1b" : "#64748b"
-                }}>
-                  {ghostStockAnomalies.length}
-                </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
+                {revenuePie.length > 0
+                  ? <DonutChartSVG segments={revenuePie} size={120} />
+                  : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                }
               </div>
-
-              <div style={{
-                marginBottom: 14,
-                padding: "11px 13px",
-                borderRadius: 9,
-                background: "#fff7f7",
-                border: "1px solid #fee2e2",
-                fontSize: 12.5,
-                color: "#7f1d1d",
-                lineHeight: 1.65
-              }}>
-                <strong>What is a ghost stock anomaly?</strong>{" "}
-                A ghost stock anomaly occurs when a branch records sales while one or more related inventory items are already recorded as zero stock in the system. This means the sales record and inventory record may be out of sync and should be verified through stock reconciliation.
+              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
+                {moverPie.length > 0
+                  ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
+                  : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
+                }
               </div>
-
-              {ghostStockAnomalies.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {ghostStockAnomalies.map((a, i) => (
-                    <div
-                      key={`${a?.branch || "branch"}-${i}`}
-                      style={{
-                        background: "#fef2f2",
-                        border: "1.5px solid #fecaca",
-                        borderLeft: "5px solid #dc2626",
-                        borderRadius: 12,
-                        padding: "16px 18px"
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          background: "#fff",
-                          color: "#991b1b",
-                          textTransform: "uppercase"
-                        }}>
-                          Ghost Stock
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>
-                          {a?.branch || "Unknown Branch"}
-                        </span>
-                        <span style={{
-                          marginLeft: "auto",
-                          fontSize: 11,
-                          fontWeight: 800,
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          textTransform: "uppercase"
-                        }}>
-                          {a?.severity || "critical"}
-                        </span>
-                      </div>
-
-                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
-                        {a?.finding || "Sales activity was detected while related inventory is recorded at zero stock."}
-                      </p>
-
-                      <div style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        background: "rgba(255,255,255,0.7)",
-                        borderRadius: 8,
-                        padding: "9px 12px"
-                      }}>
-                        → {a?.action || "Verify physical stock, reconcile inventory movements, and correct the branch stock record."}
-                      </div>
+              <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
+                <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {[
+                    { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
+                    { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
+                    { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
+                  ].map((r, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
+                      <r.icon size={13} color={r.color} />
+                      <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div style={{
-                  fontSize: 13,
-                  color: "#64748b",
-                  background: "#f8fafc",
-                  border: "1px dashed #cbd5e1",
-                  borderRadius: 10,
-                  padding: "12px 14px"
-                }}>
-                  No ghost stock anomaly was detected in the branches included in this analysis.
-                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PanelCard>
+    );
+  }
+
+  function InfoModal({ modal, onClose, onConfirm }) {
+    if (!modal) return null;
+    const { type = "info", title, message, confirmLabel, cancelLabel, confirmTone = "danger" } = modal;
+
+    const iconMap = {
+      error: (
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      ),
+      success: (
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      ),
+      info: (
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      ),
+      warning: (
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      ),
+      confirm: (
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      ),
+    };
+
+    const hc = {
+      error:   { bg: "#fef2f2", border: "#fecaca", titleColor: "#991b1b" },
+      success: { bg: "#e8f5e9", border: "#c8e6c9", titleColor: "#00695c" },
+      info:    { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
+      warning: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+      confirm: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
+    }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
+
+    return (
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(13,43,30,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 3000, padding: 20, backdropFilter: "blur(4px)",
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
+            boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: `1px solid ${hc.border}`,
+            fontFamily: FONT, overflow: "hidden",
+          }}
+        >
+          <div style={{ background: hc.bg, padding: "20px 24px 16px", borderBottom: `1px solid ${hc.border}`, display: "flex", alignItems: "flex-start", gap: 13 }}>
+            <div style={{ flexShrink: 0, marginTop: 1 }}>{iconMap[type]}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: hc.titleColor, marginBottom: 4, fontFamily: FONT }}>{title}</div>
+              {message && (
+                <div style={{ fontSize: 13, color: "#0d2b1e", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
               )}
             </div>
-          )}
-
-          {/* Preserve other stock/sales anomalies in exported reports */}
-          {analysis && otherStockAnomalies.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                <div style={{ width: 5, height: 20, borderRadius: 3, background: "#d97706" }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>
-                  Other Stock vs Sales Anomalies
-                </span>
-                <span style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 20,
-                  background: "#fef3c7",
-                  color: "#92400e"
-                }}>
-                  {otherStockAnomalies.length}
-                </span>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {otherStockAnomalies.map((a, i) => {
-                  const cfg = {
-                    low_stock_no_reorder: { bg: "#fffbeb", border: "#fde68a", label: "Not Reordering" },
-                    dead_stock: { bg: "#eff6ff", border: "#bfdbfe", label: "Dead Stock" },
-                  }[a?.anomalyType] || { bg: "#f8fffe", border: "#d1eedd", label: "Anomaly" };
-
-                  return (
-                    <div key={i} style={{
-                      background: cfg.bg,
-                      border: `1.5px solid ${cfg.border}`,
-                      borderRadius: 12,
-                      padding: "16px 18px"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          background: "#fff",
-                          textTransform: "uppercase"
-                        }}>
-                          {cfg.label}
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700 }}>
-                          {a?.branch || "Unknown Branch"}
-                        </span>
-                      </div>
-
-                      <p style={{ fontSize: 13.5, lineHeight: 1.7, margin: "0 0 8px" }}>
-                        {a?.finding}
-                      </p>
-
-                      {a?.action && (
-                        <div style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          background: "rgba(255,255,255,0.7)",
-                          borderRadius: 8,
-                          padding: "9px 12px"
-                        }}>
-                          → {a.action}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Recommendations */}
-          {analysis?.recommendations?.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                <div style={{ width: 5, height: 20, borderRadius: 3, background: "linear-gradient(180deg,#00c853,#00897b)" }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: "#0d2b1e" }}>Actionable Recommendations</span>
-                <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#e0f2f1", color: "#00695c" }}>
-                  {analysis.recommendations.length}
-                </span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {analysis.recommendations.map((rec, i) => {
-                  const s = typeStyle(rec.type);
-                  return (
-                    <div key={i} style={{ background: s.bg, border: `1.5px solid ${s.borderColor}40`, borderLeft: `5px solid ${s.borderColor}`, borderRadius: 10, padding: "14px 18px" }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: s.color, background: s.badgeBg, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>
-                        {rec.branch || rec.type}
-                      </span>
-                      <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: "8px 0 0" }}>{rec.text}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div style={{ marginTop: 36, paddingTop: 14, borderTop: "1.5px solid #e0f2f1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
-              Generated by FranchiSync · Franchise Business Services Corp.
-            </span>
-            <span style={{ fontSize: 10.5, color: "#94a3b8" }}>
-              AI analysis powered by Groq
-            </span>
+            <button
+              onClick={onClose}
+              style={{
+                flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
+                border: `1px solid ${hc.border}`, background: "transparent", cursor: "pointer",
+                color: "#5a7a65", display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div style={{ padding: "14px 24px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {type === "confirm" && (
+              <button
+                onClick={onClose}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+              >
+                {cancelLabel || "Cancel"}
+              </button>
+            )}
+            <button
+              onClick={type === "confirm" ? onConfirm : onClose}
+              style={{
+                padding: "8px 18px", borderRadius: 8, border: "none",
+                background: type === "confirm"
+                  ? (confirmTone === "success" ? "linear-gradient(135deg,#2E7D32,#00897b)" : "linear-gradient(135deg,#ef4444,#dc2626)")
+                  : "linear-gradient(135deg,#00c853,#00897b)",
+                color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+              }}
+            >
+              {confirmLabel || "OK"}
+            </button>
           </div>
         </div>
       </div>
-    </PanelCard>
-  );
-}
+    );
+  }
 
-function SalesVsStockSection({ preset, appliedRange, rangeMode, filterBranch, filterBrand, selectedBrand, total, transactions = [] }) {
-  const [data,    setData]    = useState(null);
-  const [inventoryRows, setInventoryRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [tab,     setTab]     = useState("top10");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (rangeMode === "preset") params.set("preset", preset);
-      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
-      else params.set("preset", "month");
-      if (filterBranch) params.set("branch", filterBranch);
-      else if (filterBrand && selectedBrand) {
-        const names = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-        if (names.length) params.set("branches", names.join(","));
-      }
-      const [analyticsRes, inventoryRes] = await Promise.all([
-        fetch(`${process.env.REACT_APP_API_URL}/dashboard/product-analytics?${params}`),
-        fetch(`${process.env.REACT_APP_API_URL}/ingredients`),
-      ]);
-      const json = analyticsRes.ok ? await analyticsRes.json() : {};
-      const inventoryJson = inventoryRes.ok ? await inventoryRes.json() : [];
-      setData(json);
-      setInventoryRows(Array.isArray(inventoryJson) ? inventoryJson : []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }, [preset, rangeMode, appliedRange, filterBranch, filterBrand, selectedBrand]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  function DashboardLineGraph({ labels = [], values = [], height = 230 }) {
+    const [hover, setHover] = useState(null);
+    const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
+    const safeValues = values.map(v => Number(v || 0));
+    const max = Math.max(...safeValues, 1);
+    const pW = W - PL - PR, pH = H - PT - PB;
+    const x = i => labels.length <= 1 ? PL + pW / 2 : PL + (i / (labels.length - 1)) * pW;
+    const y = v => PT + pH - (Number(v || 0) / max) * pH;
+    const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+    const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+    const grid = [0,.25,.5,.75,1];
 
-  const top10     = data?.top10 ?? [];
-  const fast      = data?.fastMoving ?? [];
-  const slow      = data?.slowMoving ?? [];
-  const totalSKUs = data?.totalProducts ?? 0;
-  const fastCount = fast.length;
-  const slowCount = slow.length;
+    if (!labels.length || !values.length) return <DashboardEmptyState message="No revenue data for the selected period." />;
 
-  const stockEvidence = useMemo(() => {
-    /*
-      Build the stock charts from the SAME filtered transaction records used by
-      the dashboard instead of relying only on top10/fast/slow lists.
+    return (
+      <div style={{ position:"relative", width:"100%" }}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
+          {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
+            <g key={i}>
+              <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
+              <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort(max*g)}</text>
+            </g>
+          )})}
+          <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          {safeValues.map((v,i)=>(
+            <g key={i}>
+              <circle cx={x(i)} cy={y(v)} r={hover===i?5:3.5} fill="#fff" stroke="#3b791e" strokeWidth="2.5" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}} />
+              <rect x={x(i)-10} y={PT} width="20" height={pH} fill="transparent" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} />
+            </g>
+          ))}
+          {tickIdx.map(i => <text key={i} x={x(i)} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>)}
+        </svg>
+        {hover != null && (
+          <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
+            <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>
+            {fmtAmt(safeValues[hover])}
+          </div>
+        )}
+      </div>
+    );
+  }
 
-      This fixes the empty charts when a sold product exists in transactions
-      and inventory but was omitted from one of the analytics summary arrays.
-    */
+  function DashboardBarGraph({ labels = [], values = [], height = 230 }) {
+    const [hover, setHover] = useState(null);
+    const W = 760, H = height, PL = 46, PR = 16, PT = 20, PB = 38;
+    const safeValues = values.map(v => Number(v || 0));
+    const max = Math.max(...safeValues, 1);
+    const pW = W-PL-PR, pH = H-PT-PB;
+    const gap = 6;
+    const bw = Math.max(4, (pW / Math.max(labels.length,1)) - gap);
+    const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
+    const grid=[0,.25,.5,.75,1];
+    if (!labels.length || !values.length) return <DashboardEmptyState message="No transaction data for the selected period." />;
+    return (
+      <div style={{position:"relative", width:"100%"}}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Transaction volume chart">
+          {grid.map((g,i)=>{const yy=PT+pH-g*pH;return <g key={i}><line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5"/><text x={PL-8} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{Math.round(max*g)}</text></g>})}
+          {safeValues.map((v,i)=>{
+            const slot=pW/Math.max(labels.length,1); const xx=PL+i*slot+(slot-bw)/2; const hh=(v/max)*pH; const yy=PT+pH-hh;
+            return <rect key={i} x={xx} y={yy} width={bw} height={Math.max(hh,1)} rx="4" fill={hover===i?"#2c5c16":"#c9dba0"} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}/>
+          })}
+          {tickIdx.map(i=>{const slot=pW/Math.max(labels.length,1);return <text key={i} x={PL+i*slot+slot/2} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>})}
+        </svg>
+        {hover != null && <div style={{position:"absolute",top:8,right:10,background:"#12241B",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:11,fontWeight:700,pointerEvents:"none"}}><div style={{opacity:.7,fontSize:9.5,marginBottom:2}}>{labels[hover]}</div>{safeValues[hover].toLocaleString()} transactions</div>}
+      </div>
+    );
+  }
 
-    const normalizeName = (value) =>
-      String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/&/g, "and")
-        .replace(/[^a-z0-9]+/g, "");
+  function DashboardEmptyState({ message }) {
+    return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
+  }
 
-    const normalizeText = (value) =>
-      String(value || "").trim().toLowerCase();
+  function DashboardRankBars({ data = [] }) {
+    if (!data.length) return <DashboardEmptyState message="No branch sales data for the selected period." />;
+    const max = Math.max(...data.map(d=>d.value),1);
+    return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
+      {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
+          <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
+        </div>
+        <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
+      </div>)}
+    </div>;
+  }
 
-    const parseItems = (raw) => {
-      if (Array.isArray(raw)) return raw;
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      }
-      return [];
+  // ─── FranchiSync B2B Revenue Assurance Dashboard ────────────────────────────
+  const B2B_DEFAULT_GROWTH_TARGET = 20;
+  const B2B_FALLBACK_THRESHOLDS = {
+    highOrderDropPct: 25,
+    watchOrderDropPct: 10,
+    posStableFloorPct: -5,
+  };
+
+  const b2bNum = (...values) => {
+    for (const value of values) {
+      const n = Number(value);
+      if (value !== null && value !== undefined && value !== "" && Number.isFinite(n)) return n;
+    }
+    return 0;
+  };
+
+  const b2bNullableNum = (...values) => {
+    for (const value of values) {
+      if (value === null || value === undefined || value === "") continue;
+      const n = Number(value);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  };
+
+  const b2bArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { return []; }
+    }
+    return [];
+  };
+
+  const b2bMonthKey = (value) => {
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+
+  const b2bShiftMonth = (monthKey, delta) => {
+    const [y, m] = String(monthKey || "").split("-").map(Number);
+    if (!y || !m) return b2bMonthKey(new Date());
+    return b2bMonthKey(new Date(y, m - 1 + delta, 1));
+  };
+
+  const b2bMonthLabel = (monthKey) => {
+    const [y, m] = String(monthKey || "").split("-").map(Number);
+    if (!y || !m) return monthKey || "—";
+    return new Date(y, m - 1, 1).toLocaleDateString("en-PH", { month: "short", year: "numeric" });
+  };
+
+  const b2bDateOfOrder = (o) => o?.order_date || o?.created_at || o?.createdAt || o?.updated_at || null;
+  const b2bDateOfTx = (tx) => tx?.date || tx?.created_at || tx?.createdAt || tx?.transaction_date || null;
+  const b2bDateOfInventory = (row) => row?.snapshot_date || row?.counted_at || row?.stock_date || row?.as_of_date || row?.updated_at || null;
+  const b2bOrderAmount = (o) => b2bNum(o?.net_amount, o?.total_amount, o?.total, o?.amount);
+  const b2bTxAmount = (tx) => b2bNum(tx?.net_total, tx?.total, tx?.total_amount, tx?.grand_total);
+  const b2bBranchName = (row) => String(row?.branch_name || row?.branch || row?.store_name || row?.store || "").trim();
+  const b2bBrandName = (row) => String(row?.brand_name || row?.brand || "").trim();
+  const b2bOrderItems = (o) => b2bArray(o?.items || o?.order_items || o?.orderItems);
+  const b2bTxItems = (tx) => b2bArray(tx?.items || tx?.transaction_items || tx?.transactionItems);
+  const b2bItemQty = (item) => b2bNum(item?.qty_received, item?.received_qty, item?.qty, item?.quantity, item?.quantity_sold);
+  const b2bItemId = (item) => item?.product_id ?? item?.inventory_id ?? item?.ingredient_id ?? item?.shop_item_id ?? item?.id ?? null;
+  const b2bItemName = (item) => String(item?.product_name || item?.item_name || item?.name || item?.title || (b2bItemId(item) != null ? `SKU ${b2bItemId(item)}` : "Unknown SKU")).trim();
+  const b2bInventoryOpening = (item) => b2bNullableNum(item?.opening_stock, item?.openingStock, item?.beginning_stock, item?.beginningStock);
+  const b2bInventoryClosing = (item) => b2bNullableNum(item?.closing_stock, item?.closingStock, item?.ending_stock, item?.endingStock, item?.on_hand, item?.current_stock, item?.stock);
+  const b2bInventoryDisposal = (item) => b2bNullableNum(item?.disposed_qty, item?.disposal_qty, item?.disposed, item?.waste_qty, item?.waste);
+  const b2bInventoryTransferIn = (item) => b2bNullableNum(item?.transfer_in, item?.transferIn, item?.transfers_in);
+  const b2bInventoryTransferOut = (item) => b2bNullableNum(item?.transfer_out, item?.transferOut, item?.transfers_out);
+  const b2bInventoryAdjustment = (item) => b2bNullableNum(item?.manual_adjustment, item?.adjustment_qty, item?.adjustment);
+  const b2bKeyPart = (value) => String(value || "").trim().toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
+  const b2bSkuKey = (item, parentBrand, parentBranch) => [
+    b2bKeyPart(parentBranch || b2bBranchName(item)),
+    b2bKeyPart(parentBrand || b2bBrandName(item)),
+    b2bKeyPart(b2bItemName(item)) || String(b2bItemId(item) ?? "unknown"),
+  ].join("|");
+
+  const b2bIsEarnedOrder = (o) => {
+    const s = String(o?.status || "").toLowerCase();
+    return ["received", "delivered", "fulfilled", "completed", "complete"].includes(s);
+  };
+
+  const b2bIsCompletedTx = (tx) => {
+    if (tx?.is_voided || tx?.voided || String(tx?.status || "").toLowerCase() === "void") return false;
+    const status = String(tx?.status || "").toLowerCase();
+    if (!status) return true;
+    return ["paid", "completed", "complete", "success", "successful"].includes(status);
+  };
+
+  function B2BRiskBadge({ risk }) {
+    const normalized = String(risk || "Normal").toLowerCase();
+    const high = normalized.includes("high") || normalized.includes("critical");
+    const watch = normalized.includes("watch") || normalized.includes("medium") || normalized.includes("moderate");
+    const label = high ? "High Risk" : watch ? "Watch" : "Normal";
+    const style = high
+      ? { color: "#b42318", background: "#fff1f0", border: "#fecdca" }
+      : watch
+        ? { color: "#b54708", background: "#fffaeb", border: "#fedf89" }
+        : { color: "#2c5c16", background: "#f0f5e8", border: "#c9dba0" };
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 9px", borderRadius:20, border:`1px solid ${style.border}`, background:style.background, color:style.color, fontSize:10.5, fontWeight:800, whiteSpace:"nowrap" }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background:style.color }} />
+        {label}
+      </span>
+    );
+  }
+
+  const b2bMaskedValue = (value) => {
+    const text = String(value ?? "");
+    if (!text || text === "—") return "—";
+    if (text.trim().startsWith("₱")) return "₱••••••";
+    if (text.includes("%")) return "•••%";
+    return "••••";
+  };
+
+  function B2BVisibilityIcon({ masked, size=15 }) {
+    return masked ? (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+      </svg>
+    ) : (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+
+  function B2BMetricCard({ label, value, note, icon: Icon, tone="green", onClick, loading=false, defaultMasked=false, maskable=true }) {
+    const [masked, setMasked] = useState(defaultMasked);
+    const tones = {
+      green: { iconBg:"#eef7e9", icon:"#3b791e", accent:"#3b791e" },
+      blue:  { iconBg:"#eff6ff", icon:"#2563eb", accent:"#2563eb" },
+      amber: { iconBg:"#fff7ed", icon:"#b45309", accent:"#b45309" },
+      red:   { iconBg:"#fef2f2", icon:"#c0392b", accent:"#c0392b" },
     };
+    const t = tones[tone] || tones.green;
+    const displayValue = loading ? "…" : masked ? b2bMaskedValue(value) : value;
+    const open = () => { if (onClick) onClick(); };
+    return (
+      <div
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        aria-label={onClick ? `Open ${label} breakdown` : label}
+        onClick={open}
+        onKeyDown={e=>{ if(onClick && (e.key==="Enter" || e.key===" ")){ e.preventDefault(); open(); } }}
+        style={{ textAlign:"left", width:"100%", background:"#fff", border:"1px solid #E1E6D8", borderRadius:16, padding:"16px 17px", boxShadow:"0 2px 12px rgba(50,109,32,.06)", cursor:onClick?"pointer":"default", fontFamily:FONT, minHeight:126, transition:"transform .15s ease, box-shadow .15s ease", position:"relative", outline:"none" }}
+        onMouseEnter={e=>{ if(onClick){ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(50,109,32,.10)"; } }}
+        onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 2px 12px rgba(50,109,32,.06)"; }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:10, fontWeight:800, letterSpacing:".07em", textTransform:"uppercase", color:"#6B7A65" }}>{label}</div>
+            <div style={{ fontSize:21, fontWeight:850, color:"#12241B", marginTop:7, lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+              {displayValue}
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            {maskable && (
+              <button
+                type="button"
+                onClick={e=>{ e.stopPropagation(); setMasked(v=>!v); }}
+                onKeyDown={e=>e.stopPropagation()}
+                aria-label={masked ? `Show ${label}` : `Hide ${label}`}
+                title={masked ? "Show value" : "Hide value"}
+                style={{ width:29, height:29, borderRadius:9, border:"1px solid #DDE8DA", background:"#fff", color:"#64748b", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", padding:0 }}
+              >
+                <B2BVisibilityIcon masked={masked} size={14}/>
+              </button>
+            )}
+            <div style={{ width:36, height:36, borderRadius:11, background:t.iconBg, color:t.icon, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              {Icon ? <Icon size={17}/> : null}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop:10, paddingTop:9, borderTop:"1px solid #EEF2EA", fontSize:10.5, lineHeight:1.45, color:"#6B7A65", display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ flex:1 }}>{note}</span>
+          {onClick && <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:t.accent, fontSize:9.5, fontWeight:800, whiteSpace:"nowrap" }}>Breakdown <ChevronRight size={12}/></span>}
+        </div>
+      </div>
+    );
+  }
 
-    // Number of days represented by the current dashboard filter.
-    let periodDays = 30;
+  function B2BSummaryMetricCard({ label, value, loading=false, color="#12241B", border="#E1E6D8", onClick }) {
+    const [masked, setMasked] = useState(false);
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={e=>{ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); onClick?.(); } }}
+        style={{ background:"rgba(255,255,255,.82)", border:`1px solid ${border}`, borderRadius:11, padding:"10px 12px", cursor:"pointer", position:"relative", transition:"transform .15s ease, box-shadow .15s ease", outline:"none" }}
+        onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 7px 18px rgba(18,36,27,.09)"; }}
+        onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="none"; }}
+      >
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+          <div style={{fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:"#71806F"}}>{label}</div>
+          <button
+            type="button"
+            onClick={e=>{e.stopPropagation();setMasked(v=>!v);}}
+            onKeyDown={e=>e.stopPropagation()}
+            aria-label={masked ? `Show ${label}` : `Hide ${label}`}
+            title={masked ? "Show value" : "Hide value"}
+            style={{width:26,height:26,borderRadius:8,border:"1px solid #DDE8DA",background:"#fff",color:"#64748b",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",padding:0}}
+          >
+            <B2BVisibilityIcon masked={masked} size={13}/>
+          </button>
+        </div>
+        <div style={{fontSize:17,fontWeight:850,color,marginTop:4}}>{loading ? "…" : masked ? b2bMaskedValue(value) : value}</div>
+        <div style={{fontSize:9.3,fontWeight:800,color:"#3b791e",marginTop:5,display:"flex",alignItems:"center",gap:3}}>View breakdown <ChevronRight size={11}/></div>
+      </div>
+    );
+  }
 
-    if (rangeMode === "preset") {
-      periodDays =
-        preset === "day"
-          ? 1
-          : preset === "week"
-            ? 7
-            : preset === "year"
-              ? 365
-              : 30;
-    } else if (appliedRange?.from && appliedRange?.to) {
-      periodDays = Math.max(
-        1,
-        Math.ceil(
-          (
-            new Date(appliedRange.to + "T23:59:59") -
-            new Date(appliedRange.from + "T00:00:00")
-          ) / 864e5
-        )
-      );
+  function B2BKpiBreakdown({
+    metric,
+    overview,
+    branchRows = [],
+    brandRows = [],
+    skuRows = [],
+    anomalies = [],
+    month,
+    growthTargetPct,
+    onOpenBranch,
+    onOpenBrand,
+    onOpenSku,
+  }) {
+    const previousHq = Number(overview?.prevHqRevenue || 0);
+    const previousPos = Number(overview?.prevPosRevenue || 0);
+    const hqGrowth = previousHq > 0 ? ((Number(overview?.hqRevenue || 0) - previousHq) / previousHq) * 100 : null;
+    const posGrowth = previousPos > 0 ? ((Number(overview?.posRevenue || 0) - previousPos) / previousPos) * 100 : null;
+    const highRiskRows = branchRows.filter(r=>String(r.risk||"").toLowerCase().includes("high"));
+    const watchRows = branchRows.filter(r=>/watch|medium|moderate/i.test(String(r.risk||"")));
+    const varianceRows = skuRows.filter(r=>r.stockVariance!=null && Number(r.stockVariance)!==0);
+    const suppliedUnits = brandRows.reduce((sum,r)=>sum+Number(r.suppliedQty||0),0);
+    const soldUnits = brandRows.reduce((sum,r)=>sum+Number(r.soldQty||0),0);
+    const endingUnits = brandRows.reduce((sum,r)=>sum+Number(r.endingStock||0),0);
+    const revenueDifference = Number(overview?.posRevenue || 0) - Number(overview?.hqRevenue || 0);
+
+    const metricMeta = {
+      hqRevenue: {
+        title:"HQ Supply Revenue",
+        description:"Fulfilled and delivered Head Office supply orders for the active filters.",
+        formula:"Sum of net amounts from fulfilled or delivered Head Office orders.",
+      },
+      hqPrevious: {
+        title:"Previous-Month HQ Revenue",
+        description:"The prior-month baseline used for growth and target calculations.",
+        formula:"Sum of prior-month fulfilled or delivered Head Office supply orders.",
+      },
+      hqChange: {
+        title:"HQ Month-on-Month Change",
+        description:"Change in Head Office supply revenue compared with the previous month.",
+        formula:"Current HQ revenue − previous HQ revenue; percentage uses previous HQ revenue as the base.",
+      },
+      posRevenue: {
+        title:"Franchisee POS Revenue",
+        description:"Paid and completed franchisee POS sales for the active filters.",
+        formula:"Sum of net totals from non-voided, paid or completed POS transactions.",
+      },
+      target: {
+        title:"Monthly Target",
+        description:"The Head Office supply-revenue goal calculated from the prior month.",
+        formula:`Previous HQ revenue × (1 + ${growthTargetPct}% growth target).`,
+      },
+      targetGap: {
+        title:"Target Gap",
+        description:"The remaining Head Office supply revenue required to reach the monthly target.",
+        formula:"Maximum of zero or monthly target − current HQ supply revenue.",
+      },
+      coverage: {
+        title:"HQ Order Coverage",
+        description:"The portion of reported sell-through supported by authorized HQ stock flow.",
+        formula:"Authorized HQ-supplied sellable units ÷ reported POS-sold units × 100.",
+      },
+      atRisk: {
+        title:"At-Risk Branches",
+        description:"Branches with high-risk or watch signals under the current filters.",
+        formula:"Count of branches whose reconciliation rules return High Risk or Watch.",
+      },
+      unexplained: {
+        title:"Unexplained Stock",
+        description:"Stock variance that cannot yet be explained by authorized receipts, sales, disposal, or transfers.",
+        formula:"Opening + HQ receipts + transfer in − POS sold − disposal − transfer out − recorded closing.",
+      },
+      sellThrough: {
+        title:"Sell-through",
+        description:"How much available sellable inventory was sold through POS.",
+        formula:"POS-sold units ÷ sellable units available × 100.",
+      },
+    };
+    const meta = metricMeta[metric] || metricMeta.hqRevenue;
+
+    const summariesByMetric = {
+      hqRevenue: [
+        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
+        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Comparison baseline"],
+        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Current vs previous"],
+        ["POS Revenue", fmtAmt(overview?.posRevenue), ShoppingCart, "blue", "Sell-through context"],
+      ],
+      hqPrevious: [
+        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Prior month"],
+        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
+        ["Absolute Change", `${Number(overview?.hqRevenue||0)-previousHq>=0?"+":"−"}${fmtAmt(Math.abs(Number(overview?.hqRevenue||0)-previousHq))}`, Activity, "amber", "Current less previous"],
+        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Percentage change"],
+      ],
+      hqChange: [
+        ["Absolute Change", `${Number(overview?.hqRevenue||0)-previousHq>=0?"+":"−"}${fmtAmt(Math.abs(Number(overview?.hqRevenue||0)-previousHq))}`, Activity, "amber", "Current less previous"],
+        ["MoM Growth", hqGrowth==null ? "—" : `${hqGrowth>=0?"+":""}${hqGrowth.toFixed(1)}%`, TrendingUp, hqGrowth!=null&&hqGrowth<0?"red":"green", "Previous month is base"],
+        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Selected month"],
+        ["Previous HQ Revenue", previousHq > 0 ? fmtAmt(previousHq) : "—", History, "blue", "Prior month"],
+      ],
+      posRevenue: [
+        ["Current POS Revenue", fmtAmt(overview?.posRevenue), ShoppingCart, "blue", "Selected month"],
+        ["Previous POS Revenue", previousPos > 0 ? fmtAmt(previousPos) : "—", History, "green", "Comparison baseline"],
+        ["POS MoM Growth", posGrowth==null ? "—" : `${posGrowth>=0?"+":""}${posGrowth.toFixed(1)}%`, TrendingUp, posGrowth!=null&&posGrowth<0?"red":"green", "Current vs previous"],
+        ["POS − HQ", `${revenueDifference>=0?"+":"−"}${fmtAmt(Math.abs(revenueDifference))}`, Activity, "amber", "Reconciliation signal"],
+      ],
+      target: [
+        ["Monthly Target", fmtAmt(overview?.target), Target, "amber", `${growthTargetPct}% above previous HQ`],
+        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Revenue attained"],
+        ["Target Attainment", overview?.targetAttainment==null?"—":`${Number(overview.targetAttainment).toFixed(1)}%`, Activity, "blue", "Current ÷ target"],
+        ["Target Gap", fmtAmt(overview?.targetGap), TrendingDown, Number(overview?.targetGap)>0?"red":"green", "Remaining requirement"],
+      ],
+      targetGap: [
+        ["Target Gap", fmtAmt(overview?.targetGap), TrendingDown, Number(overview?.targetGap)>0?"red":"green", "Remaining requirement"],
+        ["Monthly Target", fmtAmt(overview?.target), Target, "amber", "Goal"],
+        ["Current HQ Revenue", fmtAmt(overview?.hqRevenue), Package, "green", "Actual"],
+        ["Target Attainment", overview?.targetAttainment==null?"—":`${Number(overview.targetAttainment).toFixed(1)}%`, Activity, "blue", "Actual ÷ goal"],
+      ],
+      coverage: [
+        ["HQ Order Coverage", overview?.coverage==null?"—":`${Number(overview.coverage).toFixed(1)}%`, ShieldCheck, overview?.coverage!=null&&overview.coverage<70?"red":"green", "Authorized supply coverage"],
+        ["Branches With Coverage", branchRows.filter(r=>r.orderCoverage!=null).length.toLocaleString(), Store, "blue", "Evidence available"],
+        ["Below 70%", branchRows.filter(r=>r.orderCoverage!=null&&r.orderCoverage<70).length.toLocaleString(), AlertTriangle, "red", "Needs review"],
+        ["At-Risk Branches", Number(overview?.atRisk||0).toLocaleString(), AlertTriangle, "amber", "All active rules"],
+      ],
+      atRisk: [
+        ["At-Risk Branches", Number(overview?.atRisk||0).toLocaleString(), AlertTriangle, Number(overview?.atRisk)>0?"red":"green", "High Risk + Watch"],
+        ["High Risk", highRiskRows.length.toLocaleString(), AlertTriangle, "red", "Immediate review"],
+        ["Watch", watchRows.length.toLocaleString(), Activity, "amber", "Monitor"],
+        ["Normal", Math.max(0,branchRows.length-highRiskRows.length-watchRows.length).toLocaleString(), CheckCircle2, "green", "No current signal"],
+      ],
+      unexplained: [
+        ["Unexplained Units", overview?.unexplained==null?"—":Number(overview.unexplained).toLocaleString(), Layers, Number(overview?.unexplained)>0?"red":"green", "Absolute variance"],
+        ["Affected SKUs", varianceRows.length.toLocaleString(), Package, varianceRows.length?"red":"green", "Non-zero variance"],
+        ["Positive Variance", varianceRows.filter(r=>Number(r.stockVariance)>0).length.toLocaleString(), ArrowUp, "amber", "Recorded excess"],
+        ["Negative Variance", varianceRows.filter(r=>Number(r.stockVariance)<0).length.toLocaleString(), ArrowDown, "red", "Recorded shortage"],
+      ],
+      sellThrough: [
+        ["Sell-through", overview?.sellThrough==null?"—":`${Number(overview.sellThrough).toFixed(1)}%`, Activity, "green", "Sold ÷ available"],
+        ["Units Supplied", suppliedUnits.toLocaleString(), Package, "green", "HQ receipts"],
+        ["Units Sold", soldUnits.toLocaleString(), ShoppingCart, "blue", "POS deductions"],
+        ["Ending Stock", endingUnits.toLocaleString(), Layers, "amber", "Recorded closing"],
+      ],
+    };
+    const summaries = summariesByMetric[metric] || summariesByMetric.hqRevenue;
+
+    let rows = branchRows;
+    let entity = "branch";
+    let emptyMessage = "No branch evidence is available for this KPI and filter.";
+    let columns = [
+      ["Branch", "left", r=>r.branch],
+      ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
+      ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
+      ["MoM", "right", r=>r.vsLastMonth==null?"—":`${r.vsLastMonth>=0?"+":""}${r.vsLastMonth.toFixed(1)}%`],
+      ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
+    ];
+
+    if (metric === "posRevenue") {
+      rows = [...branchRows].sort((a,b)=>b.posRevenue-a.posRevenue);
+      columns = [
+        ["Branch", "left", r=>r.branch],
+        ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
+        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
+        ["POS − HQ", "right", r=>`${r.posRevenue-r.hqRevenue>=0?"+":"−"}${fmtAmt(Math.abs(r.posRevenue-r.hqRevenue))}`],
+        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
+      ];
+    } else if (metric === "target" || metric === "targetGap") {
+      rows = [...branchRows].sort((a,b)=>Number(b.targetGap||0)-Number(a.targetGap||0));
+      columns = [
+        ["Branch", "left", r=>r.branch],
+        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
+        ["Target Attainment", "right", r=>r.targetPct==null?"—":`${r.targetPct.toFixed(1)}%`],
+        ["Target Gap", "right", r=>r.targetGap==null?"—":fmtAmt(r.targetGap)],
+        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
+      ];
+    } else if (metric === "coverage") {
+      rows = [...branchRows].sort((a,b)=>Number(a.orderCoverage??999)-Number(b.orderCoverage??999));
+      columns = [
+        ["Branch", "left", r=>r.branch],
+        ["Coverage", "right", r=>r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`],
+        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
+        ["Stock Variance", "right", r=>r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`],
+        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
+      ];
+    } else if (metric === "atRisk") {
+      rows = [...highRiskRows, ...watchRows];
+      columns = [
+        ["Branch", "left", r=>r.branch],
+        ["Reason", "left", r=>r.reason||"No explanation returned."],
+        ["HQ Supply", "right", r=>fmtAmt(r.hqRevenue)],
+        ["POS Revenue", "right", r=>fmtAmt(r.posRevenue)],
+        ["Risk", "right", r=><B2BRiskBadge risk={r.risk}/>],
+      ];
+      emptyMessage = "No branch is currently classified as High Risk or Watch.";
+    } else if (metric === "unexplained") {
+      rows = varianceRows;
+      entity = "sku";
+      columns = [
+        ["SKU / Product", "left", r=><><b>{r.product}</b><div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{r.branch} · {r.brand}</div></>],
+        ["Opening", "right", r=>r.openingStock==null?"—":r.openingStock.toLocaleString()],
+        ["HQ Received", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
+        ["POS Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
+        ["Closing", "right", r=>r.endingStock==null?"—":r.endingStock.toLocaleString()],
+        ["Variance", "right", r=>`${r.stockVariance>0?"+":""}${Number(r.stockVariance).toLocaleString()}`],
+      ];
+      emptyMessage = "No SKU-level variance evidence is available. Link opening stock, HQ receipts, POS deductions, disposal, transfers, and recorded closing stock.";
+    } else if (metric === "sellThrough") {
+      rows = [...brandRows].sort((a,b)=>Number(b.sellThrough||0)-Number(a.sellThrough||0));
+      entity = "brand";
+      columns = [
+        ["Brand", "left", r=>r.brand],
+        ["Units Supplied", "right", r=>Number(r.suppliedQty||0).toLocaleString()],
+        ["Units Sold", "right", r=>Number(r.soldQty||0).toLocaleString()],
+        ["Ending Stock", "right", r=>r.endingStock==null?"—":Number(r.endingStock).toLocaleString()],
+        ["Sell-through", "right", r=>r.sellThrough==null?"—":`${Number(r.sellThrough).toFixed(1)}%`],
+      ];
+      emptyMessage = "No brand sell-through evidence is available for the active filters.";
     }
 
-    /*
-      Aggregate actual units sold from the already-filtered transactions.
-      Store both an ID key and a normalized-name key because older transaction
-      rows may not consistently contain the inventory/ingredient ID.
-    */
-    const soldById = new Map();
-    const soldByName = new Map();
+    const openRow = row => {
+      if (entity === "sku") onOpenSku?.(row);
+      else if (entity === "brand") onOpenBrand?.(row);
+      else onOpenBranch?.(row);
+    };
+    const th = {padding:"10px 11px",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:"#71806F",background:"#F6FAF3",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"};
+    const td = {padding:"11px",fontSize:10.8,color:"#334155",borderBottom:"1px solid #EEF3EC",verticalAlign:"top"};
 
-    (Array.isArray(transactions) ? transactions : []).forEach((tx) => {
-      const txBranch = normalizeText(tx?.branch);
+    return (
+      <div>
+        <div style={{padding:"11px 13px",borderRadius:11,background:"#F6FAF3",border:"1px solid #DDE8DA",marginBottom:13}}>
+          <div style={{fontSize:12,fontWeight:850,color:"#12241B"}}>{meta.title}</div>
+          <div style={{fontSize:10.7,color:"#5C6B60",lineHeight:1.55,marginTop:4}}>{meta.description}</div>
+          <div style={{fontSize:10,color:"#3b791e",fontWeight:750,lineHeight:1.5,marginTop:5}}><b>Formula:</b> {meta.formula}</div>
+          <div style={{fontSize:9.7,color:"#82907F",marginTop:4}}>Scope: {b2bMonthLabel(month)} · current Brand, Branch, and Risk filters</div>
+        </div>
 
-      parseItems(tx?.items).forEach((item) => {
-        const qty = Number(
-          item?.qty ??
-          item?.quantity ??
-          item?.quantity_sold ??
-          0
-        );
+        <div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}>
+          {summaries.map(([label,value,Icon,tone,note])=><B2BMetricCard key={label} label={label} value={value} icon={Icon} tone={tone} note={note}/>) }
+        </div>
 
-        if (!Number.isFinite(qty) || qty <= 0) return;
+        <div style={{fontSize:11,fontWeight:850,color:"#12241B",marginBottom:8}}>Evidence breakdown</div>
+        <div style={{overflowX:"auto",border:"1px solid #E7EEE4",borderRadius:13}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
+            <thead><tr>{columns.map(([label,align])=><th key={label} style={{...th,textAlign:align}}>{label}</th>)}</tr></thead>
+            <tbody>
+              {rows.length ? rows.slice(0,20).map((row,index)=>(
+                <tr key={row.id ?? `${entity}-${index}`} onClick={()=>openRow(row)} style={{cursor:"pointer",background:index%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=index%2?"#FBFDF9":"#fff"}>
+                  {columns.map(([label,align,render])=><td key={label} style={{...td,textAlign:align}}>{render(row)}</td>)}
+                </tr>
+              )) : <tr><td colSpan={columns.length} style={{padding:28,textAlign:"center",fontSize:10.8,color:"#82907F",lineHeight:1.6}}>{emptyMessage}</td></tr>}
+            </tbody>
+          </table>
+        </div>
 
-        const itemId =
-          item?.ingredient_id ??
-          item?.inventory_id ??
-          item?.product_id ??
-          item?.id ??
-          null;
-
-        const itemName =
-          item?.name ??
-          item?.product_name ??
-          item?.item_name ??
-          item?.title ??
-          "";
-
-        /*
-          Include branch in the name key where possible so two branches selling
-          products with the same name don't accidentally share sales quantities.
-        */
-        const nameKey = normalizeName(itemName);
-
-        if (itemId != null && itemId !== "") {
-          const idKey = `${txBranch}|${String(itemId)}`;
-          soldById.set(idKey, (soldById.get(idKey) || 0) + qty);
-
-          // Compatibility key for rows where inventory has no branch.
-          const globalIdKey = `|${String(itemId)}`;
-          soldById.set(globalIdKey, (soldById.get(globalIdKey) || 0) + qty);
-        }
-
-        if (nameKey) {
-          const branchNameKey = `${txBranch}|${nameKey}`;
-          soldByName.set(
-            branchNameKey,
-            (soldByName.get(branchNameKey) || 0) + qty
-          );
-
-          // Compatibility key for inventory records without a branch value.
-          const globalNameKey = `|${nameKey}`;
-          soldByName.set(
-            globalNameKey,
-            (soldByName.get(globalNameKey) || 0) + qty
-          );
-        }
-      });
-    });
-
-    const selectedBranchNames =
-      filterBrand && selectedBrand
-        ? (selectedBrand.branches || [])
-            .map((br) => typeof br === "string" ? br : br?.name)
-            .filter(Boolean)
-        : [];
-
-    const inventoryInScope = (Array.isArray(inventoryRows) ? inventoryRows : [])
-      .filter((inv) => {
-        const invBranch = String(inv?.branch || "").trim();
-        const invBrand = normalizeText(inv?.brand);
-
-        if (filterBranch) {
-          return invBranch === filterBranch;
-        }
-
-        if (filterBrand && selectedBrand) {
-          const branchMatches =
-            selectedBranchNames.length === 0 ||
-            selectedBranchNames.includes(invBranch);
-
-          const brandMatches =
-            !invBrand ||
-            invBrand === normalizeText(selectedBrand?.name);
-
-          return branchMatches && brandMatches;
-        }
-
-        return true;
-      });
-
-    const rows = inventoryInScope
-      .map((inv) => {
-        const invBranch = normalizeText(inv?.branch);
-        const invName = normalizeName(inv?.name);
-
-        const invId =
-          inv?.id ??
-          inv?.ingredient_id ??
-          inv?.inventory_id ??
-          null;
-
-        let sold = 0;
-
-        if (invId != null && invId !== "") {
-          sold =
-            soldById.get(`${invBranch}|${String(invId)}`) ??
-            soldById.get(`|${String(invId)}`) ??
-            0;
-        }
-
-        // Fallback to normalized product name for older transactions.
-        if (sold <= 0 && invName) {
-          sold =
-            soldByName.get(`${invBranch}|${invName}`) ??
-            soldByName.get(`|${invName}`) ??
-            0;
-        }
-
-        /*
-          These two charts are sales-vs-stock charts, so only products that
-          actually have sales in the selected period are meaningful.
-        */
-        if (!(sold > 0)) return null;
-
-        const stock = Number(inv?.stock ?? 0);
-        const reorder = Number(
-          inv?.min_stock ??
-          inv?.reorder_point ??
-          inv?.minimum_stock ??
-          0
-        );
-
-        const dailySales = sold / Math.max(periodDays, 1);
-        const daysLeft = dailySales > 0 ? stock / dailySales : null;
-        const ratio = sold > 0 ? stock / sold : null;
-
-        let status = "OK";
-        let recommendation = "Monitor stock level";
-
-        if (
-          stock <= reorder ||
-          (daysLeft != null && daysLeft < 14)
-        ) {
-          status = "CRITICAL";
-          recommendation = "Restock urgently";
-        } else if (
-          (daysLeft != null && daysLeft > 90) ||
-          (ratio != null && ratio > 3)
-        ) {
-          status = "OVERSTOCK";
-          recommendation = "Reduce ordering / promote";
-        } else if (
-          daysLeft != null &&
-          daysLeft < 30
-        ) {
-          status = "WATCH";
-          recommendation = "Reorder soon";
-        }
-
-        return {
-          id: invId,
-          name: inv?.name || "Unnamed Product",
-          branch: inv?.branch || "Unassigned",
-          brand: inv?.brand || "",
-          stock,
-          reorder,
-          sold,
-          daysLeft,
-          ratio,
-          status,
-          recommendation,
-          unit: inv?.unit || "units",
-        };
-      })
-      .filter(Boolean);
-
-    /*
-      Put the products with the greatest sales first, while still keeping
-      critical items visible near the top.
-    */
-    rows.sort((a, b) => {
-      const priority = {
-        CRITICAL: 0,
-        WATCH: 1,
-        OK: 2,
-        OVERSTOCK: 3,
-      };
-
-      const p = (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
-      return p !== 0 ? p : b.sold - a.sold;
-    });
-
-    return rows.slice(0, 10);
-  }, [
-    transactions,
-    inventoryRows,
-    preset,
-    rangeMode,
-    appliedRange,
-    filterBranch,
-    filterBrand,
-    selectedBrand,
-  ]);
-
-  const revenuePie = top10.slice(0, 5).map((p, i) => ({
-    label: p.name.length > 14 ? p.name.slice(0, 14) + "…" : p.name,
-    value: p.totalRevenue,
-    color: PAL[i],
-  }));
-  const moverPie = totalSKUs > 0 ? [
-    { label: "Fast Movers", value: fastCount,                                      color: "#059669" },
-    { label: "Slow Movers", value: slowCount,                                      color: "#dc2626" },
-    { label: "Normal",      value: Math.max(0, totalSKUs - fastCount - slowCount), color: "#94a3b8" },
-  ].filter(d => d.value > 0) : [];
-
-  const TABS = [
-    { id: "top10",  label: "Top Products",   icon: BarChart2    },
-    { id: "fast",   label: "Fast Movers",    icon: TrendingUp   },
-    { id: "slow",   label: "Slow Movers",    icon: TrendingDown },
-    { id: "buyers", label: "Top Performers", icon: Target       },
-  ];
-  const tabSt = (a) => ({
-    padding: "6px 13px", borderRadius: 8, border: "none", fontSize: 11.5, fontWeight: 700,
-    cursor: "pointer", fontFamily: FONT, transition: "all .15s", display: "inline-flex", alignItems: "center", gap: 5,
-    background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent",
-    color:      a ? "#fff" : "#5a7a65",
-    boxShadow:  a ? "0 2px 8px rgba(0,180,90,.28)" : "none",
-  });
-  const RANK_COLORS = ["#f59e0b", "#94a3b8", "#cd7c2e"];
-
-  const renderList = () => {
-    const isBuyers = tab === "buyers";
-    const list = isBuyers ? data?.topBuyers : tab === "top10" ? top10 : tab === "fast" ? fast : slow;
-    if (!list?.length) return (
-      <div style={{ padding: "28px 0", textAlign: "center", color: "#9ca3af", fontSize: 12, border: "1.5px dashed #d1eedd", borderRadius: 10, fontFamily: FONT }}>No data for this filter.</div>
+        {metric === "atRisk" && anomalies.length > 0 && (
+          <div style={{marginTop:13}}>
+            <div style={{fontSize:11,fontWeight:850,color:"#12241B",marginBottom:8}}>Triggered anomaly rules</div>
+            <div style={{display:"grid",gap:7}}>{anomalies.slice(0,10).map((a,i)=><div key={a.id??i} style={{padding:"9px 11px",borderRadius:10,border:"1px solid #E7EEE4",background:i%2?"#FBFDF9":"#fff"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:10.5,color:"#12241B"}}>{a.branch||a.brand||"Unassigned"}</b><B2BRiskBadge risk={a.severity}/></div><div style={{fontSize:10.2,color:"#5C6B60",marginTop:5,lineHeight:1.5}}><b>{a.rule}:</b> {a.reason}</div></div>)}</div>
+          </div>
+        )}
+      </div>
     );
-    const maxR = Math.max(1, ...list.map(p => isBuyers ? p.totalItems : p.totalRevenue));
-    const maxQ = isBuyers ? maxR : Math.max(1, ...list.map(p => p.totalQty));
-    return list.slice(0, 8).map((p, i) => (
-      <div key={p.name}
-        style={{ display: "grid", gridTemplateColumns: isBuyers ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #f4fbf6", borderRadius: 7, transition: "background .1s", cursor: "default" }}
-        onMouseEnter={e => e.currentTarget.style.background = "#f4fbf6"}
-        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: i < 3 ? ["rgba(245,158,11,0.12)","rgba(148,163,184,0.15)","rgba(205,124,46,0.12)"][i] : "#f4f6f8", fontWeight: 800, fontSize: 11, color: i < 3 ? RANK_COLORS[i] : "#9ca3af", fontFamily: FONT }}>
-          {i + 1}
+  }
+
+  function B2BDualTrendChart({ data = [], onPointClick }) {
+    const [hover, setHover] = useState(null);
+    if (!data.length) return <DashboardEmptyState message="No HQ supply / POS trend data for the selected filters." />;
+    const W = 760, H = 240, PL = 55, PR = 24, PT = 20, PB = 38;
+    const pW = W - PL - PR, pH = H - PT - PB;
+    const hasTarget = data.some(d => b2bNullableNum(d?.targetRevenue) != null && Number(d.targetRevenue) > 0);
+    const maxV = Math.max(1, ...data.flatMap(d => [b2bNum(d.hqRevenue), b2bNum(d.posRevenue), b2bNum(d.targetRevenue)])) * 1.12;
+    const point = (v, i) => ({ x:PL + (i / Math.max(1, data.length - 1)) * pW, y:PT + pH - (b2bNum(v) / maxV) * pH });
+    const hqPts = data.map((d,i)=>point(d.hqRevenue,i));
+    const posPts = data.map((d,i)=>point(d.posRevenue,i));
+    const targetPts = data.map((d,i)=>point(d.targetRevenue,i));
+    const pathOf = (pts) => pts.map((p,i)=>`${i===0?"M":"L"} ${p.x} ${p.y}`).join(" ");
+    const ticks = [0,.25,.5,.75,1];
+    return (
+      <div style={{ position:"relative" }}>
+        <div style={{ display:"flex", gap:14, alignItems:"center", marginBottom:8, fontSize:10.5, fontWeight:700, color:"#5C6B60" }}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:9,height:9,borderRadius:3,background:"#3b791e"}}/>HQ Supply Revenue</span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:9,height:9,borderRadius:3,background:"#2563eb"}}/>Franchisee POS Revenue</span>
+          {hasTarget && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:11,height:0,borderTop:"2px dashed #b45309"}}/>HQ Monthly Target</span>}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: "#0d2b1e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.name}</div>
-          {!isBuyers && p.branchBreakdown && (
-            <div style={{ fontSize: 9.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>
-              {Object.entries(p.branchBreakdown).slice(0, 2).map(([br, q]) => `${br}: ${q}`).join(" · ")}
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:240, display:"block" }}>
+          {ticks.map(t=>{
+            const y = PT + pH * (1-t);
+            return <g key={t}><line x1={PL} y1={y} x2={W-PR} y2={y} stroke="#E9EEE6" strokeDasharray="4 4"/><text x={PL-8} y={y+4} textAnchor="end" fontSize="9.5" fill="#71806F" fontFamily={FONT}>{fmtShort(maxV*t)}</text></g>;
+          })}
+          <path d={pathOf(hqPts)} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
+          <path d={pathOf(posPts)} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
+          {hasTarget && <path d={pathOf(targetPts)} fill="none" stroke="#b45309" strokeWidth="2.25" strokeDasharray="7 6" strokeLinejoin="round" strokeLinecap="round"/>}
+          {data.map((d,i)=>{
+            const h=hqPts[i], p=posPts[i];
+            const isHover=hover===i;
+            return <g key={d.month || d.label || i} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} onClick={()=>onPointClick?.(d)} style={{cursor:onPointClick?"pointer":"default"}}>
+              <rect x={Math.max(PL,h.x-28)} y={PT} width={56} height={pH} fill="transparent" />
+              <circle cx={h.x} cy={h.y} r={isHover?5:3.5} fill="#3b791e" stroke="#fff" strokeWidth="2"/>
+              <circle cx={p.x} cy={p.y} r={isHover?5:3.5} fill="#2563eb" stroke="#fff" strokeWidth="2"/>
+              <text x={h.x} y={H-10} textAnchor="middle" fontSize="9.5" fill="#71806F" fontFamily={FONT}>{d.label || b2bMonthLabel(d.month)}</text>
+            </g>;
+          })}
+        </svg>
+        {hover !== null && data[hover] && (
+          <div style={{ position:"absolute", top:35, right:10, background:"#12241B", color:"#fff", borderRadius:10, padding:"9px 11px", fontSize:10.5, boxShadow:"0 10px 25px rgba(0,0,0,.16)", pointerEvents:"none" }}>
+            <div style={{fontWeight:800,marginBottom:4}}>{data[hover].label || b2bMonthLabel(data[hover].month)}</div>
+            <div style={{opacity:.78}}>HQ: {fmtAmt(data[hover].hqRevenue)}</div>
+            <div style={{opacity:.78}}>POS: {fmtAmt(data[hover].posRevenue)}</div>
+            {hasTarget && <div style={{opacity:.78}}>Target: {fmtAmt(data[hover].targetRevenue)}</div>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function B2BRevenueAssuranceDashboard({ transactions = [], brands = [], user, view="overview", onOpenSalesAi }) {
+    const API = process.env.REACT_APP_API_URL || "";
+    const [month, setMonth] = useState(() => b2bMonthKey(new Date()));
+    const [branch, setBranch] = useState("");
+    const [brand, setBrand] = useState("");
+    const [risk, setRisk] = useState("all");
+    const [growthTargetPct, setGrowthTargetPct] = useState(B2B_DEFAULT_GROWTH_TARGET);
+    const [loading, setLoading] = useState(true);
+    const [sourceMode, setSourceMode] = useState("aggregated");
+    const [overviewApi, setOverviewApi] = useState(null);
+    const [branchesApi, setBranchesApi] = useState([]);
+    const [brandsApi, setBrandsApi] = useState([]);
+    const [anomaliesApi, setAnomaliesApi] = useState([]);
+    const [rawOrders, setRawOrders] = useState([]);
+    const [rawInventory, setRawInventory] = useState([]);
+    const [loadError, setLoadError] = useState("");
+    const [drilldown, setDrilldown] = useState(null);
+
+    const branchCatalog = useMemo(() => {
+      const map = new Map();
+      (brands || []).forEach(b => {
+        const brandName = String(b?.name || b?.brand || "").trim();
+        (Array.isArray(b?.branches) ? b.branches : []).forEach(br => {
+          const name = typeof br === "string" ? br : String(br?.name || br?.branch || br?.branch_name || "").trim();
+          if (!name) return;
+          const current = map.get(name) || { name, id: typeof br === "object" ? (br?.id ?? br?.branch_id ?? name) : name, location:"", brandNames:[] };
+          if (typeof br === "object") current.location = String(br?.location || br?.address || br?.city || current.location || "").trim();
+          if (brandName && !current.brandNames.includes(brandName)) current.brandNames.push(brandName);
+          map.set(name, current);
+        });
+      });
+      return Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name));
+    }, [brands]);
+
+    const brandOptions = useMemo(() => (brands || []).map(b=>({ id:b?.id ?? b?.brand_id ?? b?.name, name:String(b?.name || b?.brand || "").trim() })).filter(b=>b.name).sort((a,b)=>a.name.localeCompare(b.name)), [brands]);
+    const branchOptions = useMemo(() => {
+      if (!brand) return branchCatalog;
+      return branchCatalog.filter(br => br.brandNames.includes(brand));
+    }, [branchCatalog, brand]);
+
+    useEffect(() => {
+      if (branch && !branchOptions.some(br=>br.name===branch)) setBranch("");
+    }, [brand, branch, branchOptions]);
+
+    const fetchJson = useCallback(async (url) => {
+      const res = await fetch(url, { credentials:"include" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = await res.json();
+      if (json?.error) throw new Error(json.error);
+      return json;
+    }, []);
+
+    const fetchRawOrdersFallback = useCallback(async () => {
+      const params = new URLSearchParams();
+      params.set("role", user?.role || "Super Admin");
+      if (user?.branch && !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)) params.set("branch", user.branch);
+      if (user?.brand && !["Super Admin", "Franchisee Operations Admin"].includes(user?.role)) params.set("brand", user.brand);
+      const data = await fetchJson(`${API}/orders?${params.toString()}`);
+      return Array.isArray(data) ? data : [];
+    }, [API, user, fetchJson]);
+
+    const loadB2B = useCallback(async () => {
+      if (!API) {
+        setLoading(false);
+        setLoadError("The API URL is not configured, so Mobile Orders and inventory cannot be loaded.");
+        return;
+      }
+      setLoading(true);
+      setLoadError("");
+      const params = new URLSearchParams({ month });
+      if (branch) params.set("branch", branch);
+      if (brand) params.set("brand", brand);
+      if (risk !== "all") params.set("risk", risk);
+      params.set("growthTargetPct", String(growthTargetPct));
+
+      const endpoints = [
+        `${API}/dashboard/b2b/overview?${params.toString()}`,
+        `${API}/dashboard/b2b/branches?${params.toString()}`,
+        `${API}/dashboard/b2b/brands?${params.toString()}`,
+        `${API}/dashboard/b2b/anomalies?${params.toString()}`,
+      ];
+
+      const settled = await Promise.allSettled(endpoints.map(fetchJson));
+      const hasCoreSummary = settled.slice(0,3).every(r=>r.status==="fulfilled");
+
+      if (hasCoreSummary) {
+        setSourceMode("aggregated");
+        const o = settled[0].status === "fulfilled" ? settled[0].value : null;
+        const br = settled[1].status === "fulfilled" ? settled[1].value : [];
+        const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
+        const an = settled[3].status === "fulfilled" ? settled[3].value : [];
+        setOverviewApi(o?.data || o || null);
+        setBranchesApi(Array.isArray(br) ? br : Array.isArray(br?.branches) ? br.branches : Array.isArray(br?.data) ? br.data : []);
+        setBrandsApi(Array.isArray(bd) ? bd : Array.isArray(bd?.brands) ? bd.brands : Array.isArray(bd?.data) ? bd.data : []);
+        setAnomaliesApi(Array.isArray(an) ? an : Array.isArray(an?.anomalies) ? an.anomalies : Array.isArray(an?.data) ? an.data : []);
+        setRawOrders([]);
+        setRawInventory([]);
+      } else {
+        setSourceMode("fallback");
+        setOverviewApi(null); setBranchesApi([]); setBrandsApi([]); setAnomaliesApi([]);
+        const inventoryParams = new URLSearchParams();
+        if (branch) inventoryParams.set("branch", branch);
+        const [ordersResult, stockInventoryResult, posInventoryResult] = await Promise.allSettled([
+          fetchRawOrdersFallback(),
+          fetchJson(`${API}/ingredients${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
+          fetchJson(`${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
+        ]);
+        setRawOrders(ordersResult.status === "fulfilled" && Array.isArray(ordersResult.value) ? ordersResult.value : []);
+        const stockPayload = stockInventoryResult.status === "fulfilled" ? stockInventoryResult.value : [];
+        const posPayload = posInventoryResult.status === "fulfilled" ? posInventoryResult.value : [];
+        const stockRows = Array.isArray(stockPayload) ? stockPayload : Array.isArray(stockPayload?.data) ? stockPayload.data : [];
+        const posRows = Array.isArray(posPayload) ? posPayload : Array.isArray(posPayload?.data) ? posPayload.data : [];
+        setRawInventory(stockRows.length ? stockRows : posRows);
+        if (ordersResult.status === "rejected") {
+          setLoadError("The B2B summary endpoints and the existing Mobile Order endpoint could not be loaded.");
+        }
+      }
+      setLoading(false);
+    }, [API, month, branch, brand, risk, growthTargetPct, fetchJson, fetchRawOrdersFallback]);
+
+    useEffect(() => { loadB2B(); }, [loadB2B]);
+
+    const fallback = useMemo(() => {
+      const currentMonth = month;
+      const prevMonth = b2bShiftMonth(month, -1);
+      const monthMatches = (value, key) => b2bMonthKey(value) === key;
+      const brandAllows = (name) => !brand || String(name || "") === brand;
+      const branchAllows = (name) => !branch || String(name || "") === branch;
+
+      const orders = rawOrders.filter(o => b2bIsEarnedOrder(o) && brandAllows(b2bBrandName(o)) && branchAllows(b2bBranchName(o)));
+      const pos = (transactions || []).filter(tx => b2bIsCompletedTx(tx) && brandAllows(b2bBrandName(tx)) && branchAllows(b2bBranchName(tx)));
+      const inventory = (rawInventory || []).filter(row => {
+        if (!brandAllows(b2bBrandName(row)) || !branchAllows(b2bBranchName(row))) return false;
+        if (currentMonth === b2bMonthKey(new Date())) return true;
+        const snapshotDate = b2bDateOfInventory(row);
+        if (snapshotDate) return monthMatches(snapshotDate, currentMonth);
+        return false;
+      });
+      const currentOrders = orders.filter(o => monthMatches(b2bDateOfOrder(o), currentMonth));
+      const prevOrders = orders.filter(o => monthMatches(b2bDateOfOrder(o), prevMonth));
+      const currentTx = pos.filter(tx => monthMatches(b2bDateOfTx(tx), currentMonth));
+      const prevTx = pos.filter(tx => monthMatches(b2bDateOfTx(tx), prevMonth));
+
+      const hqRevenue = currentOrders.reduce((s,o)=>s+b2bOrderAmount(o),0);
+      const prevHqRevenue = prevOrders.reduce((s,o)=>s+b2bOrderAmount(o),0);
+      const posRevenue = currentTx.reduce((s,tx)=>s+b2bTxAmount(tx),0);
+      const prevPosRevenue = prevTx.reduce((s,tx)=>s+b2bTxAmount(tx),0);
+      const target = prevHqRevenue * (1 + growthTargetPct / 100);
+      const attainment = target > 0 ? (hqRevenue / target) * 100 : null;
+      const gap = Math.max(0, target - hqRevenue);
+
+      const allBranchNames = new Set(branchCatalog.map(b=>b.name));
+      currentOrders.forEach(o=>{ if(b2bBranchName(o)) allBranchNames.add(b2bBranchName(o)); });
+      currentTx.forEach(tx=>{ if(b2bBranchName(tx)) allBranchNames.add(b2bBranchName(tx)); });
+      inventory.forEach(row=>{ if(b2bBranchName(row)) allBranchNames.add(b2bBranchName(row)); });
+      prevOrders.forEach(o=>{ if(b2bBranchName(o)) allBranchNames.add(b2bBranchName(o)); });
+      prevTx.forEach(tx=>{ if(b2bBranchName(tx)) allBranchNames.add(b2bBranchName(tx)); });
+
+      const branchRows = Array.from(allBranchNames).map(name => {
+        const cat = branchCatalog.find(x=>x.name===name);
+        const currO = currentOrders.filter(o=>b2bBranchName(o)===name);
+        const prevO = prevOrders.filter(o=>b2bBranchName(o)===name);
+        const currT = currentTx.filter(tx=>b2bBranchName(tx)===name);
+        const prevT = prevTx.filter(tx=>b2bBranchName(tx)===name);
+        const currI = inventory.filter(row=>b2bBranchName(row)===name);
+        const hq = currO.reduce((s,o)=>s+b2bOrderAmount(o),0);
+        const prevHq = prevO.reduce((s,o)=>s+b2bOrderAmount(o),0);
+        const posV = currT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
+        const prevPos = prevT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
+        const suppliedQty = currO.flatMap(b2bOrderItems).reduce((s,i)=>s+b2bItemQty(i),0);
+        const soldQty = currT.flatMap(b2bTxItems).reduce((s,i)=>s+b2bItemQty(i),0);
+        const openingValues = currI.map(b2bInventoryOpening).filter(v=>v!=null);
+        const closingValues = currI.map(b2bInventoryClosing).filter(v=>v!=null);
+        const openingQty = openingValues.length ? openingValues.reduce((s,v)=>s+v,0) : null;
+        const endingStock = closingValues.length ? closingValues.reduce((s,v)=>s+v,0) : null;
+        const disposalQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryDisposal(i)),0);
+        const transferInQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferIn(i)),0);
+        const transferOutQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferOut(i)),0);
+        const adjustmentQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryAdjustment(i)),0);
+        const officialAvailable = Math.max(0, b2bNum(openingQty) + suppliedQty + transferInQty - disposalQty - transferOutQty + adjustmentQty);
+        const orderCoverage = soldQty > 0 ? Math.min(100, (officialAvailable / soldQty) * 100) : null;
+        const expectedClosing = openingQty != null && endingStock != null
+          ? openingQty + suppliedQty + transferInQty - soldQty - disposalQty - transferOutQty + adjustmentQty
+          : null;
+        const stockVariance = expectedClosing == null ? null : endingStock - expectedClosing;
+        const hqGrowth = prevHq > 0 ? ((hq-prevHq)/prevHq)*100 : (hq>0?100:0);
+        const posGrowth = prevPos > 0 ? ((posV-prevPos)/prevPos)*100 : (posV>0?100:0);
+        const targetV = prevHq * (1 + growthTargetPct/100);
+        const targetPct = targetV > 0 ? (hq/targetV)*100 : null;
+        let riskLabel = "Normal";
+        let reason = "No revenue-leakage signal from available order/POS data.";
+        if (posV > 0 && hq === 0) {
+          riskLabel = "High Risk";
+          reason = "Active POS sales with no fulfilled HQ supply order in the selected month. Verify carry-over stock, approved transfers, or possible outside sourcing.";
+        } else if (stockVariance != null && stockVariance > 0) {
+          riskLabel = "High Risk";
+          reason = `${stockVariance.toLocaleString()} units are above the stock expected from opening balance, HQ receipts, POS sales, disposal, and transfers.`;
+        } else if (stockVariance != null && stockVariance < 0) {
+          riskLabel = "High Risk";
+          reason = `${Math.abs(stockVariance).toLocaleString()} units are missing from the expected stock balance and require a physical count.`;
+        } else if (openingQty != null && orderCoverage != null && orderCoverage < 70 && posV > 0) {
+          riskLabel = "High Risk";
+          reason = `Only ${orderCoverage.toFixed(1)}% of reported POS-sold units are supported by opening stock and authorized HQ stock flow.`;
+        } else if (posGrowth >= B2B_FALLBACK_THRESHOLDS.posStableFloorPct && hqGrowth <= -B2B_FALLBACK_THRESHOLDS.highOrderDropPct) {
+          riskLabel = "High Risk";
+          reason = "POS is stable/up while HQ supply revenue dropped materially.";
+        } else if (posGrowth >= B2B_FALLBACK_THRESHOLDS.posStableFloorPct && hqGrowth <= -B2B_FALLBACK_THRESHOLDS.watchOrderDropPct) {
+          riskLabel = "Watch";
+          reason = "POS is stable/up while HQ supply revenue is declining.";
+        }
+        return {
+          id:cat?.id ?? name, branch:name, location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
+          vsLastMonth:hqGrowth, posGrowth, targetPct, orderCoverage, stockVariance,
+          suppliedQty, soldQty, openingStock:openingQty, endingStock,
+          risk:riskLabel, reason, targetGap:Math.max(0,targetV-hq), prevHqRevenue:prevHq,
+        };
+      }).filter(r=>!branch || r.branch===branch);
+
+      const brandNames = new Set(brandOptions.map(b=>b.name));
+      currentOrders.forEach(o=>{ if(b2bBrandName(o)) brandNames.add(b2bBrandName(o)); });
+      currentTx.forEach(tx=>{ if(b2bBrandName(tx)) brandNames.add(b2bBrandName(tx)); });
+      inventory.forEach(row=>{ if(b2bBrandName(row)) brandNames.add(b2bBrandName(row)); });
+      const brandRows = Array.from(brandNames).map(name => {
+        const currO = currentOrders.filter(o=>b2bBrandName(o)===name);
+        const currT = currentTx.filter(tx=>b2bBrandName(tx)===name);
+        const currI = inventory.filter(row=>b2bBrandName(row)===name);
+        const hq = currO.reduce((s,o)=>s+b2bOrderAmount(o),0);
+        const posV = currT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
+        const suppliedQty = currO.flatMap(b2bOrderItems).reduce((s,i)=>s+b2bItemQty(i),0);
+        const soldQty = currT.flatMap(b2bTxItems).reduce((s,i)=>s+b2bItemQty(i),0);
+        const openingValues = currI.map(b2bInventoryOpening).filter(v=>v!=null);
+        const closingValues = currI.map(b2bInventoryClosing).filter(v=>v!=null);
+        const openingStock = openingValues.length ? openingValues.reduce((s,v)=>s+v,0) : null;
+        const endingStock = closingValues.length ? closingValues.reduce((s,v)=>s+v,0) : null;
+        const disposalQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryDisposal(i)),0);
+        const transferInQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferIn(i)),0);
+        const transferOutQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferOut(i)),0);
+        const adjustmentQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryAdjustment(i)),0);
+        const expectedClosing = openingStock != null && endingStock != null
+          ? openingStock + suppliedQty + transferInQty - soldQty - disposalQty - transferOutQty + adjustmentQty
+          : null;
+        const stockVariance = expectedClosing == null ? null : endingStock - expectedClosing;
+        const availableQty = openingStock == null ? null : Math.max(0, openingStock + suppliedQty + transferInQty);
+        const sellThrough = availableQty && availableQty > 0 ? (soldQty / availableQty) * 100 : null;
+        return { id:brandOptions.find(b=>b.name===name)?.id ?? name, brand:name, hqRevenue:hq, posRevenue:posV, suppliedQty, soldQty, openingStock, endingStock, sellThrough, stockVariance };
+      }).filter(r=>!brand || r.brand===brand).sort((a,b)=>b.hqRevenue-a.hqRevenue);
+
+      const riskRows = branchRows.filter(r=>r.risk!=="Normal").map(r=>({
+        id:`fallback-${r.branch}`,
+        branch:r.branch,
+        severity:r.risk,
+        rule:r.hqRevenue===0 && r.posRevenue>0 ? "No Recent HQ Order + Active Sales" : "High POS, Low HQ Orders",
+        reason:r.reason,
+        gapValue:r.targetGap,
+        recommendation:"Review the branch → brand → SKU breakdown and verify the source of replenishment.",
+      }));
+
+      const skuMap = new Map();
+      const addSku = (item, kind, parentBrand, parentBranch) => {
+        const resolvedBranch = parentBranch || b2bBranchName(item) || "—";
+        const resolvedBrand = parentBrand || b2bBrandName(item) || "—";
+        if (branch && resolvedBranch !== branch) return;
+        if (brand && resolvedBrand !== brand) return;
+        const id = b2bItemId(item);
+        const name = b2bItemName(item);
+        const key = b2bSkuKey(item, resolvedBrand, resolvedBranch);
+        const row = skuMap.get(key) || { id:id ?? key, sku:id != null ? String(id) : "—", product:name, brand:resolvedBrand, branch:resolvedBranch, suppliedQty:0, soldQty:0, openingStock:null, endingStock:null, disposal:null, transferIn:null, transferOut:null, adjustment:null, transfers:null, stockVariance:null };
+        if (kind==="supply") row.suppliedQty += b2bItemQty(item);
+        if (kind==="sale") row.soldQty += b2bItemQty(item);
+        if (kind==="inventory") {
+          row.openingStock = b2bInventoryOpening(item);
+          row.endingStock = b2bInventoryClosing(item);
+          row.disposal = b2bInventoryDisposal(item);
+          row.transferIn = b2bInventoryTransferIn(item);
+          row.transferOut = b2bInventoryTransferOut(item);
+          row.adjustment = b2bInventoryAdjustment(item);
+          row.transfers = b2bNum(row.transferIn) + b2bNum(row.transferOut);
+        }
+        skuMap.set(key,row);
+      };
+      currentOrders.forEach(o=>b2bOrderItems(o).forEach(i=>addSku(i,"supply",b2bBrandName(o)||b2bBrandName(i),b2bBranchName(o)||b2bBranchName(i))));
+      currentTx.forEach(tx=>b2bTxItems(tx).forEach(i=>addSku(i,"sale",b2bBrandName(tx)||b2bBrandName(i),b2bBranchName(tx)||b2bBranchName(i))));
+      inventory.forEach(row=>addSku(row,"inventory",b2bBrandName(row),b2bBranchName(row)));
+      const skuRows = Array.from(skuMap.values()).map(row=>{
+        const hasFullBalance = row.openingStock != null && row.endingStock != null;
+        const expectedClosing = hasFullBalance
+          ? row.openingStock + row.suppliedQty + b2bNum(row.transferIn) - row.soldQty - b2bNum(row.disposal) - b2bNum(row.transferOut) + b2bNum(row.adjustment)
+          : null;
+        return { ...row, stockVariance:expectedClosing==null?null:row.endingStock-expectedClosing };
+      }).sort((a,b)=>Math.abs(b.stockVariance||0)-Math.abs(a.stockVariance||0) || (b.soldQty+b.suppliedQty)-(a.soldQty+a.suppliedQty)).slice(0,25);
+
+      const stockRiskRows = skuRows.filter(row=>row.stockVariance!=null && row.stockVariance!==0).map((row,index)=>({
+        id:`stock-${row.id}-${index}`,
+        branch:row.branch,
+        brand:row.brand,
+        sku:row.product,
+        severity:"High Risk",
+        rule:row.stockVariance>0 ? "Suspected Unofficial Supply" : "Ghost Stock / Shrinkage",
+        reason:row.stockVariance>0
+          ? `${row.stockVariance.toLocaleString()} recorded units are not explained by verified opening stock, HQ receipts, POS sales, disposal, and transfers.`
+          : `${Math.abs(row.stockVariance).toLocaleString()} units expected by the stock ledger are missing from recorded closing stock.`,
+        gapValue:null,
+        recommendation:"Request a physical count, verify the source order or transfer, and review manual inventory adjustments.",
+      }));
+
+      const trend = [];
+      for (let offset=-5; offset<=0; offset++) {
+        const key = b2bShiftMonth(currentMonth, offset);
+        const o = orders.filter(x=>monthMatches(b2bDateOfOrder(x),key)).reduce((s,x)=>s+b2bOrderAmount(x),0);
+        const t = pos.filter(x=>monthMatches(b2bDateOfTx(x),key)).reduce((s,x)=>s+b2bTxAmount(x),0);
+        const priorKey = b2bShiftMonth(key,-1);
+        const priorHq = orders.filter(x=>monthMatches(b2bDateOfOrder(x),priorKey)).reduce((s,x)=>s+b2bOrderAmount(x),0);
+        trend.push({ month:key, label:b2bMonthLabel(key).replace(/\s\d{4}$/,""), hqRevenue:o, posRevenue:t, targetRevenue:priorHq*(1+growthTargetPct/100) });
+      }
+
+      const suppliedUnits = brandRows.reduce((sum,row)=>sum+Number(row.suppliedQty||0),0);
+      const soldUnits = brandRows.reduce((sum,row)=>sum+Number(row.soldQty||0),0);
+      const openingUnits = brandRows.reduce((sum,row)=>sum+Number(row.openingStock||0),0);
+      const hasOpeningEvidence = brandRows.some(row=>row.openingStock!=null);
+      const coverage = soldUnits>0 ? Math.min(100,((suppliedUnits+(hasOpeningEvidence?openingUnits:0))/soldUnits)*100) : null;
+      const unexplained = skuRows.filter(row=>row.stockVariance!=null).reduce((sum,row)=>sum+Math.abs(Number(row.stockVariance||0)),0);
+      const sellThrough = hasOpeningEvidence && openingUnits+suppliedUnits>0 ? (soldUnits/(openingUnits+suppliedUnits))*100 : null;
+      const allAnomalies = [...stockRiskRows,...riskRows];
+      const atRisk = new Set(allAnomalies.map(row=>row.branch).filter(Boolean)).size;
+
+      return { hqRevenue, prevHqRevenue, posRevenue, prevPosRevenue, target, attainment, gap, coverage, unexplained, sellThrough, atRisk, branchRows, brandRows, anomalies:allAnomalies, skuRows, trend };
+    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct]);
+
+    const normalizedOverview = useMemo(() => {
+      const o = overviewApi || {};
+      const hqRevenue = b2bNullableNum(o?.hqSupplyRevenue, o?.hq_supply_revenue, o?.supplyRevenue, o?.franchisyncSupplyRevenue);
+      const posRevenue = b2bNullableNum(o?.posRevenue, o?.pos_revenue, o?.franchiseePosRevenue, o?.franchisee_pos_revenue);
+      const target = b2bNullableNum(o?.monthlyTarget, o?.monthly_target, o?.target);
+      const targetGap = b2bNullableNum(o?.targetGap, o?.target_gap, target != null && hqRevenue != null ? Math.max(0,target-hqRevenue) : null);
+      const targetAttainment = b2bNullableNum(o?.targetAttainment, o?.target_attainment, o?.targetAttainmentPct, o?.target_attainment_pct, target && hqRevenue != null ? hqRevenue/target*100 : null);
+      const coverage = b2bNullableNum(o?.orderCoverage, o?.order_coverage, o?.coveragePct, o?.coverage_pct);
+      const atRisk = b2bNullableNum(o?.atRiskBranches, o?.at_risk_branches, o?.riskCount, o?.risk_count);
+      const unexplained = b2bNullableNum(o?.unexplainedStock, o?.unexplained_stock, o?.unexplainedStockUnits, o?.unexplained_stock_units);
+      const sellThrough = b2bNullableNum(o?.sellThrough, o?.sell_through, o?.sellThroughPct, o?.sell_through_pct);
+      const prevHqRevenue = b2bNullableNum(o?.previousHqSupplyRevenue, o?.previous_hq_supply_revenue, o?.prevHqRevenue, o?.prev_hq_revenue);
+      const prevPosRevenue = b2bNullableNum(o?.previousPosRevenue, o?.previous_pos_revenue, o?.prevPosRevenue, o?.prev_pos_revenue);
+      return {
+        hqRevenue: hqRevenue ?? fallback.hqRevenue,
+        posRevenue: posRevenue ?? fallback.posRevenue,
+        target: target ?? fallback.target,
+        targetGap: targetGap ?? fallback.gap,
+        targetAttainment: targetAttainment ?? fallback.attainment,
+        coverage: coverage ?? fallback.coverage,
+        atRisk: atRisk ?? (sourceMode==="fallback" ? fallback.atRisk : 0),
+        unexplained: unexplained ?? fallback.unexplained,
+        sellThrough: sellThrough ?? fallback.sellThrough,
+        prevHqRevenue: prevHqRevenue ?? fallback.prevHqRevenue,
+        prevPosRevenue: prevPosRevenue ?? fallback.prevPosRevenue,
+      };
+    }, [overviewApi, fallback, sourceMode]);
+
+    const branchRows = useMemo(() => {
+      if (sourceMode === "fallback" || !branchesApi.length) {
+        return fallback.branchRows.filter(r => risk === "all" || String(r.risk).toLowerCase().includes(risk.toLowerCase().replace("high-risk", "high")));
+      }
+      return branchesApi.map((r,i)=>({
+        id:r?.branch_id ?? r?.id ?? r?.branch ?? i,
+        branch:String(r?.branch_name || r?.branch || r?.name || "Unknown Branch"),
+        location:String(r?.location || r?.address || "—"),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue, r?.franchisee_pos_revenue),
+        vsLastMonth:b2bNullableNum(r?.mom_growth, r?.vs_last_month, r?.hq_growth_pct),
+        targetPct:b2bNullableNum(r?.target_pct, r?.targetAttainment, r?.target_attainment_pct),
+        targetGap:b2bNullableNum(r?.target_gap, r?.targetGap, r?.revenue_gap),
+        prevHqRevenue:b2bNullableNum(r?.previous_hq_supply_revenue, r?.prevHqRevenue, r?.previous_revenue),
+        orderCoverage:b2bNullableNum(r?.order_coverage, r?.coverage_pct, r?.orderCoverage),
+        stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
+        risk:String(r?.risk || r?.risk_status || r?.anomaly_status || "Normal"),
+        reason:String(r?.reason || r?.risk_reason || ""),
+      })).filter(r=>(!branch||r.branch===branch)&&(!risk||risk==="all"||String(r.risk).toLowerCase().includes(risk.toLowerCase().replace("high-risk","high"))));
+    }, [sourceMode, branchesApi, fallback.branchRows, branch, risk]);
+
+    const brandRows = useMemo(() => {
+      if (sourceMode === "fallback" || !brandsApi.length) return fallback.brandRows;
+      return brandsApi.map((r,i)=>({
+        id:r?.brand_id ?? r?.id ?? r?.brand ?? i,
+        brand:String(r?.brand_name || r?.brand || r?.name || "Unknown Brand"),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue),
+        suppliedQty:b2bNum(r?.supplied_qty, r?.qty_supplied, r?.quantity_supplied),
+        soldQty:b2bNum(r?.sold_qty, r?.qty_sold, r?.quantity_sold),
+        endingStock:b2bNullableNum(r?.ending_stock, r?.closing_stock, r?.on_hand),
+        sellThrough:b2bNullableNum(r?.sell_through, r?.sell_through_pct),
+        stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
+      })).filter(r=>!brand||r.brand===brand);
+    }, [sourceMode, brandsApi, fallback.brandRows, brand]);
+
+    const anomalies = useMemo(() => {
+      const rows = sourceMode === "fallback" || !anomaliesApi.length
+        ? fallback.anomalies
+        : anomaliesApi.map((r,i)=>({
+            id:r?.id ?? i,
+            branch:String(r?.branch_name || r?.branch || "—"),
+            brand:String(r?.brand_name || r?.brand || ""),
+            sku:String(r?.sku || r?.product_name || ""),
+            severity:String(r?.severity || r?.risk || "Watch"),
+            rule:String(r?.rule || r?.rule_name || r?.anomaly || "Anomaly"),
+            reason:String(r?.reason || r?.message || "Review supporting evidence."),
+            gapValue:b2bNullableNum(r?.gap_value, r?.value_gap, r?.amount_gap),
+            recommendation:String(r?.recommendation || "Review linked order, POS, and inventory evidence."),
+          }));
+      return rows.filter(r=>risk==="all" || String(r.severity).toLowerCase().includes(risk.toLowerCase().replace("high-risk","high")));
+    }, [sourceMode, anomaliesApi, fallback.anomalies, risk]);
+
+    const trendData = useMemo(() => {
+      const o = overviewApi || {};
+      const raw = b2bArray(o?.trend || o?.monthlyTrend || o?.monthly_trend || o?.revenueTrend || o?.revenue_trend);
+      if (!raw.length) return fallback.trend;
+      const mapped = raw.map((r,i)=>({
+        month:String(r?.month || r?.period || ""),
+        label:String(r?.label || (r?.month ? b2bMonthLabel(r.month).replace(/\s\d{4}$/,"|") : `M${i+1}`)).replace("|", ""),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue),
+        targetRevenue:b2bNullableNum(r?.target_revenue, r?.targetRevenue, r?.monthly_target, r?.target),
+      }));
+      return mapped.map((row,index)=>({
+        ...row,
+        targetRevenue:row.targetRevenue ?? (index>0 ? mapped[index-1].hqRevenue*(1+growthTargetPct/100) : 0),
+      }));
+    }, [overviewApi, fallback.trend, growthTargetPct]);
+
+    const skuRows = fallback.skuRows;
+
+    const sortedBranchRows = useMemo(() => [...branchRows].sort((a,b)=>{
+      const rank = v => String(v||"").toLowerCase().includes("high") ? 3 : (String(v||"").toLowerCase().includes("watch") || String(v||"").toLowerCase().includes("medium")) ? 2 : 1;
+      return (rank(b.risk)-rank(a.risk)) || ((b.targetGap||0)-(a.targetGap||0)) || (b.hqRevenue-a.hqRevenue);
+    }), [branchRows]);
+
+    const monthlyLeaders = useMemo(() => {
+      const byHq = [...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0));
+      const byPos = [...branchRows].sort((a,b)=>Number(b.posRevenue||0)-Number(a.posRevenue||0));
+      const byBrand = [...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0));
+      const leakage = [...branchRows].sort((a,b)=>{
+        const aGap = Number(a.posRevenue||0)-Number(a.hqRevenue||0);
+        const bGap = Number(b.posRevenue||0)-Number(b.hqRevenue||0);
+        return bGap-aGap;
+      });
+      return { hqBranch:byHq[0]||null, posBranch:byPos[0]||null, hqBrand:byBrand[0]||null, leakageBranch:leakage[0]||null };
+    }, [branchRows, brandRows]);
+
+    const openKpi = (metric, title) => setDrilldown({
+      type:"kpi",
+      title:title || metric,
+      loading:false,
+      data:{ metric },
+    });
+
+    const openBranch = async (row) => {
+      setDrilldown({ type:"branch", title:row.branch, loading:true, data:row });
+      if (sourceMode === "aggregated") {
+        try {
+          const data = await fetchJson(`${API}/dashboard/b2b/branches/${encodeURIComponent(row.id)}?month=${encodeURIComponent(month)}`);
+          setDrilldown({ type:"branch", title:row.branch, loading:false, data:{ ...row, ...(data?.data || data) } });
+          return;
+        } catch {}
+      }
+      setDrilldown({ type:"branch", title:row.branch, loading:false, data:row });
+    };
+
+    const openBrand = async (row) => {
+      setDrilldown({ type:"brand", title:row.brand, loading:true, data:row });
+      const selectedBranchRow = branch ? branchCatalog.find(b=>b.name===branch) : null;
+      if (sourceMode === "aggregated" && selectedBranchRow) {
+        try {
+          const data = await fetchJson(`${API}/dashboard/b2b/branches/${encodeURIComponent(selectedBranchRow.id)}/brands/${encodeURIComponent(row.id)}?month=${encodeURIComponent(month)}`);
+          setDrilldown({ type:"brand", title:row.brand, loading:false, data:{ ...row, ...(data?.data || data) } });
+          return;
+        } catch {}
+      }
+      setDrilldown({ type:"brand", title:row.brand, loading:false, data:row });
+    };
+
+    const openSku = async (row) => {
+      setDrilldown({ type:"sku", title:row.product, loading:true, data:row });
+      const selectedBranchRow = branch ? branchCatalog.find(b=>b.name===branch) : null;
+      if (sourceMode === "aggregated" && selectedBranchRow) {
+        try {
+          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row.id), month });
+          const data = await fetchJson(`${API}/dashboard/b2b/reconcile?${q.toString()}`);
+          setDrilldown({ type:"sku", title:row.product, loading:false, data:{ ...row, ...(data?.data || data) } });
+          return;
+        } catch {}
+      }
+      setDrilldown({ type:"sku", title:row.product, loading:false, data:row, warning:"Full opening/receipt/POS/disposal/transfer/manual-adjustment evidence needs the B2B reconciliation endpoint and inventory movement references." });
+    };
+
+    const stockDataReady = normalizedOverview.coverage != null || normalizedOverview.unexplained != null || normalizedOverview.sellThrough != null || branchRows.some(r=>r.stockVariance!=null || r.orderCoverage!=null) || brandRows.some(r=>r.endingStock!=null || r.stockVariance!=null);
+    const hqMoM = normalizedOverview.prevHqRevenue > 0 ? ((normalizedOverview.hqRevenue-normalizedOverview.prevHqRevenue)/normalizedOverview.prevHqRevenue)*100 : null;
+    const posMoM = normalizedOverview.prevPosRevenue > 0 ? ((normalizedOverview.posRevenue-normalizedOverview.prevPosRevenue)/normalizedOverview.prevPosRevenue)*100 : null;
+    const hasPreviousHqRevenue = Number(normalizedOverview.prevHqRevenue || 0) > 0;
+    const hqRevenueDifference = Number(normalizedOverview.hqRevenue || 0) - Number(normalizedOverview.prevHqRevenue || 0);
+    const hqRevenueDirection = !hasPreviousHqRevenue ? "neutral" : hqRevenueDifference > 0 ? "up" : hqRevenueDifference < 0 ? "down" : "same";
+    const hqRevenueStatus = hqRevenueDirection === "up"
+      ? { label:"REVENUE UP", title:"Head Office revenue is higher this month", color:"#2c5c16", bg:"#f0f5e8", border:"#c9dba0", icon:TrendingUp }
+      : hqRevenueDirection === "down"
+        ? { label:"REVENUE DOWN", title:"Head Office revenue is lower this month", color:"#b42318", bg:"#fef3f2", border:"#fecaca", icon:TrendingDown }
+        : hqRevenueDirection === "same"
+          ? { label:"NO CHANGE", title:"Head Office revenue is unchanged", color:"#7c5d12", bg:"#fffbeb", border:"#fde68a", icon:Activity }
+          : { label:"NO BASELINE", title:"Head Office monthly comparison is not available yet", color:"#5C6B60", bg:"#F6F7F1", border:"#E1E6D8", icon:Info };
+    const HqStatusIcon = hqRevenueStatus.icon;
+    const isOverviewView = view === "overview";
+    const isGhostView = view === "ghost";
+
+    const franchisorActions = useMemo(() => {
+      const items = [];
+      const highRiskCount = branchRows.filter(r=>String(r.risk||"").toLowerCase().includes("high")).length;
+      const topAnomaly = anomalies[0];
+      const targetGap = Number(normalizedOverview.targetGap || 0);
+      const unexplained = Number(normalizedOverview.unexplained || 0);
+      const coverage = normalizedOverview.coverage;
+
+      if (targetGap > 0) items.push({
+        priority:"Revenue priority",
+        tone:"amber",
+        title:`Close the ${fmtAmt(targetGap)} HQ revenue gap`,
+        evidence:`Current HQ supply revenue is ${normalizedOverview.targetAttainment==null?"below target":`${Math.max(0,100-normalizedOverview.targetAttainment).toFixed(1)}% short of target`}.`,
+        action:"Review branches with weak ordering activity, confirm upcoming replenishment needs, and validate whether the target remains realistic.",
+      });
+
+      if (highRiskCount > 0 || Number(normalizedOverview.atRisk || 0) > 0) items.push({
+        priority:"Loss investigation",
+        tone:"red",
+        title:`Investigate ${Math.max(highRiskCount,Number(normalizedOverview.atRisk||0))} at-risk branch${Math.max(highRiskCount,Number(normalizedOverview.atRisk||0))===1?"":"es"}`,
+        evidence:topAnomaly?.reason || "Revenue, HQ ordering, or stock movement is inconsistent at one or more branches.",
+        action:topAnomaly?.recommendation || "Open Ghost Stock Anomalies, start with the highest-risk branch, then reconcile the affected SKU records.",
+      });
+
+      if (unexplained > 0) items.push({
+        priority:"Inventory control",
+        tone:"red",
+        title:`Reconcile ${unexplained.toLocaleString()} unexplained stock unit${unexplained===1?"":"s"}`,
+        evidence:"Recorded closing stock does not fully agree with opening stock, HQ receipts, POS sales, disposal, and transfers.",
+        action:"Require physical counts and source references before approving adjustments or new replenishment.",
+      });
+
+      if (coverage != null && coverage < 70) items.push({
+        priority:"Supply assurance",
+        tone:"amber",
+        title:`Improve HQ order coverage from ${Number(coverage).toFixed(1)}%`,
+        evidence:"A material portion of reported sell-through is not supported by authorized HQ stock flow.",
+        action:"Verify external sourcing, missing receipts, unposted transfers, and delayed mobile-order acknowledgements.",
+      });
+
+      if (!items.length) items.push({
+        priority:"Healthy position",
+        tone:"green",
+        title:"No immediate revenue or stock-control exception",
+        evidence:"Current targets, risk rules, and available reconciliation evidence show no material exception.",
+        action:"Maintain controls, review the AI forecast, and continue monitoring changes by branch and SKU.",
+      });
+
+      return items.slice(0,3);
+    }, [branchRows, anomalies, normalizedOverview]);
+
+    const tableWrap = { overflowX:"auto", border:"1px solid #E7EEE4", borderRadius:13 };
+    const th = { padding:"10px 11px", fontSize:9.5, fontWeight:800, textTransform:"uppercase", letterSpacing:".06em", color:"#71806F", background:"#F6FAF3", borderBottom:"1px solid #DDE8DA", whiteSpace:"nowrap" };
+    const td = { padding:"11px", fontSize:11, color:"#334155", borderBottom:"1px solid #EEF3EC", whiteSpace:"nowrap" };
+    const sectionCard = { background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" };
+
+    return (
+      <div style={{ fontFamily:FONT, marginBottom:22 }}>
+        <style>{`
+          .b2b-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.b2b-overview-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.b2b-two-col{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.8fr);gap:15px}.b2b-overview-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:14px}.b2b-filter-grid{display:grid;grid-template-columns:160px minmax(170px,1fr) minmax(170px,1fr) minmax(145px,.8fr) 125px;gap:10px;align-items:end}.b2b-brand-grid{display:grid;grid-template-columns:1fr;gap:12px}.b2b-hq-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:13px}@media(max-width:1180px){.b2b-kpi-grid,.b2b-overview-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.b2b-two-col,.b2b-overview-grid{grid-template-columns:1fr}.b2b-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.franchisor-action-row{grid-template-columns:1fr 1fr!important}.franchisor-action-row>div:last-child{grid-column:1/-1}}@media(max-width:680px){.b2b-kpi-grid,.b2b-overview-kpi-grid,.b2b-filter-grid,.b2b-hq-summary-grid{grid-template-columns:1fr}.b2b-filter-grid button{width:100%}.franchisor-action-row{grid-template-columns:1fr!important}.franchisor-action-row>div:last-child{grid-column:auto}}
+        `}</style>
+
+        {isOverviewView && (
+        <div style={{ ...sectionCard, marginBottom:14, padding:"17px 18px", border:`1px solid ${hqRevenueStatus.border}`, borderLeft:`5px solid ${hqRevenueStatus.color}`, background:hqRevenueStatus.bg }}>
+          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+            <div style={{ minWidth:260, flex:1 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
+                <HqStatusIcon size={17} color={hqRevenueStatus.color}/>
+                <span style={{ fontSize:10, fontWeight:850, letterSpacing:".08em", textTransform:"uppercase", color:hqRevenueStatus.color }}>Head Office Monthly Performance</span>
+              </div>
+              <div style={{ fontSize:18, fontWeight:850, color:"#12241B", lineHeight:1.25 }}>{hqRevenueStatus.title}</div>
+              <div style={{ marginTop:5, fontSize:11.5, color:"#5C6B60", lineHeight:1.5 }}>
+                {hasPreviousHqRevenue
+                  ? <>This month is <b style={{color:hqRevenueStatus.color}}>{Math.abs(hqMoM || 0).toFixed(1)}% {hqRevenueDifference >= 0 ? "higher" : "lower"}</b> than last month based on total fulfilled/delivered Head Office supply orders.</>
+                  : <>There is no previous-month Head Office supply revenue available yet for comparison.</>}
+              </div>
             </div>
-          )}
+
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <span style={{ padding:"6px 10px", borderRadius:999, background:"#fff", border:`1px solid ${hqRevenueStatus.border}`, color:hqRevenueStatus.color, fontSize:10, fontWeight:850 }}>{hqRevenueStatus.label}</span>
+              <button onClick={loadB2B} disabled={loading} style={{ display:"inline-flex", alignItems:"center", gap:6, border:"1px solid #DDE8DA", background:"#fff", color:"#3b791e", borderRadius:9, padding:"7px 10px", fontSize:10.5, fontWeight:800, cursor:loading?"wait":"pointer" }}><RefreshCw size={12} style={{animation:loading?"spin .8s linear infinite":"none"}}/>Refresh</button>
+            </div>
+          </div>
+
+          <div className="b2b-hq-summary-grid">
+            <B2BSummaryMetricCard
+              label="This Month"
+              value={fmtAmt(normalizedOverview.hqRevenue)}
+              loading={loading}
+              border={hqRevenueStatus.border}
+              onClick={()=>openKpi("hqRevenue", "Current HQ Supply Revenue")}
+            />
+            <B2BSummaryMetricCard
+              label="Last Month"
+              value={hasPreviousHqRevenue ? fmtAmt(normalizedOverview.prevHqRevenue) : "—"}
+              loading={loading}
+              border={hqRevenueStatus.border}
+              onClick={()=>openKpi("hqPrevious", "Previous-Month HQ Supply Revenue")}
+            />
+            <B2BSummaryMetricCard
+              label="Month-on-Month Change"
+              value={hasPreviousHqRevenue ? `${hqRevenueDifference >= 0 ? "+" : "−"}${fmtAmt(Math.abs(hqRevenueDifference))}` : "—"}
+              loading={loading}
+              color={hqRevenueStatus.color}
+              border={hqRevenueStatus.border}
+              onClick={()=>openKpi("hqChange", "HQ Month-on-Month Change")}
+            />
+          </div>
         </div>
-        {!isBuyers && (
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 800, fontSize: 11, color: "#0d2b1e", fontFamily: FONT }}>{p.totalQty?.toLocaleString()}</div>
-            <div style={{ height: 3, borderRadius: 2, background: "#e8f5e9", marginTop: 2 }}>
-              <div style={{ height: "100%", borderRadius: 2, width: `${(p.totalQty / maxQ) * 100}%`, background: PAL[i % PAL.length] }} />
+        )}
+
+        <div style={{ ...sectionCard, padding:"15px 16px", marginBottom:14 }}>
+          <div className="b2b-filter-grid">
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Month</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}/></label>
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Brand</span><select value={brand} onChange={e=>setBrand(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="">All Brands</option>{brandOptions.map(b=><option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Branch / Location</span><select value={branch} onChange={e=>setBranch(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="">All Branches</option>{branchOptions.map(b=><option key={b.id} value={b.name}>{b.name}{b.location&&b.location!=="—"?` — ${b.location}`:""}</option>)}</select></label>
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Risk Status</span><select value={risk} onChange={e=>setRisk(e.target.value)} style={{...invInputSt,marginTop:5,height:37}}><option value="all">All Statuses</option><option value="high">High Risk</option><option value="watch">Watch</option><option value="normal">Normal</option></select></label>
+            <label><span style={{fontSize:9.5,fontWeight:800,color:"#71806F",textTransform:"uppercase",letterSpacing:".06em"}}>Target Growth %</span><input type="number" min="0" max="500" value={growthTargetPct} onChange={e=>setGrowthTargetPct(Math.max(0,Number(e.target.value)||0))} style={{...invInputSt,marginTop:5,height:37}}/></label>
+          </div>
+        </div>
+
+        {loadError && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fef2f2", border:"1px solid #fecaca", color:"#991b1b", fontSize:11.5, display:"flex", gap:7, alignItems:"flex-start" }}><AlertTriangle size={14} style={{flexShrink:0,marginTop:1}}/>{loadError}</div>}
+        {sourceMode === "fallback" && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fffbeb", border:"1px solid #fde68a", color:"#92400e", fontSize:10.8, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={14} style={{flexShrink:0,marginTop:1}}/><span>This view is using your existing Mobile Orders, POS transactions, and branch inventory endpoints. Exact historical ghost-stock proof still requires dated opening/closing counts and inventory movements linked to their source order, sale, disposal, or transfer.</span></div>}
+
+        {isOverviewView && (
+          <div style={{ ...sectionCard, marginBottom:15, padding:"18px 19px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:14, flexWrap:"wrap", marginBottom:13 }}>
+              <div>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:15, fontWeight:850, color:"#12241B" }}><Brain size={16} color="#3b791e"/> Franchisor Decision Summary</div>
+                <div style={{ fontSize:10.8, color:"#6B7A65", marginTop:4 }}>What needs attention now, why it matters, and the next business action.</div>
+              </div>
+              <button onClick={onOpenSalesAi} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 11px", borderRadius:9, border:"1px solid #C9DBA0", background:"#F4F8F0", color:"#2c5c16", fontSize:10.5, fontWeight:850, cursor:"pointer", fontFamily:FONT }}>Open Sales &amp; AI Guidance <ChevronRight size={12}/></button>
+            </div>
+            <div style={{ display:"grid", gap:9 }}>
+              {franchisorActions.map((item,index)=>{
+                const tone = item.tone === "red"
+                  ? { accent:"#c0392b", bg:"#fff7f7", border:"#f2c9c4", badge:"#fee2e2" }
+                  : item.tone === "amber"
+                    ? { accent:"#b45309", bg:"#fffbeb", border:"#fde68a", badge:"#fef3c7" }
+                    : { accent:"#2c5c16", bg:"#f4f8f0", border:"#c9dba0", badge:"#eaf3df" };
+                return <div className="franchisor-action-row" key={`${item.priority}-${index}`} style={{ display:"grid", gridTemplateColumns:"minmax(145px,.42fr) minmax(220px,.8fr) minmax(280px,1.25fr)", gap:13, padding:"12px 13px", borderRadius:12, border:`1px solid ${tone.border}`, borderLeft:`4px solid ${tone.accent}`, background:tone.bg, alignItems:"start" }}>
+                  <div><span style={{ display:"inline-flex", padding:"4px 8px", borderRadius:20, background:tone.badge, color:tone.accent, fontSize:9.3, fontWeight:900, textTransform:"uppercase", letterSpacing:".055em" }}>{index + 1}. {item.priority}</span><div style={{ fontSize:12, fontWeight:850, color:"#12241B", marginTop:7, lineHeight:1.4 }}>{item.title}</div></div>
+                  <div><div style={{ fontSize:9.2, fontWeight:850, color:"#71806F", textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Evidence</div><div style={{ fontSize:10.7, color:"#526052", lineHeight:1.55 }}>{item.evidence}</div></div>
+                  <div><div style={{ fontSize:9.2, fontWeight:850, color:tone.accent, textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 }}>Recommended next step</div><div style={{ fontSize:10.8, color:"#26372B", lineHeight:1.55, fontWeight:650 }}>{item.action}</div></div>
+                </div>;
+              })}
             </div>
           </div>
         )}
-        <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#00897b", fontFamily: FONT }}>
-          {isBuyers ? p.totalItems?.toLocaleString() : fmtPeso1(p.totalRevenue)}
-        </div>
-        <div style={{ paddingLeft: 8 }}>
-          {isBuyers
-            ? <span style={{ background: "#e0f2f1", color: "#00695c", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, display: "inline-block", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{p.topProduct}</span>
-            : <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: "#f0fdf5", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 3, width: `${(p.totalRevenue / maxR) * 100}%`, background: `linear-gradient(90deg,${PAL[i % PAL.length]},${PAL[(i + 2) % PAL.length]})` }} />
-                </div>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: "#94a3b8", minWidth: 28, textAlign: "right", fontFamily: FONT }}>{Math.round((p.totalRevenue / maxR) * 100)}%</span>
-              </div>
-          }
-        </div>
-      </div>
-    ));
-  };
 
-  return (
-    <PanelCard style={{ marginBottom: 22 }}>
-      <CardHeader
-        icon={Package}
-        title="Sales vs Stock Recommendations"
-        sub="Product performance · fast/slow movers · stock health"
-        action={
-          <button onClick={fetchData} disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 9, border: "1.5px solid rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: FONT }}>
-            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
-            {loading ? "Loading…" : "Refresh"}
-          </button>
-        }
-      />
-      <div style={{ padding: "18px 20px" }}>
-        {stockEvidence.length > 0 && <div style={{background:"#fff",border:"1px solid #d1eedd",borderRadius:14,padding:"16px 18px",marginBottom:18,overflowX:"auto"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><span style={{width:4,height:18,borderRadius:4,background:"#22c55e"}}/><strong style={{fontSize:13,color:"#102a1c"}}>Inventory Recommendation Report</strong><span style={{fontSize:9.5,fontWeight:800,padding:"3px 8px",borderRadius:20,background:"#ecfdf5",color:"#15803d",border:"1px solid #bbf7d0"}}>ACTUAL STOCK + SALES</span></div>
-          <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontFamily:FONT}}><thead><tr>{["Product","Stock","Period Sales","Reorder Pt","Days Left","Status","Recommendation"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Product"||h==="Recommendation"?"left":"center",fontSize:9.5,color:"#8290a3",textTransform:"uppercase",letterSpacing:".06em",borderBottom:"1px solid #d1eedd"}}>{h}</th>)}</tr></thead><tbody>{stockEvidence.map((r,i)=><tr key={r.name} style={{background:i%2?"#f5fcf7":"#fff"}}><td style={{padding:"10px",fontSize:11,fontWeight:700,color:"#183126"}}>{r.name}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800}}>{r.stock}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.sold}</td><td style={{padding:"10px",fontSize:11,textAlign:"center"}}>{r.reorder}</td><td style={{padding:"10px",fontSize:11,textAlign:"center",fontWeight:800,color:r.status==="CRITICAL"?"#ef4444":"#334155"}}>{r.daysLeft==null?"—":`${Math.round(r.daysLeft)}d`}</td><td style={{padding:"10px",textAlign:"center"}}><span style={{fontSize:9,fontWeight:800,padding:"3px 8px",borderRadius:20,background:r.status==="CRITICAL"?"#fef2f2":r.status==="OVERSTOCK"?"#eff6ff":r.status==="WATCH"?"#fffbeb":"#ecfdf5",color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":r.status==="WATCH"?"#d97706":"#15803d",border:"1px solid currentColor"}}>{r.status}</span></td><td style={{padding:"10px",fontSize:10.5,fontWeight:700,color:r.status==="CRITICAL"?"#ef4444":r.status==="OVERSTOCK"?"#2563eb":"#15803d"}}>{r.recommendation}</td></tr>)}</tbody></table>
+        {isGhostView && (
+          <div style={{ ...sectionCard, marginBottom:15, padding:"15px 17px", borderLeft:"5px solid #c0392b", background:"linear-gradient(135deg,#fff,#fff8f7)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+              <div><div style={{ display:"flex", alignItems:"center", gap:7, fontSize:14.5, fontWeight:850, color:"#12241B" }}><ShieldCheck size={16} color="#c0392b"/> Loss Investigation Workflow</div><div style={{ fontSize:10.8, color:"#6B7A65", marginTop:4 }}>Start with a risk branch, identify the affected SKU, verify movement evidence, then assign the corrective action.</div></div>
+              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>{["1  Risk branch","2  Affected SKU","3  Movement evidence","4  Corrective action"].map((step,i)=><React.Fragment key={step}><span style={{ padding:"6px 9px", borderRadius:20, background:i===0?"#fee2e2":"#F6F7F1", color:i===0?"#991b1b":"#526052", border:`1px solid ${i===0?"#fecaca":"#DDE8DA"}`, fontSize:9.7, fontWeight:850 }}>{step}</span>{i<3&&<ChevronRight size={12} color="#94a3b8"/>}</React.Fragment>)}</div>
+            </div>
+          </div>
+        )}
+
+        {isOverviewView && (
+        <div className="b2b-kpi-grid b2b-overview-kpi-grid" style={{marginBottom:12}}>
+          <B2BMetricCard label="FranchiSync Supply Revenue" value={fmtAmt(normalizedOverview.hqRevenue)} icon={Package} tone="green" loading={loading} onClick={()=>openKpi("hqRevenue", "FranchiSync Supply Revenue")} note={`${hqMoM==null?"No prior-month baseline":`${hqMoM>=0?"+":""}${hqMoM.toFixed(1)}% vs last month`} · fulfilled/delivered HQ orders`} />
+          <B2BMetricCard label="Monthly Target" value={hasPreviousHqRevenue?fmtAmt(normalizedOverview.target):"—"} icon={Target} tone="amber" loading={loading} onClick={()=>openKpi("target", "Monthly Target")} note={hasPreviousHqRevenue?`${normalizedOverview.targetAttainment==null?"—":`${normalizedOverview.targetAttainment.toFixed(1)}%`} attained · ${growthTargetPct}% above previous HQ supply revenue`:"Target appears after a previous-month HQ baseline is available"} />
+          <B2BMetricCard label="Target Gap" value={hasPreviousHqRevenue?fmtAmt(normalizedOverview.targetGap):"—"} icon={TrendingDown} tone={normalizedOverview.targetGap>0?"red":"green"} loading={loading} onClick={()=>openKpi("targetGap", "Target Gap")} note={!hasPreviousHqRevenue?"No previous-month baseline":normalizedOverview.targetGap>0?"HQ supply revenue still needed to hit target":"Target achieved for the selected month"} />
+          <B2BMetricCard label="Franchisee POS Revenue" value={fmtAmt(normalizedOverview.posRevenue)} icon={ShoppingCart} tone="blue" loading={loading} onClick={()=>openKpi("posRevenue", "Franchisee POS Revenue")} note={`${posMoM==null?"No prior-month baseline":`${posMoM>=0?"+":""}${posMoM.toFixed(1)}% vs last month`} · paid/completed POS`} />
+          <B2BMetricCard label="HQ Supply Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Supply Coverage")} note={normalizedOverview.coverage==null?"Needs verified opening stock and inventory movements":"Share of sold units supported by official stock flow"} />
+          <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="High POS with weak HQ ordering or stock mismatch" />
+        </div>
+        )}
+
+        {isGhostView && (
+        <div className="b2b-kpi-grid" style={{marginBottom:15}}>
+          <B2BMetricCard label="HQ Order Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Order Coverage")} note={normalizedOverview.coverage==null?"Requires authorized stock-flow reconciliation":"Authorized HQ stock coverage of reported sell-through"} />
+          <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note={`${anomalies.filter(a=>String(a.severity).toLowerCase().includes("high")).length} high-risk · ranked anomaly list`} />
+          <B2BMetricCard label="Unexplained Stock" value={normalizedOverview.unexplained==null?"—":Number(normalizedOverview.unexplained).toLocaleString()} icon={Layers} tone={normalizedOverview.unexplained>0?"red":"green"} loading={loading} onClick={()=>openKpi("unexplained", "Unexplained Stock")} note={normalizedOverview.unexplained==null?"Requires opening/receipts/transfers/POS/disposal linkage":"Positive/negative stock variance requiring investigation"} />
+          <B2BMetricCard label="Sell-through" value={normalizedOverview.sellThrough==null?"—":`${normalizedOverview.sellThrough.toFixed(1)}%`} icon={Activity} tone="green" loading={loading} onClick={()=>openKpi("sellThrough", "Sell-through")} note={normalizedOverview.sellThrough==null?"Requires sellable-unit stock flow":"POS sold units ÷ sellable units available"} />
+        </div>
+        )}
+
+        {isOverviewView && <div style={{ ...sectionCard, marginBottom:15 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>6-Month Supply Revenue vs POS Revenue</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3,lineHeight:1.5}}>Green is FranchiSync supply revenue, blue is franchisee POS revenue, and the dashed line is the HQ target. If POS stays high while supply revenue falls, inspect the affected branch. Click a month to focus the dashboard.</div></div><div style={{fontSize:10.5,color:"#5C6B60",fontWeight:700}}>{b2bMonthLabel(month)}</div></div>
+          <B2BDualTrendChart data={trendData} onPointClick={d=>{ if(d?.month) setMonth(d.month); }} />
         </div>}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 18 }}>
-          {[
-            { label: "SKUs Tracked",       value: totalSKUs || "—", color: "#0d2b1e", bg: "#f0fdf5",  border: "#d1eedd",  icon: Layers    },
-            { label: "Fast Movers",         value: fastCount || "—", color: "#059669", bg: "#ecfdf5",  border: "#a7f3d0",  icon: TrendingUp },
-            { label: "Slow Movers",         value: slowCount || "—", color: "#dc2626", bg: "#fef2f2",  border: "#fecaca",  icon: TrendingDown },
-          ].map((s, i) => (
-            <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: "11px 13px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                <s.icon size={11} color={s.color} />
-                <span style={{ fontSize: 9.5, fontWeight: 800, color: "#5a7a65", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT }}>{s.label}</span>
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+        {isOverviewView && (
+        <div className="b2b-overview-grid" style={{marginBottom:15}}>
+          <div style={sectionCard}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Monthly supply orders versus POS revenue by store location</div></div>
+              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top HQ branch: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBranch?.branch||"—"}</b><br/>Highest POS: <b style={{color:"#2563eb"}}>{monthlyLeaders.posBranch?.branch||"—"}</b></div>
             </div>
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 18 }}>
-          <div>
-            <div style={{ display: "flex", gap: 3, background: "#f4f8f5", borderRadius: 11, padding: 4, marginBottom: 14, flexWrap: "wrap" }}>
-              {TABS.map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)} style={tabSt(tab === t.id)}>
-                  <t.icon size={11} /> {t.label}
-                </button>
-              ))}
-            </div>
-            {!loading && (top10.length > 0 || fast.length > 0 || slow.length > 0 || data?.topBuyers?.length > 0) && (
-              <div style={{ display: "grid", gridTemplateColumns: tab === "buyers" ? "28px 1fr 70px 1fr" : "28px 1fr 65px 70px 1fr", gap: 8, padding: "7px 10px", borderBottom: "2px solid #e8f5e9", fontSize: 9.5, fontWeight: 800, color: "#00897b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4, fontFamily: FONT }}>
-                <span>#</span><span>Name</span>
-                {tab !== "buyers" && <span style={{ textAlign: "right" }}>Units</span>}
-                <span style={{ textAlign: "right" }}>{tab === "buyers" ? "Items" : "Revenue"}</span>
-                <span style={{ paddingLeft: 8 }}>{tab === "buyers" ? "Top Product" : "Share"}</span>
-              </div>
-            )}
-            {loading
-              ? <div style={{ padding: "36px 0", textAlign: "center" }}>
-                  <div style={{ width: 28, height: 28, border: "3px solid #d1eedd", borderTopColor: "#00897b", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 10px" }} />
-                  <div style={{ fontSize: 12, color: "#5a7a65", fontFamily: FONT }}>Loading…</div>
-                </div>
-              : renderList()
-            }
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}><thead><tr>{["Branch / Location","HQ Supply","POS Revenue","Coverage","Status"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...branchRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.branch}</div><div style={{fontSize:9.4,fontWeight:500,color:"#8A9687",marginTop:2}}>{r.location||"—"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>)}{!branchRows.length&&<tr><td colSpan="5" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch data for the selected month.</td></tr>}</tbody></table></div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><PieChart size={11} color="#00897b" /> Revenue Share (Top 5)</ChartLabel>
-              {revenuePie.length > 0
-                ? <DonutChartSVG segments={revenuePie} size={120} />
-                : <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
-              }
+          <div style={sectionCard}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
+              <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Which brand earns the most for FranchiSync this month</div></div>
+              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Largest POS–HQ gap: <b style={{color:"#b42318"}}>{monthlyLeaders.leakageBranch?.branch||"—"}</b></div>
             </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><Activity size={11} color="#00897b" /> Product Velocity</ChartLabel>
-              {moverPie.length > 0
-                ? <DonutChartSVG segments={moverPie} size={110} centerLabel={totalSKUs.toString()} centerSub="SKUs" />
-                : <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "center", color: "#b2dfdb", fontSize: 12, fontFamily: FONT }}>—</div>
-              }
-            </div>
-            <div style={{ background: "#f8fffe", border: "1px solid #e0f2f1", borderRadius: 14, padding: "13px 14px" }}>
-              <ChartLabel><ShoppingCart size={11} color="#00897b" /> Stock Recommendations</ChartLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {[
-                  { label: "Reorder Soon",  count: slowCount || 0,                                     color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: AlertTriangle },
-                  { label: "Healthy Stock", count: Math.max(0, totalSKUs - slowCount - fastCount),     color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle   },
-                  { label: "High Demand",   count: fastCount || 0,                                     color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: TrendingUp    },
-                ].map((r, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: r.bg, border: `1px solid ${r.border}`, borderRadius: 9, padding: "8px 11px" }}>
-                    <r.icon size={13} color={r.color} />
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: "#0d2b1e", fontFamily: FONT }}>{r.label}</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: r.color, fontFamily: FONT }}>{r.count}</span>
-                  </div>
-                ))}
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).slice(0,8).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{Number(r.suppliedQty||0).toLocaleString()} / {Number(r.soldQty||0).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
+          </div>
+        </div>
+        )}
+
+        {isGhostView && (
+        <div className="b2b-two-col" style={{marginBottom:15,gridTemplateColumns:"1fr"}}>
+          <div style={sectionCard}>
+            <div style={{ display:"flex", justifyContent:"space-between", gap:12, marginBottom:12, alignItems:"flex-start" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Loss Risk by Branch</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Highest risk first. Use coverage and stock variance to locate the likely source of loss, then click a branch for evidence.</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{sortedBranchRows.length} branches</span></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}><thead><tr>{["Branch / Location","HQ Supply Revenue","POS Revenue","vs Last Month","Target %","Order Coverage","Stock Variance","Risk"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><tr key={r.id} onClick={()=>openBranch(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.branch}</div><div style={{fontSize:9.7,fontWeight:500,color:"#8A9687",marginTop:2}}>{r.location||"—"}</div></td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",color:r.vsLastMonth!=null&&r.vsLastMonth<0?"#c0392b":"#2c5c16",fontWeight:700}}>{r.vsLastMonth==null?"—":`${r.vsLastMonth>=0?"+":""}${r.vsLastMonth.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.targetPct==null?"—":`${r.targetPct.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700}}>{r.orderCoverage==null?"—":`${r.orderCoverage.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",fontWeight:700,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()} units`}</td><td style={{...td,textAlign:"right"}}><B2BRiskBadge risk={r.risk}/></td></tr>):<tr><td colSpan="8" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No branch performance data for the selected filters.</td></tr>}</tbody></table></div>
+          </div>
+
+          <div style={{...sectionCard,display:"none"}}>
+            <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Store Location View</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3,marginBottom:13}}>Fast location scan · click a store to open branch detail</div>
+            <div style={{display:"grid",gap:8,maxHeight:390,overflowY:"auto",paddingRight:2}}>{sortedBranchRows.length?sortedBranchRows.map((r,i)=><button key={r.id} onClick={()=>openBranch(r)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 11px",border:"1px solid #E7EEE4",borderRadius:11,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div style={{display:"flex",gap:8,alignItems:"flex-start",minWidth:0}}><MapPin size={14} color="#3b791e" style={{flexShrink:0,marginTop:1}}/><div style={{minWidth:0}}><div style={{fontSize:11,fontWeight:800,color:"#12241B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.branch}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.location||"Location not set"}</div></div></div><B2BRiskBadge risk={r.risk}/></button>):<DashboardEmptyState message="No store locations available."/>}</div>
+          </div>
+        </div>
+        )}
+
+        {isGhostView && (
+        <div style={{ ...sectionCard, marginBottom:15 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>HQ supply revenue, franchisee POS sell-through, quantities and stock variance per brand</div></div><span style={{fontSize:10.5,fontWeight:800,color:"#3b791e"}}>{brandRows.length} brands</span></div>
+          <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:880}}><thead><tr>{["Brand","HQ Supply Revenue","POS Revenue","Qty Supplied","Qty Sold","Ending Stock","Sell-through","Stock Variance"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{brandRows.length?brandRows.map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right"}}>{r.suppliedQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.soldQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.endingStock==null?"—":r.endingStock.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.sellThrough==null?"—":`${r.sellThrough.toFixed(1)}%`}</td><td style={{...td,textAlign:"right",color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b",fontWeight:700}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`}</td></tr>):<tr><td colSpan="8" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No brand performance data for the selected filters.</td></tr>}</tbody></table></div>
+        </div>
+        )}
+
+        {isGhostView && (
+        <div style={{ ...sectionCard, marginBottom:15 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Sales & Stocks Reconciliation</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Quantity-level SKU comparison. Click a row for opening → receipts → POS → disposal → transfer → closing evidence.</div></div>{!stockDataReady&&<span style={{fontSize:9.5,fontWeight:800,padding:"4px 8px",borderRadius:20,background:"#fffbeb",color:"#92400e",border:"1px solid #fde68a"}}>MOVEMENT LINKAGE REQUIRED</span>}</div>
+          <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:900}}><thead><tr>{["SKU / Product","Branch","Brand","Opening","HQ Received","POS Sold","Disposal / Transfer","Recorded Closing","Variance"].map((h,i)=><th key={h} style={{...th,textAlign:i<3?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{skuRows.length?skuRows.map((r,i)=><tr key={`${r.id}-${r.branch}-${r.brand}`} onClick={()=>openSku(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}><div>{r.product}</div><div style={{fontSize:9.4,fontWeight:600,color:"#94a3b8",marginTop:2}}>SKU {r.sku}</div></td><td style={{...td,fontWeight:700}}>{r.branch}</td><td style={{...td}}>{r.brand}</td><td style={{...td,textAlign:"right"}}>{r.openingStock==null?"—":r.openingStock.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{r.suppliedQty.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{r.soldQty.toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{r.disposal==null&&r.transfers==null?"—":b2bNum(r.disposal)+b2bNum(r.transfers)}</td><td style={{...td,textAlign:"right"}}>{r.endingStock==null?"—":r.endingStock.toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:r.stockVariance==null?"#94a3b8":r.stockVariance===0?"#2c5c16":"#c0392b"}}>{r.stockVariance==null?"—":`${r.stockVariance>0?"+":""}${r.stockVariance.toLocaleString()}`}</td></tr>):<tr><td colSpan="9" style={{padding:28,textAlign:"center",color:"#94a3b8",fontSize:11.5}}>No SKU order/POS activity for the selected month and filters.</td></tr>}</tbody></table></div>
+        </div>
+        )}
+
+        {isGhostView && (
+        <div style={sectionCard}>
+          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", marginBottom:12, flexWrap:"wrap" }}><div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Ghost Stock / Revenue Leakage</div><div style={{fontSize:10.8,color:"#6B7A65",marginTop:3}}>Ranked anomalies with reason and recommended action</div></div><span style={{fontSize:10.5,fontWeight:800,color:anomalies.length?"#c0392b":"#2c5c16"}}>{anomalies.length} flagged</span></div>
+          {anomalies.length ? <div style={{display:"grid",gap:9}}>{anomalies.map((a,i)=><button key={a.id??i} onClick={()=>{ const br=branchRows.find(r=>r.branch===a.branch); if(br) openBranch(br); else setDrilldown({type:"anomaly",title:a.rule,loading:false,data:a}); }} style={{display:"grid",gridTemplateColumns:"minmax(150px,.8fr) minmax(180px,1fr) minmax(260px,1.6fr) auto",gap:12,alignItems:"center",padding:"12px 13px",border:"1px solid #E7EEE4",borderRadius:12,background:i%2?"#FBFDF9":"#fff",cursor:"pointer",fontFamily:FONT,textAlign:"left"}}><div><div style={{fontSize:11,fontWeight:800,color:"#12241B"}}>{a.branch||"—"}</div><div style={{fontSize:9.5,color:"#8A9687",marginTop:2}}>{[a.brand,a.sku].filter(Boolean).join(" · ")||b2bMonthLabel(month)}</div></div><div><B2BRiskBadge risk={a.severity}/><div style={{fontSize:10.5,fontWeight:800,color:"#334155",marginTop:5}}>{a.rule}</div></div><div><div style={{fontSize:10.5,color:"#5C6B60",lineHeight:1.45}}>{a.reason}</div><div style={{fontSize:9.8,color:"#3b791e",fontWeight:700,marginTop:4}}>Action: {a.recommendation}</div></div><ChevronRight size={15} color="#94a3b8"/></button>)}</div> : <div style={{padding:"24px 14px",textAlign:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8"}}><CheckCircle2 size={22} color="#3b791e"/><div style={{fontSize:11.5,fontWeight:800,color:"#2c5c16",marginTop:7}}>No anomaly detected from the data currently available.</div><div style={{fontSize:10,color:"#7A887B",marginTop:3}}>{stockDataReady?"Stock reconciliation rules are included.":"Stock-based anomaly rules will appear after inventory movement linkage is available."}</div></div>}
+        </div>
+        )}
+
+        {drilldown && (
+          <div onMouseDown={e=>{ if(e.target===e.currentTarget)setDrilldown(null); }} style={{position:"fixed",inset:0,zIndex:5000,background:"rgba(18,36,27,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{width:"min(940px,96vw)",maxHeight:"88vh",overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #DDE8DA",boxShadow:"0 30px 80px rgba(18,36,27,.28)",fontFamily:FONT}}>
+              <div style={{position:"sticky",top:0,zIndex:2,background:"#fff",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,padding:"17px 20px",borderBottom:"1px solid #E7EEE4"}}><div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#6B7A65"}}>{drilldown.type} detail · {b2bMonthLabel(month)}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{drilldown.title}</div></div><button onClick={()=>setDrilldown(null)} style={{width:32,height:32,borderRadius:9,border:"1px solid #E1E6D8",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#5C6B60"}}><X size={15}/></button></div>
+              <div style={{padding:20}}>
+                {drilldown.loading ? <div style={{padding:40,textAlign:"center",color:"#6B7A65"}}><RefreshCw size={22} style={{animation:"spin .8s linear infinite"}}/><div style={{marginTop:8,fontSize:11.5}}>Loading drilldown evidence…</div></div> : (
+                  <>
+                    {drilldown.warning && <div style={{marginBottom:12,padding:"10px 12px",borderRadius:10,background:"#fffbeb",border:"1px solid #fde68a",color:"#92400e",fontSize:10.8,lineHeight:1.5}}>{drilldown.warning}</div>}
+                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Target Attainment" value={b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct)==null?"—":`${b2bNullableNum(drilldown.data?.target_attainment_pct,drilldown.data?.targetPct).toFixed(1)}%`} icon={Target} tone="amber" note="Open monthly target evidence" onClick={()=>openKpi("target","Target Attainment")}/><B2BMetricCard label="Order Coverage" value={b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage)==null?"—":`${b2bNullableNum(drilldown.data?.order_coverage,drilldown.data?.orderCoverage).toFixed(1)}%`} icon={ShieldCheck} note="Open stock-flow coverage" onClick={()=>openKpi("coverage","Order Coverage")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Location / context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
+                    {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(4,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/><B2BMetricCard label="Qty Supplied" value={b2bNum(drilldown.data?.supplied_qty,drilldown.data?.suppliedQty).toLocaleString()} icon={Package} note="Open HQ order coverage" onClick={()=>openKpi("coverage","Quantity Supplied")}/><B2BMetricCard label="Qty Sold" value={b2bNum(drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()} icon={TrendingUp} tone="blue" note="Open sell-through evidence" onClick={()=>openKpi("sellThrough","Quantity Sold")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the reconciliation table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
+                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:720}}><thead><tr>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#6B7A65",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
+                    {drilldown.type === "kpi" && (
+                      <B2BKpiBreakdown
+                        metric={drilldown.data?.metric}
+                        overview={normalizedOverview}
+                        branchRows={sortedBranchRows}
+                        brandRows={brandRows}
+                        skuRows={skuRows}
+                        anomalies={anomalies}
+                        month={month}
+                        growthTargetPct={growthTargetPct}
+                        onOpenBranch={openBranch}
+                        onOpenBrand={openBrand}
+                        onOpenSku={openSku}
+                      />
+                    )}
+                    {drilldown.type === "anomaly" && <div style={{fontSize:11.5,color:"#5C6B60",lineHeight:1.65}}><B2BRiskBadge risk={drilldown.data?.severity}/><div style={{marginTop:12}}><b>Reason:</b> {drilldown.data?.reason}</div><div style={{marginTop:6}}><b>Recommended action:</b> {drilldown.data?.recommendation}</div></div>}
+                  </>
+                )}
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
-    </PanelCard>
-  );
-}
+    );
+  }
 
-function InfoModal({ modal, onClose, onConfirm }) {
-  if (!modal) return null;
-  const { type = "info", title, message, confirmLabel, cancelLabel } = modal;
-
-  const iconMap = {
-    error: (
-      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    ),
-    success: (
-      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-    ),
-    info: (
-      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-      </svg>
-    ),
-    warning: (
-      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    ),
-    confirm: (
-      <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    ),
-  };
-
-  const hc = {
-    error:   { bg: "#fef2f2", border: "#fecaca", titleColor: "#991b1b" },
-    success: { bg: "#e8f5e9", border: "#c8e6c9", titleColor: "#00695c" },
-    info:    { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" },
-    warning: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
-    confirm: { bg: "#fffbeb", border: "#fed7aa", titleColor: "#92400e" },
-  }[type] || { bg: "#eff6ff", border: "#bfdbfe", titleColor: "#1e3a8a" };
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(13,43,30,0.45)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 3000, padding: 20, backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400,
-          boxShadow: "0 24px 64px rgba(0,0,0,0.18)", border: `1px solid ${hc.border}`,
-          fontFamily: FONT, overflow: "hidden",
-        }}
-      >
-        <div style={{ background: hc.bg, padding: "20px 24px 16px", borderBottom: `1px solid ${hc.border}`, display: "flex", alignItems: "flex-start", gap: 13 }}>
-          <div style={{ flexShrink: 0, marginTop: 1 }}>{iconMap[type]}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: hc.titleColor, marginBottom: 4, fontFamily: FONT }}>{title}</div>
-            {message && (
-              <div style={{ fontSize: 13, color: "#0d2b1e", lineHeight: 1.6, opacity: 0.85, fontFamily: FONT }}>{message}</div>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              flexShrink: 0, width: 26, height: 26, borderRadius: "50%",
-              border: `1px solid ${hc.border}`, background: "transparent", cursor: "pointer",
-              color: "#5a7a65", display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div style={{ padding: "14px 24px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          {type === "confirm" && (
-            <button
-              onClick={onClose}
-              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #b2dfdb", background: "#f0fdf5", color: "#5a7a65", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
-            >
-              {cancelLabel || "Cancel"}
-            </button>
-          )}
-          <button
-            onClick={type === "confirm" ? onConfirm : onClose}
-            style={{
-              padding: "8px 18px", borderRadius: 8, border: "none",
-              background: type === "confirm" ? "linear-gradient(135deg,#ef4444,#dc2626)" : "linear-gradient(135deg,#00c853,#00897b)",
-              color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
-            }}
-          >
-            {confirmLabel || "OK"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-
-function DashboardLineGraph({ labels = [], values = [], height = 230 }) {
-  const [hover, setHover] = useState(null);
-  const W = 760, H = height, PL = 54, PR = 18, PT = 20, PB = 38;
-  const safeValues = values.map(v => Number(v || 0));
-  const max = Math.max(...safeValues, 1);
-  const pW = W - PL - PR, pH = H - PT - PB;
-  const x = i => labels.length <= 1 ? PL + pW / 2 : PL + (i / (labels.length - 1)) * pW;
-  const y = v => PT + pH - (Number(v || 0) / max) * pH;
-  const points = safeValues.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
-  const grid = [0,.25,.5,.75,1];
-
-  if (!labels.length || !values.length) return <DashboardEmptyState message="No revenue data for the selected period." />;
-
-  return (
-    <div style={{ position:"relative", width:"100%" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Revenue trend chart">
-        {grid.map((g,i) => { const yy = PT + pH - g*pH; return (
-          <g key={i}>
-            <line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5" strokeWidth="1" />
-            <text x={PL-9} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{fmtShort(max*g)}</text>
-          </g>
-        )})}
-        <polyline points={points} fill="none" stroke="#3b791e" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-        {safeValues.map((v,i)=>(
-          <g key={i}>
-            <circle cx={x(i)} cy={y(v)} r={hover===i?5:3.5} fill="#fff" stroke="#3b791e" strokeWidth="2.5" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}} />
-            <rect x={x(i)-10} y={PT} width="20" height={pH} fill="transparent" onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} />
-          </g>
-        ))}
-        {tickIdx.map(i => <text key={i} x={x(i)} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>)}
-      </svg>
-      {hover != null && (
-        <div style={{ position:"absolute", top:8, right:10, background:"#12241B", color:"#fff", borderRadius:9, padding:"7px 10px", fontSize:11, fontWeight:700, boxShadow:"0 8px 20px rgba(18,36,27,.18)", pointerEvents:"none" }}>
-          <div style={{opacity:.7, fontSize:9.5, marginBottom:2}}>{labels[hover]}</div>
-          {fmtAmt(safeValues[hover])}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DashboardBarGraph({ labels = [], values = [], height = 230 }) {
-  const [hover, setHover] = useState(null);
-  const W = 760, H = height, PL = 46, PR = 16, PT = 20, PB = 38;
-  const safeValues = values.map(v => Number(v || 0));
-  const max = Math.max(...safeValues, 1);
-  const pW = W-PL-PR, pH = H-PT-PB;
-  const gap = 6;
-  const bw = Math.max(4, (pW / Math.max(labels.length,1)) - gap);
-  const tickIdx = labels.length <= 7 ? labels.map((_,i)=>i) : Array.from(new Set([0, ...Array.from({length:5},(_,i)=>Math.round((i+1)*(labels.length-1)/6)), labels.length-1]));
-  const grid=[0,.25,.5,.75,1];
-  if (!labels.length || !values.length) return <DashboardEmptyState message="No transaction data for the selected period." />;
-  return (
-    <div style={{position:"relative", width:"100%"}}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={height} role="img" aria-label="Transaction volume chart">
-        {grid.map((g,i)=>{const yy=PT+pH-g*pH;return <g key={i}><line x1={PL} y1={yy} x2={W-PR} y2={yy} stroke="#E8EEE5"/><text x={PL-8} y={yy+4} textAnchor="end" fontSize="10" fill="#7A887B" fontFamily={FONT}>{Math.round(max*g)}</text></g>})}
-        {safeValues.map((v,i)=>{
-          const slot=pW/Math.max(labels.length,1); const xx=PL+i*slot+(slot-bw)/2; const hh=(v/max)*pH; const yy=PT+pH-hh;
-          return <rect key={i} x={xx} y={yy} width={bw} height={Math.max(hh,1)} rx="4" fill={hover===i?"#2c5c16":"#c9dba0"} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}/>
-        })}
-        {tickIdx.map(i=>{const slot=pW/Math.max(labels.length,1);return <text key={i} x={PL+i*slot+slot/2} y={H-12} textAnchor="middle" fontSize="10" fill="#7A887B" fontFamily={FONT}>{labels[i]}</text>})}
-      </svg>
-      {hover != null && <div style={{position:"absolute",top:8,right:10,background:"#12241B",color:"#fff",borderRadius:9,padding:"7px 10px",fontSize:11,fontWeight:700,pointerEvents:"none"}}><div style={{opacity:.7,fontSize:9.5,marginBottom:2}}>{labels[hover]}</div>{safeValues[hover].toLocaleString()} transactions</div>}
-    </div>
-  );
-}
-
-function DashboardEmptyState({ message }) {
-  return <div style={{height:230,display:"flex",alignItems:"center",justifyContent:"center",border:"1px dashed #D7E1D4",borderRadius:12,background:"#FAFCF8",color:"#7A887B",fontSize:12,fontWeight:600,textAlign:"center",padding:20}}>{message}</div>;
-}
-
-function DashboardRankBars({ data = [] }) {
-  if (!data.length) return <DashboardEmptyState message="No branch sales data for the selected period." />;
-  const max = Math.max(...data.map(d=>d.value),1);
-  return <div style={{display:"flex",flexDirection:"column",gap:13,padding:"4px 0 2px"}}>
-    {data.slice(0,6).map((d,i)=><div key={`${d.label}-${i}`}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:6}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}><span style={{width:22,height:22,borderRadius:7,background:"#F1F5EC",color:"#3b791e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>{i+1}</span><span style={{fontSize:12,fontWeight:700,color:"#243128",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.label}</span></div>
-        <strong style={{fontSize:12,color:"#243128",whiteSpace:"nowrap"}}>{fmtAmt(d.value)}</strong>
-      </div>
-      <div style={{height:8,borderRadius:999,background:"#EEF2EA",overflow:"hidden"}}><div style={{height:"100%",width:`${(d.value/max)*100}%`,borderRadius:999,background:"linear-gradient(90deg,#3b791e,#bdd43c)"}}/></div>
-    </div>)}
-  </div>;
-}
-
-function FADashboardContent({ transactions, brands: propBrands = [] }) {
-  const today = new Date();
-
-  const [rangeMode,    setRangeMode]    = useState("preset");
-  const [preset,       setPreset]       = useState("month");
-  const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [customTo,     setCustomTo]     = useState(fmt8(today));
-  const [appliedRange, setAppliedRange] = useState(null);
-  const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem("dashboardArchives") || "[]"); } catch { return []; } });
-  const [showArchive,  setShowArchive]  = useState(false);
-  const [viewArchive,  setViewArchive]  = useState(null);
-  const [archiveYear,  setArchiveYear]  = useState(String(today.getFullYear()));
-  const [archiveConf,  setArchiveConf]  = useState(false);
-
-  const [filterBrand,    setFilterBrand]    = useState(null);
-  const [filterBranch,   setFilterBranch]   = useState(null);
-  const [brandDropOpen,  setBrandDropOpen]  = useState(false);
-  const [branchDropOpen, setBranchDropOpen] = useState(false);
-  const [brandQ,  setBrandQ]  = useState("");
-  const [branchQ, setBranchQ] = useState("");
-  const brandRef  = useRef(null);
-  const branchRef = useRef(null);
-  const [kpiData,    setKpiData]    = useState(null);
-  const [kpiLoading, setKpiLoading] = useState(false);
-
-  const [applyingRange, setApplyingRange] = useState(false);
-
-  const [infoModal, setInfoModal] = useState(null);
-  const showInfo = (opts) => setInfoModal(opts);
-  const closeInfo = () => setInfoModal(null);
-
-  const [toast, setToast] = useState(null);
-
-  const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
-  const [analysisTab, setAnalysisTab] = useState("sales");
-
-  // Menu/product catalogue rows, used to look up each sold item's category.
-  // Category lives on the menu item record from /inventory (e.g. "Beverage",
-  // "Pastry") — NOT on /ingredients, which is raw stock components (sugar,
-  // milk, etc.) with no category field at all.
-  const [catalogueRows, setCatalogueRows] = useState([]);
-  useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL}/inventory`)
-      .then(r => r.json())
-      .then(d => setCatalogueRows(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const fn = (e) => {
-      if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
-      if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
+  function OperationalKpiBreakdownModal({ detail, onClose, overview, branchRows = [], rangeLabel, filterLabel }) {
+    if (!detail) return null;
+    const id = detail.id;
+    const rows = [...branchRows].sort((a,b)=>{
+      if (id === "transactions") return Number(b.transactions||0)-Number(a.transactions||0);
+      if (id === "averageSale") return Number(b.avgOrder||0)-Number(a.avgOrder||0);
+      return Number(b.revenue||0)-Number(a.revenue||0);
+    });
+    const totalRevenue = Number(overview?.revenue || 0);
+    const totalTransactions = Number(overview?.transactions || 0);
+    const averageSale = Number(overview?.averageSale || 0);
+    const activeBranches = Number(overview?.activeBranches || 0);
+    const summaryCards = [
+      ["Revenue", fmtAmt(totalRevenue), TrendingUp, "green", "Actual selected-period sales"],
+      ["Transactions", totalTransactions.toLocaleString(), ShoppingCart, "blue", "Completed sales records"],
+      ["Average Sale", fmtAmt(averageSale), BarChart2, "amber", "Revenue per transaction"],
+      ["Active Branches", activeBranches.toLocaleString(), Store, "green", "Branches with recorded sales"],
+    ];
+    const descriptions = {
+      revenue:"Actual POS revenue split by branch, including available cost and margin evidence.",
+      transactions:"Completed POS transaction volume split by branch.",
+      averageSale:"Average transaction value by branch, with volume and revenue context.",
+      activeBranches:"All branches with sales activity inside the current dashboard scope.",
     };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  const brandList      = propBrands.length > 0 ? propBrands : [];
-  const selectedBrand  = brandList.find(b => b.id === filterBrand);
-  const branchList     = selectedBrand ? (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
-  const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
-  const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
-
-  const fetchKpis = useCallback(async () => {
-    setKpiLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (rangeMode === "preset") params.set("preset", preset);
-      else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
-      else params.set("preset", "month");
-      if (filterBranch) params.set("branch", filterBranch);
-      else if (filterBrand && selectedBrand) {
-        const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-        if (bn.length) params.set("branches", bn.join(","));
-      }
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
-      const d   = await res.json();
-      if (!d.error) setKpiData(d);
-    } catch (err) { console.error(err); }
-    finally { setKpiLoading(false); }
-  }, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
-
-  useEffect(() => { if (!viewArchive) fetchKpis(); }, [fetchKpis, viewArchive]);
-
-  const filterLabel = filterBranch ? filterBranch : filterBrand ? (selectedBrand?.name + " – All Branches") : "All Brands & Branches";
-
-  const getRangeLabel = () => {
-    if (viewArchive) return `Archive: ${viewArchive.year}`;
-    if (rangeMode === "custom" && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
-    return { day: "Today", week: "This Week", month: "This Month", year: "This Year" }[preset] || "This Month";
-  };
-
-const chartData = useMemo(() => {
-  if (viewArchive) return viewArchive.chartData;
-  let txList = transactions;
-  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
-  else if (filterBrand && selectedBrand) {
-    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-    txList = transactions.filter(tx => bn.includes(tx.branch));
-  }
-  if (!txList.length) return { labels: [], values: [] };
-  const now = new Date();
-  const isCustom = rangeMode === "custom" && appliedRange;
-
-const filtered = txList.filter(tx => {
-  const d = new Date(tx.created_at);
-  if (isCustom) {
-    const f = new Date(appliedRange.from + "T00:00:00");
-    const t = new Date(appliedRange.to + "T23:59:59.999");
-    return d >= f && d <= t;
-  }
-  if (preset === "day")   return d.toDateString() === now.toDateString();
-  if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
-  if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  if (preset === "year")  return d.getFullYear() === now.getFullYear();
-  return true;
-});
-
-if (isCustom) {
-  const from = new Date(appliedRange.from + "T00:00:00");
-  const to = new Date(appliedRange.to + "T23:59:59.999");
-  const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
-  const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
-  const values = Array(nw).fill(0);
-  filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
-  return { labels, values };
-}
-
-const groupedMap = new Map();
-  const addToGroup = (key, label, amount) => {
-    const prev = groupedMap.get(key) || { label, sortKey: key, value: 0 };
-    prev.value += amount;
-    groupedMap.set(key, prev);
-  };
-
-  if (preset === "day") {
-    filtered.forEach(tx => {
-      const d = new Date(tx.created_at);
-      addToGroup(d.getHours(), `${d.getHours()}:00`, Number(tx.total||0));
-    });
-  } else if (preset === "week") {
-    filtered.forEach(tx => {
-      const d = new Date(tx.created_at);
-      addToGroup(d.getDay(), d.toLocaleDateString("en-US",{weekday:"short"}), Number(tx.total||0));
-    });
-  } else if (preset === "month") {
-    filtered.forEach(tx => {
-      const d = new Date(tx.created_at);
-      addToGroup(d.getDate(), `D${d.getDate()}`, Number(tx.total||0));
-    });
-  } else if (preset === "year") {
-    filtered.forEach(tx => {
-      const d = new Date(tx.created_at);
-      addToGroup(d.getMonth(), d.toLocaleDateString("en-US",{month:"short"}), Number(tx.total||0));
-    });
+    const columns = id === "transactions"
+      ? [
+          ["Branch","left",r=>r.branch],
+          ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
+          ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
+          ["Revenue","right",r=>fmtAmt(r.revenue)],
+        ]
+      : id === "averageSale"
+        ? [
+            ["Branch","left",r=>r.branch],
+            ["Average Sale","right",r=>fmtAmt(r.avgOrder)],
+            ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
+            ["Revenue","right",r=>fmtAmt(r.revenue)],
+          ]
+        : id === "activeBranches"
+          ? [
+              ["Branch","left",r=>r.branch],
+              ["Revenue","right",r=>fmtAmt(r.revenue)],
+              ["Transactions","right",r=>Number(r.transactions||0).toLocaleString()],
+              ["Avg. Sale","right",r=>fmtAmt(r.avgOrder)],
+              ["Margin","right",r=>r.hasCogs?`${Number(r.margin||0).toFixed(1)}%`:"No COGS"],
+            ]
+          : [
+              ["Branch","left",r=>r.branch],
+              ["Revenue","right",r=>fmtAmt(r.revenue)],
+              ["Revenue Share","right",r=>totalRevenue>0?`${(Number(r.revenue||0)/totalRevenue*100).toFixed(1)}%`:"—"],
+              ["Gross Profit","right",r=>r.hasCogs?fmtAmt(r.grossProfit):"No COGS"],
+              ["Margin","right",r=>r.hasCogs?`${Number(r.margin||0).toFixed(1)}%`:"—"],
+            ];
+    const th = {padding:"10px 11px",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",color:"#71806F",background:"#F6FAF3",borderBottom:"1px solid #DDE8DA",whiteSpace:"nowrap"};
+    const td = {padding:"11px",fontSize:10.8,color:"#334155",borderBottom:"1px solid #EEF3EC"};
+    return (
+      <div onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,zIndex:5100,background:"rgba(18,36,27,.58)",backdropFilter:"blur(5px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{width:"min(940px,96vw)",maxHeight:"88vh",overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #DDE8DA",boxShadow:"0 30px 80px rgba(18,36,27,.28)",fontFamily:FONT}}>
+          <div style={{position:"sticky",top:0,zIndex:2,background:"#fff",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,padding:"17px 20px",borderBottom:"1px solid #E7EEE4"}}>
+            <div><div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".07em",color:"#6B7A65"}}>Operational KPI detail · {rangeLabel}</div><div style={{fontSize:18,fontWeight:850,color:"#12241B",marginTop:3}}>{detail.label} Breakdown</div><div style={{fontSize:10.5,color:"#71806F",marginTop:3}}>{filterLabel}</div></div>
+            <button onClick={onClose} style={{width:32,height:32,borderRadius:9,border:"1px solid #E1E6D8",background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#5C6B60"}}><X size={15}/></button>
+          </div>
+          <div style={{padding:20}}>
+            <div style={{padding:"10px 12px",borderRadius:10,background:"#F6FAF3",border:"1px solid #DDE8DA",fontSize:10.8,color:"#5C6B60",lineHeight:1.55,marginBottom:13}}>{descriptions[id] || descriptions.revenue} Values remain scoped to the active date, brand, and branch filters.</div>
+            <div className="b2b-kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:12,marginBottom:14}}>{summaryCards.map(([label,value,Icon,tone,note])=><B2BMetricCard key={label} label={label} value={value} icon={Icon} tone={tone} note={note}/>)}</div>
+            <div style={{fontSize:11,fontWeight:850,color:"#12241B",marginBottom:8}}>Branch breakdown</div>
+            <div style={{overflowX:"auto",border:"1px solid #E7EEE4",borderRadius:13}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:720}}><thead><tr>{columns.map(([label,align])=><th key={label} style={{...th,textAlign:align}}>{label}</th>)}</tr></thead><tbody>{rows.length?rows.map((row,index)=><tr key={row.branch||index} style={{background:index%2?"#FBFDF9":"#fff"}}>{columns.map(([label,align,render])=><td key={label} style={{...td,textAlign:align}}>{render(row)}</td>)}</tr>):<tr><td colSpan={columns.length} style={{padding:28,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No branch evidence is available for this KPI and filter.</td></tr>}</tbody></table></div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const sortedGroups = Array.from(groupedMap.values()).sort((a,b) => a.sortKey - b.sortKey);
-  const labels = sortedGroups.map(e => e.label);
-  return { labels, values: sortedGroups.map(e => e.value) };
-}, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
+  function FADashboardContent({ transactions, brands: propBrands = [], user }) {
+    const today = new Date();
 
-const filteredTransactions = useMemo(() => {
-  let txList = transactions;
-  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
-  else if (filterBrand && selectedBrand) {
-    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-    txList = transactions.filter(tx => bn.includes(tx.branch));
-  }
+    const [rangeMode,    setRangeMode]    = useState("preset");
+    const [preset,       setPreset]       = useState("month");
+    const [customFrom,   setCustomFrom]   = useState(fmt8(new Date(today.getFullYear(), today.getMonth(), 1)));
+    const [customTo,     setCustomTo]     = useState(fmt8(today));
+    const [appliedRange, setAppliedRange] = useState(null);
+    const [archives,     setArchives]     = useState(() => { try { return JSON.parse(localStorage.getItem("dashboardArchives") || "[]"); } catch { return []; } });
+    const [showArchive,  setShowArchive]  = useState(false);
+    const [viewArchive,  setViewArchive]  = useState(null);
+    const [archiveYear,  setArchiveYear]  = useState(String(today.getFullYear()));
 
-  const isCustom = rangeMode === "custom" && appliedRange;
-  const now = new Date();
-  return txList.filter(tx => {
+    const [filterBrand,    setFilterBrand]    = useState(null);
+    const [filterBranch,   setFilterBranch]   = useState(null);
+    const [brandDropOpen,  setBrandDropOpen]  = useState(false);
+    const [branchDropOpen, setBranchDropOpen] = useState(false);
+    const [brandQ,  setBrandQ]  = useState("");
+    const [branchQ, setBranchQ] = useState("");
+    const brandRef  = useRef(null);
+    const branchRef = useRef(null);
+    const [kpiData,    setKpiData]    = useState(null);
+    const [kpiLoading, setKpiLoading] = useState(false);
+
+    const [applyingRange, setApplyingRange] = useState(false);
+
+    const [infoModal, setInfoModal] = useState(null);
+    const showInfo = (opts) => setInfoModal(opts);
+    const closeInfo = () => setInfoModal(null);
+
+    const [toast, setToast] = useState(null);
+
+    const [hiddenKpis, setHiddenKpis] = useState({}); // { [index]: true } = hidden
+    const [operationalKpiDetail, setOperationalKpiDetail] = useState(null);
+    const [analysisTab, setAnalysisTab] = useState("sales");
+    const [dashboardTab, setDashboardTab] = useState("overview");
+
+    useEffect(() => {
+      const fn = (e) => {
+        if (brandRef.current  && !brandRef.current.contains(e.target))  setBrandDropOpen(false);
+        if (branchRef.current && !branchRef.current.contains(e.target)) setBranchDropOpen(false);
+      };
+      document.addEventListener("mousedown", fn);
+      return () => document.removeEventListener("mousedown", fn);
+    }, []);
+
+    const brandList      = propBrands.length > 0 ? propBrands : [];
+    const selectedBrand  = brandList.find(b => b.id === filterBrand);
+    const branchList     = selectedBrand ? (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name) : [];
+    const filteredBrands   = brandList.filter(b => !brandQ || b.name.toLowerCase().includes(brandQ.toLowerCase()));
+    const filteredBranches = branchList.filter(br => !branchQ || br.toLowerCase().includes(branchQ.toLowerCase()));
+
+    const fetchKpis = useCallback(async () => {
+      setKpiLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (rangeMode === "preset") params.set("preset", preset);
+        else if (appliedRange) { params.set("from", appliedRange.from); params.set("to", appliedRange.to); }
+        else params.set("preset", "month");
+        if (filterBranch) params.set("branch", filterBranch);
+        else if (filterBrand && selectedBrand) {
+          const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+          if (bn.length) params.set("branches", bn.join(","));
+        }
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+        const d   = await res.json();
+        if (!d.error) setKpiData(d);
+      } catch (err) { console.error(err); }
+      finally { setKpiLoading(false); }
+    }, [rangeMode, preset, appliedRange, filterBranch, filterBrand, selectedBrand]);
+
+    useEffect(() => { if (!viewArchive) fetchKpis(); }, [fetchKpis, viewArchive]);
+
+    const filterLabel = filterBranch ? filterBranch : filterBrand ? (selectedBrand?.name + " – All Branches") : "All Brands & Branches";
+
+    const getRangeLabel = () => {
+      if (viewArchive) return `Archive: ${viewArchive.year}`;
+      if (rangeMode === "custom" && appliedRange) return `${appliedRange.from} → ${appliedRange.to}`;
+      return { day: "Today", week: "This Week", month: "This Month", year: "This Year" }[preset] || "This Month";
+    };
+
+  const chartData = useMemo(() => {
+    if (viewArchive) return viewArchive.chartData;
+    let txList = transactions;
+    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = transactions.filter(tx => bn.includes(tx.branch));
+    }
+    if (!txList.length) return { labels: [], values: [] };
+    const now = new Date();
+    const isCustom = rangeMode === "custom" && appliedRange;
+
+  const filtered = txList.filter(tx => {
     const d = new Date(tx.created_at);
     if (isCustom) {
-      const from = new Date(appliedRange.from + "T00:00:00");
-      const to = new Date(appliedRange.to + "T23:59:59.999");
-      return d >= from && d <= to;
+      const f = new Date(appliedRange.from + "T00:00:00");
+      const t = new Date(appliedRange.to + "T23:59:59.999");
+      return d >= f && d <= t;
     }
     if (preset === "day")   return d.toDateString() === now.toDateString();
     if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
@@ -3044,810 +4309,988 @@ const filteredTransactions = useMemo(() => {
     if (preset === "year")  return d.getFullYear() === now.getFullYear();
     return true;
   });
-}, [transactions, filterBranch, filterBrand, selectedBrand, rangeMode, appliedRange, preset]);
 
-  const values = kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values;
-  const chartLabels = kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels;  
-  const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
-  const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
-  const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
-  const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
- const peakLabel = values.length ? chartLabels[values.indexOf(peak)] : "—";
-  const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
-  const trending  = Number(pctChange) >= 0;
+  if (isCustom) {
+    const from = new Date(appliedRange.from + "T00:00:00");
+    const to = new Date(appliedRange.to + "T23:59:59.999");
+    const nw = Math.max(1, Math.ceil((to - from) / (7*864e5)) + 1);
+    const labels = Array.from({ length: nw }, (_, i) => `W${i+1}`);
+    const values = Array(nw).fill(0);
+    filtered.forEach(tx => { const wi = Math.min(Math.floor((new Date(tx.created_at) - from) / (7*864e5)), nw-1); values[wi] += tx.total||0; });
+    return { labels, values };
+  }
 
-  const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
-  const transactionCount = viewArchive ? null : filteredTransactions.length;
-  const averageTransaction = transactionCount ? actualRevenue / transactionCount : 0;
-  const activeBranchCount = viewArchive ? null : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
+  const groupedMap = new Map();
+    const addToGroup = (key, label, amount) => {
+      const prev = groupedMap.get(key) || { label, sortKey: key, value: 0 };
+      prev.value += amount;
+      groupedMap.set(key, prev);
+    };
 
-  const transactionCountSeries = useMemo(() => {
-    if (viewArchive || !chartLabels.length) return [];
-    const counts = Object.fromEntries(chartLabels.map(label => [label, 0]));
-    const now = new Date();
-    const isCustom = rangeMode === "custom" && appliedRange;
-    let customFromDate = null;
-    if (isCustom) customFromDate = new Date(appliedRange.from + "T00:00:00");
-
-    filteredTransactions.forEach(tx => {
-      const d = new Date(tx.created_at);
-      let label;
-      if (isCustom) {
-        const wi = Math.max(0, Math.floor((d - customFromDate) / (7 * 864e5)));
-        label = `W${wi + 1}`;
-      } else if (preset === "day") label = `${d.getHours()}:00`;
-      else if (preset === "week") label = d.toLocaleDateString("en-US", { weekday: "short" });
-      else if (preset === "month") label = `D${d.getDate()}`;
-      else if (preset === "year") label = d.toLocaleDateString("en-US", { month: "short" });
-      if (label in counts) counts[label] += 1;
-    });
-    return chartLabels.map(label => counts[label] || 0);
-  }, [filteredTransactions, chartLabels, preset, rangeMode, appliedRange, viewArchive]);
-
-  const branchPerformance = useMemo(() => {
-    if (viewArchive) return [];
-    const grouped = {};
-    filteredTransactions.forEach(tx => {
-      const branch = tx.branch || "Unassigned";
-      grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
-    });
-    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewArchive]);
-
-  const branchProfitability = useMemo(() => {
-    if (viewArchive) return [];
-
-    const grouped = {};
-
-    filteredTransactions.forEach((tx) => {
-      const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
-      const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
-
-      let cogs = Number(
-        tx?.cogs ??
-        tx?.total_cogs ??
-        tx?.cost_of_goods ??
-        tx?.cost_of_goods_sold ??
-        0
-      );
-
-      if (!Number.isFinite(cogs)) cogs = 0;
-
-      if (cogs === 0) {
-        let items = tx?.items;
-        if (typeof items === "string") {
-          try { items = JSON.parse(items); } catch { items = []; }
-        }
-
-        if (Array.isArray(items)) {
-          const itemCogs = items.reduce((sum, item) => {
-            const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-            const unitCost = Number(
-              item?.cost ??
-              item?.unit_cost ??
-              item?.unitCost ??
-              item?.purchase_cost ??
-              0
-            ) || 0;
-            const lineCogs = Number(
-              item?.cogs ??
-              item?.total_cost ??
-              item?.cost_total ??
-              0
-            ) || 0;
-
-            return sum + (lineCogs > 0 ? lineCogs : unitCost * qty);
-          }, 0);
-
-          if (itemCogs > 0) cogs = itemCogs;
-        }
-      }
-
-      if (!grouped[branch]) {
-        grouped[branch] = {
-          branch,
-          revenue: 0,
-          cogs: 0,
-          transactions: 0,
-          hasCogs: false,
-        };
-      }
-
-      grouped[branch].revenue += revenue;
-      grouped[branch].cogs += cogs;
-      grouped[branch].transactions += 1;
-
-      if (
-        cogs > 0 ||
-        tx?.cogs != null ||
-        tx?.total_cogs != null ||
-        tx?.cost_of_goods != null ||
-        tx?.cost_of_goods_sold != null
-      ) {
-        grouped[branch].hasCogs = true;
-      }
-    });
-
-    return Object.values(grouped)
-      .map((row) => {
-        const grossProfit = row.revenue - row.cogs;
-        const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
-        const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
-
-        return { ...row, grossProfit, margin, avgOrder };
-      })
-      .sort((a, b) =>
-        (b.grossProfit - a.grossProfit) ||
-        (b.revenue - a.revenue)
-      );
-  }, [filteredTransactions, viewArchive]);
-
-  const brandPerformance = useMemo(() => {
-    if (viewArchive) return [];
-    const grouped = {};
-    filteredTransactions.forEach(tx => {
-      const brand = tx.brand || "Unassigned";
-      grouped[brand] = (grouped[brand] || 0) + Number(tx.total || tx.total_amount || 0);
-    });
-    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewArchive]);
-
-  // Category breakdown, computed client-side from the same filtered
-  // transactions used everywhere else on this dashboard. Category comes
-  // straight from each menu item's `category` field on catalogueRows
-  // (fetched from /inventory) — matched to each sold line item first by
-  // product id, falling back to normalized branch+name for older
-  // transactions that may not have stored the inventory id.
-  const categoryPerformance = useMemo(() => {
-    if (viewArchive) return [];
-
-    const normalizeName = (value) =>
-      String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/&/g, "and")
-        .replace(/[^a-z0-9]+/g, "");
-
-    // Build id -> category and "branch|name" -> category lookups from the menu/inventory rows.
-    const categoryById = new Map();
-    const categoryByBranchName = new Map();
-
-    catalogueRows.forEach(row => {
-      const category = row?.category;
-      if (!category) return;
-      if (row?.id != null) categoryById.set(String(row.id), category);
-      const nameKey = `${normalizeName(row?.branch)}|${normalizeName(row?.name)}`;
-      categoryByBranchName.set(nameKey, category);
-    });
-
-    const grouped = {};
-    filteredTransactions.forEach(tx => {
-      let items = tx?.items;
-      if (typeof items === "string") {
-        try { items = JSON.parse(items); } catch { items = []; }
-      }
-      if (!Array.isArray(items)) return;
-
-      const txBranchKey = normalizeName(tx?.branch);
-
-      items.forEach(item => {
-        const itemId =
-          item?.inventory_id ?? item?.menu_item_id ?? item?.product_id ?? item?.id ?? null;
-        const itemName =
-          item?.name ?? item?.product_name ?? item?.item_name ?? item?.title ?? "";
-
-        const category =
-          (itemId != null ? categoryById.get(String(itemId)) : null) ||
-          categoryByBranchName.get(`${txBranchKey}|${normalizeName(itemName)}`) ||
-          "Uncategorized";
-
-        const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-        const price = Number(item?.price ?? item?.unit_price ?? 0) || 0;
-        const lineTotal = Number(item?.total ?? item?.line_total ?? (qty * price)) || 0;
-        grouped[category] = (grouped[category] || 0) + lineTotal;
+    if (preset === "day") {
+      filtered.forEach(tx => {
+        const d = new Date(tx.created_at);
+        addToGroup(d.getHours(), `${d.getHours()}:00`, Number(tx.total||0));
       });
-    });
-    return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
-  }, [filteredTransactions, viewArchive, catalogueRows]);
-  
-
-const saveArchive = () => {
-  const year = parseInt(archiveYear);
-  if (isNaN(year) || year < 2000 || year > 2100) { showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year." }); return; }
-  if (archives.find(a => a.year === year)) { showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` }); return; }
-  const snap = { year, label: `Full Year ${year}`, savedAt: new Date().toLocaleString(), chartData, kpis: { totalSales: kpiData?.totalSales || total, avgSales: avg, peakSales: peak } };
-  const upd  = [...archives, snap].sort((a, b) => b.year - a.year);
-  setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
-  setArchiveConf(false);
-  showInfo({ type: "success", title: "Archived", message: `Year ${year} has been archived.` });
-};
-const deleteArchive = (year) => {
-  showInfo({
-    type: "confirm",
-    title: "Delete Archive?",
-    message: `Are you sure you want to delete the archive for ${year}? This cannot be undone.`,
-    confirmLabel: "Delete",
-    onConfirm: () => {
-      const upd = archives.filter(a => a.year !== year);
-      setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
-      if (viewArchive?.year === year) setViewArchive(null);
-      closeInfo();
-    },
-  });
-};
-
-const applyCustomRange = async () => {
-  if (!customFrom || !customTo) { showInfo({ type: "warning", title: "Missing Dates", message: "Please select both a start and end date." }); return; }
-  if (customFrom > customTo) { showInfo({ type: "warning", title: "Invalid Range", message: "\"From\" cannot be after \"To\"." }); return; }
-
-  let txList = transactions;
-  if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
-  else if (filterBrand && selectedBrand) {
-    const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-    txList = transactions.filter(tx => bn.includes(tx.branch));
-  }
-
-  const from = new Date(customFrom + "T00:00:00");
-  const to = new Date(customTo + "T23:59:59.999");
-
-  const hasData = txList.some(tx => {
-    const d = new Date(tx.created_at);
-    return d >= from && d <= to;
-  });
-
-  if (!hasData) {
-    showInfo({
-      type: "error",
-      title: "No Data Found",
-      message: `No data found for the selected date range (${customFrom} → ${customTo})${filterLabel !== "All Brands & Branches" ? ` — ${filterLabel}` : ""}. Please choose a different date range.`,
-    });
-    return;
-  }
-
-  setApplyingRange(true);
-  try {
-    setRangeMode("custom");
-    setAppliedRange({ from: customFrom, to: customTo });
-    setViewArchive(null);
-
-    // Fetch KPIs for this exact range right now, so the button reflects real completion
-    setKpiLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("from", customFrom);
-      params.set("to", customTo);
-      if (filterBranch) params.set("branch", filterBranch);
-      else if (filterBrand && selectedBrand) {
-        const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
-        if (bn.length) params.set("branches", bn.join(","));
-      }
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
-      const d = await res.json();
-      if (!d.error) setKpiData(d);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setKpiLoading(false);
+    } else if (preset === "week") {
+      filtered.forEach(tx => {
+        const d = new Date(tx.created_at);
+        addToGroup(d.getDay(), d.toLocaleDateString("en-US",{weekday:"short"}), Number(tx.total||0));
+      });
+    } else if (preset === "month") {
+      filtered.forEach(tx => {
+        const d = new Date(tx.created_at);
+        addToGroup(d.getDate(), `D${d.getDate()}`, Number(tx.total||0));
+      });
+    } else if (preset === "year") {
+      filtered.forEach(tx => {
+        const d = new Date(tx.created_at);
+        addToGroup(d.getMonth(), d.toLocaleDateString("en-US",{month:"short"}), Number(tx.total||0));
+      });
     }
 
-    setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
-  } finally {
-    setApplyingRange(false);
-  }
-};
+    const sortedGroups = Array.from(groupedMap.values()).sort((a,b) => a.sortKey - b.sortKey);
+    const labels = sortedGroups.map(e => e.label);
+    return { labels, values: sortedGroups.map(e => e.value) };
+  }, [transactions, preset, rangeMode, appliedRange, viewArchive, filterBranch, filterBrand, selectedBrand]);
 
-  const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
-  const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
-  const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#00695c" : "#0d2b1e", fontWeight: a ? 700 : 500, background: a ? "#e0f2f1" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
-  const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+  const filteredTransactions = useMemo(() => {
+    let txList = transactions;
+    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = transactions.filter(tx => bn.includes(tx.branch));
+    }
 
-  return (
-    <div style={{ fontFamily: FONT }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *, *::before, *::after { box-sizing: border-box; }
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-      `}</style>
+    const isCustom = rangeMode === "custom" && appliedRange;
+    const now = new Date();
+    return txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      if (isCustom) {
+        const from = new Date(appliedRange.from + "T00:00:00");
+        const to = new Date(appliedRange.to + "T23:59:59.999");
+        return d >= from && d <= to;
+      }
+      if (preset === "day")   return d.toDateString() === now.toDateString();
+      if (preset === "week")  { const s = new Date(now); s.setDate(now.getDate() - now.getDay()); s.setHours(0,0,0,0); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(23,59,59,999); return d >= s && d <= e; }
+      if (preset === "month") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (preset === "year")  return d.getFullYear() === now.getFullYear();
+      return true;
+    });
+  }, [transactions, filterBranch, filterBrand, selectedBrand, rangeMode, appliedRange, preset]);
 
-      {/* Archive banner */}
-      {viewArchive && (
-        <div style={{ background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
-            <Archive size={16} /> Viewing Archive: {viewArchive.year}
-            <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewArchive.savedAt}</span>
-          </span>
-          <button onClick={() => setViewArchive(null)} style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
-            <X size={12} /> Exit Archive View
-          </button>
-        </div>
-      )}
+    const values = viewArchive
+      ? (chartData?.values || [])
+      : (kpiData?.revenueSeries?.length ? kpiData.revenueSeries : chartData.values);
+    const chartLabels = viewArchive
+      ? (chartData?.labels || [])
+      : (kpiData?.revenueSeries?.length ? kpiData.revenueLabels : chartData.labels);  
+    const total     = useMemo(() => values.reduce((a, b) => a + b, 0), [values]);
+    const avg       = useMemo(() => values.length ? Math.round(total / values.length) : 0, [total, values.length]);
+    const peak      = useMemo(() => values.length ? Math.max(...values) : 0, [values]);
+    const low       = useMemo(() => values.length ? Math.min(...values) : 0, [values]);
+  const peakLabel = values.length ? chartLabels[values.indexOf(peak)] : "—";
+    const pctChange = values.length > 1 && values[0] > 0 ? (((values[values.length - 1] - values[0]) / values[0]) * 100).toFixed(1) : "0.0";
+    const trending  = Number(pctChange) >= 0;
 
-      {/* ── KPI Cards: always visible across all analysis tabs ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
-        {[
-          { label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
-          { label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
-          { label: "Average Sale", value: viewArchive ? null : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
-          { label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
-        ].map((k, i) => {
-          const isHidden = !!hiddenKpis[i];
-          return (
-            <div key={i}
-              style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
-                <button
-                  onClick={() => setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }))}
-                  style={{
-                    position: "absolute", top: 14, right: 14,
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "#1565c0", opacity: 0.6, padding: 2,
-                    display: "flex", alignItems: "center",
-                  }}
-                  title={isHidden ? "Show value" : "Hide value"}
-                >
-                  {!isHidden
-                    ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  }
-                </button>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
-                    <k.icon size={12} color="#00897b" /> {k.label}
-                  </div>
-                  {kpiLoading && k.value == null
-                    ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
-                    : k.value != null
-                      ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
-                          {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
-                        </div>
-                      : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
-                  }
-                </div>
-                <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
-              </div>
-              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
-              <div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT, marginTop: 3 }}>{getRangeLabel()} · {filterLabel}</div>
-            </div>
-          );
-        })}
-      </div>
+    const actualRevenue = useMemo(() => filteredTransactions.reduce((sum, tx) => sum + Number(tx.total || tx.total_amount || 0), 0), [filteredTransactions]);
+    const transactionCount = viewArchive
+      ? Number(viewArchive?.kpis?.transactionCount ?? 0)
+      : filteredTransactions.length;
+    const averageTransaction = viewArchive
+      ? Number(viewArchive?.kpis?.avgOrder ?? viewArchive?.kpis?.avgSales ?? 0)
+      : (transactionCount ? actualRevenue / transactionCount : 0);
+    const activeBranchCount = viewArchive
+      ? Number(viewArchive?.kpis?.activeBranchCount ?? 0)
+      : new Set(filteredTransactions.map(tx => tx.branch).filter(Boolean)).size;
 
-      {/* ── Filter + Date toolbar ── */}
-      <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        {/* Brand dropdown */}
-        <div ref={brandRef} style={{ position: "relative", minWidth: 170 }}>
-          <div onClick={() => { setBrandDropOpen(v => !v); setBrandQ(""); }}
-            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#0d2b1e" : "#5a7a65" }}>
-            <Globe size={12} color="#00897b" />
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
-            <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />
+    const transactionCountSeries = useMemo(() => {
+      if (viewArchive || !chartLabels.length) return [];
+      const counts = Object.fromEntries(chartLabels.map(label => [label, 0]));
+      const now = new Date();
+      const isCustom = rangeMode === "custom" && appliedRange;
+      let customFromDate = null;
+      if (isCustom) customFromDate = new Date(appliedRange.from + "T00:00:00");
+
+      filteredTransactions.forEach(tx => {
+        const d = new Date(tx.created_at);
+        let label;
+        if (isCustom) {
+          const wi = Math.max(0, Math.floor((d - customFromDate) / (7 * 864e5)));
+          label = `W${wi + 1}`;
+        } else if (preset === "day") label = `${d.getHours()}:00`;
+        else if (preset === "week") label = d.toLocaleDateString("en-US", { weekday: "short" });
+        else if (preset === "month") label = `D${d.getDate()}`;
+        else if (preset === "year") label = d.toLocaleDateString("en-US", { month: "short" });
+        if (label in counts) counts[label] += 1;
+      });
+      return chartLabels.map(label => counts[label] || 0);
+    }, [filteredTransactions, chartLabels, preset, rangeMode, appliedRange, viewArchive]);
+
+    const branchPerformance = useMemo(() => {
+      if (viewArchive) return [];
+      const grouped = {};
+      filteredTransactions.forEach(tx => {
+        const branch = tx.branch || "Unassigned";
+        grouped[branch] = (grouped[branch] || 0) + Number(tx.total || tx.total_amount || 0);
+      });
+      return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+    }, [filteredTransactions, viewArchive]);
+
+    const branchProfitability = useMemo(() => {
+      if (viewArchive) return [];
+
+      const grouped = {};
+
+      filteredTransactions.forEach((tx) => {
+        const branch = String(tx?.branch || "Unassigned").trim() || "Unassigned";
+        const revenue = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
+
+        let cogs = Number(
+          tx?.cogs ??
+          tx?.total_cogs ??
+          tx?.cost_of_goods ??
+          tx?.cost_of_goods_sold ??
+          0
+        );
+
+        if (!Number.isFinite(cogs)) cogs = 0;
+
+        if (cogs === 0) {
+          let items = tx?.items;
+          if (typeof items === "string") {
+            try { items = JSON.parse(items); } catch { items = []; }
+          }
+
+          if (Array.isArray(items)) {
+            const itemCogs = items.reduce((sum, item) => {
+              const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
+              const unitCost = Number(
+                item?.cost ??
+                item?.unit_cost ??
+                item?.unitCost ??
+                item?.purchase_cost ??
+                0
+              ) || 0;
+              const lineCogs = Number(
+                item?.cogs ??
+                item?.total_cost ??
+                item?.cost_total ??
+                0
+              ) || 0;
+
+              return sum + (lineCogs > 0 ? lineCogs : unitCost * qty);
+            }, 0);
+
+            if (itemCogs > 0) cogs = itemCogs;
+          }
+        }
+
+        if (!grouped[branch]) {
+          grouped[branch] = {
+            branch,
+            revenue: 0,
+            cogs: 0,
+            transactions: 0,
+            hasCogs: false,
+          };
+        }
+
+        grouped[branch].revenue += revenue;
+        grouped[branch].cogs += cogs;
+        grouped[branch].transactions += 1;
+
+        if (
+          cogs > 0 ||
+          tx?.cogs != null ||
+          tx?.total_cogs != null ||
+          tx?.cost_of_goods != null ||
+          tx?.cost_of_goods_sold != null
+        ) {
+          grouped[branch].hasCogs = true;
+        }
+      });
+
+      return Object.values(grouped)
+        .map((row) => {
+          const grossProfit = row.revenue - row.cogs;
+          const margin = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0;
+          const avgOrder = row.transactions > 0 ? row.revenue / row.transactions : 0;
+
+          return { ...row, grossProfit, margin, avgOrder };
+        })
+        .sort((a, b) =>
+          (b.grossProfit - a.grossProfit) ||
+          (b.revenue - a.revenue)
+        );
+    }, [filteredTransactions, viewArchive]);
+
+    const brandPerformance = useMemo(() => {
+      if (viewArchive) return [];
+      const grouped = {};
+      filteredTransactions.forEach(tx => {
+        const brand = tx.brand || "Unassigned";
+        grouped[brand] = (grouped[brand] || 0) + Number(tx.total || tx.total_amount || 0);
+      });
+      return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a,b) => b.value - a.value);
+    }, [filteredTransactions, viewArchive]);
+    
+
+  const getTransactionsForArchiveYear = (year) => {
+    let txList = transactions;
+    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const branchNames = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = transactions.filter(tx => branchNames.includes(tx.branch));
+    }
+    return txList.filter(tx => {
+      const d = new Date(tx.created_at);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === year;
+    });
+  };
+
+  const buildArchiveSnapshot = (year, yearTransactions) => {
+    const labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const monthlyValues = Array(12).fill(0);
+
+    yearTransactions.forEach(tx => {
+      const d = new Date(tx.created_at);
+      if (Number.isNaN(d.getTime())) return;
+      monthlyValues[d.getMonth()] += Number(tx.total || tx.total_amount || 0);
+    });
+
+    const revenue = monthlyValues.reduce((sum, value) => sum + Number(value || 0), 0);
+    const transactionCount = yearTransactions.length;
+    const averageOrder = transactionCount ? revenue / transactionCount : 0;
+    const activeBranches = new Set(yearTransactions.map(tx => tx.branch).filter(Boolean)).size;
+    const peakSales = monthlyValues.length ? Math.max(...monthlyValues) : 0;
+
+    return {
+      year,
+      label: `Full Year ${year}`,
+      savedAt: new Date().toLocaleString("en-PH"),
+      filterLabel,
+      chartData: { labels, values: monthlyValues },
+      kpis: {
+        totalSales: revenue,
+        salesRevenue: revenue,
+        avgSales: averageOrder,
+        avgOrder: averageOrder,
+        peakSales,
+        transactionCount,
+        activeBranchCount: activeBranches,
+      },
+    };
+  };
+
+  const saveArchive = (snapshot) => {
+    const upd = [...archives, snapshot].sort((a, b) => b.year - a.year);
+    setArchives(upd);
+    localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+    setArchiveYear(String(snapshot.year));
+    showInfo({
+      type: "success",
+      title: "Archive Saved",
+      message: `${snapshot.label} was archived successfully with ${snapshot.kpis.transactionCount.toLocaleString()} transaction${snapshot.kpis.transactionCount === 1 ? "" : "s"}.`,
+    });
+  };
+
+  const requestArchiveYear = () => {
+    const year = parseInt(archiveYear, 10);
+    if (Number.isNaN(year) || year < 2000 || year > 2100) {
+      showInfo({ type: "warning", title: "Invalid Year", message: "Enter a valid year from 2000 to 2100." });
+      return;
+    }
+    if (archives.some(a => Number(a.year) === year)) {
+      showInfo({ type: "warning", title: "Already Archived", message: `Year ${year} is already archived.` });
+      return;
+    }
+
+    const yearTransactions = getTransactionsForArchiveYear(year);
+    if (yearTransactions.length === 0) {
+      showInfo({
+        type: "info",
+        title: "No Data Found",
+        message: `No sales data was found for ${year} under ${filterLabel}. Nothing was archived.`,
+      });
+      return;
+    }
+
+    const snapshot = buildArchiveSnapshot(year, yearTransactions);
+    showInfo({
+      type: "confirm",
+      confirmTone: "success",
+      title: `Archive ${year}?`,
+      message: `Data found: ${snapshot.kpis.transactionCount.toLocaleString()} transaction${snapshot.kpis.transactionCount === 1 ? "" : "s"}, ${fmtAmt(snapshot.kpis.totalSales)} revenue, and ${snapshot.kpis.activeBranchCount.toLocaleString()} active branch${snapshot.kpis.activeBranchCount === 1 ? "" : "es"}. Confirm to save this yearly snapshot.`,
+      confirmLabel: "Confirm Archive",
+      cancelLabel: "Cancel",
+      onConfirm: () => saveArchive(snapshot),
+    });
+  };
+
+  const deleteArchive = (year) => {
+    showInfo({
+      type: "confirm",
+      title: "Delete Archive?",
+      message: `Are you sure you want to delete the archive for ${year}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      onConfirm: () => {
+        const upd = archives.filter(a => a.year !== year);
+        setArchives(upd); localStorage.setItem("dashboardArchives", JSON.stringify(upd));
+        if (viewArchive?.year === year) setViewArchive(null);
+        closeInfo();
+      },
+    });
+  };
+
+  const applyCustomRange = async () => {
+    if (!customFrom || !customTo) { showInfo({ type: "warning", title: "Missing Dates", message: "Please select both a start and end date." }); return; }
+    if (customFrom > customTo) { showInfo({ type: "warning", title: "Invalid Range", message: "\"From\" cannot be after \"To\"." }); return; }
+
+    let txList = transactions;
+    if (filterBranch) txList = transactions.filter(tx => tx.branch === filterBranch);
+    else if (filterBrand && selectedBrand) {
+      const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+      txList = transactions.filter(tx => bn.includes(tx.branch));
+    }
+
+    const from = new Date(customFrom + "T00:00:00");
+    const to = new Date(customTo + "T23:59:59.999");
+
+    const hasData = txList.some(tx => {
+      const d = new Date(tx.created_at);
+      return d >= from && d <= to;
+    });
+
+    if (!hasData) {
+      showInfo({
+        type: "error",
+        title: "No Data Found",
+        message: `No data found for the selected date range (${customFrom} → ${customTo})${filterLabel !== "All Brands & Branches" ? ` — ${filterLabel}` : ""}. Please choose a different date range.`,
+      });
+      return;
+    }
+
+    setApplyingRange(true);
+    try {
+      setRangeMode("custom");
+      setAppliedRange({ from: customFrom, to: customTo });
+      setViewArchive(null);
+
+      // Fetch KPIs for this exact range right now, so the button reflects real completion
+      setKpiLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("from", customFrom);
+        params.set("to", customTo);
+        if (filterBranch) params.set("branch", filterBranch);
+        else if (filterBrand && selectedBrand) {
+          const bn = (selectedBrand.branches || []).map(br => typeof br === "string" ? br : br.name);
+          if (bn.length) params.set("branches", bn.join(","));
+        }
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/dashboard/stats?${params}`);
+        const d = await res.json();
+        if (!d.error) setKpiData(d);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setKpiLoading(false);
+      }
+
+      setToast({ title: "Date Range Applied", message: `Showing data from ${customFrom} to ${customTo}.` });
+    } finally {
+      setApplyingRange(false);
+    }
+  };
+
+    const filterInputSt = { height: 36, padding: "0 11px", borderRadius: 9, border: "1px solid #b2dfdb", background: "#f0fdf5", fontSize: 13, color: "#0d2b1e", outline: "none", fontFamily: FONT, boxSizing: "border-box", width: "100%" };
+    const dropSt = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 400, background: "#fff", border: "1px solid #b2dfdb", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,0.10)", maxHeight: 220, overflowY: "auto" };
+    const optSt  = (a) => ({ padding: "9px 14px", cursor: "pointer", fontSize: 13, color: a ? "#00695c" : "#0d2b1e", fontWeight: a ? 700 : 500, background: a ? "#e0f2f1" : "transparent", display: "flex", alignItems: "center", gap: 8, fontFamily: FONT });
+    const tabSt  = (a) => ({ padding: "6px 13px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, transition: "all .15s", background: a ? "linear-gradient(135deg,#00c853,#00897b)" : "transparent", color: a ? "#fff" : "#5a7a65", boxShadow: a ? "0 2px 8px rgba(0,180,90,.35)" : "none" });
+
+    return (
+      <div style={{ fontFamily: FONT }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+          *, *::before, *::after { box-sizing: border-box; }
+          @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+          @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+          @media(max-width:900px){.qa-dashboard-tabs{grid-template-columns:1fr!important}.qa-dashboard-tabs button{min-height:58px!important}}
+        `}</style>
+
+        {/* Archive banner */}
+        {viewArchive && (
+          <div style={{ background: "linear-gradient(135deg,#0d2b1e,#1a4a2e)", color: "#fff", borderRadius: 14, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
+              <Archive size={16} /> Viewing Archive: {viewArchive.year}
+              <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 400 }}>— saved {viewArchive.savedAt}</span>
+            </span>
+            <button onClick={() => setViewArchive(null)} style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 8, padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
+              <X size={12} /> Exit Archive View
+            </button>
           </div>
-          {brandDropOpen && (
-            <div style={dropSt}>
-              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
-                <div style={{ position: "relative" }}>
-                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
-                  <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
-                </div>
-              </div>
-              <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
-              {filteredBrands.map(b => (
-                <div key={b.id} style={optSt(filterBrand === b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
-                  <Store size={12} color="#00897b" /> {b.name}
-                  <span style={{ marginLeft: "auto", fontSize: 10, color: "#5a7a65" }}>{(b.branches || []).length} branches</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Branch dropdown */}
-        <div ref={branchRef} style={{ position: "relative", minWidth: 180, opacity: filterBrand ? 1 : 0.45 }}>
-          <div onClick={() => { if (filterBrand) { setBranchDropOpen(v => !v); setBranchQ(""); } }}
-            style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#0d2b1e" : "#5a7a65" }}>
-            <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{filterBranch || (filterBrand ? "All Branches" : "Select brand first")}</span>
-            {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />}
-          </div>
-          {branchDropOpen && filterBrand && (
-            <div style={dropSt}>
-              <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
-                <div style={{ position: "relative" }}>
-                  <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
-                  <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
-                </div>
-              </div>
-              <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
-              {filteredBranches.map(br => (
-                <div key={br} style={optSt(filterBranch === br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
-                  <Store size={11} color="#00897b" /> {br}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Active chips */}
-        {(filterBrand || filterBranch) && (
-          <>
-            {filterBrand && !filterBranch && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
-                onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
-                <Store size={10} /> {selectedBrand?.name} <X size={9} />
-              </span>
-            )}
-            {filterBranch && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
-                onClick={() => setFilterBranch(null)}>
-                <Store size={10} /> {filterBranch} <X size={9} />
-              </span>
-            )}
-            <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
-          </>
         )}
 
-        <div style={{ width: 1, height: 24, background: "#e0ede2", margin: "0 4px" }} />
-
-        {/* Preset tabs */}
-        <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
-          {["day","week","month","year"].map(p => (
-            <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewArchive(null); }}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
+        <div className="qa-dashboard-tabs" style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:16, padding:7, marginBottom:16, display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:7, boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
+          {[
+            { id:"overview", number:"01", label:"Overview", question:"What needs attention?", icon:Home },
+            { id:"sales_ai", number:"02", label:"Sales Trend Analysis", question:"How are actual sales changing?", icon:LineChart },
+            { id:"ghost", number:"03", label:"Ghost Stock Anomalies", question:"Where are losses coming from?", icon:ShieldCheck },
+          ].map(tab=>{
+            const active = dashboardTab === tab.id;
+            const Icon = tab.icon;
+            return <button key={tab.id} onClick={()=>{ setDashboardTab(tab.id); if(tab.id!=="sales_ai") setViewArchive(null); }} style={{ display:"flex", alignItems:"center", gap:10, minHeight:67, padding:"11px 13px", borderRadius:12, border:`1px solid ${active?"#A9C982":"transparent"}`, background:active?"linear-gradient(135deg,#F2F7EB,#EAF3DF)":"transparent", color:active?"#2c5c16":"#64748b", cursor:"pointer", textAlign:"left", fontFamily:FONT, boxShadow:active?"inset 0 0 0 1px rgba(59,121,30,.05)":"none" }}>
+              <span style={{ width:34, height:34, borderRadius:10, flexShrink:0, display:"inline-flex", alignItems:"center", justifyContent:"center", background:active?"#3b791e":"#F1F5F2", color:active?"#fff":"#71806F" }}><Icon size={16}/></span>
+              <span style={{ minWidth:0 }}><span style={{ display:"block", fontSize:9, fontWeight:900, letterSpacing:".08em", opacity:.72, marginBottom:2 }}>{tab.number}</span><span style={{ display:"block", fontSize:11.4, fontWeight:850, lineHeight:1.25 }}>{tab.label}</span><span style={{ display:"block", fontSize:9.4, color:active?"#5C6B60":"#94a3b8", fontWeight:650, marginTop:3, lineHeight:1.25 }}>{tab.question}</span></span>
+            </button>;
+          })}
         </div>
 
-        {/* Custom range */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Calendar size={12} color="#5a7a65" />
-          <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-          <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
-          <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
-         <button
-          onClick={applyCustomRange}
-          disabled={applyingRange}
-          style={{
-            padding: "6px 13px", borderRadius: 8, border: "none",
-            background: "linear-gradient(135deg,#00c853,#00897b)",
-            color: "#fff", fontSize: 11, fontWeight: 700,
-            cursor: applyingRange ? "not-allowed" : "pointer",
-            fontFamily: FONT, opacity: applyingRange ? 0.7 : 1,
-            display: "flex", alignItems: "center", gap: 6,
-          }}
-        >
-          {applyingRange ? (
-            <>
-              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
-                <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
-                <path d="M21 12a9 9 0 0 0-9-9" />
-              </svg>
-              Applying…
-            </>
-          ) : "Apply"}
-        </button>
-         </div>
+        {/* Overview and Ghost Stock share the B2B evidence source but render different decisions. */}
+        {!viewArchive && (
+          <div style={{display:dashboardTab==="sales_ai"?"none":"block"}}>
+            <B2BRevenueAssuranceDashboard
+              transactions={transactions}
+              brands={propBrands}
+              user={user}
+              view={dashboardTab==="ghost"?"ghost":"overview"}
+              onOpenSalesAi={()=>setDashboardTab("sales_ai")}
+            />
+          </div>
+        )}
 
-        {/* Archive */}
-        <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-          <Archive size={13} /> Archives
-          {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
-        </button>
-      </div>
-
-      {/* Archive panel */}
-      {showArchive && (
-        <div style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
-              <Archive size={15} color="#00897b" /> Yearly Archives
+        {!viewArchive && dashboardTab === "ghost" && (
+          <div style={{ marginTop:18 }}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"17px 18px", margin:"0 0 14px", borderRadius:14, background:"linear-gradient(135deg,#eff6ff,#f8fbff)", border:"1px solid #bfdbfe" }}>
+              <span style={{ width:34, height:34, borderRadius:10, display:"inline-flex", alignItems:"center", justifyContent:"center", background:"#2563eb", color:"#fff", flexShrink:0 }}><Brain size={17}/></span>
+              <div><div style={{ fontSize:14, fontWeight:850, color:"#1e3a5f" }}>AI Prescriptive Guidance</div><div style={{ fontSize:10.8, color:"#52627a", lineHeight:1.55, marginTop:4 }}>Use the detected ghost-stock and revenue-leakage evidence to generate prioritized corrective actions for the selected branches.</div></div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {!archiveConf ? (
-                <>
-                  <input type="number" value={archiveYear} onChange={e => setArchiveYear(e.target.value)} min="2000" max="2100" placeholder="Year" style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }} />
-                  <button onClick={() => setArchiveConf(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
-                    <Plus size={12} /> Archive Year
+            <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} showStockAnomalies={false} />
+          </div>
+        )}
+
+        <div style={{ display:dashboardTab==="sales_ai"?"flex":"none", flexDirection:"column" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, margin:"4px 0 14px", color:"#5C6B60" }}>
+          <div style={{ height:1, background:"#E1E6D8", flex:1 }} />
+          <span style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", whiteSpace:"nowrap" }}>Sales &amp; AI Decision Workspace</span>
+          <div style={{ height:1, background:"#E1E6D8", flex:1 }} />
+        </div>
+
+        {/* ── KPI Cards: visible across Sales Trend, Prescriptive, and Sales vs Stock ── */}
+        <div style={{ order:2, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 18, animation: "fadeUp .35s ease" }}>
+          {[
+            { id:"revenue", label: "Revenue", value: viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue), icon: TrendingUp, format: "money", note: "Actual sales in selected period" },
+            { id:"transactions", label: "Transactions", value: transactionCount, icon: ShoppingCart, format: "count", note: "Completed sales records" },
+            { id:"averageSale", label: "Average Sale", value: viewArchive ? averageTransaction : (kpiData?.avgOrder ?? averageTransaction), icon: BarChart2, format: "money", note: "Revenue per transaction" },
+            { id:"activeBranches", label: "Active Branches", value: activeBranchCount, icon: Store, format: "count", note: "Branches with recorded sales" },
+          ].map((k, i) => {
+            const isHidden = !!hiddenKpis[i];
+            return (
+              <div key={k.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${k.label} breakdown`}
+                onClick={()=>setOperationalKpiDetail({id:k.id,label:k.label})}
+                onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setOperationalKpiDetail({id:k.id,label:k.label});}}}
+                style={{ background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 14px rgba(0,140,60,0.07)", position: "relative", overflow: "hidden", transition: "transform .2s, box-shadow .2s", cursor:"pointer", outline:"none" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,140,60,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 14px rgba(0,140,60,0.07)"; }}>
+                  <button
+                    onClick={e => {e.stopPropagation();setHiddenKpis(prev => ({ ...prev, [i]: !prev[i] }));}}
+                    onKeyDown={e=>e.stopPropagation()}
+                    style={{
+                      position: "absolute", top: 14, right: 14,
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "#1565c0", opacity: 0.6, padding: 2,
+                      display: "flex", alignItems: "center",
+                    }}
+                    title={isHidden ? "Show value" : "Hide value"}
+                  >
+                    {!isHidden
+                      ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    }
                   </button>
-                </>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fef9c3", border: "1.5px solid #fde68a", borderRadius: 9, padding: "6px 12px" }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#92400e", fontFamily: FONT }}>Archive {archiveYear}?</span>
-                  <button onClick={saveArchive} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #00897b", background: "#e0f2f1", color: "#00695c" }}>Confirm</button>
-                  <button onClick={() => setArchiveConf(false)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280" }}>Cancel</button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5a7a65", marginBottom: 5, display: "flex", alignItems: "center", gap: 5, fontFamily: FONT }}>
+                      <k.icon size={12} color="#00897b" /> {k.label}
+                    </div>
+                    {kpiLoading && k.value == null
+                      ? <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>Loading…</div>
+                      : k.value != null
+                        ? <div style={{ fontSize: 22, fontWeight: 800, color: "#0d2b1e", letterSpacing: "-0.5px", fontFamily: FONT }}>
+                            {!isHidden ? (k.format === "money" ? fmtAmt(k.value) : Number(k.value).toLocaleString()) : (k.format === "money" ? "₱••••••••" : "••••")}
+                          </div>
+                        : <div style={{ fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 9, background: "#f0fdf5", border: "1.5px dashed #a7f3d0", color: "#5a7a65", display: "inline-block", fontFamily: FONT }}>— Pending</div>
+                    }
+                  </div>
+                  <SparkBar values={values.slice(-7)} color="#00c853" height={28} />
+                </div>
+                <div style={{ fontSize: 10.5, fontWeight: 600, color: "#94a3b8", fontFamily: FONT }}>{k.note}</div>
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:4 }}><div style={{ fontSize: 9.5, fontWeight: 600, color: "#A7B0A5", fontFamily: FONT }}>{getRangeLabel()} · {filterLabel}</div><span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9.5,fontWeight:800,color:"#3b791e",whiteSpace:"nowrap"}}>Breakdown <ChevronRight size={11}/></span></div>
+              </div>
+            );
+          })}
+        </div>
+
+        <OperationalKpiBreakdownModal
+          detail={operationalKpiDetail}
+          onClose={()=>setOperationalKpiDetail(null)}
+          overview={{
+            revenue:viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : (kpiData?.salesRevenue ?? actualRevenue),
+            transactions:transactionCount,
+            averageSale:viewArchive ? averageTransaction : (kpiData?.avgOrder ?? averageTransaction),
+            activeBranches:activeBranchCount,
+          }}
+          branchRows={branchProfitability}
+          rangeLabel={getRangeLabel()}
+          filterLabel={filterLabel}
+        />
+
+        {/* ── Filter + Date toolbar ── */}
+        <div style={{ order:1, background: "#fff", border: "1px solid rgba(0,168,76,0.12)", borderRadius: 14, padding: "12px 16px", marginBottom: 14, boxShadow: "0 1px 8px rgba(0,140,60,0.05)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* Brand dropdown */}
+          <div ref={brandRef} style={{ position: "relative", minWidth: 170 }}>
+            <div onClick={() => { setBrandDropOpen(v => !v); setBrandQ(""); }}
+              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", paddingRight: 26, userSelect: "none", color: filterBrand ? "#0d2b1e" : "#5a7a65" }}>
+              <Globe size={12} color="#00897b" />
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{selectedBrand ? selectedBrand.name : "All Brands"}</span>
+              <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />
+            </div>
+            {brandDropOpen && (
+              <div style={dropSt}>
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                  <div style={{ position: "relative" }}>
+                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                    <input autoFocus type="text" value={brandQ} onChange={e => setBrandQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                  </div>
+                </div>
+                <div style={optSt(!filterBrand)} onMouseDown={() => { setFilterBrand(null); setFilterBranch(null); setBrandDropOpen(false); }}>All Brands</div>
+                {filteredBrands.map(b => (
+                  <div key={b.id} style={optSt(filterBrand === b.id)} onMouseDown={() => { setFilterBrand(b.id); setFilterBranch(null); setBrandDropOpen(false); setBrandQ(""); }}>
+                    <Store size={12} color="#00897b" /> {b.name}
+                    <span style={{ marginLeft: "auto", fontSize: 10, color: "#5a7a65" }}>{(b.branches || []).length} branches</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Branch dropdown */}
+          <div ref={branchRef} style={{ position: "relative", minWidth: 180, opacity: filterBrand ? 1 : 0.45 }}>
+            <div onClick={() => { if (filterBrand) { setBranchDropOpen(v => !v); setBranchQ(""); } }}
+              style={{ ...filterInputSt, display: "flex", alignItems: "center", gap: 7, cursor: filterBrand ? "pointer" : "not-allowed", paddingRight: 26, userSelect: "none", color: filterBranch ? "#0d2b1e" : "#5a7a65" }}>
+              <Store size={12} color={filterBrand ? "#00897b" : "#5a7a65"} />
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{filterBranch || (filterBrand ? "All Branches" : "Select brand first")}</span>
+              {filterBrand && <ChevronDown size={10} style={{ position: "absolute", right: 8, color: "#5a7a65" }} />}
+            </div>
+            {branchDropOpen && filterBrand && (
+              <div style={dropSt}>
+                <div style={{ padding: "6px 8px", borderBottom: "1px solid #b2dfdb", position: "sticky", top: 0, background: "#fff" }}>
+                  <div style={{ position: "relative" }}>
+                    <Search size={10} style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", color: "#5a7a65" }} />
+                    <input autoFocus type="text" value={branchQ} onChange={e => setBranchQ(e.target.value)} placeholder="Search…" onClick={e => e.stopPropagation()} style={{ ...filterInputSt, height: 28, fontSize: 11, paddingLeft: 24 }} />
+                  </div>
+                </div>
+                <div style={optSt(!filterBranch)} onMouseDown={() => { setFilterBranch(null); setBranchDropOpen(false); }}>All Branches</div>
+                {filteredBranches.map(br => (
+                  <div key={br} style={optSt(filterBranch === br)} onMouseDown={() => { setFilterBranch(br); setBranchDropOpen(false); setBranchQ(""); }}>
+                    <Store size={11} color="#00897b" /> {br}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Active chips */}
+          {(filterBrand || filterBranch) && (
+            <>
+              {filterBrand && !filterBranch && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                  onClick={() => { setFilterBrand(null); setFilterBranch(null); }}>
+                  <Store size={10} /> {selectedBrand?.name} <X size={9} />
+                </span>
+              )}
+              {filterBranch && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c", border: "1px solid #b2dfdb", cursor: "pointer", fontFamily: FONT }}
+                  onClick={() => setFilterBranch(null)}>
+                  <Store size={10} /> {filterBranch} <X size={9} />
+                </span>
+              )}
+              <button onClick={() => { setFilterBrand(null); setFilterBranch(null); }} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid #d1d5db", background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>Clear</button>
+            </>
+          )}
+
+          <div style={{ width: 1, height: 24, background: "#e0ede2", margin: "0 4px" }} />
+
+          {/* Preset tabs */}
+          <div style={{ display: "flex", gap: 3, background: "#f0faf4", borderRadius: 10, padding: 3 }}>
+            {["day","week","month","year"].map(p => (
+              <button key={p} style={tabSt(rangeMode === "preset" && preset === p)} onClick={() => { setRangeMode("preset"); setPreset(p); setViewArchive(null); }}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom range */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Calendar size={12} color="#5a7a65" />
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} max={customTo} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+            <span style={{ color: "#5a7a65", fontSize: 11, fontFamily: FONT }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} min={customFrom} max={fmt8(today)} style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 11, fontFamily: FONT, color: "#0d2b1e", outline: "none" }} />
+          <button
+            onClick={applyCustomRange}
+            disabled={applyingRange}
+            style={{
+              padding: "6px 13px", borderRadius: 8, border: "none",
+              background: "linear-gradient(135deg,#00c853,#00897b)",
+              color: "#fff", fontSize: 11, fontWeight: 700,
+              cursor: applyingRange ? "not-allowed" : "pointer",
+              fontFamily: FONT, opacity: applyingRange ? 0.7 : 1,
+              display: "flex", alignItems: "center", gap: 6,
+            }}
+          >
+            {applyingRange ? (
+              <>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
+                  <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+                  <path d="M21 12a9 9 0 0 0-9-9" />
+                </svg>
+                Applying…
+              </>
+            ) : "Apply"}
+          </button>
+          </div>
+
+          {/* Archive */}
+          <button onClick={() => setShowArchive(v => !v)} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1.5px solid #b2dfdb", background: showArchive ? "#e0f2f1" : "#fff", color: "#00695c", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+            <Archive size={13} /> Archives
+            {archives.length > 0 && <span style={{ background: "#00897b", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>{archives.length}</span>}
+          </button>
+        </div>
+
+        {/* Archive panel */}
+        {showArchive && (
+          <div style={{ order:3, background: "#fff", border: "1px solid rgba(0,168,76,0.15)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 2px 16px rgba(0,140,60,0.08)", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontFamily: FONT, fontWeight: 800, fontSize: 14, color: "#0d2b1e", display: "flex", alignItems: "center", gap: 7 }}>
+                <Archive size={15} color="#00897b" /> Yearly Archives
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="number"
+                  value={archiveYear}
+                  onChange={e => setArchiveYear(e.target.value)}
+                  min="2000"
+                  max="2100"
+                  placeholder="Year"
+                  style={{ padding: "6px 9px", borderRadius: 8, border: "1.5px solid #b2dfdb", background: "#f0fdf5", fontSize: 12, fontFamily: FONT, color: "#0d2b1e", outline: "none", width: 86 }}
+                />
+                <button onClick={requestArchiveYear} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#2E7D32,#00897b)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                  <Plus size={12} /> Archive Year
+                </button>
+              </div>
+            </div>
+            {archives.length === 0
+              ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
+              : archives.map(a => (
+                <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
+                    <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 7 }}>
+                    <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
+                      {viewArchive?.year === a.year ? "Viewing" : "View"}
+                    </button>
+                    <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        )}
+
+        {/* ── Analysis workspace tabs ── */}
+        <div style={{ display:"none" }}>
+          {[
+            { id:"sales", label:"Sales Trend", icon:TrendingUp },
+            { id:"prescriptive", label:"Prescriptive Analysis", icon:Brain },
+            { id:"stock", label:"Sales vs Stock", icon:Package },
+          ].map(t => <button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{ position:"relative", minWidth:170, padding:"17px 16px 15px", border:"none", background:"transparent", color:analysisTab===t.id?"#139a43":"#94a3b8", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT, display:"flex", alignItems:"center", justifyContent:"center", gap:7, whiteSpace:"nowrap" }}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#22a447"}}/>}</button>)}
+        </div>
+
+        {false && analysisTab === "sales" && <>
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
+            <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
+              <DashboardLineGraph labels={chartLabels} values={values} />
+            </div>
+            <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
+          </div>
+          <div style={{
+            background:"#fff",
+            border:"1px solid #E1E6D8",
+            borderRadius:18,
+            padding:"18px 20px",
+            marginBottom:18,
+            boxShadow:"0 2px 14px rgba(50,109,32,.06)"
+          }}>
+            <div style={{
+              display:"flex",
+              justifyContent:"space-between",
+              alignItems:"flex-start",
+              gap:12,
+              marginBottom:16,
+              flexWrap:"wrap"
+            }}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>
+                    Branch Profitability
+                  </div>
+                  {!viewArchive && (
+                    <span style={{
+                      fontSize:9.5,fontWeight:800,padding:"3px 8px",
+                      borderRadius:20,background:"#ecfdf5",color:"#15803d",
+                      border:"1px solid #bbf7d0",letterSpacing:".04em"
+                    }}>
+                      API DATA
+                    </span>
+                  )}
+                </div>
+                <div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>
+                  Revenue, gross profit, margin and transaction efficiency by branch
+                </div>
+              </div>
+
+              {!viewArchive && (
+                <div style={{textAlign:"right"}}>
+                  <div style={{
+                    fontSize:9.5,color:"#7A887B",fontWeight:700,
+                    textTransform:"uppercase",letterSpacing:".06em"
+                  }}>
+                    Branches analyzed
+                  </div>
+                  <div style={{
+                    fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2
+                  }}>
+                    {branchProfitability.length.toLocaleString()}
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-          {archives.length === 0
-            ? <div style={{ padding: "20px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontFamily: FONT }}>No archives yet.</div>
-            : archives.map(a => (
-              <div key={a.year} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 13px", borderRadius: 9, border: "1px solid #e0f2f1", marginBottom: 7, background: "#f8fffe" }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#0d2b1e", fontFamily: FONT }}>{a.label}</div>
-                  <div style={{ fontSize: 10.5, color: "#5a7a65", marginTop: 2, fontFamily: FONT }}>Saved: {a.savedAt} · Total: {fmtAmt(a.kpis.totalSales)}</div>
-                </div>
-                <div style={{ display: "flex", gap: 7 }}>
-                  <button onClick={() => { setViewArchive(viewArchive?.year === a.year ? null : a); setShowArchive(false); }} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: `1px solid ${viewArchive?.year === a.year ? "#00897b" : "#b2dfdb"}`, background: viewArchive?.year === a.year ? "#e0f2f1" : "#f8fffe", color: "#00695c" }}>
-                    {viewArchive?.year === a.year ? "Viewing" : "View"}
-                  </button>
-                  <button onClick={() => deleteArchive(a.year)} style={{ padding: "4px 11px", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, border: "1px solid #fecaca", background: "#fff", color: "#ef4444" }}>Delete</button>
-                </div>
-              </div>
-            ))
-          }
-        </div>
-      )}
 
-      {/* ── Analysis workspace tabs ── */}
-      <div style={{ background:"#fff", border:"1px solid #DCE9DB", borderRadius:"14px 14px 0 0", marginTop:16, marginBottom:18, padding:"0 20px", display:"flex", alignItems:"stretch", gap:8, overflowX:"auto" }}>
-        {[
-          { id:"sales", label:"Sales Trend", icon:TrendingUp },
-          { id:"prescriptive", label:"Prescriptive Analysis", icon:Brain },
-          { id:"stock", label:"Sales vs Stock", icon:Package },
-        ].map(t => <button key={t.id} onClick={()=>setAnalysisTab(t.id)} style={{ position:"relative", minWidth:170, padding:"17px 16px 15px", border:"none", background:"transparent", color:analysisTab===t.id?"#139a43":"#94a3b8", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:FONT, display:"flex", alignItems:"center", justifyContent:"center", gap:7, whiteSpace:"nowrap" }}><t.icon size={14}/>{t.label}{analysisTab===t.id&&<span style={{position:"absolute",left:10,right:10,bottom:0,height:2.5,borderRadius:"4px 4px 0 0",background:"#22a447"}}/>}</button>)}
-      </div>
-
-      {analysisTab === "sales" && <>
-        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1.65fr) minmax(330px,.85fr)", gap:16, marginBottom:16 }}>
-          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, marginBottom:12 }}><div><div style={{ fontSize:15, fontWeight:800, color:"#12241B" }}>Revenue Trend</div><div style={{ fontSize:11, color:"#6B7A65", marginTop:3 }}>Actual revenue movement · {getRangeLabel()}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#7A887B",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em"}}>Period revenue</div><div style={{fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2}}>{fmtAmt(viewArchive ? (viewArchive?.kpis?.totalSales ?? total) : actualRevenue)}</div></div></div>
-            <DashboardLineGraph labels={chartLabels} values={values} />
-          </div>
-          <div style={{ background:"#fff", border:"1px solid #E1E6D8", borderRadius:18, padding:"18px 20px", boxShadow:"0 2px 14px rgba(50,109,32,.06)" }}><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Branch Performance</div><div style={{fontSize:11,color:"#6B7A65",marginTop:3,marginBottom:16}}>Ranked by actual revenue</div><DashboardRankBars data={branchPerformance}/></div>
-        </div>
-        <div style={{
-          background:"#fff",
-          border:"1px solid #E1E6D8",
-          borderRadius:18,
-          padding:"18px 20px",
-          marginBottom:18,
-          boxShadow:"0 2px 14px rgba(50,109,32,.06)"
-        }}>
-          <div style={{
-            display:"flex",
-            justifyContent:"space-between",
-            alignItems:"flex-start",
-            gap:12,
-            marginBottom:16,
-            flexWrap:"wrap"
-          }}>
-            <div>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>
-                  Branch Profitability
-                </div>
-                {!viewArchive && (
-                  <span style={{
-                    fontSize:9.5,fontWeight:800,padding:"3px 8px",
-                    borderRadius:20,background:"#ecfdf5",color:"#15803d",
-                    border:"1px solid #bbf7d0",letterSpacing:".04em"
-                  }}>
-                    API DATA
-                  </span>
-                )}
-              </div>
-              <div style={{fontSize:11,color:"#6B7A65",marginTop:4}}>
-                Revenue, gross profit, margin and transaction efficiency by branch
-              </div>
-            </div>
-
-            {!viewArchive && (
-              <div style={{textAlign:"right"}}>
-                <div style={{
-                  fontSize:9.5,color:"#7A887B",fontWeight:700,
-                  textTransform:"uppercase",letterSpacing:".06em"
-                }}>
-                  Branches analyzed
-                </div>
-                <div style={{
-                  fontSize:17,fontWeight:800,color:"#3b791e",marginTop:2
-                }}>
-                  {branchProfitability.length.toLocaleString()}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {branchProfitability.length > 0 ? (
-            <div style={{
-              overflowX:"auto",
-              border:"1px solid #E7EEE4",
-              borderRadius:13
-            }}>
-              <table style={{
-                width:"100%",
-                borderCollapse:"collapse",
-                minWidth:820,
-                fontFamily:FONT
+            {branchProfitability.length > 0 ? (
+              <div style={{
+                overflowX:"auto",
+                border:"1px solid #E7EEE4",
+                borderRadius:13
               }}>
-                <thead>
-                  <tr style={{background:"#F6FAF3"}}>
-                    {[
-                      { label:"Branch", align:"left" },
-                      { label:"Revenue", align:"right" },
-                      { label:"Gross Profit", align:"right" },
-                      { label:"Margin", align:"center" },
-                      { label:"Transactions", align:"center" },
-                      { label:"Avg. Order", align:"right" },
-                    ].map((h) => (
-                      <th key={h.label} style={{
-                        padding:"11px 13px",
-                        textAlign:h.align,
-                        fontSize:9.5,
-                        color:"#71806F",
-                        fontWeight:800,
-                        textTransform:"uppercase",
-                        letterSpacing:".065em",
-                        borderBottom:"1px solid #DDE8DA",
-                        whiteSpace:"nowrap"
-                      }}>
-                        {h.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+                <table style={{
+                  width:"100%",
+                  borderCollapse:"collapse",
+                  minWidth:820,
+                  fontFamily:FONT
+                }}>
+                  <thead>
+                    <tr style={{background:"#F6FAF3"}}>
+                      {[
+                        { label:"Branch", align:"left" },
+                        { label:"Revenue", align:"right" },
+                        { label:"Gross Profit", align:"right" },
+                        { label:"Margin", align:"center" },
+                        { label:"Transactions", align:"center" },
+                        { label:"Avg. Order", align:"right" },
+                      ].map((h) => (
+                        <th key={h.label} style={{
+                          padding:"11px 13px",
+                          textAlign:h.align,
+                          fontSize:9.5,
+                          color:"#71806F",
+                          fontWeight:800,
+                          textTransform:"uppercase",
+                          letterSpacing:".065em",
+                          borderBottom:"1px solid #DDE8DA",
+                          whiteSpace:"nowrap"
+                        }}>
+                          {h.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
 
-                <tbody>
-                  {branchProfitability.map((row, index) => {
-                    const hasProfitData = row.hasCogs;
-                    const marginColor = !hasProfitData
-                      ? "#94a3b8"
-                      : row.margin >= 40
-                        ? "#15803d"
-                        : row.margin >= 25
-                          ? "#3b791e"
-                          : row.margin >= 15
-                            ? "#d97706"
-                            : "#dc2626";
+                  <tbody>
+                    {branchProfitability.map((row, index) => {
+                      const hasProfitData = row.hasCogs;
+                      const marginColor = !hasProfitData
+                        ? "#94a3b8"
+                        : row.margin >= 40
+                          ? "#15803d"
+                          : row.margin >= 25
+                            ? "#3b791e"
+                            : row.margin >= 15
+                              ? "#d97706"
+                              : "#dc2626";
 
-                    const marginBg = !hasProfitData
-                      ? "#f8fafc"
-                      : row.margin >= 40
-                        ? "#ecfdf5"
-                        : row.margin >= 25
-                          ? "#f0f5e8"
-                          : row.margin >= 15
-                            ? "#fffbeb"
-                            : "#fef2f2";
+                      const marginBg = !hasProfitData
+                        ? "#f8fafc"
+                        : row.margin >= 40
+                          ? "#ecfdf5"
+                          : row.margin >= 25
+                            ? "#f0f5e8"
+                            : row.margin >= 15
+                              ? "#fffbeb"
+                              : "#fef2f2";
 
-                    const borderBottom = index === branchProfitability.length - 1
-                      ? "none"
-                      : "1px solid #EEF3EC";
+                      const borderBottom = index === branchProfitability.length - 1
+                        ? "none"
+                        : "1px solid #EEF3EC";
 
-                    return (
-                      <tr key={row.branch} style={{
-                        background:index % 2 === 0 ? "#fff" : "#FBFDF9"
-                      }}>
-                        <td style={{padding:"12px 13px",borderBottom}}>
-                          <div style={{display:"flex",alignItems:"center",gap:9}}>
+                      return (
+                        <tr key={row.branch} style={{
+                          background:index % 2 === 0 ? "#fff" : "#FBFDF9"
+                        }}>
+                          <td style={{padding:"12px 13px",borderBottom}}>
+                            <div style={{display:"flex",alignItems:"center",gap:9}}>
+                              <span style={{
+                                width:24,height:24,borderRadius:8,
+                                background:"#F0F5E8",color:"#3b791e",
+                                display:"inline-flex",alignItems:"center",
+                                justifyContent:"center",fontSize:10,
+                                fontWeight:800,flexShrink:0
+                              }}>
+                                {index + 1}
+                              </span>
+                              <span style={{
+                                fontSize:11.5,fontWeight:800,color:"#12241B",
+                                whiteSpace:"nowrap"
+                              }}>
+                                {row.branch}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td style={{
+                            padding:"12px 13px",textAlign:"right",
+                            fontSize:11.5,fontWeight:800,color:"#183126",
+                            whiteSpace:"nowrap",borderBottom
+                          }}>
+                            {fmtAmt(row.revenue)}
+                          </td>
+
+                          <td style={{
+                            padding:"12px 13px",textAlign:"right",
+                            fontSize:11.5,fontWeight:800,
+                            color:hasProfitData ? "#1d4ed8" : "#94a3b8",
+                            whiteSpace:"nowrap",borderBottom
+                          }}>
+                            {hasProfitData ? fmtAmt(row.grossProfit) : "—"}
+                          </td>
+
+                          <td style={{
+                            padding:"12px 13px",
+                            textAlign:"center",
+                            borderBottom
+                          }}>
                             <span style={{
-                              width:24,height:24,borderRadius:8,
-                              background:"#F0F5E8",color:"#3b791e",
-                              display:"inline-flex",alignItems:"center",
-                              justifyContent:"center",fontSize:10,
-                              fontWeight:800,flexShrink:0
-                            }}>
-                              {index + 1}
-                            </span>
-                            <span style={{
-                              fontSize:11.5,fontWeight:800,color:"#12241B",
+                              display:"inline-flex",
+                              alignItems:"center",
+                              justifyContent:"center",
+                              minWidth:60,
+                              padding:"4px 8px",
+                              borderRadius:20,
+                              background:marginBg,
+                              color:marginColor,
+                              border:`1px solid ${marginColor}25`,
+                              fontSize:10.5,
+                              fontWeight:800,
                               whiteSpace:"nowrap"
                             }}>
-                              {row.branch}
+                              {hasProfitData ? `${row.margin.toFixed(1)}%` : "No COGS"}
                             </span>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td style={{
-                          padding:"12px 13px",textAlign:"right",
-                          fontSize:11.5,fontWeight:800,color:"#183126",
-                          whiteSpace:"nowrap",borderBottom
-                        }}>
-                          {fmtAmt(row.revenue)}
-                        </td>
-
-                        <td style={{
-                          padding:"12px 13px",textAlign:"right",
-                          fontSize:11.5,fontWeight:800,
-                          color:hasProfitData ? "#1d4ed8" : "#94a3b8",
-                          whiteSpace:"nowrap",borderBottom
-                        }}>
-                          {hasProfitData ? fmtAmt(row.grossProfit) : "—"}
-                        </td>
-
-                        <td style={{
-                          padding:"12px 13px",
-                          textAlign:"center",
-                          borderBottom
-                        }}>
-                          <span style={{
-                            display:"inline-flex",
-                            alignItems:"center",
-                            justifyContent:"center",
-                            minWidth:60,
-                            padding:"4px 8px",
-                            borderRadius:20,
-                            background:marginBg,
-                            color:marginColor,
-                            border:`1px solid ${marginColor}25`,
-                            fontSize:10.5,
-                            fontWeight:800,
-                            whiteSpace:"nowrap"
+                          <td style={{
+                            padding:"12px 13px",textAlign:"center",
+                            fontSize:11.5,fontWeight:700,color:"#334155",
+                            borderBottom
                           }}>
-                            {hasProfitData ? `${row.margin.toFixed(1)}%` : "No COGS"}
-                          </span>
-                        </td>
+                            {row.transactions.toLocaleString()}
+                          </td>
 
-                        <td style={{
-                          padding:"12px 13px",textAlign:"center",
-                          fontSize:11.5,fontWeight:700,color:"#334155",
-                          borderBottom
-                        }}>
-                          {row.transactions.toLocaleString()}
-                        </td>
-
-                        <td style={{
-                          padding:"12px 13px",textAlign:"right",
-                          fontSize:11.5,fontWeight:800,color:"#3b791e",
-                          whiteSpace:"nowrap",borderBottom
-                        }}>
-                          {fmtAmt(row.avgOrder)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{
-              minHeight:180,display:"flex",alignItems:"center",
-              justifyContent:"center",border:"1px dashed #D7E1D4",
-              borderRadius:12,background:"#FAFCF8",color:"#7A887B",
-              fontSize:12,fontWeight:600,textAlign:"center",padding:20
-            }}>
-              {viewArchive
-                ? "Branch profitability is not stored in this archived dashboard snapshot."
-                : "No branch transaction data is available for the selected filter."}
-            </div>
-          )}
-
-          {!viewArchive &&
-            branchProfitability.length > 0 &&
-            branchProfitability.some(row => !row.hasCogs) && (
+                          <td style={{
+                            padding:"12px 13px",textAlign:"right",
+                            fontSize:11.5,fontWeight:800,color:"#3b791e",
+                            whiteSpace:"nowrap",borderBottom
+                          }}>
+                            {fmtAmt(row.avgOrder)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
               <div style={{
-                marginTop:10,display:"flex",alignItems:"flex-start",gap:7,
-                padding:"9px 11px",borderRadius:9,background:"#fffaf0",
-                border:"1px solid #fde68a",color:"#92400e",
-                fontSize:10.5,lineHeight:1.55
+                minHeight:180,display:"flex",alignItems:"center",
+                justifyContent:"center",border:"1px dashed #D7E1D4",
+                borderRadius:12,background:"#FAFCF8",color:"#7A887B",
+                fontSize:12,fontWeight:600,textAlign:"center",padding:20
               }}>
-                <Info size={13} style={{flexShrink:0,marginTop:1}} />
-                <span>
-                  Gross Profit and Margin show “No COGS” when the transaction API
-                  has no cost-of-goods value. Revenue, Transactions and Avg. Order
-                  still come directly from the API.
-                </span>
+                {viewArchive
+                  ? "Branch profitability is not stored in this archived dashboard snapshot."
+                  : "No branch transaction data is available for the selected filter."}
               </div>
             )}
+
+            {!viewArchive &&
+              branchProfitability.length > 0 &&
+              branchProfitability.some(row => !row.hasCogs) && (
+                <div style={{
+                  marginTop:10,display:"flex",alignItems:"flex-start",gap:7,
+                  padding:"9px 11px",borderRadius:9,background:"#fffaf0",
+                  border:"1px solid #fde68a",color:"#92400e",
+                  fontSize:10.5,lineHeight:1.55
+                }}>
+                  <Info size={13} style={{flexShrink:0,marginTop:1}} />
+                  <span>
+                    Gross Profit and Margin show “No COGS” when the transaction API
+                    has no cost-of-goods value. Revenue, Transactions and Avg. Order
+                    still come directly from the API.
+                  </span>
+                </div>
+              )}
+          </div>
+        <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
+        </>}
+
+        {false && analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
+
+        {false && analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} transactions={filteredTransactions} />}
+
+        {dashboardTab === "sales_ai" && (
+          <div style={{order:4}}>
+            <div style={{ background:"linear-gradient(135deg,#F4F8F0,#fff)", border:"1px solid #DCE9DB", borderLeft:"5px solid #3b791e", borderRadius:14, padding:"14px 16px", marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:850, color:"#12241B" }}><LineChart size={16} color="#3b791e"/> Read the actual sales evidence first</div>
+              <div style={{ fontSize:10.8, color:"#5C6B60", lineHeight:1.55, marginTop:5 }}>Use the actual revenue line, period summary, and branch profitability below to understand sales movement. Corrective recommendations are kept with the loss evidence in Ghost Stock Anomalies.</div>
+            </div>
+
+            <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} />
+
+          </div>
+        )}
         </div>
-      <SalesTrendSection values={values} labels={chartLabels} kpiData={kpiData} total={total} avg={avg} peak={peak} low={low} peakLabel={peakLabel} pctChange={pctChange} trending={trending} getRangeLabel={getRangeLabel} filterLabel={filterLabel} filterBrand={filterBrand} filterBranch={filterBranch} brands={brandList} transactionCount={transactionCount || 0} averageTransaction={averageTransaction} branchPerformance={branchPerformance} brandPerformance={brandPerformance} branchProfitability={branchProfitability} categoryPerformance={categoryPerformance} />
-      </>}
 
-      {analysisTab === "prescriptive" && <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} />}
+        <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
 
-      {analysisTab === "stock" && <SalesVsStockSection preset={preset} appliedRange={appliedRange} rangeMode={rangeMode} filterBranch={filterBranch} filterBrand={filterBrand} selectedBrand={selectedBrand} total={total} transactions={filteredTransactions} />}
-
-      <InfoModal modal={infoModal} onClose={closeInfo} onConfirm={() => { if (infoModal?.onConfirm) infoModal.onConfirm(); }} />
-
-      <Toast toast={toast} onClose={() => setToast(null)} />
-        
-    </div>
-  );
-}
-
+        <Toast toast={toast} onClose={() => setToast(null)} />
+          
+      </div>
+    );
+  }
 
 // MOBILE SHOP CONTENT
 const Field = ({ label, error, children }) => (
