@@ -5,20 +5,26 @@ const { logActivity } = require("../utils/activityLogger");
 const { convertUnit } = require("../utils/unitConversion");
 const { recomputeProductCosts } = require("../utils/recomputeProductCosts");
 const { syncIngredientFromBatches } = require("../utils/inventoryAutomation");
+const { priceFromCost } = require("./shop");
 
 function computeNextOutCost(batches, brand, perishable) {
-  const active = batches.filter(b => Number(b.stock) > 0);
+  const active = batches.filter((b) => Number(b.stock) > 0);
   if (active.length === 0) return null; // no stock left — leave cost_per_unit as-is
 
-  const isFefo = (brand || "").toLowerCase().includes("ipharma") || !!perishable;
+  const isFefo =
+    (brand || "").toLowerCase().includes("ipharma") || !!perishable;
   const sorted = [...active].sort((a, b) => {
     if (isFefo) {
       const da = a.exp_date ? new Date(a.exp_date).getTime() : Infinity;
       const db = b.exp_date ? new Date(b.exp_date).getTime() : Infinity;
       return da - db;
     }
-    const da = new Date(a.supply_date || a.mfg_date || a.created_at || 0).getTime();
-    const db = new Date(b.supply_date || b.mfg_date || b.created_at || 0).getTime();
+    const da = new Date(
+      a.supply_date || a.mfg_date || a.created_at || 0,
+    ).getTime();
+    const db = new Date(
+      b.supply_date || b.mfg_date || b.created_at || 0,
+    ).getTime();
     return da - db;
   });
 
@@ -26,25 +32,28 @@ function computeNextOutCost(batches, brand, perishable) {
 }
 
 function slug(str, maxLen = 6) {
-  return String(str || "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, maxLen);
+  return String(str || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "")
+    .slice(0, maxLen);
 }
 
 const CATEGORY_CODE_MAP = {
   "coffee & base ingredients": "BASE",
   "syrups & flavorings": "SYR",
   "milk & dairy": "MLK",
-  "ice": "ICE",
+  ice: "ICE",
   "packaging & supplies": "PKG",
   "vitamins & supplements": "VIT",
-  "antibiotic": "ANT",
-  "medicine": "MED",
+  antibiotic: "ANT",
+  medicine: "MED",
   "first aid": "AID",
   "medical supplies": "SUP",
   "health devices": "DEV",
   "regular gasoline": "REG",
   "ethanol-blended gasoline": "ETH",
   "premium gasoline": "PRM",
-  "diesel": "DSL",
+  diesel: "DSL",
 };
 
 function inferCategoryCode(name, brand, category) {
@@ -54,9 +63,9 @@ function inferCategoryCode(name, brand, category) {
     if (mapped) return mapped;
     return slug(category, 4) || "MISC";
   }
-  if (b.includes("ipharma")) return "MED";  
+  if (b.includes("ipharma")) return "MED";
   if (b.includes("ifuel")) return "FUEL";
-  const found = CATEGORY_KEYWORDS.find(c => c.match.test(name));
+  const found = CATEGORY_KEYWORDS.find((c) => c.match.test(name));
   return found ? found.code : "MISC";
 }
 function extractVariant(name) {
@@ -81,16 +90,18 @@ function abbreviateWord(word, len = 3) {
 }
 
 function extractItemCode(name) {
-  const key = String(name || "").trim().toLowerCase();
+  const key = String(name || "")
+    .trim()
+    .toLowerCase();
   if (MANUAL_ITEM_CODES[key]) return MANUAL_ITEM_CODES[key];
 
   const base = String(name || "")
     .replace(/\([^)]*\)/g, "")
-    .replace(/\d+\s?(mg|ml|g|kg|oz|l)\b/ig, "")
+    .replace(/\d+\s?(mg|ml|g|kg|oz|l)\b/gi, "")
     .trim();
   const words = base.split(/\s+/).filter(Boolean);
   if (words.length === 0) return "ITEM";
-  return words.map(w => abbreviateWord(w, 3)).join("");
+  return words.map((w) => abbreviateWord(w, 3)).join("");
 }
 
 function buildSkuBase({ name, brand, category }) {
@@ -105,7 +116,9 @@ async function generateUniqueSku(client, { name, brand, category }) {
   let candidate = base;
   let n = 2;
   while (true) {
-    const check = await client.query("SELECT 1 FROM ingredients WHERE sku=$1", [candidate]);
+    const check = await client.query("SELECT 1 FROM ingredients WHERE sku=$1", [
+      candidate,
+    ]);
     if (check.rows.length === 0) return candidate;
     candidate = `${base}-${n}`;
     n++;
@@ -119,8 +132,14 @@ router.get("/ingredients", async (req, res) => {
     const params = [];
     const conditions = [];
 
-    if (branch) { params.push(branch); conditions.push(`branch=$${params.length}`); }
-    if (brand)  { params.push(brand);  conditions.push(`brand=$${params.length}`); }
+    if (branch) {
+      params.push(branch);
+      conditions.push(`branch=$${params.length}`);
+    }
+    if (brand) {
+      params.push(brand);
+      conditions.push(`brand=$${params.length}`);
+    }
 
     if (conditions.length) query += " WHERE " + conditions.join(" AND ");
     query += " ORDER BY name";
@@ -135,18 +154,54 @@ router.get("/ingredients", async (req, res) => {
 router.post("/ingredients", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, category, list_in_shop, shop_price, shop_unit, shop_brand, shop_category, performed_by, latitude, longitude, restored, imported, performed_by_role } = req.body;
-    if (!name || !unit) return res.status(400).json({ error: "Name and unit are required" });
+    const {
+      name,
+      branch,
+      brand,
+      unit,
+      stock,
+      min_stock,
+      cost_per_unit,
+      bulk_qty,
+      extra_fields,
+      perishable,
+      category,
+      list_in_shop,
+      shop_price,
+      shop_unit,
+      shop_brand,
+      shop_category,
+      performed_by,
+      latitude,
+      longitude,
+      restored,
+      imported,
+      performed_by_role,
+    } = req.body;
+    if (!name || !unit)
+      return res.status(400).json({ error: "Name and unit are required" });
 
     await client.query("BEGIN");
     const sku = await generateUniqueSku(client, { name, brand, category });
 
     const result = await client.query(
-  `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, sku, category)
-   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-  [name, branch || null, brand || null, unit, parseFloat(stock)||0, parseFloat(min_stock)||0,
-   parseFloat(cost_per_unit)||0, JSON.stringify(extra_fields||{}), !!perishable, sku, category || null]
-);
+      `INSERT INTO ingredients (name, branch, brand, unit, stock, min_stock, cost_per_unit, bulk_qty, extra_fields, perishable, sku, category)
+ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [
+        name,
+        branch || null,
+        brand || null,
+        unit,
+        parseFloat(stock) || 0,
+        parseFloat(min_stock) || 0,
+        parseFloat(cost_per_unit) || 0,
+        bulk_qty ? parseFloat(bulk_qty) : null,
+        JSON.stringify(extra_fields || {}),
+        !!perishable,
+        sku,
+        category || null,
+      ],
+    );
     const ingredient = result.rows[0];
 
     if (list_in_shop && shop_price && shop_brand) {
@@ -154,7 +209,15 @@ router.post("/ingredients", async (req, res) => {
         `INSERT INTO shop_items (name, price, unit, shop, brand, stock, is_visible, ingredient_id)
          VALUES ($1,$2,$3,$4,$5,$6,true,$7)
          ON CONFLICT (ingredient_id) DO UPDATE SET name=$1, price=$2, unit=$3, shop=$4, brand=$5, stock=$6`,
-        [name, parseFloat(shop_price), shop_unit || unit, shop_category || null, shop_brand, parseFloat(stock) || 0, ingredient.id]
+        [
+          name,
+          parseFloat(shop_price),
+          shop_unit || unit,
+          shop_category || null,
+          shop_brand,
+          parseFloat(stock) || 0,
+          ingredient.id,
+        ],
       );
     }
 
@@ -162,10 +225,25 @@ router.post("/ingredients", async (req, res) => {
 
     const action = restored ? "restore" : imported ? "import" : "create";
     await logActivity({
-      action, itemName: ingredient.name, performedBy: performed_by || "System",
-      details: { branch, brand, unit, stock: ingredient.stock, min_stock: ingredient.min_stock, cost_per_unit: ingredient.cost_per_unit, sku,
-        ...(restored ? { note: "Restored from delete history" } : {}) },
-      req, branch, module: "Stock Inventory", latitude, longitude, role: performed_by_role || "Unknown",
+      action,
+      itemName: ingredient.name,
+      performedBy: performed_by || "System",
+      details: {
+        branch,
+        brand,
+        unit,
+        stock: ingredient.stock,
+        min_stock: ingredient.min_stock,
+        cost_per_unit: ingredient.cost_per_unit,
+        sku,
+        ...(restored ? { note: "Restored from delete history" } : {}),
+      },
+      req,
+      branch,
+      module: "Stock Inventory",
+      latitude,
+      longitude,
+      role: performed_by_role || "Unknown",
     });
 
     res.json({ success: true, item: ingredient });
@@ -181,36 +259,89 @@ router.post("/ingredients", async (req, res) => {
 router.put("/ingredients/:id", async (req, res) => {
   const client = await pool.connect();
   try {
-    const { name, branch, brand, unit, stock, min_stock, cost_per_unit, extra_fields, perishable, category, performed_by, latitude, longitude, performed_by_role } = req.body;
+    const {
+      name,
+      branch,
+      brand,
+      unit,
+      stock,
+      min_stock,
+      cost_per_unit,
+      bulk_qty,
+      extra_fields,
+      perishable,
+      category,
+      performed_by,
+      latitude,
+      longitude,
+      performed_by_role,
+    } = req.body;
     await client.query("BEGIN");
 
-        const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
-    if (before.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Ingredient not found" }); }
+    const before = await client.query("SELECT * FROM ingredients WHERE id=$1", [
+      req.params.id,
+    ]);
+    if (before.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Ingredient not found" });
+    }
     const oldItem = before.rows[0];
-    const sku = oldItem.sku || await generateUniqueSku(client, { name, brand, category: req.body.category });
+    const sku =
+      oldItem.sku ||
+      (await generateUniqueSku(client, {
+        name,
+        brand,
+        category: req.body.category,
+      }));
 
     const result = await client.query(
       `UPDATE ingredients SET name=$1, branch=$2, brand=$3, unit=$4, stock=$5, min_stock=$6,
- cost_per_unit=$7, extra_fields=$8, perishable=$9, sku=$10, category=$11, updated_at=NOW() WHERE id=$12 RETURNING *`,
-      [name, branch || null, brand || null, unit,
-       parseFloat(stock) || 0, parseFloat(min_stock) || 0,
-       parseFloat(cost_per_unit) || 0, JSON.stringify(extra_fields || {}), !!perishable, sku, category || null, req.params.id]
+ cost_per_unit=$7, bulk_qty=$8, extra_fields=$9, perishable=$10, sku=$11, category=$12, updated_at=NOW() WHERE id=$13 RETURNING *`,
+      [
+        name,
+        branch || null,
+        brand || null,
+        unit,
+        parseFloat(stock) || 0,
+        parseFloat(min_stock) || 0,
+        parseFloat(cost_per_unit) || 0,
+        bulk_qty ? parseFloat(bulk_qty) : null,
+        JSON.stringify(extra_fields || {}),
+        !!perishable,
+        sku,
+        category || null,
+        req.params.id,
+      ],
     );
     const updatedItem = result.rows[0];
-    const updatedProductsCount = await recomputeProductCosts(client, req.params.id);
+    const updatedProductsCount = await recomputeProductCosts(
+      client,
+      req.params.id,
+    );
 
     await client.query(
-      `UPDATE shop_items
-        SET stock = $1,
-            price = ROUND($2::numeric * 1.10, 2)
-      WHERE brand = $3 AND name = $4`,
-      [updatedItem.stock, updatedItem.cost_per_unit, updatedItem.brand, updatedItem.name]
+      `UPDATE shop_items SET stock = $1, price = ROUND($2::numeric * 1.10, 2) WHERE brand = $3 AND name = $4`,
+      [
+        updatedItem.stock,
+        updatedItem.cost_per_unit,
+        updatedItem.brand,
+        updatedItem.name,
+      ],
     );
 
     await client.query("COMMIT");
 
     const changes = {};
-    for (const field of ["name", "branch", "brand", "unit", "stock", "min_stock", "cost_per_unit", "perishable"]) {
+    for (const field of [
+      "name",
+      "branch",
+      "brand",
+      "unit",
+      "stock",
+      "min_stock",
+      "cost_per_unit",
+      "perishable",
+    ]) {
       if (String(oldItem[field] ?? "") !== String(updatedItem[field] ?? ""))
         changes[field] = { from: oldItem[field], to: updatedItem[field] };
     }
@@ -227,7 +358,11 @@ router.put("/ingredients/:id", async (req, res) => {
       role: performed_by_role || "Unknown",
     });
 
-    res.json({ success: true, item: updatedItem, updatedProducts: updatedProductsCount });
+    res.json({
+      success: true,
+      item: updatedItem,
+      updatedProducts: updatedProductsCount,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PUT /ingredients/:id error:", err);
@@ -239,22 +374,37 @@ router.put("/ingredients/:id", async (req, res) => {
 
 router.delete("/ingredients/:id", async (req, res) => {
   try {
-    const { deleted_by, latitude, longitude, performed_by_role } = req.body || {};
+    const { deleted_by, latitude, longitude, performed_by_role } =
+      req.body || {};
 
-    const before = await pool.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
-    if (before.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
+    const before = await pool.query("SELECT * FROM ingredients WHERE id=$1", [
+      req.params.id,
+    ]);
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Ingredient not found" });
     const item = before.rows[0];
 
-    const result = await pool.query("DELETE FROM ingredients WHERE id=$1 RETURNING id", [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
-    
-    await pool.query(`UPDATE shop_items SET stock=0 WHERE ingredient_id=$1`, [req.params.id]);
-    
+    const result = await pool.query(
+      "DELETE FROM ingredients WHERE id=$1 RETURNING id",
+      [req.params.id],
+    );
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Ingredient not found" });
+
+    await pool.query(`UPDATE shop_items SET stock=0 WHERE ingredient_id=$1`, [
+      req.params.id,
+    ]);
+
     await logActivity({
       action: "delete",
       itemName: item.name,
       performedBy: deleted_by || "System",
-      details: { branch: item.branch, unit: item.unit, stock: item.stock, cost_per_unit: item.cost_per_unit },
+      details: {
+        branch: item.branch,
+        unit: item.unit,
+        stock: item.stock,
+        cost_per_unit: item.cost_per_unit,
+      },
       req,
       branch: item.branch,
       module: "Stock Inventory",
@@ -271,16 +421,23 @@ router.delete("/ingredients/:id", async (req, res) => {
 
 router.patch("/ingredients/:id/visibility", async (req, res) => {
   try {
-    const { is_visible, performed_by, latitude, longitude, performed_by_role } = req.body;
+    const { is_visible, performed_by, latitude, longitude, performed_by_role } =
+      req.body;
 
-    const ing = await pool.query("SELECT * FROM ingredients WHERE id=$1", [req.params.id]);
-    if (ing.rows.length === 0) return res.status(404).json({ error: "Ingredient not found" });
+    const ing = await pool.query("SELECT * FROM ingredients WHERE id=$1", [
+      req.params.id,
+    ]);
+    if (ing.rows.length === 0)
+      return res.status(404).json({ error: "Ingredient not found" });
 
     const result = await pool.query(
       `UPDATE shop_items SET is_visible=$1 WHERE ingredient_id=$2 RETURNING *`,
-      [!!is_visible, req.params.id]
+      [!!is_visible, req.params.id],
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Shop item not found for this ingredient" });
+    if (result.rows.length === 0)
+      return res
+        .status(404)
+        .json({ error: "Shop item not found for this ingredient" });
 
     await logActivity({
       action: is_visible ? "show" : "hide",
@@ -304,10 +461,14 @@ router.patch("/ingredients/:id/visibility", async (req, res) => {
 // Ingredient delete history
 router.get("/ingredient-delete-history", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM ingredient_delete_history ORDER BY deleted_at DESC");
+    const result = await pool.query(
+      "SELECT * FROM ingredient_delete_history ORDER BY deleted_at DESC",
+    );
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch ingredient delete history" });
+    res
+      .status(500)
+      .json({ error: "Failed to fetch ingredient delete history" });
   }
 });
 
@@ -315,7 +476,10 @@ router.post("/ingredient-delete-history", async (req, res) => {
   try {
     await pool.query(
       "INSERT INTO ingredient_delete_history (ingredient_data, deleted_by) VALUES ($1,$2)",
-      [JSON.stringify(req.body.ingredient_data), req.body.deleted_by || "Unknown"]
+      [
+        JSON.stringify(req.body.ingredient_data),
+        req.body.deleted_by || "Unknown",
+      ],
     );
     res.json({ success: true });
   } catch (err) {
@@ -325,7 +489,9 @@ router.post("/ingredient-delete-history", async (req, res) => {
 
 router.delete("/ingredient-delete-history/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM ingredient_delete_history WHERE id=$1", [req.params.id]);
+    await pool.query("DELETE FROM ingredient_delete_history WHERE id=$1", [
+      req.params.id,
+    ]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete history entry" });
@@ -336,10 +502,11 @@ router.delete("/ingredient-delete-history/:id", async (req, res) => {
 router.get("/ingredient-batches", async (req, res) => {
   try {
     const { ingredient_id } = req.query;
-    if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
+    if (!ingredient_id)
+      return res.status(400).json({ error: "ingredient_id is required" });
     const result = await pool.query(
       `SELECT * FROM ingredient_batches WHERE ingredient_id=$1 ORDER BY supply_date DESC, created_at DESC`,
-      [ingredient_id]
+      [ingredient_id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -351,11 +518,30 @@ router.post("/ingredient-batches", async (req, res) => {
   const client = await pool.connect();
   try {
     const {
-      ingredient_id, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
-      lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
-      tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction,
+      ingredient_id,
+      stock,
+      mfg_date,
+      exp_date,
+      supply_date,
+      cost_per_unit,
+      supplier,
+      perishable,
+      notes,
+      lot_number,
+      ndc_code,
+      dosage_form,
+      strength,
+      storage_requirement,
+      controlled_substance,
+      tank_id,
+      grade,
+      octane_rating,
+      delivery_temp,
+      truck_id,
+      volume_correction,
     } = req.body;
-    if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
+    if (!ingredient_id)
+      return res.status(400).json({ error: "ingredient_id is required" });
 
     await client.query("BEGIN");
 
@@ -363,7 +549,7 @@ router.post("/ingredient-batches", async (req, res) => {
       `SELECT 
         (SELECT COUNT(*) FROM ingredient_batches WHERE ingredient_id=$1) +
         (SELECT COUNT(*) FROM ingredient_batch_delete_history WHERE ingredient_id=$1) AS total`,
-      [ingredient_id]
+      [ingredient_id],
     );
     const total = parseInt(countResult.rows[0].total) || 0;
     const letter = String.fromCharCode(65 + Math.floor(total / 999));
@@ -377,27 +563,54 @@ router.post("/ingredient-batches", async (req, res) => {
          tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
       [
-        ingredient_id, batch_number, parseFloat(stock) || 0, mfg_date || null, exp_date || null,
-        supply_date || null, parseFloat(cost_per_unit) || 0, supplier || null, !!perishable, notes || null,
-        lot_number || null, ndc_code || null, dosage_form || null, strength || null,
-        storage_requirement || null, !!controlled_substance,
-        tank_id || null, grade || null, octane_rating || null,
-        delivery_temp === '' || delivery_temp == null ? null : Number(delivery_temp),
-        truck_id || null, volume_correction === '' || volume_correction == null ? null : Number(volume_correction),
-      ]
-    );  
+        ingredient_id,
+        batch_number,
+        parseFloat(stock) || 0,
+        mfg_date || null,
+        exp_date || null,
+        supply_date || null,
+        parseFloat(cost_per_unit) || 0,
+        supplier || null,
+        !!perishable,
+        notes || null,
+        lot_number || null,
+        ndc_code || null,
+        dosage_form || null,
+        strength || null,
+        storage_requirement || null,
+        !!controlled_substance,
+        tank_id || null,
+        grade || null,
+        octane_rating || null,
+        delivery_temp === "" || delivery_temp == null
+          ? null
+          : Number(delivery_temp),
+        truck_id || null,
+        volume_correction === "" || volume_correction == null
+          ? null
+          : Number(volume_correction),
+      ],
+    );
 
     const syncResult = await syncIngredientFromBatches(client, ingredient_id);
     const total_stock = syncResult?.totalStock || 0;
     await client.query("COMMIT");
-    
-    const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
+
+    const ingRow = await pool.query(
+      "SELECT name, branch FROM ingredients WHERE id=$1",
+      [ingredient_id],
+    );
     const ing = ingRow.rows[0] || {};
     await logActivity({
       action: "receive",
       itemName: ing.name,
       performedBy: req.body.performed_by || "System",
-      details: { batch_number, stock: parseFloat(stock) || 0, supplier: req.body.supplier || null, exp_date: exp_date || null },
+      details: {
+        batch_number,
+        stock: parseFloat(stock) || 0,
+        supplier: req.body.supplier || null,
+        exp_date: exp_date || null,
+      },
       req,
       branch: ing.branch,
       module: "Stock Inventory",
@@ -418,9 +631,27 @@ router.put("/ingredient-batches/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     const {
-      batch_number, stock, mfg_date, exp_date, supply_date, cost_per_unit, supplier, perishable, notes,
-      lot_number, ndc_code, dosage_form, strength, storage_requirement, controlled_substance,
-      tank_id, grade, octane_rating, delivery_temp, truck_id, volume_correction,
+      batch_number,
+      stock,
+      mfg_date,
+      exp_date,
+      supply_date,
+      cost_per_unit,
+      supplier,
+      perishable,
+      notes,
+      lot_number,
+      ndc_code,
+      dosage_form,
+      strength,
+      storage_requirement,
+      controlled_substance,
+      tank_id,
+      grade,
+      octane_rating,
+      delivery_temp,
+      truck_id,
+      volume_correction,
     } = req.body;
     await client.query("BEGIN");
 
@@ -433,17 +664,38 @@ router.put("/ingredient-batches/:id", async (req, res) => {
         delivery_temp=$19, truck_id=$20, volume_correction=$21, updated_at=NOW()
        WHERE id=$22 RETURNING *`,
       [
-        batch_number || null, parseFloat(stock) || 0, mfg_date || null, exp_date || null, supply_date || null,
-        parseFloat(cost_per_unit) || 0, supplier || null, !!perishable, notes || null,
-        lot_number || null, ndc_code || null, dosage_form || null, strength || null,
-        storage_requirement || null, !!controlled_substance,
-        tank_id || null, grade || null, octane_rating || null,
-        delivery_temp === '' || delivery_temp == null ? null : Number(delivery_temp),
-        truck_id || null, volume_correction === '' || volume_correction == null ? null : Number(volume_correction),
+        batch_number || null,
+        parseFloat(stock) || 0,
+        mfg_date || null,
+        exp_date || null,
+        supply_date || null,
+        parseFloat(cost_per_unit) || 0,
+        supplier || null,
+        !!perishable,
+        notes || null,
+        lot_number || null,
+        ndc_code || null,
+        dosage_form || null,
+        strength || null,
+        storage_requirement || null,
+        !!controlled_substance,
+        tank_id || null,
+        grade || null,
+        octane_rating || null,
+        delivery_temp === "" || delivery_temp == null
+          ? null
+          : Number(delivery_temp),
+        truck_id || null,
+        volume_correction === "" || volume_correction == null
+          ? null
+          : Number(volume_correction),
         req.params.id,
-      ]
+      ],
     );
-    if (result.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Batch not found" }); }
+    if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Batch not found" });
+    }
 
     const ingredient_id = result.rows[0].ingredient_id;
     const syncResult = await syncIngredientFromBatches(client, ingredient_id);
@@ -451,13 +703,20 @@ router.put("/ingredient-batches/:id", async (req, res) => {
 
     await client.query("COMMIT");
 
-    const ingRow = await pool.query("SELECT name, branch FROM ingredients WHERE id=$1", [ingredient_id]);
+    const ingRow = await pool.query(
+      "SELECT name, branch FROM ingredients WHERE id=$1",
+      [ingredient_id],
+    );
     const ing = ingRow.rows[0] || {};
     await logActivity({
       action: "edit",
       itemName: ing.name,
       performedBy: req.body.performed_by || "System",
-      details: { batch_number, stock: parseFloat(stock) || 0, exp_date: exp_date || null },
+      details: {
+        batch_number,
+        stock: parseFloat(stock) || 0,
+        exp_date: exp_date || null,
+      },
       req,
       branch: ing.branch,
       module: "Stock Inventory",
@@ -479,19 +738,27 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const before = await client.query("SELECT ingredient_id FROM ingredient_batches WHERE id=$1", [req.params.id]);
-    if (before.rows.length === 0) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Batch not found" }); }
+    const before = await client.query(
+      "SELECT ingredient_id FROM ingredient_batches WHERE id=$1",
+      [req.params.id],
+    );
+    if (before.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Batch not found" });
+    }
     const { ingredient_id } = before.rows[0];
 
     const batchRow = await client.query(
       `SELECT b.batch_number, i.name AS ingredient_name, i.branch
       FROM ingredient_batches b JOIN ingredients i ON i.id = b.ingredient_id
       WHERE b.id=$1`,
-      [req.params.id]
+      [req.params.id],
     );
     const batchInfo = batchRow.rows[0] || {};
 
-    await client.query("DELETE FROM ingredient_batches WHERE id=$1", [req.params.id]);
+    await client.query("DELETE FROM ingredient_batches WHERE id=$1", [
+      req.params.id,
+    ]);
 
     const syncResult = await syncIngredientFromBatches(client, ingredient_id);
     const total_stock = syncResult?.totalStock || 0;
@@ -524,10 +791,11 @@ router.delete("/ingredient-batches/:id", async (req, res) => {
 router.get("/ingredient-batch-delete-history", async (req, res) => {
   try {
     const { ingredient_id } = req.query;
-    if (!ingredient_id) return res.status(400).json({ error: "ingredient_id is required" });
+    if (!ingredient_id)
+      return res.status(400).json({ error: "ingredient_id is required" });
     const result = await pool.query(
       "SELECT * FROM ingredient_batch_delete_history WHERE ingredient_id=$1 ORDER BY deleted_at DESC",
-      [ingredient_id]
+      [ingredient_id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -541,7 +809,12 @@ router.post("/ingredient-batch-delete-history", async (req, res) => {
     await pool.query(
       `INSERT INTO ingredient_batch_delete_history (batch_data, ingredient_id, ingredient_name, deleted_by)
        VALUES ($1,$2,$3,$4)`,
-      [JSON.stringify(batch_data), ingredient_id, ingredient_name || null, deleted_by || "Unknown"]
+      [
+        JSON.stringify(batch_data),
+        ingredient_id,
+        ingredient_name || null,
+        deleted_by || "Unknown",
+      ],
     );
     res.json({ success: true });
   } catch (err) {
@@ -552,7 +825,10 @@ router.post("/ingredient-batch-delete-history", async (req, res) => {
 
 router.delete("/ingredient-batch-delete-history/:id", async (req, res) => {
   try {
-    await pool.query("DELETE FROM ingredient_batch_delete_history WHERE id=$1", [req.params.id]);
+    await pool.query(
+      "DELETE FROM ingredient_batch_delete_history WHERE id=$1",
+      [req.params.id],
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete batch history entry" });
@@ -566,7 +842,7 @@ router.get("/ingredient-activity-log", async (req, res) => {
        WHERE module = $1
        ORDER BY created_at DESC
        LIMIT 300`,
-      ["Stock Inventory"]
+      ["Stock Inventory"],
     );
     res.json(result.rows);
   } catch (err) {
@@ -584,7 +860,7 @@ router.get("/ingredient-batches/:id/transfer-history", async (req, res) => {
        JOIN orders o ON o.id = t.order_id
        WHERE t.source_batch_id = $1
        ORDER BY t.created_at DESC`,
-      [req.params.id]
+      [req.params.id],
     );
     res.json(result.rows);
   } catch (err) {
@@ -594,3 +870,4 @@ router.get("/ingredient-batches/:id/transfer-history", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.priceFromCost = priceFromCost;
