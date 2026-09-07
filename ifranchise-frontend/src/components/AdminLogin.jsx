@@ -10,6 +10,15 @@ import FranchiseAdminDashboard from "./FranchiseAdminDashboard";
 import SalesAdmin from "./SalesAdmin";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
+const TEST_ACCOUNTS = [
+  { email: "superadmin@test.com", password: "Superadmin123!" },
+  { email: "foa@test.com", password: "FOAdmin123!" },
+  { email: "salesadmin@test.com", password: "Salesadmin123!" },
+  { email: "franchisee@test.com", password: "Franchisee123!" },
+  { email: "manager@test.com", password: "Manager123!" },
+  { email: "staff@test.com", password: "Staff123!" },
+];
+
 const getBrowserLocation = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -221,6 +230,30 @@ export default function AdminLogin() {
 
   const [rememberMe, setRememberMe] = useState(false);
   const [coords, setCoords] = useState(null);
+  const loginInFlight = useRef(false);
+  const otpInFlight = useRef(false);
+  const locationRequest = useRef(null);
+
+  // Start the existing location lookup while the user enters credentials.
+  // Login still awaits its result, preserving the location payload contract.
+  const prepareLocation = () => {
+    if (!locationRequest.current || Date.now() - locationRequest.current.startedAt > 60000) {
+      locationRequest.current = {
+        startedAt: Date.now(),
+        promise: getBrowserLocation(),
+      };
+    }
+    return locationRequest.current.promise;
+  };
+
+  const fillTestAccount = (account) => {
+    if (loginInFlight.current || loading) return;
+    setEmail(account.email);
+    setPassword(account.password);
+    setErrors({});
+    setAuthError("");
+    prepareLocation();
+  };
 
   const clearDashboardSessions = () => {
   sessionStorage.removeItem('sa_activeModule');
@@ -302,6 +335,12 @@ useEffect(() => {
   setIsCheckingSession(false);
 }, []);
 
+  // Keep the required three-second welcome splash.
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // ── Login lockout from storage ──
   useEffect(() => {
     if (!email) return;
@@ -327,10 +366,6 @@ useEffect(() => {
     }
   }, [email]);
 
-  useEffect(() => {
-    const t = setTimeout(() => setShowSplash(false), 3000);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     if (!isLocked || !lockoutTime || !email) return;
@@ -419,16 +454,19 @@ useEffect(() => {
   };
 
   const login = async () => {
+  if (loginInFlight.current || loading) return;
   if (isLocked) { setAuthError(`Account locked. Try again in ${getRemainingLockoutTime()}`); return; }
   setAuthError(""); setOtpError("");
   const newErrors = {};
-  if (!email) newErrors.email = "Email is required";
+  if (!email.trim()) newErrors.email = "Email is required";
   if (!password) newErrors.password = "Password is required";
   if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
 
+  loginInFlight.current = true;
+  setErrors({});
   setLoading("login");
   try {
-    const locationCoords = await getBrowserLocation();
+    const locationCoords = await prepareLocation();
     setCoords(locationCoords);
 
     const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
@@ -436,14 +474,21 @@ useEffect(() => {
       headers: { "Content-Type": "application/json", "X-Client": "web", "X-Device-ID": getOrCreateLocalDeviceId() },
       body: JSON.stringify({
         email: email.trim(),
-        password: password.trim(),
-        latitude: locationCoords?.latitude || null,
-        longitude: locationCoords?.longitude || null,
+        password,
+        latitude: locationCoords?.latitude ?? null,
+        longitude: locationCoords?.longitude ?? null,
       }),
       credentials: "include",
     });
       const data = await res.json();
-      if (!res.ok) { incrementAttempts(); setAuthError(data.message || "Invalid credentials"); return; }
+      if (!res.ok) {
+        if (res.status >= 500 || res.status === 429) {
+          setAuthError(data.message || "The server is busy. Please try again shortly.");
+        } else {
+          incrementAttempts();
+        }
+        return;
+      }
       if (data.success) {
         setLoginAttempts(0);
         localStorage.removeItem(`loginAttempts_${email.toLowerCase()}`);
@@ -466,9 +511,12 @@ useEffect(() => {
 
           await sendOtpSilent(email.trim());
           setStep("otp");
+       } else {
+         setAuthError(data.message || "Unable to sign in. Please check your credentials.");
        }
     } catch { setAuthError("Connection error. Please try again."); 
      } finally {
+    loginInFlight.current = false;
     setLoading("");
      }
   };
@@ -524,6 +572,7 @@ useEffect(() => {
 };
 
 const verifyOtp = async (overrideVal) => {
+  if (otpInFlight.current || loading) return;
   setOtpError("");
   if (otpLockedUntil && Date.now() < otpLockedUntil) {
     setOtpError(`Too many attempts. Try again in ${otpLockRemaining}.`);
@@ -532,6 +581,7 @@ const verifyOtp = async (overrideVal) => {
   const val = overrideVal || otp.join(""); 
   if (val.length !== 6) { setOtpError("Please enter a valid 6-digit OTP"); return; }
 
+  otpInFlight.current = true;
   setLoading("otp");
   try {
     const res = await fetch(`${process.env.REACT_APP_API_URL}/verify-otp-login`, {
@@ -571,7 +621,7 @@ const verifyOtp = async (overrideVal) => {
         setLoggedIn(true); 
         setUserRole(user.role);
       } catch { setOtpError("OTP verification failed"); 
-      } finally { setLoading(""); }
+      } finally { otpInFlight.current = false; setLoading(""); }
     };
 
 
@@ -841,8 +891,12 @@ const resetPassword = async () => {
     return -1;
   };
 
-  if (isCheckingSession) return 
-    <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
+  if (isCheckingSession) return (
+    <div className="splash" role="status" aria-label="Checking session">
+      <img src={logo} alt="iFranchise" className="splash-logo" />
+      <style>{styles(welcome)}</style>
+    </div>
+  );
 
   if (loggedIn && userRole) {
   switch (userRole) {
@@ -867,7 +921,13 @@ const resetPassword = async () => {
       );
   }
 }
-  if (showSplash) return <div className="splash"><img src={logo} alt="logo" className="splash-logo" /><style>{styles(welcome)}</style></div>;
+
+  if (showSplash) return (
+    <div className="splash">
+      <img src={logo} alt="iFranchise" className="splash-logo" />
+      <style>{styles(welcome)}</style>
+    </div>
+  );
 
   const otpIsLocked = otpLockedUntil && Date.now() < otpLockedUntil;
   const forgotOtpIsLocked = forgotOtpLockedUntil && Date.now() < forgotOtpLockedUntil;
@@ -951,34 +1011,49 @@ const resetPassword = async () => {
         {step === "login" && (
           <>
             <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-             <button type="button" className="back-btn" onClick={() => navigate("/")}>← Back</button>
+             <button type="button" className="back-btn" disabled={!!loading} onClick={() => navigate("/")}>← Back</button>
             <span className="eyebrow">Welcome, Partner!</span>
             <h2 style={{ marginTop: 8 }}>LOGIN</h2>
             <p className="login-subtext">Enter your credentials below</p>
             {authError && <p className="error general">{authError}</p>}
             <div className="input-container">
-              <input placeholder="Email" value={email}
+              <input type="email" name="email" aria-label="Email" autoComplete="username" autoCapitalize="none" spellCheck={false} onFocus={prepareLocation} disabled={!!loading} placeholder="Email" value={email}
                 onChange={(e) => { setEmail(e.target.value); setErrors({ ...errors, email: "" }); setAuthError(""); }}
-                onKeyPress={(e) => e.key === "Enter" && login()} />
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); login(); } }} />
               {errors.email && <span className="field-error">{errors.email}</span>}
             </div>
             <div className="input-container">
               <div className="password-wrap">
-                <input type={showPassword ? "text" : "password"} placeholder="Password" value={password}
+                <input type={showPassword ? "text" : "password"} placeholder="Password" name="password" aria-label="Password" autoComplete="current-password" onFocus={prepareLocation} disabled={!!loading} value={password}
                   onChange={(e) => { setPassword(e.target.value); setErrors({ ...errors, password: "" }); setAuthError(""); }}
-                  onKeyPress={(e) => e.key === "Enter" && login()}
-                  onCopy={preventCopyPaste} onPaste={preventCopyPaste} onCut={preventCopyPaste}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); login(); } }}
                   className="password-input" />
                 <button type="button" className="eye-btn" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {errors.password && <span className="field-error">{errors.password}</span>}
-              <button className="forgot-link" onClick={handleForgotPasswordOpen}>Forgot Password?</button>
+              <button className="forgot-link" disabled={!!loading} onClick={handleForgotPasswordOpen}>Forgot Password?</button>
             </div>
-            <button className="btn" onClick={login} disabled={loading === "login"}>
+            <button className="btn" onClick={login} disabled={!!loading || isLocked}>
               {loading === "login" ? <><span className="sms-spinner" /> Logging in...</> : "LOGIN"}
             </button>
+            <aside className="survey-test-box" aria-label="Survey test credentials">
+              <strong className="survey-test-title">FOR TESTING PURPOSES ONLY:</strong>
+              <p className="survey-test-note">Default accounts for survey purposes only. Select an account to fill the fields, then click LOGIN.</p>
+              {TEST_ACCOUNTS.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  className="survey-test-account"
+                  disabled={!!loading}
+                  onClick={() => fillTestAccount(account)}
+                  aria-label={`Use ${account.email}`}
+                >
+                  <span>{account.email}</span>{" - "}<strong>{account.password}</strong>
+                </button>
+              ))}
+            </aside>
           </>
         )}
 
@@ -1546,6 +1621,16 @@ input:disabled { background:#f0f1ec; color:#888; cursor:not-allowed; }
   color: var(--green-900);
   margin: -8px 0 16px;
 }
+
+/* Survey credentials stay compact inside the existing login card. */
+.survey-test-box { margin-top:20px; padding:12px; background:var(--cream); border:1px solid var(--line); border-radius:12px; text-align:left; }
+.survey-test-title { display:block; color:var(--green-900); font-size:10px; letter-spacing:.4px; }
+.survey-test-note { margin:5px 0 8px; font-size:11px; line-height:1.5; }
+.survey-test-account { display:block; width:100%; padding:7px 3px; border:0; border-bottom:1px solid var(--line); border-radius:4px; background:transparent; color:var(--ink); font-size:10px; line-height:1.6; text-align:left; overflow-wrap:anywhere; cursor:pointer; }
+.survey-test-account:last-child { border-bottom:0; }
+.survey-test-account:hover:not(:disabled) { background:var(--pale); }
+.survey-test-account:focus-visible { outline:2px solid var(--green-900); outline-offset:2px; }
+.survey-test-account:disabled, .btn:disabled { opacity:.6; cursor:not-allowed; }
 
 /* ── Done state ── */
 .done-wrap { display:flex; flex-direction:column; align-items:center; padding:10px 0; }
