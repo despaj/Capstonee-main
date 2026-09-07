@@ -18019,7 +18019,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
     manager: "",
     contact: "",
     address: "",
-    concept: "",
   };
   const [brandForm, setBrandForm] = useState(emptyBrand);
   const [branchForm, setBranchForm] = useState(emptyBranch);
@@ -18593,32 +18592,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
       return true;
     });
 
-  const ConceptBadge = ({ concept }) => {
-    const styles = {
-      "Full Store": { bg: "rgba(16,185,129,0.1)", color: "#059669" },
-      Kiosk: { bg: "rgba(59,130,246,0.1)", color: "#2563eb" },
-    };
-    const s = styles[concept] || {
-      bg: "rgba(156,163,175,0.1)",
-      color: "#6b7280",
-    };
-    return (
-      <span
-        style={{
-          background: s.bg,
-          color: s.color,
-          padding: "3px 10px",
-          borderRadius: 20,
-          fontSize: 11,
-          fontWeight: 700,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {concept || "—"}
-      </span>
-    );
-  };
-
   const thSt = {
     padding: "9px 12px",
     textAlign: "left",
@@ -18984,12 +18957,11 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
                   }}
                 >
                   <colgroup>
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "11%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "13%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "24%" }} />
                     <col style={{ width: "8%" }} />
                   </colgroup>
                   <thead>
@@ -19000,7 +18972,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
                         "Manager",
                         "Contact",
                         "Address",
-                        "Concept",
                         "Actions",
                       ].map((h) => (
                         <th key={h} style={thSt}>
@@ -19013,7 +18984,7 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
                     {!brand.branches || brand.branches.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={6}
                           style={{
                             padding: "24px 20px",
                             color: "#5a7a65",
@@ -19102,15 +19073,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
                           >
                             {branch.address || "—"}
                           </td>
-                          <td style={tdSt}>
-                            {brand.name === "Coffee Spot" ? (
-                              <ConceptBadge concept={branch.concept} />
-                            ) : (
-                              <span style={{ color: "#9ca3af", fontSize: 12 }}>
-                                —
-                              </span>
-                            )}
-                          </td>
                           <td style={{ ...tdSt, whiteSpace: "nowrap" }}>
                             <div
                               style={{
@@ -19130,7 +19092,6 @@ function BrandManagementContent({ user, brands: propBrands, onBrandsChange }) {
                                     manager: branch.manager,
                                     contact: branch.contact,
                                     address: branch.address,
-                                    concept: branch.concept || "",
                                   });
                                   setShowEditBranchModal(true);
                                 }}
@@ -26048,9 +26009,6 @@ function CreateAccountModal({
         return;
       }
 
-      // The applicant is the new franchisee — their assigned branch doesn't
-      // exist yet, so create it under the selected brand now that the
-      // account itself succeeded.
       const branchRes = await fetch(
         `${process.env.REACT_APP_API_URL}/branches`,
         {
@@ -26059,6 +26017,10 @@ function CreateAccountModal({
           body: JSON.stringify({
             name: branch,
             brand_id: selectedBrandId,
+            region: null,
+            manager: null,
+            contact: phone,
+            address: null,
             performed_by: user?.name || "System",
             role: user?.role || "Unknown",
             latitude: coords?.latitude,

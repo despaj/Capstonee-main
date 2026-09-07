@@ -471,17 +471,6 @@ const EXPIRY_STYLE = {
   },
 };
 
-const BRAND_DEFS = [
-  { key: "coffee", label: "Coffee Spot", match: (n) => n.includes("coffee") },
-  {
-    key: "foodcaravan",
-    label: "Food Caravan",
-    match: (n) => n.includes("food caravan"),
-  },
-  { key: "ipharma", label: "iPharma", match: (n) => n.includes("ipharma") },
-  { key: "ifuel", label: "iFuel", match: (n) => n.includes("ifuel") },
-];
-
 function isPharmaBrand(brand) {
   return (brand || "").toLowerCase().includes("ipharma");
 }
@@ -7537,13 +7526,23 @@ export default function StockInventoryContent({
 
   const brandList = propBrands.length > 0 ? propBrands : [];
 
-  const connectedBrandDefs = useMemo(
+  const brandDefsFromList = useMemo(
     () =>
-      BRAND_DEFS.filter((bd) =>
-        brandList.some((b) => bd.match((b.name || "").toLowerCase())),
-      ),
+      brandList
+        .map((b) => ({
+          key: String(b.id),
+          label: b.name,
+          match: (n) =>
+            n ===
+            String(b.name || "")
+              .trim()
+              .toLowerCase(),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
     [brandList],
   );
+
+  const connectedBrandDefs = brandDefsFromList;
 
   const ownBrandDef = useMemo(() => {
     if (isAdmin || !userBranch) return null;
@@ -7734,11 +7733,11 @@ export default function StockInventoryContent({
 
   useEffect(() => {
     if (!initialFocus?.brand) return;
-    const matchedDef = BRAND_DEFS.find((bd) =>
+    const matchedDef = brandDefsFromList.find((bd) =>
       bd.match(initialFocus.brand.toLowerCase()),
     );
     if (matchedDef) setActiveBrandKey(matchedDef.key);
-  }, [initialFocus]);
+  }, [initialFocus, brandDefsFromList]);
 
   useEffect(() => {
     fetchItems();
@@ -9710,7 +9709,7 @@ export default function StockInventoryContent({
       {showDeleteHistory && (
         <DeleteHistoryPanel
           history={deleteHistoryForBrand(
-            BRAND_DEFS.find((bd) => bd.key === deleteHistoryBrandKey) ||
+            brandDefsFromList.find((bd) => bd.key === deleteHistoryBrandKey) ||
               activeBrandDef,
           )}
           restoringId={restoringId}

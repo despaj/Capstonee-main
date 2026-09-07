@@ -4348,44 +4348,124 @@ const placeholderImageFor = (name) =>
   `https://placehold.co/150x150/e8f5e9/2e7d32?text=${encodeURIComponent((name || "").slice(0, 8))}`;
 
 function SalesMobileShopContent({ user, brands: propBrands = [] }) {
-  const [activityLog,     setActivityLog]     = useState([]);
-  const [shopItems,       setShopItems]       = useState([]);
-  const [itemsLoading,    setItemsLoading]    = useState(true);
-  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null);
-  const [deleteLoading,   setDeleteLoading]   = useState(false);
-  const [editingItem,     setEditingItem]     = useState(null);
-  const [editErrors,      setEditErrors]      = useState({});
-  const [editLoading,     setEditLoading]     = useState(false);
-  const [searchQuery,     setSearchQuery]     = useState("");
-  const [filterShop,      setFilterShop]      = useState("all");
-  const [stockItems,      setStockItems]      = useState([]);
-  const [toast,           setToast]           = useState(null);
-  const [selectedKeys,    setSelectedKeys]    = useState(() => new Set());
-  const [bulkListing,     setBulkListing]     = useState(false);
-  const [filterListed,    setFilterListed]    = useState("all");
+  const [activityLog, setActivityLog] = useState([]);
+  const [shopItems, setShopItems] = useState([]); // listing overrides keyed to a stock product
+  const [itemsLoading, setItemsLoading] = useState(true);
+  const [confirmDeleteItem, setConfirmDeleteItem] = useState(null); // item pending unlist confirmation (modal)
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editErrors, setEditErrors] = useState({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterShop, setFilterShop] = useState("all");
+  const [stockItems, setStockItems] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [selectedKeys, setSelectedKeys] = useState(() => new Set()); // multi-select for bulk listing
+  const [bulkListing, setBulkListing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const editImageRef = useRef(null);
+  const ITEMS_PER_PAGE = 10;
+  const UNITS = [
+    "pcs",
+    "kg",
+    "g",
+    "liters",
+    "ml",
+    "tbsp",
+    "tsp",
+    "cups",
+    "bottles",
+    "packs",
+    "bags",
+    "boxes",
+    "cans",
+    "gallons",
+  ];
+
+  const computeDisplayPrice = (cost, unit, bulkQtyOverride) => {
+    const bulkQty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
+            ? 200
+            : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
+                ? 50
+                : 1;
+    return Math.round(Number(cost || 0) * bulkQty * 1.12 * 100) / 100;
+  };
+
+  const PACK_NAME_FOR_UNIT = {
+    g: "kg",
+    ml: "liters",
+    liters: "drums",
+    kg: "cylinders",
+    pcs: "packs",
+    bottles: "cases",
+    packs: "cartons",
+    bags: "sacks",
+    boxes: "crates",
+    cans: "cases",
+    gallons: "drums",
+    tbsp: "bottles",
+    tsp: "bottles",
+    cups: "packs",
+  };
+
+  const bulkLabelFor = (unit, bulkQtyOverride) => {
+    if (!unit) return "";
+    const qty =
+      Number(bulkQtyOverride) > 0
+        ? Number(bulkQtyOverride)
+        : ["g", "ml"].includes(unit)
+          ? 1000
+          : unit === "liters"
+            ? 200
+            : unit === "kg"
+              ? 50
+              : ["pcs", "bottles"].includes(unit)
+                ? 50
+                : 1;
+    const packName = PACK_NAME_FOR_UNIT[unit] || unit;
+    return `${packName} (${qty}${unit})`;
+  };
+
+  const markupLabelFor = () => "+ 12%";
 
   const fetchActivityLog = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-activity-log`);
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/shop-activity-log`,
+      );
       const data = await res.json();
-      setActivityLog(Array.isArray(data) ? data.map(row => ({
-        id: row.id, action: row.action,
-        itemName: row.item_name ?? row.itemName,
-        shop: row.shop,
-        performedBy: row.performed_by ?? row.performedBy,
-        role: row.role,
-        changes: row.changes,
-        timestamp: row.created_at ?? row.timestamp,
-      })) : []);
-    } catch (err) { console.error("Failed to fetch shop activity log:", err); }
+      setActivityLog(
+        Array.isArray(data)
+          ? data.map((row) => ({
+              id: row.id,
+              action: row.action,
+              itemName: row.item_name ?? row.itemName,
+              shop: row.shop,
+              performedBy: row.performed_by ?? row.performedBy,
+              role: row.role,
+              changes: row.changes,
+              timestamp: row.created_at ?? row.timestamp,
+            }))
+          : [],
+      );
+    } catch (err) {
+      console.error("Failed to fetch shop activity log:", err);
+    }
   }, []);
 
+  // Listing overrides for products that have been set up for the Mobile Shop.
+  // Stock Inventory remains the source of the product list and live cost.
   const fetchShopItems = useCallback(async () => {
     setItemsLoading(true);
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`);
       const data = await res.json();
       setShopItems(Array.isArray(data) ? data : []);
     } catch {
@@ -4395,12 +4475,18 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
     }
   }, []);
 
+  // Stock Inventory ingredients — this is the single source of truth for
+  // which products can appear in the Mobile Shop at all, and for cost.
   const fetchStockItems = useCallback(async () => {
     try {
-      const res  = await fetch(`${process.env.REACT_APP_API_URL}/ingredients`);
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/ingredients?branch=${encodeURIComponent("Head Office")}`,
+      );
       const data = await res.json();
       setStockItems(Array.isArray(data) ? data : []);
-    } catch { setStockItems([]); }
+    } catch {
+      setStockItems([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -4409,59 +4495,112 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
     fetchActivityLog();
   }, [fetchShopItems, fetchStockItems, fetchActivityLog]);
 
-  const getCostFor = useCallback((brandName, itemName) => {
-    const b = normalize(brandName), n = normalize(itemName);
-    const match = stockItems.find((i) => normalize(i.brand) === b && normalize(i.name) === n);
-    return match ? Number(match.cost_per_unit || 0) : 0;
-  }, [stockItems]);
+  // Pull the live unit cost from Stock Inventory. The shop price is always
+  // derived from this — never entered by hand — so it stays in sync
+  // automatically whenever cost changes upstream.
+  const getCostFor = useCallback(
+    (brandName, itemName) => {
+      const b = normalize(brandName),
+        n = normalize(itemName);
+      const match = stockItems.find(
+        (i) => normalize(i.brand) === b && normalize(i.name) === n,
+      );
+      return match ? Number(match.cost_per_unit || 0) : 0;
+    },
+    [stockItems],
+  );
 
   const uniqueStockProducts = useMemo(() => {
     const seen = new Map();
     stockItems.forEach((si) => {
       if (!si.brand || !si.name) return;
       const key = `${normalize(si.brand)}|${normalize(si.name)}`;
-      if (!seen.has(key)) seen.set(key, { id: si.id, brand: si.brand, name: si.name });
+      if (!seen.has(key))
+        seen.set(key, {
+          brand: si.brand,
+          name: si.name,
+          unit: si.unit,
+          bulk_qty: si.bulk_qty,
+        });
     });
-    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(seen.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
   }, [stockItems]);
 
   const items = useMemo(() => {
     return uniqueStockProducts.map((sp) => {
       const match = shopItems.find(
-        (i) => normalize(i.brand) === normalize(sp.brand) && normalize(i.name) === normalize(sp.name)
+        (i) =>
+          normalize(i.brand) === normalize(sp.brand) &&
+          normalize(i.name) === normalize(sp.name),
       );
       const liveCost = getCostFor(sp.brand, sp.name);
       return {
         id: match ? match.id : null,
-        ingredient_id: sp.id,
         name: sp.name,
         brand: sp.brand,
         shop: match ? match.shop : sp.brand,
         cost: liveCost,
-        price: computePrice(liveCost),
-        unit: match ? match.unit : "",
-        image_url: match ? match.image_url : "",
+        bulk_qty: sp.bulk_qty,
+        price: match
+          ? Number(match.price)
+          : computeDisplayPrice(liveCost, sp.unit, sp.bulk_qty),
+        unit: match ? match.unit : sp.unit,
         is_visible: match ? !!match.is_visible : false,
         listed: !!match,
       };
     });
   }, [uniqueStockProducts, shopItems, getCostFor]);
 
-  const uniqueShops = [...new Set(items.map((i) => i.shop).filter(Boolean))];
+  const uniqueShops = [
+    ...new Set(items.map((i) => i.brand).filter(Boolean)),
+  ].sort();
 
   const filteredItems = items.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesQuery =
       !q ||
       item.name?.toLowerCase().includes(q) ||
-      item.shop?.toLowerCase().includes(q);
+      item.brand?.toLowerCase().includes(q);
     if (!matchesQuery) return false;
-    if (filterShop !== "all" && item.shop !== filterShop) return false;
-    if (filterListed === "listed" && !item.listed) return false;
-    if (filterListed === "unlisted" && item.listed) return false;
+    if (filterShop !== "all" && item.brand !== filterShop) return false;
     return true;
   });
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredItems.length / ITEMS_PER_PAGE),
+  );
+  const pageStartIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedItems = filteredItems.slice(
+    pageStartIndex,
+    pageStartIndex + ITEMS_PER_PAGE,
+  );
+  const pageStartDisplay = filteredItems.length === 0 ? 0 : pageStartIndex + 1;
+  const pageEndDisplay = Math.min(
+    pageStartIndex + ITEMS_PER_PAGE,
+    filteredItems.length,
+  );
+
+  const visiblePages = useMemo(() => {
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    start = Math.max(1, end - maxVisible + 1);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterShop]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  // Clear out any selected keys that no longer exist in the current item set
+  // (e.g. a product was removed from Stock Inventory).
   useEffect(() => {
     setSelectedKeys((prev) => {
       const validKeys = new Set(items.map(keyFor));
@@ -4484,37 +4623,16 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
     });
   };
 
-  const allFilteredSelected = filteredItems.length > 0 && filteredItems.every((i) => selectedKeys.has(keyFor(i)));
-  const toggleSelectAllFiltered = () => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (allFilteredSelected) {
-        filteredItems.forEach((i) => next.delete(keyFor(i)));
-      } else {
-        filteredItems.forEach((i) => next.add(keyFor(i)));
-      }
-      return next;
-    });
-  };
-
   const selectedItems = items.filter((i) => selectedKeys.has(keyFor(i)));
   const selectedUnlistedCount = selectedItems.filter((i) => !i.listed).length;
   const allUnlistedCount = filteredItems.filter((i) => !i.listed).length;
 
   const validateEdit = () => {
     const errs = {};
-    if (!editingItem.cost || editingItem.cost <= 0) errs.cost = "Set a cost for this product in Stock Inventory first";
+    if (!editingItem.cost || editingItem.cost <= 0)
+      errs.cost = "Set a cost for this product in Stock Inventory first";
     setEditErrors(errs);
     return Object.keys(errs).length === 0;
-  };
-
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setEditingItem((prev) => ({ ...prev, image_url: ev.target.result }));
-    reader.readAsDataURL(file);
-    e.target.value = "";
   };
 
   const openEditor = (item) => {
@@ -4522,19 +4640,19 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
     setEditErrors({});
   };
 
+  // Creates the listing (POST) the first time a product is edited, or
+  // updates it (PUT) if a listing already exists. Stock is not part of
+  // this payload's concern here — price is always synced live from
+  // Stock Inventory, never entered manually.
   const saveEdit = async () => {
     if (editLoading || !validateEdit()) return;
     setEditLoading(true);
     const coords = await getBrowserLocation();
-    const liveCost = getCostFor(editingItem.brand, editingItem.name);
     const payload = {
       name: editingItem.name,
-      price: computePrice(liveCost),
       unit: editingItem.unit || "",
-      image_url: editingItem.image_url || placeholderImageFor(editingItem.name),
       shop: editingItem.brand,
       brand: editingItem.brand,
-      ingredient_id: editingItem.ingredient_id || null,
       is_visible: editingItem.is_visible !== false,
       performed_by: user?.name || "System",
       performed_by_role: user?.role || "Unknown",
@@ -4542,9 +4660,15 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
       longitude: coords?.longitude,
     };
     try {
-      const url    = editingItem.id ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}` : `${process.env.REACT_APP_API_URL}/shop-items`;
+      const url = editingItem.id
+        ? `${process.env.REACT_APP_API_URL}/shop-items/${editingItem.id}`
+        : `${process.env.REACT_APP_API_URL}/shop-items`;
       const method = editingItem.id ? "PUT" : "POST";
-      await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       setToast({
         type: "success",
         title: editingItem.id ? "Item Updated" : "Item Listed",
@@ -4557,31 +4681,37 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
       fetchShopItems();
       fetchActivityLog();
     } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to save changes." });
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to save changes.",
+      });
     } finally {
       setEditLoading(false);
     }
   };
 
+  // Bulk-list one or more not-yet-listed products in a single action.
   const bulkListItems = async (candidateItems) => {
     const toList = candidateItems.filter((i) => !i.listed);
     if (toList.length === 0) {
-      setToast({ type: "error", title: "Nothing to List", message: "All selected items are already listed." });
+      setToast({
+        type: "error",
+        title: "Nothing to List",
+        message: "All selected items are already listed.",
+      });
       return;
     }
     setBulkListing(true);
     const coords = await getBrowserLocation();
-    let success = 0, failed = 0;
+    let success = 0,
+      failed = 0;
     for (const it of toList) {
-      const liveCost = getCostFor(it.brand, it.name);
       const payload = {
         name: it.name,
-        price: computePrice(liveCost),
         unit: it.unit || "",
-        image_url: it.image_url || placeholderImageFor(it.name),
         shop: it.brand,
         brand: it.brand,
-        ingredient_id: it.ingredient_id || null,
         is_visible: true,
         performed_by: user?.name || "System",
         performed_by_role: user?.role || "Unknown",
@@ -4590,10 +4720,15 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
       };
       try {
         const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-        if (res.ok) success++; else failed++;
-      } catch { failed++; }
+        if (res.ok) success++;
+        else failed++;
+      } catch {
+        failed++;
+      }
     }
     setBulkListing(false);
     setSelectedKeys(new Set());
@@ -4602,179 +4737,239 @@ function SalesMobileShopContent({ user, brands: propBrands = [] }) {
     setToast({
       type: failed > 0 ? "error" : "success",
       title: "Bulk Listing Complete",
-      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}. Add photos anytime via Edit.`,
+      message: `${success} item${success === 1 ? "" : "s"} listed${failed > 0 ? `, ${failed} failed` : ""}.`,
     });
   };
 
-  const bulkUnlistItems = async (candidateItems) => {
-    const toUnlist = candidateItems.filter((i) => i.listed);
-    if (toUnlist.length === 0) {
-      setToast({ type: "error", title: "Nothing to Unlist", message: "None of the selected items are listed." });
+  const deleteItem = async (item) => {
+    if (!item.id) {
+      setConfirmDeleteItem(null);
       return;
     }
-    setBulkListing(true);
+    setDeleteLoading(true);
     const coords = await getBrowserLocation();
-    let success = 0, failed = 0;
-    for (const it of toUnlist) {
-      try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${it.id}`, {
-          method: "DELETE",
+    try {
+      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deleted_by: user?.name || "System",
+          performed_by_role: user?.role || "Unknown",
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        }),
+      });
+      setToast({
+        type: "success",
+        title: "Listing Removed",
+        message: `"${item.name}" is no longer listed in the Mobile Shop.`,
+      });
+    } catch {
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to remove the listing.",
+      });
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDeleteItem(null);
+      fetchShopItems();
+      fetchActivityLog();
+    }
+  };
+
+  const toggleVisibility = async (item) => {
+    if (!item.id) return; // nothing to toggle until it's listed
+    const coords = await getBrowserLocation();
+    try {
+      await fetch(
+        `${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`,
+        {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            deleted_by: user?.name || "System",
+            performed_by: user?.name || "System",
             performed_by_role: user?.role || "Unknown",
             latitude: coords?.latitude,
             longitude: coords?.longitude,
           }),
-        });
-        if (res.ok) success++; else failed++;
-      } catch { failed++; }
-    }
-    setBulkListing(false);
-    setSelectedKeys(new Set());
-    fetchShopItems();
-    fetchActivityLog();
-    setToast({
-      type: failed > 0 ? "error" : "success",
-      title: "Bulk Unlisting Complete",
-      message: `${success} item${success === 1 ? "" : "s"} unlisted${failed > 0 ? `, ${failed} failed` : ""}.`,
-    });
-  };
-
-const deleteItem = async (item) => {
-  if (!item.id) { setConfirmDeleteItem(null); return; }
-  setDeleteLoading(true);
-  const coords = await getBrowserLocation();
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleted_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 409) {
-        setConfirmDeleteItem(null);
-        setBlockedUnlistItem(item);
-      } else {
-        setToast({ type: "error", title: "Failed to Unlist", message: data.error || "An unexpected error occurred." });
-        setConfirmDeleteItem(null);
-      }
-      return;
-    }
-
-    setToast({ type: "success", title: "Listing Removed", message: `"${item.name}" is no longer listed in the Mobile Shop.` });
-    setConfirmDeleteItem(null);
-  } catch {
-    setToast({ type: "error", title: "Connection Error", message: "Failed to remove the listing." });
-    setConfirmDeleteItem(null);
-  } finally {
-    setDeleteLoading(false);
-    fetchShopItems();
-    fetchActivityLog();
-  }
-};
-
-  const toggleVisibility = async (item) => {
-    if (!item.id) return;
-    const coords = await getBrowserLocation();
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/shop-items/${item.id}/toggle`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ performed_by: user?.name || "System", performed_by_role: user?.role || "Unknown", latitude: coords?.latitude, longitude: coords?.longitude }),
-      });
+        },
+      );
       fetchShopItems();
       fetchActivityLog();
     } catch {
-      setToast({ type: "error", title: "Connection Error", message: "Failed to update visibility." });
+      setToast({
+        type: "error",
+        title: "Connection Error",
+        message: "Failed to update visibility.",
+      });
     }
   };
 
   const [blockedUnlistItem, setBlockedUnlistItem] = useState(null);
 
   const forceHide = async (item) => {
-    if (!item.id || item.is_visible === false) { setBlockedUnlistItem(null); return; }
+    if (!item.id || item.is_visible === false) {
+      setBlockedUnlistItem(null);
+      return;
+    }
     await toggleVisibility(item);
     setBlockedUnlistItem(null);
   };
 
-  const PhotoPicker = ({ value, onPick, onRemove, inputRef, error }) => (
-    <Field label="Photo (optional)" error={error}>
-      <div
-        onClick={() => inputRef.current.click()}
-        style={{
-          cursor: "pointer", borderRadius: 12, background: C.bg, textAlign: "center", marginTop: 6,
-          border: `1.5px dashed ${error ? C.red : C.border}`,
-          padding: value ? 8 : "22px 8px", transition: "border-color .15s, background .15s",
-        }}
-      >
-        {value ? (
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <img src={value} alt="preview" style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: `1px solid ${C.border}`, display: "block", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
-            <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20, borderRadius: "50%", border: "2px solid #fff", background: C.red, color: "#fff", fontSize: 11, lineHeight: 1, cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
-              <X size={13} />
-            </button>
-          </div>
-        ) : (
-          <div style={{ color: C.muted, fontSize: 12, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            <div style={{ fontSize: 22, marginBottom: 4 }}></div>
-            Click to upload photo
-            <div style={{ fontSize: 10.5, marginTop: 4, opacity: 0.75 }}>optional</div>
-          </div>
-        )}
-      </div>
-    </Field>
-  );
-
   return (
-    <div style={{ maxWidth: 1040, margin: "0 auto", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div
+      style={{
+        maxWidth: 1040,
+        margin: "0 auto",
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}
+    >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        .msc-row { cursor: pointer; transition: background .15s ease; }
-        .msc-row:hover td { background: #f6fef8 !important; }
-        .msc-row.selected td { background: ${C.greenLt} !important; }
-        .msc-btn:not(:disabled):hover { filter: brightness(0.96); transform: translateY(-1px); }
-        .msc-btn:not(:disabled):active { transform: translateY(0); }
-        .msc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .msc-btn { transition: filter .12s ease, transform .12s ease, box-shadow .12s ease; }
-        .msc-icon-btn:hover { filter: brightness(0.94); }
-        .msc-edit:hover { background:#dcedff !important; }
-        .msc-del:hover  { background:#fddede !important; }
-        .msc-hide:hover { background:${C.greenLt} !important; }
-        select, input { transition: border-color .15s ease, box-shadow .15s ease; }
-        select:focus, input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
-        .msc-modal-card { animation: riseIn .18s cubic-bezier(.2,.8,.3,1); }
-      `}</style>
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes riseIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+          .msc-row { cursor: pointer; transition: background .15s ease; }
+          .msc-row:hover td { background: #f6fef8 !important; }
+          .msc-row.selected td { background: ${C.greenLt} !important; }
+          .msc-btn:not(:disabled):hover { filter: brightness(0.96); transform: translateY(-1px); }
+          .msc-btn:not(:disabled):active { transform: translateY(0); }
+          .msc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+          .msc-btn { transition: filter .12s ease, transform .12s ease, box-shadow .12s ease; }
+          .msc-icon-btn:hover { filter: brightness(0.94); }
+          .msc-edit:hover { background:#dcedff !important; }
+          .msc-del:hover  { background:#fddede !important; }
+          .msc-hide:hover { background:${C.greenLt} !important; }
+          select, input { transition: border-color .15s ease, box-shadow .15s ease; }
+          select:focus, input:focus { border-color: ${C.green} !important; box-shadow: 0 0 0 3px rgba(0,137,123,0.12); }
+          .msc-modal-card { animation: riseIn .18s cubic-bezier(.2,.8,.3,1); }
+        `}</style>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
 
+      {/* ── Edit / List Modal ── */}
       {editingItem && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
-          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 560, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
-            <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            backdropFilter: "blur(3px)",
+            animation: "fadeIn .15s ease",
+          }}
+        >
+          <div
+            className="msc-modal-card"
+            style={{
+              background: C.white,
+              borderRadius: 18,
+              width: "100%",
+              maxWidth: 560,
+              boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "18px 24px",
+                background: `linear-gradient(135deg,${C.teal},${C.green})`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                <div
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    background: "rgba(255,255,255,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                  }}
+                >
                   <TagIcon size={15} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>{editingItem.id ? "Edit Listing" : "List Item"}</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{editingItem.brand} · {editingItem.name}</div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 900,
+                      color: "#fff",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {editingItem.id ? "Edit Listing" : "List Item"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.8)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {editingItem.brand} · {editingItem.name}
+                  </div>
                 </div>
               </div>
-              <button onClick={() => { setEditingItem(null); setEditErrors({}); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 6, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={15} /></button>
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setEditErrors({});
+                }}
+                style={{
+                  background: "rgba(255,255,255,0.15)",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  lineHeight: 1,
+                  padding: 6,
+                  borderRadius: 8,
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ×
+              </button>
             </div>
             <div style={{ padding: "22px 24px" }}>
-              <div style={{ fontSize: 11.5, color: "#00695c", background: C.greenLt, border: `1px solid ${C.greenMid}`, borderRadius: 10, padding: "10px 13px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                <Info size={14} style={{ flexShrink:0, marginTop:1 }} />
-                <span>This product comes from <strong style={{ color: C.ink }}>Stock Inventory</strong>. Its name, brand, and price can't be edited here — the shop price is always the Stock Inventory cost <strong style={{ color: C.ink }}>+ 10%</strong>. Just set the photo.</span>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "#00695c",
+                  background: C.greenLt,
+                  border: `1px solid ${C.greenMid}`,
+                  borderRadius: 10,
+                  padding: "10px 13px",
+                  marginBottom: 16,
+                  lineHeight: 1.5,
+                }}
+              >
+                This product comes from <strong>Stock Inventory</strong>. Its
+                name, brand, and price can't be edited here — the shop price is
+                calculated automatically from Stock Inventory cost, bulk pack
+                size, and brand markup.
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: "1rem",
+                }}
+              >
                 <Field label="Brand">
                   <div style={readOnlyFieldStyle}>{editingItem.brand}</div>
                 </Field>
@@ -4782,39 +4977,176 @@ const deleteItem = async (item) => {
                   <div style={readOnlyFieldStyle}>{editingItem.name}</div>
                 </Field>
                 <Field label="Shop Price" error={editErrors.cost}>
-                  <div style={{ ...readOnlyFieldStyle, background: editErrors.cost ? "#fdeeee" : C.greenLt, border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`, color: editErrors.cost ? C.red : C.green, justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 15, fontWeight: 900 }}>{editingItem.cost > 0 ? fmtPeso(computePrice(editingItem.cost)) : "—"}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: editErrors.cost ? C.red : "#00897b" }}>
-                      {editingItem.cost > 0 ? `cost ${fmtPeso(editingItem.cost)} + 10%` : "no cost set"}
+                  <div
+                    style={{
+                      ...readOnlyFieldStyle,
+                      background: editErrors.cost ? "#fdeeee" : C.greenLt,
+                      border: `1px solid ${editErrors.cost ? C.red : C.greenMid}`,
+                      color: editErrors.cost ? C.red : C.green,
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span style={{ fontSize: 15, fontWeight: 900 }}>
+                      {editingItem.cost > 0
+                        ? fmtPeso(
+                            computeDisplayPrice(
+                              editingItem.cost,
+                              editingItem.unit,
+                              editingItem.bulk_qty,
+                            ),
+                          )
+                        : "—"}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: editErrors.cost ? C.red : "#00897b",
+                      }}
+                    >
+                      {editingItem.cost > 0
+                        ? `cost ${fmtPeso(editingItem.cost)} × ${bulkLabelFor(editingItem.unit, editingItem.bulk_qty)} ${markupLabelFor()}`
+                        : "no cost set"}
                     </span>
                   </div>
                 </Field>
                 <Field label="Unit (Optional)">
-                  <input value={editingItem.unit || ""} onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
-                    style={msInputStyle} placeholder="e.g. per cup, per bottle" />
+                  <select
+                    value={editingItem.unit || ""}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, unit: e.target.value })
+                    }
+                    style={msInputStyle}
+                  >
+                    <option value="">Select unit…</option>
+                    {UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
-                <PhotoPicker value={editingItem.image_url} onPick={handleImageSelect} onRemove={() => setEditingItem({ ...editingItem, image_url: "" })} inputRef={editImageRef} error={editErrors.image_url} />
               </div>
-              <input ref={editImageRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: "none" }} />
 
-              <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, background: editingItem.is_visible !== false ? C.greenLt : "#f7f7f7", border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}` }}>
-                <div onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}
-                  style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", position: "relative", background: editingItem.is_visible !== false ? `linear-gradient(135deg,${C.teal},${C.green})` : "#e0e0e0", transition: "background .2s", flexShrink: 0 }}>
-                  <div style={{ position: "absolute", top: 3, left: editingItem.is_visible !== false ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left .2s" }} />
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "11px 13px",
+                  borderRadius: 10,
+                  background:
+                    editingItem.is_visible !== false ? C.greenLt : "#f7f7f7",
+                  border: `1px solid ${editingItem.is_visible !== false ? C.greenMid : C.border}`,
+                }}
+              >
+                <div
+                  onClick={() =>
+                    setEditingItem((f) => ({
+                      ...f,
+                      is_visible: f.is_visible === false,
+                    }))
+                  }
+                  style={{
+                    width: 40,
+                    height: 22,
+                    borderRadius: 11,
+                    cursor: "pointer",
+                    position: "relative",
+                    background:
+                      editingItem.is_visible !== false
+                        ? `linear-gradient(135deg,${C.teal},${C.green})`
+                        : "#e0e0e0",
+                    transition: "background .2s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 3,
+                      left: editingItem.is_visible !== false ? 21 : 3,
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                      transition: "left .2s",
+                    }}
+                  />
                 </div>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, cursor: "pointer" }} onClick={() => setEditingItem((f) => ({ ...f, is_visible: f.is_visible === false }))}>
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: C.ink,
+                    cursor: "pointer",
+                  }}
+                  onClick={() =>
+                    setEditingItem((f) => ({
+                      ...f,
+                      is_visible: f.is_visible === false,
+                    }))
+                  }
+                >
                   Visible in Mobile Shop
                 </span>
               </div>
 
-              <div style={{ marginTop: "1.4rem", display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button onClick={() => { setEditingItem(null); setEditErrors({}); }} className="msc-btn"
-                  style={{ padding: "10px 18px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.muted, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              <div
+                style={{
+                  marginTop: "1.4rem",
+                  display: "flex",
+                  gap: 8,
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setEditingItem(null);
+                    setEditErrors({});
+                  }}
+                  className="msc-btn"
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    border: `1px solid ${C.border}`,
+                    background: C.white,
+                    color: C.muted,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
                   Cancel
                 </button>
-                <button onClick={saveEdit} disabled={editLoading} className="msc-btn"
-                  style={{ padding: "10px 24px", borderRadius: 10, border: "none", background: editLoading ? C.greenMid : `linear-gradient(135deg,${C.teal},${C.green})`, color: C.white, fontWeight: 800, fontSize: 13, cursor: editLoading ? "not-allowed" : "pointer", opacity: editLoading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(0,180,90,0.3)", fontFamily: "inherit" }}>
-                  {editLoading ? "Saving…" : editingItem.id ? "Save Changes" : "List Item"}
+                <button
+                  onClick={saveEdit}
+                  disabled={editLoading}
+                  className="msc-btn"
+                  style={{
+                    padding: "10px 24px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: editLoading
+                      ? C.greenMid
+                      : `linear-gradient(135deg,${C.teal},${C.green})`,
+                    color: C.white,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: editLoading ? "not-allowed" : "pointer",
+                    opacity: editLoading ? 0.7 : 1,
+                    boxShadow: "0 4px 14px rgba(0,180,90,0.3)",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {editLoading
+                    ? "Saving…"
+                    : editingItem.id
+                      ? "Save Changes"
+                      : "List Item"}
                 </button>
               </div>
             </div>
@@ -4822,25 +5154,105 @@ const deleteItem = async (item) => {
         </div>
       )}
 
+      {/* ── Unlist Confirmation Modal ── */}
       {confirmDeleteItem && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(13,43,30,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(3px)", animation: "fadeIn .15s ease" }}>
-          <div className="msc-modal-card" style={{ background: C.white, borderRadius: 18, width: "100%", maxWidth: 400, boxShadow: "0 24px 70px rgba(0,0,0,0.28)", overflow: "hidden" }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(13,43,30,0.5)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            backdropFilter: "blur(3px)",
+            animation: "fadeIn .15s ease",
+          }}
+        >
+          <div
+            className="msc-modal-card"
+            style={{
+              background: C.white,
+              borderRadius: 18,
+              width: "100%",
+              maxWidth: 400,
+              boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+              overflow: "hidden",
+            }}
+          >
             <div style={{ padding: "24px 24px 18px", textAlign: "center" }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#fdeeee", color: "#e53935", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "#fdeeee",
+                  color: "#e53935",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 14px",
+                }}
+              >
                 <AlertIcon />
               </div>
-              <div style={{ fontSize: 15.5, fontWeight: 900, color: C.ink, marginBottom: 6 }}>Unlist this item?</div>
+              <div
+                style={{
+                  fontSize: 15.5,
+                  fontWeight: 900,
+                  color: C.ink,
+                  marginBottom: 6,
+                }}
+              >
+                Unlist this item?
+              </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
-                <strong style={{ color: C.ink }}>{confirmDeleteItem.name}</strong> will be removed from the Mobile Shop. It'll stay in Stock Inventory and can be relisted anytime.
+                <strong style={{ color: C.ink }}>
+                  {confirmDeleteItem.name}
+                </strong>{" "}
+                will be removed from the Mobile Shop. It'll stay in Stock
+                Inventory and can be relisted anytime.
               </div>
             </div>
             <div style={{ padding: "0 24px 22px", display: "flex", gap: 8 }}>
-              <button onClick={() => setConfirmDeleteItem(null)} disabled={deleteLoading} className="msc-btn"
-                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.white, color: C.ink, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              <button
+                onClick={() => setConfirmDeleteItem(null)}
+                disabled={deleteLoading}
+                className="msc-btn"
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: `1px solid ${C.border}`,
+                  background: C.white,
+                  color: C.ink,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
                 Cancel
               </button>
-              <button onClick={() => deleteItem(confirmDeleteItem)} disabled={deleteLoading} className="msc-btn"
-                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: deleteLoading ? "#ef9a9a" : "#e53935", color: "#fff", fontWeight: 800, fontSize: 13, cursor: deleteLoading ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 14px rgba(229,57,53,0.3)" }}>
+              <button
+                onClick={() => deleteItem(confirmDeleteItem)}
+                disabled={deleteLoading}
+                className="msc-btn"
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: deleteLoading ? "#ef9a9a" : "#e53935",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: deleteLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: "0 4px 14px rgba(229,57,53,0.3)",
+                }}
+              >
                 {deleteLoading ? "Unlisting…" : "Yes, Unlist"}
               </button>
             </div>
@@ -4848,187 +5260,607 @@ const deleteItem = async (item) => {
         </div>
       )}
 
-      <div style={{ background: C.white, borderRadius: 18, border: "1px solid rgba(0,168,76,0.12)", boxShadow: "0 4px 20px rgba(0,140,60,0.08)", overflow: "hidden" }}>
-        <div style={{ padding: "18px 24px", background: `linear-gradient(135deg,${C.teal},${C.green})`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+      {/* ── Shop Items Card ── */}
+      <div
+        style={{
+          background: C.white,
+          borderRadius: 18,
+          border: "1px solid rgba(0,168,76,0.12)",
+          boxShadow: "0 4px 20px rgba(0,140,60,0.08)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 24px",
+            background: `linear-gradient(135deg,${C.teal},${C.green})`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: "-0.01em" }}>Mobile Shop Supplies</div>
-            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, marginTop: 2 }}>Prices auto-set at cost + 10% · click a row to select it for listing</div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 900,
+                color: "#fff",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Mobile Shop Supplies
+            </div>
+            <div
+              style={{
+                fontSize: 11.5,
+                color: "rgba(255,255,255,0.8)",
+                fontWeight: 600,
+                marginTop: 2,
+              }}
+            >
+              Prices auto-set from cost, bulk size, and brand markup · click a
+              row to select it for listing
+            </div>
           </div>
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", fontWeight: 700, background: "rgba(255,255,255,0.15)", padding: "5px 12px", borderRadius: 20 }}>{items.length} product{items.length !== 1 ? "s" : ""}</span>
+          <span
+            style={{
+              fontSize: 12,
+              color: "rgba(255,255,255,0.9)",
+              fontWeight: 700,
+              background: "rgba(255,255,255,0.15)",
+              padding: "5px 12px",
+              borderRadius: 20,
+            }}
+          >
+            {items.length} product{items.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fafffe" }}>
+        {/* Toolbar */}
+        <div
+          style={{
+            padding: "14px 18px",
+            borderBottom: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+            background: "#fafffe",
+          }}
+        >
           <div style={{ position: "relative" }}>
-            <Search size={13} color="#5a7a65" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+            <Search
+              size={13}
+              color="#5a7a65"
+              style={{
+                position: "absolute",
+                left: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+              }}
+            />
             <input
-              type="text" placeholder="Search items…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ padding: "8px 12px 8px 30px", borderRadius: 9, border: `1px solid ${C.border}`, fontSize: 13, background: C.white, fontFamily: "inherit", outline: "none", width: 220, height: 38, boxSizing: "border-box" }}
+              type="text"
+              placeholder="Search items…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: "8px 12px 8px 30px",
+                borderRadius: 9,
+                border: `1px solid ${C.border}`,
+                fontSize: 13,
+                background: C.white,
+                fontFamily: "inherit",
+                outline: "none",
+                width: 220,
+                height: 38,
+                boxSizing: "border-box",
+              }}
             />
           </div>
-          <select value={filterShop} onChange={(e) => setFilterShop(e.target.value)}
-            style={{ ...msInputStyle, marginTop: 0, width: 120}}>
+          <select
+            value={filterShop}
+            onChange={(e) => setFilterShop(e.target.value)}
+            style={{ ...msInputStyle, marginTop: 0, width: 160 }}
+          >
             <option value="all">All Shops</option>
-            {uniqueShops.map((shop) => <option key={shop} value={shop}>{shop}</option>)}
+            {uniqueShops.map((shop) => (
+              <option key={shop} value={shop}>
+                {shop}
+              </option>
+            ))}
           </select>
-          <select value={filterListed} onChange={(e) => setFilterListed(e.target.value)}
-            style={{ ...msInputStyle, marginTop: 0, width: 130 }}>
-            <option value="all">All Statuses</option>
-            <option value="listed">Listed Only</option>
-            <option value="unlisted">Not Listed</option>
-          </select>
-          {(searchQuery || filterShop !== "all" || filterListed !== "all") && (
-            <button onClick={() => { setSearchQuery(""); setFilterShop("all"); setFilterListed("all"); }} className="msc-btn"
-              style={{ height: 30, padding: "0 8px", borderRadius: 9, border: `1px solid ${C.border}`, background: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "#5a7a65" }}>
+          {(searchQuery || filterShop !== "all") && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setFilterShop("all");
+              }}
+              className="msc-btn"
+              style={{
+                height: 38,
+                padding: "0 12px",
+                borderRadius: 9,
+                border: `1px solid ${C.border}`,
+                background: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                color: "#5a7a65",
+              }}
+            >
               Clear
             </button>
           )}
 
-          <span style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+          <span
+            style={{
+              display: "flex",
+              gap: 8,
+              marginLeft: "auto",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               onClick={() => bulkListItems(selectedItems)}
               disabled={bulkListing || selectedUnlistedCount === 0}
               className="msc-btn"
-              title={selectedUnlistedCount === 0 ? "Select unlisted items in the table to enable this" : "List all selected items"}
-              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: `1.5px solid ${C.green}`, background: C.greenLt, color: C.greenDk }}>
-              <ListIcon size={12} /> List Items{selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
-            </button>
-            <button
-              onClick={() => bulkUnlistItems(selectedItems)}
-              disabled={bulkListing || selectedUnlistedCount === selectedItems.length}
-              className="msc-btn"
-              title={selectedItems.filter(i => i.listed).length === 0 ? "Select listed items in the table to enable this" : "Unlist all selected items"}
-              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, border: "1.5px solid #ffcdd2", background: "#fdeeee", color: "#c62828" }}>
-              <TrashIcon size={12} /> Unlist Items{selectedItems.filter(i => i.listed).length > 0 ? ` (${selectedItems.filter(i => i.listed).length})` : ""}
+              title={
+                selectedUnlistedCount === 0
+                  ? "Click unlisted rows to select them"
+                  : "List all selected items"
+              }
+              style={{
+                ...toolbarBtnSt,
+                border: `1.5px solid ${C.green}`,
+                background: C.greenLt,
+                color: C.greenDk,
+              }}
+            >
+              <ListIcon /> List Items
+              {selectedUnlistedCount > 0 ? ` (${selectedUnlistedCount})` : ""}
             </button>
             <button
               onClick={() => bulkListItems(filteredItems)}
               disabled={bulkListing || allUnlistedCount === 0}
               className="msc-btn"
               title="List every currently unlisted item shown below"
-              style={{ ...toolbarBtnSt, padding: "0 10px", height: 30, fontSize: 11.5, gap: 5, background: `linear-gradient(135deg,${C.teal},${C.green})`, color: "#fff", boxShadow: "0 3px 12px rgba(0,180,90,0.28)" }}>
-              <LayersIcon size={12} /> {bulkListing ? "Listing…" : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
+              style={{
+                ...toolbarBtnSt,
+                background: `linear-gradient(135deg,${C.teal},${C.green})`,
+                color: "#fff",
+                boxShadow: "0 3px 12px rgba(0,180,90,0.28)",
+              }}
+            >
+              <LayersIcon />{" "}
+              {bulkListing
+                ? "Listing…"
+                : `List All Items${allUnlistedCount > 0 ? ` (${allUnlistedCount})` : ""}`}
             </button>
           </span>
 
-          <span style={{ fontSize: 12, color: "#5a7a65", fontWeight: 600, width: "100%" }}>
-            {filteredItems.length} of {items.length} products{selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
+          <span
+            style={{
+              fontSize: 12,
+              color: "#5a7a65",
+              fontWeight: 600,
+              width: "100%",
+            }}
+          >
+            {filteredItems.length} of {items.length} products
+            {selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ""}
           </span>
         </div>
 
         {itemsLoading ? (
-          <div style={{ padding: "60px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
-            <RefreshCw size={20} style={{ animation: "spin 0.9s linear infinite", marginBottom: 10 }} />
+          <div
+            style={{
+              padding: "60px 0",
+              textAlign: "center",
+              color: C.muted,
+              fontSize: 13,
+            }}
+          >
+            <RefreshCw
+              size={20}
+              style={{
+                animation: "spin 0.9s linear infinite",
+                marginBottom: 10,
+              }}
+            />
             <div>Loading shop items…</div>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ padding: "56px 0", textAlign: "center", color: C.muted }}>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, opacity: 0.4 }}><BoxIcon /></div>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>No products found</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Add products in Stock Inventory first — they will then appear here.</div>
+          <div
+            style={{ padding: "56px 0", textAlign: "center", color: C.muted }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: 10,
+                opacity: 0.4,
+              }}
+            >
+              <BoxIcon />
+            </div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>
+              No products found
+            </div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>
+              Add products in Stock Inventory first — they will then appear
+              here.
+            </div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: "11px 0 11px 18px", textAlign: "left", borderBottom: `1px solid ${C.border}`, background: "#f8fffe", width: 34 }}>
-                    <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAllFiltered}
-                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} title="Select all shown" />
-                  </th>
-                  {["", "Shop", "Item Name", "Price", "Unit", "Status", "Manage"].map((label, i) => (
-                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 6 ? "right" : "left", fontWeight: 800, fontSize: 10.5, color: "#00897b", letterSpacing: "0.07em", textTransform: "uppercase", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap", background: "#f8fffe" }}>
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => {
-                  const rowKey = keyFor(item);
-                  const isSelected = selectedKeys.has(rowKey);
-                  return (
-                    <tr
-                      key={rowKey}
-                      className={`msc-row${isSelected ? " selected" : ""}`}
-                      onClick={() => toggleSelect(rowKey)}
-                      style={{ borderBottom: "1px solid #f0f8f0", opacity: item.listed ? 1 : 0.82 }}
-                    >
-                      <td onClick={(e) => e.stopPropagation()} style={{ padding: "11px 0 11px 18px", borderLeft: `3px solid ${isSelected ? C.green : "transparent"}` }}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(rowKey)}
-                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.green }} />
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <div style={{ position: "relative", width: 40, height: 40 }}>
-                          <img src={item.image_url || null} alt="" style={{ width: 40, height: 40, borderRadius: 9, objectFit: "cover", border: `1px solid ${C.border}`, display: "block", background: C.bg, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }} onError={(e) => (e.target.style.visibility = "hidden")} />
-                          {isSelected && (
-                            <div style={{ position: "absolute", top: -5, right: -5, width: 15, height: 15, borderRadius: "50%", background: C.green, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
-                              <CheckCircleIcon size={10} />
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr>
+                    {[
+                      "Shop",
+                      "Item Name",
+                      "Price",
+                      "Unit",
+                      "Status",
+                      "Manage",
+                    ].map((label, i) => (
+                      <th
+                        key={i}
+                        style={{
+                          padding: "11px 14px",
+                          textAlign: i === 5 ? "right" : "left",
+                          fontWeight: 800,
+                          fontSize: 10.5,
+                          color: "#00897b",
+                          letterSpacing: "0.07em",
+                          textTransform: "uppercase",
+                          borderBottom: `1px solid ${C.border}`,
+                          whiteSpace: "nowrap",
+                          background: "#f8fffe",
+                        }}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedItems.map((item) => {
+                    const rowKey = keyFor(item);
+                    const isSelected = selectedKeys.has(rowKey);
+                    return (
+                      <tr
+                        key={rowKey}
+                        className={`msc-row${isSelected ? " selected" : ""}`}
+                        onClick={() => toggleSelect(rowKey)}
+                        aria-selected={isSelected}
+                        title={
+                          isSelected
+                            ? "Click row to deselect"
+                            : "Click row to select"
+                        }
+                        style={{
+                          borderBottom: "1px solid #f0f8f0",
+                          opacity: item.listed ? 1 : 0.82,
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: "11px 14px",
+                            borderLeft: `3px solid ${isSelected ? C.green : "transparent"}`,
+                          }}
+                        >
+                          <span
+                            style={{
+                              padding: "3px 9px",
+                              borderRadius: 20,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: "#e0f2f1",
+                              color: "#00695c",
+                            }}
+                          >
+                            {item.brand}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "11px 14px",
+                            fontWeight: 700,
+                            color: C.ink,
+                          }}
+                        >
+                          {item.name}
+                        </td>
+                        <td style={{ padding: "11px 14px" }}>
+                          {item.cost > 0 ? (
+                            <div>
+                              <div style={{ fontWeight: 800, color: C.green }}>
+                                {fmtPeso(item.price)}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: C.muted,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                cost {fmtPeso(item.cost)} + 12%
+                              </div>
                             </div>
+                          ) : (
+                            <span
+                              style={{
+                                fontStyle: "italic",
+                                fontWeight: 500,
+                                color: C.muted,
+                                fontSize: 12,
+                              }}
+                            >
+                              no cost set
+                            </span>
                           )}
-                        </div>
-                      </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#e0f2f1", color: "#00695c" }}>{item.shop}</span>
-                      </td>
-                      <td style={{ padding: "11px 14px", fontWeight: 700, color: C.ink }}>{item.name}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {item.cost > 0 ? (
-                          <div>
-                            <div style={{ fontWeight: 800, color: C.green }}>{fmtPeso(item.price)}</div>
-                            <div style={{ fontSize: 10, color: C.muted, fontWeight: 600 }}>cost {fmtPeso(item.cost)} +10%</div>
+                        </td>
+                        <td
+                          style={{
+                            padding: "11px 14px",
+                            color: C.muted,
+                            fontSize: 12,
+                          }}
+                        >
+                          {item.unit ? (
+                            bulkLabelFor(item.unit, item.bulk_qty)
+                          ) : (
+                            <span style={{ fontStyle: "italic" }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "11px 14px" }}>
+                          {item.listed ? (
+                            <span
+                              style={{
+                                padding: "3px 9px",
+                                borderRadius: 20,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: item.is_visible
+                                  ? "#e0f2f1"
+                                  : "#fce4ec",
+                                color: item.is_visible ? "#00695c" : "#c62828",
+                              }}
+                            >
+                              {item.is_visible ? "Visible" : "Hidden"}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                padding: "3px 9px",
+                                borderRadius: 20,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: "#f1f1f1",
+                                color: "#8a8a8a",
+                              }}
+                            >
+                              Not Listed
+                            </span>
+                          )}
+                        </td>
+                        <td
+                          style={{ padding: "11px 14px" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 5,
+                              justifyContent: "flex-end",
+                            }}
+                          >
+                            <button
+                              onClick={() => openEditor(item)}
+                              className="msc-btn msc-icon-btn msc-edit"
+                              title={
+                                item.listed ? "Edit listing" : "List this item"
+                              }
+                              style={{
+                                ...smallBtnSt,
+                                border: "1px solid #bbdefb",
+                                color: "#1565c0",
+                                background: "#e3f2fd",
+                              }}
+                            >
+                              <EditIcon /> {item.listed ? "Edit" : "List"}
+                            </button>
+                            {item.listed && (
+                              <>
+                                <button
+                                  onClick={() => toggleVisibility(item)}
+                                  className="msc-btn msc-icon-btn msc-hide"
+                                  title={
+                                    item.is_visible
+                                      ? "Hide from shop"
+                                      : "Show in shop"
+                                  }
+                                  style={{
+                                    ...smallBtnSt,
+                                    border: `1px solid ${C.border}`,
+                                    color: C.green,
+                                  }}
+                                >
+                                  {item.is_visible ? (
+                                    <EyeOffIcon />
+                                  ) : (
+                                    <EyeIcon />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteItem(item)}
+                                  className="msc-btn msc-icon-btn msc-del"
+                                  title="Unlist"
+                                  style={{
+                                    ...smallBtnSt,
+                                    border: "1px solid #ffcdd2",
+                                    color: "#e53935",
+                                    background: C.white,
+                                  }}
+                                >
+                                  <TrashIcon />
+                                </button>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <span style={{ fontStyle: "italic", fontWeight: 500, color: C.muted, fontSize: 12 }}>no cost set</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "11px 14px", color: C.muted, fontSize: 12 }}>{item.unit || <span style={{ fontStyle: "italic" }}>—</span>}</td>
-                      <td style={{ padding: "11px 14px" }}>
-                        {item.listed ? (
-                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: item.is_visible ? "#e0f2f1" : "#fce4ec", color: item.is_visible ? "#00695c" : "#c62828" }}>
-                            {item.is_visible ? "Visible" : "Hidden"}
-                          </span>
-                        ) : (
-                          <span style={{ padding: "3px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f1f1f1", color: "#8a8a8a" }}>
-                            Not Listed
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: "11px 14px" }} onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: "flex", gap: 5, justifyContent: "flex-end" }}>
-                          <button onClick={() => openEditor(item)} className="msc-btn msc-icon-btn msc-edit" title={item.listed ? "Edit listing" : "List this item"}
-                            style={{ ...smallBtnSt, border: "1px solid #bbdefb", color: "#1565c0", background: "#e3f2fd" }}>
-                            <EditIcon /> {item.listed ? "Edit" : "List"}
-                          </button>
-                          {item.listed && (
-                            <>
-                              <button onClick={() => toggleVisibility(item)} className="msc-btn msc-icon-btn msc-hide" title={item.is_visible ? "Hide from shop" : "Show in shop"}
-                                style={{ ...smallBtnSt, border: `1px solid ${C.border}`, color: C.green }}>
-                                {item.is_visible ? <EyeOffIcon /> : <EyeIcon />}
-                              </button>
-                              <button onClick={() => setConfirmDeleteItem(item)} className="msc-btn msc-icon-btn msc-del" title="Unlist"
-                                style={{ ...smallBtnSt, border: "1px solid #ffcdd2", color: "#e53935", background: C.white }}>
-                                <TrashIcon />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              style={{
+                padding: "14px 18px",
+                borderTop: `1px solid ${C.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+                background: "#fafffe",
+              }}
+            >
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>
+                Showing {pageStartDisplay}-{pageEndDisplay} of{" "}
+                {filteredItems.length}
+              </span>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.white,
+                    color: C.ink,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  First
+                </button>
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.white,
+                    color: C.ink,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Previous
+                </button>
+
+                {visiblePages.map((page) => (
+                  <button
+                    type="button"
+                    key={page}
+                    className="msc-btn"
+                    onClick={() => setCurrentPage(page)}
+                    style={{
+                      minWidth: 32,
+                      padding: "7px 9px",
+                      borderRadius: 8,
+                      border: `1px solid ${page === currentPage ? C.green : C.border}`,
+                      background: page === currentPage ? C.greenLt : C.white,
+                      color: page === currentPage ? C.greenDk : C.ink,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.min(totalPages, page + 1))
+                  }
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.white,
+                    color: C.ink,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Next
+                </button>
+                <button
+                  type="button"
+                  className="msc-btn"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.white,
+                    color: C.ink,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
-      <UnlistBlockedModal
-        item={blockedUnlistItem}
-        onClose={() => setBlockedUnlistItem(null)}
-        onHideInstead={forceHide}
-      />
     </div>
   );
 }
+
 
 function BrandBranchFilter({ brands, activeBrand, activeBranch, onChangeBrand, onChangeBranch }) {
   const [brandQ, setBrandQ]   = React.useState("");
