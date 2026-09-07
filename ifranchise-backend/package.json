@@ -1,8 +1,10 @@
 {
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.1098.0",
+    "@aws-sdk/client-rekognition": "^3.1127.0",
     "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/client-textract": "^3.1127.0",
     "@aws-sdk/s3-request-presigner": "^3.1098.0",
+    "@google-cloud/vision": "^6.0.0",
     "axios": "^1.18.1",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
