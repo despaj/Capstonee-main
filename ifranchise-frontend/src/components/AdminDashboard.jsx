@@ -6667,7 +6667,7 @@
           {[
             { id:"overview", number:"01", label:"Overview", question:"What needs attention?", icon:Home },
             { id:"sales_ai", number:"02", label:"Sales Trend Analysis", question:"How are actual sales changing?", icon:LineChart },
-            { id:"ghost", number:"03", label:"Ghost Stock / Revenue Leakage", question:"Where are losses coming from?", icon:ShieldCheck },
+            { id:"ghost", number:"03", label:"Ghost Stock / AI Prescriptive Analysis", question:"Where are losses coming from?", icon:ShieldCheck },
           ].map(tab=>{
             const active = dashboardTab === tab.id;
             const Icon = tab.icon;
