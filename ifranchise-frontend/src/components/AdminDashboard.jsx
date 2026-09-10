@@ -2351,7 +2351,7 @@
     );
   }
   // ─── Dashboard-specific constants ────────────────────────────────────────────
-  const fmtAmt   = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtAmt   = (n) => n == null || !Number.isFinite(Number(n)) ? "—" : "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtShort = (n) => { if (n >= 1_000_000) return "₱" + (n / 1_000_000).toFixed(1) + "M"; if (n >= 1_000) return "₱" + (n / 1_000).toFixed(0) + "k"; return "₱" + Number(n).toFixed(0); };
   const fmtPeso1  = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmt8     = (d) => d.toISOString().slice(0, 10);
@@ -4739,11 +4739,24 @@
     return [];
   };
 
-  const b2bMonthKey = (value) => {
-    const d = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(d.getTime())) return "";
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const b2bMonthKey = value => {
+    if(value==null||value==="")return "";
+    if(/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value)))return String(value);
+    const date=value instanceof Date?value:new Date(value);
+    if(!Number.isFinite(date.getTime()))return "";
+    const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Manila",year:"numeric",month:"2-digit"}).formatToParts(date);
+    return `${parts.find(p=>p.type==="year").value}-${parts.find(p=>p.type==="month").value}`;
   };
+  const b2bCents = value => {
+    const text=String(value??"").trim();
+    if(!/^[+-]?\d+(?:\.\d+)?$/.test(text))throw new Error("Missing or invalid monetary value");
+    const negative=text.startsWith("-"),[whole,fraction=""]=text.replace(/^[+-]/,"").split(".");
+    let result=BigInt(whole)*100n+BigInt((fraction+"00").slice(0,2));
+    if(Number(fraction[2]||0)>=5)result++;
+    return Number(negative?-result:result);
+  };
+  const b2bMoneySum = rows => rows.reduce((sum,value)=>sum+b2bCents(value??0),0)/100;
+  const b2bTargetAmount = (previous,growth) => previous>0?Number((BigInt(b2bCents(previous))*(1000000n+BigInt(Math.round(growth*10000)))+500000n)/1000000n)/100:null;
 
   const b2bShiftMonth = (monthKey, delta) => {
     const [y, m] = String(monthKey || "").split("-").map(Number);
@@ -4757,11 +4770,11 @@
     return new Date(y, m - 1, 1).toLocaleDateString("en-PH", { month: "short", year: "numeric" });
   };
 
-  const b2bDateOfOrder = (o) => o?.order_date || o?.created_at || o?.createdAt || o?.updated_at || null;
-  const b2bDateOfTx = (tx) => tx?.date || tx?.created_at || tx?.createdAt || tx?.transaction_date || null;
+  const b2bDateOfOrder = (o) => o?.received_at || null;
+  const b2bDateOfTx = (tx) => tx?.created_at || tx?.createdAt || tx?.date || tx?.transaction_date || null;
   const b2bDateOfInventory = (row) => row?.snapshot_date || row?.counted_at || row?.stock_date || row?.as_of_date || row?.updated_at || null;
-  const b2bOrderAmount = (o) => b2bNum(o?.net_amount, o?.total_amount, o?.total, o?.amount);
-  const b2bTxAmount = (tx) => b2bNum(tx?.net_total, tx?.total, tx?.total_amount, tx?.grand_total);
+  const b2bOrderAmount = (o) => b2bNum(o?.total_amount, o?.total, o?.net_amount, o?.amount);
+  const b2bTxAmount = (tx) => b2bNum(tx?.total, tx?.net_total, tx?.total_amount, tx?.grand_total);
   const b2bBranchName = (row) => String(row?.branch_name || row?.branch || row?.store_name || row?.store || "").trim();
   const b2bBrandName = (row) => String(row?.brand_name || row?.brand || "").trim();
   // GET /orders joins order_items to shop_items and returns this exact line shape.
@@ -4775,7 +4788,7 @@
     }));
   };
   const b2bTxItems = (tx) => b2bArray(tx?.items || tx?.transaction_items || tx?.transactionItems);
-  const b2bItemQty = (item) => b2bNum(item?.qty_received, item?.received_qty, item?.qty, item?.quantity, item?.quantity_sold);
+  const b2bItemQty = (item) => b2bNullableNum(item?.qty_received, item?.received_qty, item?.qty, item?.quantity, item?.quantity_sold);
   const b2bItemId = (item) => item?.product_id ?? item?.inventory_id ?? item?.ingredient_id ?? item?.shop_item_id ?? item?.id ?? null;
   const b2bItemName = (item) => String(item?.product_name || item?.item_name || item?.name || item?.title || (b2bItemId(item) != null ? `SKU ${b2bItemId(item)}` : "Unknown SKU")).trim();
   const b2bInventoryOpening = (item) => b2bNullableNum(item?.opening_stock, item?.openingStock, item?.beginning_stock, item?.beginningStock);
@@ -4791,13 +4804,11 @@
     b2bKeyPart(b2bItemName(item)) || String(b2bItemId(item) ?? "unknown"),
   ].join("|");
 
-  const b2bIsEarnedOrder = (o) => {
-    const s = String(o?.status || "").toLowerCase();
-    return ["received", "delivered", "fulfilled", "completed", "complete"].includes(s);
-  };
+  const b2bIsEarnedOrder = o => String(o?.status||"").toLowerCase()==="received" &&
+    !b2bOrderItems(o).some(i=>i.is_demo===true||String(i.name||"").startsWith("[DEMO]"));
 
   const b2bIsCompletedTx = (tx) => {
-    if (tx?.is_voided || tx?.voided || String(tx?.status || "").toLowerCase() === "void") return false;
+    if ([tx?.is_voided,tx?.voided,tx?.is_demo].some(v=>v===true||v===1||v==="true"||v==="1") || ["void","voided"].includes(String(tx?.status||"").toLowerCase())) return false;
     const status = String(tx?.status || "").toLowerCase();
     if (!status) return true;
     return ["paid", "completed", "complete", "success", "successful"].includes(status);
@@ -4807,7 +4818,7 @@
     const normalized = String(risk || "Normal").toLowerCase();
     const high = normalized.includes("high") || normalized.includes("critical");
     const watch = normalized.includes("watch") || normalized.includes("medium") || normalized.includes("moderate");
-    const missing=normalized.includes("no data")||normalized.includes("no transactions");
+    const missing=normalized.includes("no data")||normalized.includes("no transactions")||normalized.includes("insufficient")||normalized.includes("unavailable");
     const label = missing ? risk : high ? "High Risk" : watch ? "Watch" : "Normal";
     const style = missing ? {color:"#5C6B60",background:"#F6F7F1",border:"#E1E6D8"} : high
       ? { color: "#b42318", background: "#fff1f0", border: "#fecdca" }
@@ -4937,24 +4948,6 @@
     const [attempt,setAttempt]=useState(0);
     const [page,setPage]=useState(1);
     const [query,setQuery]=useState("");
-    useEffect(()=>{
-      if(selected.orders.every(o=>b2bOrderItems(o).length) && !attempt) return;
-      const controller=new AbortController();
-      setLoading(true);setError("");
-      (async()=>{
-        if(!user?.role) throw new Error("Sign in again to load item evidence.");
-        const hq=["Super Admin","Franchisee Operations Admin"].includes(user.role);
-        if(!hq&&(!user.brand||!user.branch||!b2bSameScope(user.brand,selected.brand)||!b2bSameScope(user.branch,selected.branch)))
-          throw new Error("This branch is outside your assigned brand and branch.");
-        const params=new URLSearchParams({role:user.role,brand:selected.brand,branch:selected.branch});
-        const response=await adminModuleFetch(`${api}/orders?${params}`,{credentials:"include",cache:"no-store",signal:controller.signal});
-        if(!response.ok) throw new Error(`Item evidence could not be loaded (${response.status}).`);
-        const payload=await response.json();
-        const records=Array.isArray(payload)?payload:Array.isArray(payload?.orders)?payload.orders:Array.isArray(payload?.data)?payload.data:[];
-        if(!controller.signal.aborted) setDetails(records.filter(o=>b2bSameScope(b2bBrandName(o),selected.brand)&&b2bSameScope(b2bBranchName(o),selected.branch)));
-      })().catch(e=>{if(!controller.signal.aborted)setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
-      return ()=>controller.abort();
-    },[selected,user,api,attempt]);
     const rows=selected.orders.flatMap(order=>{
       const updated=details.find(o=>String(o.id)===String(order.id));
       const items=b2bOrderItems(updated || order);
@@ -4974,14 +4967,15 @@
       {error&&<div role="status" style={{fontSize:11,color:C.red,marginBottom:10}}>{error} <button type="button" onClick={()=>setAttempt(n=>n+1)} style={smallBtnSt}>Retry</button></div>}
       <div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:13}}>
         <table aria-label="Branch ordered item evidence" aria-busy={loading} style={{width:"100%",minWidth:620,borderCollapse:"collapse"}}>
-          <thead><tr>{["Item / Order #","Order date","Quantity","Unit price","Line total"].map((label,i)=><th key={label} style={{...th,textAlign:i>1?"right":"left"}}>{label}</th>)}</tr></thead>
+          <thead><tr>{["Item","Order #","Receipt date","Quantity","Unit","Unit price","Gross line total"].map((label,i)=><th key={label} style={{...th,textAlign:i>1?"right":"left"}}>{label}</th>)}</tr></thead>
           <tbody>{rows.slice((currentPage-1)*15,currentPage*15).map(({order,item,key},i)=><tr key={key} style={{background:i%2?"#FBFDF9":"#fff"}}>
-            <td style={td}><div style={{fontWeight:750}}>{item?b2bItemName(item):loading?"Loading items…":"Item details unavailable"}</div><div style={{fontSize:9.5,color:C.muted,marginTop:3}}>Order #{order.id}</div></td>
-            <td style={td}>{b2bDateOfOrder(order)?new Date(b2bDateOfOrder(order)).toLocaleDateString("en-PH"):"—"}</td>
-            <td style={{...td,textAlign:"right"}}>{item?b2bItemQty(item).toLocaleString():"—"}</td>
+            <td style={td}><div style={{fontWeight:750}}>{item?b2bItemName(item):loading?"Loading items…":"Item details unavailable"}</div></td><td style={td}>#{order.id}</td>
+            <td style={td}>{b2bDateOfOrder(order)?new Date(b2bDateOfOrder(order)).toLocaleDateString("en-PH",{timeZone:"Asia/Manila"}):"—"}</td>
+            <td style={{...td,textAlign:"right"}}>{item&&b2bItemQty(item)!=null?b2bItemQty(item).toLocaleString():"—"}</td>
+            <td style={td}>{item?.unit || "—"}</td>
             <td style={{...td,textAlign:"right"}}>{item?.price==null?"—":fmtAmt(item.price)}</td>
-            <td style={{...td,textAlign:"right",fontWeight:750,color:C.greenDk}}>{item?.price==null?"—":fmtAmt(item.price*b2bItemQty(item))}</td>
-          </tr>)}{!rows.length&&<tr><td colSpan={5} style={{...td,textAlign:"center",padding:24}}>No matching item evidence.</td></tr>}</tbody>
+            <td style={{...td,textAlign:"right",fontWeight:750,color:C.greenDk}}>{item?.price==null||b2bItemQty(item)==null?"—":fmtAmt(item.price*b2bItemQty(item))}</td>
+          </tr>)}{!rows.length&&<tr><td colSpan={7} style={{...td,textAlign:"center",padding:24}}>No matching item evidence.</td></tr>}</tbody>
         </table>
       </div>
       {pages>1&&<nav aria-label="Item evidence pages" style={{display:"flex",alignItems:"center",gap:12,marginTop:12,fontSize:11}}><button type="button" style={btnSt} disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}>Previous</button><span>Page {currentPage} of {pages}</span><button type="button" style={btnSt} disabled={currentPage===pages} onClick={()=>setPage(currentPage+1)}>Next</button></nav>}
@@ -4999,7 +4993,7 @@
     const scopedOrders = orders.filter(o=>b2bIsEarnedOrder(o) && scope({brand:b2bBrandName(o),branch:b2bBranchName(o)}));
     const current = scopedOrders.filter(o=>b2bMonthKey(b2bDateOfOrder(o))===month);
     const prior = scopedOrders.filter(o=>b2bMonthKey(b2bDateOfOrder(o))===previous);
-    const sum = list=>list.reduce((n,o)=>n+b2bOrderAmount(o),0);
+    const sum = list=>b2bMoneySum(list.map(b2bOrderAmount));
     const currentTotal=sum(current), previousTotal=sum(prior);
     let rows=[];
     if(isHq){
@@ -5009,7 +5003,8 @@
         const brand=b2bBrandName(o), branch=b2bBranchName(o);
         const key=JSON.stringify([brand,branch]);
         const row=groups.get(key)||{id:key,brand,branch,current:0,previous:0,orders:[]};
-        row[b2bMonthKey(b2bDateOfOrder(o))===month?"current":"previous"]+=b2bOrderAmount(o);
+        const field=b2bMonthKey(b2bDateOfOrder(o))===month?"current":"previous";
+        row[field]=b2bMoneySum([row[field],b2bOrderAmount(o)]);
         row.orders.push(o);groups.set(key,row);
       });
       rows=[...groups.values()];
@@ -5023,21 +5018,22 @@
     if(query.trim()) rows=rows.filter(r=>`${r.brand} ${r.branch}`.toLowerCase().includes(query.trim().toLowerCase()));
     const selectBranch = row => { if(onSelectBranch) onSelectBranch(row); else { setSelected(row); } };
     const pages=Math.max(1,Math.ceil(rows.length/size)), activePage=Math.min(page,pages);
-    const revenue=rows.reduce((n,r)=>n+Number(r.revenue||0),0);
+    const revenue=b2bMoneySum(rows.map(r=>r.revenue));
     const th={padding:"9px 10px",textAlign:"left",fontSize:9.5,fontWeight:800,textTransform:"uppercase",letterSpacing:".06em",background:"#F6F7F1",color:"#5C6B60"};
     const td={padding:"9px 10px",fontSize:11.5,borderBottom:"1px solid #E1E6D8"};
     const button={...btnSt,minHeight:34,height:"auto",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:650};
     const card=(label,value)=><div style={{padding:12,border:"1px solid #E1E6D8",borderRadius:12}}><div style={{fontSize:12,color:C.muted}}>{label}</div><div style={{fontSize:18,fontWeight:800,marginTop:6,overflowWrap:"anywhere"}}>{value}</div></div>;
+    if(metric==="atRisk" || metric==="unexplained" || metric==="coverage") return <p role="status">This assessment is unavailable. Complete historical opening stock, closing counts and stock movements are required; missing evidence is not zero risk.</p>;
     if(selected) return <B2BBranchItemTable key={selected.id} selected={rows.find(r=>r.id===selected.id) || selected} user={user} api={api} onBack={()=>setSelected(null)}/>;
     return <div className="ad-evidence-view" key="summary">
       {!compact && <p style={{fontSize:12,color:C.muted,marginBottom:14}}>{initialBrand||"All brands"} · {initialBranch||"All branches"} · {b2bMonthLabel(month)}</p>}
       {!compact && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginBottom:18}}>
         {isHq&&ordersReady&&<>{card(metric==="hqPrevious"?"Previous supply revenue":"Supply order revenue",fmtAmt(metric==="hqPrevious"?previousTotal:currentTotal))}{metric==="hqChange"&&<>{card("Previous month",fmtAmt(previousTotal))}{card("Revenue change",fmtAmt(currentTotal-previousTotal))}{previousTotal>0&&card("Month-on-month",`${((currentTotal-previousTotal)/previousTotal*100).toFixed(1)}%`)}</>}</>}
-        {metric==="posRevenue"&&card("POS revenue in verified item evidence",fmtAmt(revenue))}
-        {metric==="atRisk"&&card("At-risk branches",rows.length.toLocaleString())}
+        {metric==="posRevenue"&&card("POS net revenue in item evidence",fmtAmt(revenue))}
+        {metric==="atRisk"&&card("At-risk branches","Not assessed")}
       </div>}
       {metric==="hqChange" && <label style={{display:"block",marginBottom:12,fontSize:11,color:C.muted}}>Find a branch or brand<input aria-label="Find a branch or brand" value={query} onChange={e=>{setQuery(e.target.value);setPage(1);}} placeholder="Search branch or brand…" style={{...invInputSt,display:"block",maxWidth:360,marginTop:5}}/></label>}
-      {isHq?<p style={{fontSize:12,marginBottom:14}}>Supply revenue uses received orders, grouped by order creation month. Profit or loss requires cost data.</p>:metric==="posRevenue"?<p style={{fontSize:12,marginBottom:14}}>Total of the item revenue shown below for this scope. Records with unverified ownership are excluded.</p>:null}
+      {isHq?<p style={{fontSize:12,marginBottom:14}}>Supply revenue uses received orders grouped by receipt month in Philippine time. This is revenue, not profit or confirmed loss.</p>:metric==="posRevenue"?<p style={{fontSize:12,marginBottom:14}}>Net transaction revenue allocated to items by their gross value, rounded to centavos. Missing item details appear as unallocated amounts.</p>:null}
       {isHq&&!ordersReady?<p role="status">Supply order evidence is unavailable. No revenue total is calculated from missing records.</p>:<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:13}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>{[...(isHq?["Branch / Brand"]:["Brand","Branch"]),...(isHq?[metric==="hqPrevious"?"Previous supply revenue":"Supply revenue",...(metric==="hqChange"?["Previous revenue","Change","Change %"]:[]),"Orders"]:metric==="atRisk"?["Risk","Reason"]:["Item",metric==="posRevenue"?"POS revenue":"Stock variance"]),...(metric!=="atRisk"?["Evidence"]:[])].map(h=><th style={th} key={h}>{h}</th>)}</tr></thead><tbody>
         {rows.slice((activePage-1)*size,activePage*size).map((r,i)=><tr key={JSON.stringify([r.brand,r.branch,r.id,i])} className={isHq?"ad-branch-change-row":undefined}
           tabIndex={isHq?0:undefined} aria-label={isHq?`View order evidence for ${r.branch}, ${r.brand}`:undefined}
@@ -5137,6 +5133,8 @@
     const [loading, setLoading] = useState(true);
     const [sourceMode, setSourceMode] = useState("aggregated");
     const [overviewApi, setOverviewApi] = useState(null);
+    const [verifiedTransactions,setVerifiedTransactions]=useState([]);
+    const requestVersion=useRef(0);
     const [branchesApi, setBranchesApi] = useState([]);
     const [brandsApi, setBrandsApi] = useState([]);
     const [anomaliesApi, setAnomaliesApi] = useState([]);
@@ -5196,12 +5194,12 @@
       const normalizedBranch = String(branchName || "").trim().toLowerCase();
       const catalogMatch = branchCatalog.find(item => String(item.name || "").trim().toLowerCase() === normalizedBranch);
       if (catalogMatch?.brandNames?.length) return catalogMatch.brandNames.join(", ");
-      const transactionBrands = Array.from(new Set((transactions || [])
+      const transactionBrands = Array.from(new Set((verifiedTransactions || [])
         .filter(tx => String(tx?.branch || tx?.branch_name || tx?.branchName || "").trim().toLowerCase() === normalizedBranch)
         .map(tx => String(tx?.brand || tx?.brand_name || tx?.brandName || tx?.franchise_brand || "").trim())
         .filter(Boolean)));
       return transactionBrands.join(", ") || "Brand not set";
-    }, [branchCatalog, transactions]);
+    }, [branchCatalog, verifiedTransactions]);
 
     const brandOptions = useMemo(() => (brands || []).map(b=>({ id:b?.id ?? b?.brand_id ?? b?.name, name:String(b?.name || b?.brand || "").trim() })).filter(b=>b.name).sort((a,b)=>a.name.localeCompare(b.name)), [brands]);
     const branchOptions = useMemo(() => {
@@ -5234,323 +5232,56 @@
     }, [API, user, fetchJson]);
 
     const loadB2B = useCallback(async () => {
-      if (!API) {
-        setLoading(false);
-        setLoadError("The API URL is not configured, so Mobile Orders and inventory cannot be loaded.");
-        return;
-      }
-      setLoading(true);
-      setLoadError("");
-      const params = new URLSearchParams({ month });
-      if (branch) params.set("branch", branch);
-      if (brand) params.set("brand", brand);
-      if (risk !== "all") params.set("risk", risk);
-      params.set("growthTargetPct", String(growthTargetPct));
-
-      const endpoints = [
-        `${API}/dashboard/b2b/overview?${params.toString()}`,
-        `${API}/dashboard/b2b/branches?${params.toString()}`,
-        `${API}/dashboard/b2b/brands?${params.toString()}`,
-        `${API}/dashboard/b2b/anomalies?${params.toString()}`,
-        `${API}/dashboard/b2b/products?${params.toString()}`,
-      ];
-
-      const settled = await Promise.allSettled(endpoints.map(fetchJson));
-      const catalogResults = await Promise.allSettled([
-        fetchJson(`${API}/inventory`), fetchJson(`${API}/ingredients`),
-      ]);
-      setEvidenceCatalog(catalogResults.flatMap(result => {
-        if (result.status !== "fulfilled") return [];
-        const value = result.value;
-        return Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : [];
-      }));
-      const hasCoreSummary = settled.slice(0,3).every(r=>r.status==="fulfilled");
-
-      if (hasCoreSummary) {
-        setSourceMode("aggregated");
-        const o = settled[0].status === "fulfilled" ? settled[0].value : null;
-        const br = settled[1].status === "fulfilled" ? settled[1].value : [];
-        const bd = settled[2].status === "fulfilled" ? settled[2].value : [];
-        const an = settled[3].status === "fulfilled" ? settled[3].value : [];
-        const pr = settled[4].status === "fulfilled" ? settled[4].value : [];
-        setOverviewApi(o?.data || o || null);
-        setBranchesApi(Array.isArray(br) ? br : Array.isArray(br?.branches) ? br.branches : Array.isArray(br?.data) ? br.data : []);
-        setBrandsApi(Array.isArray(bd) ? bd : Array.isArray(bd?.brands) ? bd.brands : Array.isArray(bd?.data) ? bd.data : []);
-        setAnomaliesApi(Array.isArray(an) ? an : Array.isArray(an?.anomalies) ? an.anomalies : Array.isArray(an?.data) ? an.data : []);
-        setProductsApi(Array.isArray(pr) ? pr : Array.isArray(pr?.products) ? pr.products : Array.isArray(pr?.data) ? pr.data : []);
-        try { setRawOrders(await fetchRawOrdersFallback()); setOrdersReady(true); }
-        catch { setRawOrders([]); setOrdersReady(false); }
-        setRawInventory([]);
-      } else {
-        setSourceMode("fallback");
-        setOverviewApi(null); setBranchesApi([]); setBrandsApi([]); setAnomaliesApi([]); setProductsApi([]);
-        const inventoryParams = new URLSearchParams();
-        if (branch) inventoryParams.set("branch", branch);
-        const [ordersResult, stockInventoryResult, posInventoryResult] = await Promise.allSettled([
-          fetchRawOrdersFallback(),
-          fetchJson(`${API}/ingredients${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
-          fetchJson(`${API}/inventory${inventoryParams.toString() ? `?${inventoryParams.toString()}` : ""}`),
-        ]);
-        setOrdersReady(ordersResult.status === "fulfilled");
-        setRawOrders(ordersResult.status === "fulfilled" && Array.isArray(ordersResult.value) ? ordersResult.value : []);
-        const stockPayload = stockInventoryResult.status === "fulfilled" ? stockInventoryResult.value : [];
-        const posPayload = posInventoryResult.status === "fulfilled" ? posInventoryResult.value : [];
-        const stockRows = Array.isArray(stockPayload) ? stockPayload : Array.isArray(stockPayload?.data) ? stockPayload.data : [];
-        const posRows = Array.isArray(posPayload) ? posPayload : Array.isArray(posPayload?.data) ? posPayload.data : [];
-        setRawInventory(stockRows.length ? stockRows : posRows);
-        if (ordersResult.status === "rejected") {
-          setLoadError("The B2B summary endpoints and the existing Mobile Order endpoint could not be loaded.");
-        }
-      }
-      setLoading(false);
-    }, [API, month, branch, brand, risk, growthTargetPct, fetchJson, fetchRawOrdersFallback]);
+      const version=++requestVersion.current;
+      setLoading(true);setLoadError("");
+      const params=new URLSearchParams({month,growthTargetPct:String(growthTargetPct)});
+      if(branch)params.set("branch",branch);if(brand)params.set("brand",brand);
+      try {
+        const data=await fetchJson(`${API}/dashboard/b2b/overview?${params}`);
+        if(version!==requestVersion.current)return;
+        if(data?.calculation_version!=="qa-evidence-v2")throw new Error("Install the updated QA backend before using these calculations.");
+        setOverviewApi(data);setBranchesApi(data.branches||[]);setBrandsApi(data.brands||[]);
+        setAnomaliesApi(data.anomalies||[]);setProductsApi(data.products||[]);
+        setRawOrders(data.order_evidence||[]);setVerifiedTransactions(data.transaction_evidence||[]);
+        setOrdersReady(true);setRawInventory([]);setSourceMode("aggregated");
+        setEvidenceCatalog([]);
+      } catch(error) {
+        if(version!==requestVersion.current)return;
+        setOverviewApi(null);setBranchesApi([]);setBrandsApi([]);setAnomaliesApi([]);setProductsApi([]);
+        setRawOrders([]);setVerifiedTransactions([]);setOrdersReady(false);setRawInventory([]);setSourceMode("unavailable");
+        setLoadError(error.message || "QA evidence is unavailable; calculations are not estimated.");
+      } finally {if(version===requestVersion.current)setLoading(false);}
+    },[API,month,branch,brand,growthTargetPct,fetchJson]);
 
     useAdminLiveRefresh(loadB2B, [loadB2B]);
 
-    const fallback = useMemo(() => {
-      const currentMonth = month;
-      const prevMonth = b2bShiftMonth(month, -1);
-      const monthMatches = (value, key) => b2bMonthKey(value) === key;
-      const brandAllows = (name) => !brand || String(name || "") === brand;
-      const branchAllows = (name) => !branch || String(name || "") === branch;
-
-      const orders = rawOrders.filter(o => b2bIsEarnedOrder(o) && brandAllows(b2bBrandName(o)) && branchAllows(b2bBranchName(o)));
-      const pos = (transactions || []).filter(tx => b2bIsCompletedTx(tx) && brandAllows(b2bBrandName(tx)) && branchAllows(b2bBranchName(tx)));
-      const inventory = (rawInventory || []).filter(row => {
-        if (!brandAllows(b2bBrandName(row)) || !branchAllows(b2bBranchName(row))) return false;
-        if (currentMonth === b2bMonthKey(new Date())) return true;
-        const snapshotDate = b2bDateOfInventory(row);
-        if (snapshotDate) return monthMatches(snapshotDate, currentMonth);
-        return false;
-      });
-      const currentOrders = orders.filter(o => monthMatches(b2bDateOfOrder(o), currentMonth));
-      const prevOrders = orders.filter(o => monthMatches(b2bDateOfOrder(o), prevMonth));
-      const currentTx = pos.filter(tx => monthMatches(b2bDateOfTx(tx), currentMonth));
-      const prevTx = pos.filter(tx => monthMatches(b2bDateOfTx(tx), prevMonth));
-
-      const hqRevenue = currentOrders.reduce((s,o)=>s+b2bOrderAmount(o),0);
-      const prevHqRevenue = prevOrders.reduce((s,o)=>s+b2bOrderAmount(o),0);
-      const posRevenue = currentTx.reduce((s,tx)=>s+b2bTxAmount(tx),0);
-      const prevPosRevenue = prevTx.reduce((s,tx)=>s+b2bTxAmount(tx),0);
-      const target = prevHqRevenue * (1 + growthTargetPct / 100);
-      const attainment = target > 0 ? (hqRevenue / target) * 100 : null;
-      const gap = Math.max(0, target - hqRevenue);
-
-      const branchPairs=new Map();
-      const addPair=(name,brandName,cat)=>{if(name&&brandAllows(brandName)&&branchAllows(name))branchPairs.set(JSON.stringify([brandName,name]),{name,brandName,cat});};
-      branchCatalog.forEach(cat=>cat.brandNames.forEach(brandName=>addPair(cat.name,brandName,cat)));
-      [...currentOrders,...prevOrders,...currentTx,...prevTx,...inventory].forEach(row=>{
-        const name=b2bBranchName(row),brandName=b2bBrandName(row);
-        const key=JSON.stringify([brandName,name]);
-        if(!branchPairs.has(key))addPair(name,brandName,branchCatalog.find(c=>c.name===name&&c.brandNames.includes(brandName)));
-      });
-      const branchRows = Array.from(branchPairs.values()).map(({name,brandName,cat}) => {
-        const matches=row=>b2bSameScope(b2bBranchName(row),name)&&b2bSameScope(b2bBrandName(row),brandName);
-        const currO=currentOrders.filter(matches),prevO=prevOrders.filter(matches);
-        const currT=currentTx.filter(matches),prevT=prevTx.filter(matches),currI=inventory.filter(matches);
-        const hq = currO.reduce((s,o)=>s+b2bOrderAmount(o),0);
-        const prevHq = prevO.reduce((s,o)=>s+b2bOrderAmount(o),0);
-        const posV = currT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
-        const prevPos = prevT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
-        const suppliedQty = currO.flatMap(b2bOrderItems).reduce((s,i)=>s+b2bItemQty(i),0);
-        const soldQty = currT.flatMap(b2bTxItems).reduce((s,i)=>s+b2bItemQty(i),0);
-        const openingValues = currI.map(b2bInventoryOpening).filter(v=>v!=null);
-        const closingValues = currI.map(b2bInventoryClosing).filter(v=>v!=null);
-        const openingQty = openingValues.length ? openingValues.reduce((s,v)=>s+v,0) : null;
-        const endingStock = closingValues.length ? closingValues.reduce((s,v)=>s+v,0) : null;
-        const disposalQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryDisposal(i)),0);
-        const transferInQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferIn(i)),0);
-        const transferOutQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferOut(i)),0);
-        const adjustmentQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryAdjustment(i)),0);
-        const officialAvailable = Math.max(0, b2bNum(openingQty) + suppliedQty + transferInQty - disposalQty - transferOutQty + adjustmentQty);
-        const orderCoverage = soldQty > 0 ? Math.min(100, (officialAvailable / soldQty) * 100) : null;
-        const expectedClosing = openingQty != null && endingStock != null
-          ? openingQty + suppliedQty + transferInQty - soldQty - disposalQty - transferOutQty + adjustmentQty
-          : null;
-        const stockVariance = expectedClosing == null ? null : endingStock - expectedClosing;
-        const hqGrowth = prevHq > 0 ? ((hq-prevHq)/prevHq)*100 : (hq>0?100:0);
-        const posGrowth = prevPos > 0 ? ((posV-prevPos)/prevPos)*100 : (posV>0?100:0);
-        const targetV = prevHq * (1 + growthTargetPct/100);
-        const targetPct = targetV > 0 ? (hq/targetV)*100 : null;
-        let riskLabel = stockVariance==null ? "No data yet" : "Normal";
-        let reason = "No revenue-leakage signal from available order/POS data.";
-        if (posV > 0 && hq === 0) {
-          riskLabel = "High Risk";
-          reason = "Active POS sales with no fulfilled HQ supply order in the selected month. Verify carry-over stock, approved transfers, or possible outside sourcing.";
-        } else if (stockVariance != null && stockVariance > 0) {
-          riskLabel = "High Risk";
-          reason = `${stockVariance.toLocaleString()} units are above the stock expected from opening balance, HQ receipts, POS sales, disposal, and transfers.`;
-        } else if (stockVariance != null && stockVariance < 0) {
-          riskLabel = "High Risk";
-          reason = `${Math.abs(stockVariance).toLocaleString()} units are missing from the expected stock balance and require a physical count.`;
-        } else if (openingQty != null && orderCoverage != null && orderCoverage < 70 && posV > 0) {
-          riskLabel = "High Risk";
-          reason = `Only ${orderCoverage.toFixed(1)}% of reported POS-sold units are supported by opening stock and authorized HQ stock flow.`;
-        } else if (posGrowth >= B2B_FALLBACK_THRESHOLDS.posStableFloorPct && hqGrowth <= -B2B_FALLBACK_THRESHOLDS.highOrderDropPct) {
-          riskLabel = "High Risk";
-          reason = "POS is stable/up while HQ supply revenue dropped materially.";
-        } else if (posGrowth >= B2B_FALLBACK_THRESHOLDS.posStableFloorPct && hqGrowth <= -B2B_FALLBACK_THRESHOLDS.watchOrderDropPct) {
-          riskLabel = "Watch";
-          reason = "POS is stable/up while HQ supply revenue is declining.";
-        }
-        if(!currO.length&&!currT.length) {
-          riskLabel="No transactions yet";
-          reason="No orders or completed POS transactions recorded for this month. Inventory evidence may be unavailable.";
-        }
-        const branchBrands = Array.from(new Set([
-          ...(cat?.brandNames || []),
-          ...currO.map(b2bBrandName),
-          ...currT.map(b2bBrandName),
-          ...currI.map(b2bBrandName),
-        ].filter(Boolean)));
-        return {
-          id:JSON.stringify([brandName,cat?.id ?? name]), branch:name, brand:brandName, location:cat?.location || "—", hqRevenue:hq, posRevenue:posV,
-          vsLastMonth:hqGrowth, posGrowth, targetPct, orderCoverage, stockVariance,
-          suppliedQty, soldQty, openingStock:openingQty, endingStock,
-          risk:riskLabel, reason, targetGap:Math.max(0,targetV-hq), prevHqRevenue:prevHq,
-        };
-      }).filter(r=>!branch || r.branch===branch);
-
-      const brandNames = new Set(brandOptions.map(b=>b.name));
-      currentOrders.forEach(o=>{ if(b2bBrandName(o)) brandNames.add(b2bBrandName(o)); });
-      currentTx.forEach(tx=>{ if(b2bBrandName(tx)) brandNames.add(b2bBrandName(tx)); });
-      inventory.forEach(row=>{ if(b2bBrandName(row)) brandNames.add(b2bBrandName(row)); });
-      const brandRows = Array.from(brandNames).map(name => {
-        const currO = currentOrders.filter(o=>b2bBrandName(o)===name);
-        const currT = currentTx.filter(tx=>b2bBrandName(tx)===name);
-        const currI = inventory.filter(row=>b2bBrandName(row)===name);
-        const hq = currO.reduce((s,o)=>s+b2bOrderAmount(o),0);
-        const posV = currT.reduce((s,tx)=>s+b2bTxAmount(tx),0);
-        const suppliedQty = currO.flatMap(b2bOrderItems).reduce((s,i)=>s+b2bItemQty(i),0);
-        const soldQty = currT.flatMap(b2bTxItems).reduce((s,i)=>s+b2bItemQty(i),0);
-        const openingValues = currI.map(b2bInventoryOpening).filter(v=>v!=null);
-        const closingValues = currI.map(b2bInventoryClosing).filter(v=>v!=null);
-        const openingStock = openingValues.length ? openingValues.reduce((s,v)=>s+v,0) : null;
-        const endingStock = closingValues.length ? closingValues.reduce((s,v)=>s+v,0) : null;
-        const disposalQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryDisposal(i)),0);
-        const transferInQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferIn(i)),0);
-        const transferOutQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryTransferOut(i)),0);
-        const adjustmentQty = currI.reduce((s,i)=>s+b2bNum(b2bInventoryAdjustment(i)),0);
-        const expectedClosing = openingStock != null && endingStock != null
-          ? openingStock + suppliedQty + transferInQty - soldQty - disposalQty - transferOutQty + adjustmentQty
-          : null;
-        const stockVariance = expectedClosing == null ? null : endingStock - expectedClosing;
-        const availableQty = openingStock == null ? null : Math.max(0, openingStock + suppliedQty + transferInQty);
-        const sellThrough = availableQty && availableQty > 0 ? (soldQty / availableQty) * 100 : null;
-        return { id:brandOptions.find(b=>b.name===name)?.id ?? name, brand:name, hqRevenue:hq, posRevenue:posV, suppliedQty, soldQty, openingStock, endingStock, sellThrough, stockVariance };
-      }).filter(r=>!brand || r.brand===brand).sort((a,b)=>b.hqRevenue-a.hqRevenue);
-
-      const riskRows = branchRows.filter(r=>/high|watch|medium/i.test(r.risk)).map(r=>({
-        id:`fallback-${r.branch}`,
-        branch:r.branch,
-        brand:r.brand,
-        severity:r.risk,
-        rule:r.hqRevenue===0 && r.posRevenue>0 ? "No Recent HQ Order + Active Sales" : "High POS, Low HQ Orders",
-        reason:r.reason,
-        gapValue:r.targetGap,
-        recommendation:"Review the branch → brand → SKU breakdown and verify the source of replenishment.",
-      }));
-
-      const skuMap = new Map();
-      const addSku = (item, kind, parentBrand, parentBranch) => {
-        const scope = b2bVerifiedItemScope(item, parentBrand, parentBranch, evidenceCatalog);
-        if (!scope) return;
-        const resolvedBranch = scope.branch;
-        const resolvedBrand = scope.brand;
-        if (branch && resolvedBranch !== branch) return;
-        if (brand && resolvedBrand !== brand) return;
-        const id = b2bItemId(item);
-        const name = b2bItemName(item);
-        const key = b2bSkuKey(item, resolvedBrand, resolvedBranch);
-        const row = skuMap.get(key) || { id:id ?? key, sku:id != null ? String(id) : "—", product:name, brand:resolvedBrand, branch:resolvedBranch, suppliedQty:0, soldQty:0, openingStock:null, endingStock:null, disposal:null, transferIn:null, transferOut:null, adjustment:null, transfers:null, stockVariance:null };
-        if (kind==="supply") row.suppliedQty += b2bItemQty(item);
-        if (kind==="sale") row.soldQty += b2bItemQty(item);
-        if (kind==="inventory") {
-          row.openingStock = b2bInventoryOpening(item);
-          row.endingStock = b2bInventoryClosing(item);
-          row.disposal = b2bInventoryDisposal(item);
-          row.transferIn = b2bInventoryTransferIn(item);
-          row.transferOut = b2bInventoryTransferOut(item);
-          row.adjustment = b2bInventoryAdjustment(item);
-          row.transfers = b2bNum(row.transferIn) + b2bNum(row.transferOut);
-        }
-        skuMap.set(key,row);
-      };
-      currentOrders.forEach(o=>b2bOrderItems(o).forEach(i=>addSku(i,"supply",b2bBrandName(o)||b2bBrandName(i),b2bBranchName(o)||b2bBranchName(i))));
-      currentTx.forEach(tx=>b2bTxItems(tx).forEach(i=>addSku(i,"sale",b2bBrandName(tx)||b2bBrandName(i),b2bBranchName(tx)||b2bBranchName(i))));
-      inventory.forEach(row=>addSku(row,"inventory",b2bBrandName(row),b2bBranchName(row)));
-      const skuRows = Array.from(skuMap.values()).map(row=>{
-        const hasFullBalance = row.openingStock != null && row.endingStock != null;
-        const expectedClosing = hasFullBalance
-          ? row.openingStock + row.suppliedQty + b2bNum(row.transferIn) - row.soldQty - b2bNum(row.disposal) - b2bNum(row.transferOut) + b2bNum(row.adjustment)
-          : null;
-        return { ...row, stockVariance:expectedClosing==null?null:row.endingStock-expectedClosing };
-      }).sort((a,b)=>Math.abs(b.stockVariance||0)-Math.abs(a.stockVariance||0) || (b.soldQty+b.suppliedQty)-(a.soldQty+a.suppliedQty));
-
-      const stockRiskRows = skuRows.filter(row=>row.stockVariance!=null && row.stockVariance!==0).map((row,index)=>({
-        id:`stock-${row.id}-${index}`,
-        branch:row.branch,
-        brand:row.brand,
-        sku:row.product,
-        severity:"High Risk",
-        rule:row.stockVariance>0 ? "Suspected Unofficial Supply" : "Ghost Stock / Shrinkage",
-        reason:row.stockVariance>0
-          ? `${row.stockVariance.toLocaleString()} recorded units are not explained by verified opening stock, HQ receipts, POS sales, disposal, and transfers.`
-          : `${Math.abs(row.stockVariance).toLocaleString()} units expected by the stock ledger are missing from recorded closing stock.`,
-        gapValue:null,
-        recommendation:"Request a physical count, verify the source order or transfer, and review manual inventory adjustments.",
-      }));
-
-      const trend = [];
-      for (let offset=-5; offset<=0; offset++) {
-        const key = b2bShiftMonth(currentMonth, offset);
-        const o = orders.filter(x=>monthMatches(b2bDateOfOrder(x),key)).reduce((s,x)=>s+b2bOrderAmount(x),0);
-        const t = pos.filter(x=>monthMatches(b2bDateOfTx(x),key)).reduce((s,x)=>s+b2bTxAmount(x),0);
-        const priorKey = b2bShiftMonth(key,-1);
-        const priorHq = orders.filter(x=>monthMatches(b2bDateOfOrder(x),priorKey)).reduce((s,x)=>s+b2bOrderAmount(x),0);
-        trend.push({ month:key, label:b2bMonthLabel(key).replace(/\s\d{4}$/,""), hqRevenue:o, posRevenue:t, targetRevenue:priorHq*(1+growthTargetPct/100) });
+    // Registry-backed rows remain visible. No fallback stock arithmetic is performed.
+    const fallback=useMemo(()=>{
+      const ready=overviewApi?.calculation_version==="qa-evidence-v2";
+      const branchRows=branchCatalog.flatMap(c=>c.brandNames.map(name=>({
+        id:c.id,branch:c.name,brand:name,location:c.location||"—",hqRevenue:ready?0:null,posRevenue:ready?0:null,
+        prevHqRevenue:ready?0:null,vsLastMonth:null,targetPct:null,targetGap:null,orderCoverage:null,
+        stockVariance:null,suppliedQty:null,soldQty:null,openingStock:null,endingStock:null,
+        risk:ready?"No transactions yet":"Data unavailable",reason:ready?"No transactions returned for this branch and period.":"The evidence request failed. Missing data is not zero."
+      }))).filter(r=>(!branch||r.branch===branch)&&(!brand||r.brand===brand));
+      const brandRows=brandOptions.filter(b=>!brand||b.name===brand).map(b=>({id:b.id,brand:b.name,hqRevenue:ready?0:null,posRevenue:ready?0:null,suppliedQty:null,soldQty:null,endingStock:null,sellThrough:null,stockVariance:null}));
+      const trend=[];
+      if(ready) for(let offset=-5;offset<=0;offset++){
+        const key=b2bShiftMonth(month,offset),prior=b2bShiftMonth(key,-1);
+        const hq=k=>b2bMoneySum(rawOrders.filter(o=>b2bIsEarnedOrder(o)&&b2bMonthKey(b2bDateOfOrder(o))===k).map(b2bOrderAmount));
+        const previous=hq(prior);
+        trend.push({month:key,label:b2bMonthLabel(key),hqRevenue:hq(key),posRevenue:b2bMoneySum(verifiedTransactions.filter(t=>b2bIsCompletedTx(t)&&b2bMonthKey(b2bDateOfTx(t))===key).map(b2bTxAmount)),targetRevenue:(()=>{const scopes=new Map();rawOrders.filter(o=>b2bIsEarnedOrder(o)&&b2bMonthKey(b2bDateOfOrder(o))===prior).forEach(o=>{const k=JSON.stringify([b2bBrandName(o),b2bBranchName(o)]);scopes.set(k,b2bMoneySum([scopes.get(k)||0,b2bOrderAmount(o)]));});return previous>0?b2bMoneySum([...scopes.values()].map(v=>b2bTargetAmount(v,growthTargetPct))):null;})()});
       }
+      return {branchRows,brandRows,skuRows:[],anomalies:[],trend};
+    },[overviewApi,branchCatalog,brandOptions,brand,branch,month,rawOrders,verifiedTransactions,growthTargetPct]);
 
-      const suppliedUnits = brandRows.reduce((sum,row)=>sum+Number(row.suppliedQty||0),0);
-      const soldUnits = brandRows.reduce((sum,row)=>sum+Number(row.soldQty||0),0);
-      const openingUnits = brandRows.reduce((sum,row)=>sum+Number(row.openingStock||0),0);
-      const hasOpeningEvidence = brandRows.some(row=>row.openingStock!=null);
-      const coverage = soldUnits>0 ? Math.min(100,((suppliedUnits+(hasOpeningEvidence?openingUnits:0))/soldUnits)*100) : null;
-      const unexplained = skuRows.filter(row=>row.stockVariance!=null).reduce((sum,row)=>sum+Math.abs(Number(row.stockVariance||0)),0);
-      const sellThrough = hasOpeningEvidence && openingUnits+suppliedUnits>0 ? (soldUnits/(openingUnits+suppliedUnits))*100 : null;
-      const allAnomalies = [...stockRiskRows,...riskRows];
-      const atRisk = new Set(allAnomalies.map(row=>row.branch).filter(Boolean)).size;
-
-      return { hqRevenue, prevHqRevenue, posRevenue, prevPosRevenue, target, attainment, gap, coverage, unexplained, sellThrough, atRisk, branchRows, brandRows, anomalies:allAnomalies, skuRows, trend };
-    }, [month, branch, brand, rawOrders, rawInventory, transactions, branchCatalog, brandOptions, growthTargetPct, resolveBranchBrand, evidenceCatalog]);
-
-    const normalizedOverview = useMemo(() => {
-      const o = overviewApi || {};
-      const hqRevenue = b2bNullableNum(o?.hqSupplyRevenue, o?.hq_supply_revenue, o?.supplyRevenue, o?.franchisyncSupplyRevenue);
-      const posRevenue = b2bNullableNum(o?.posRevenue, o?.pos_revenue, o?.franchiseePosRevenue, o?.franchisee_pos_revenue);
-      const target = b2bNullableNum(o?.monthlyTarget, o?.monthly_target, o?.target);
-      const targetGap = b2bNullableNum(o?.targetGap, o?.target_gap, target != null && hqRevenue != null ? Math.max(0,target-hqRevenue) : null);
-      const targetAttainment = b2bNullableNum(o?.targetAttainment, o?.target_attainment, o?.targetAttainmentPct, o?.target_attainment_pct, target && hqRevenue != null ? hqRevenue/target*100 : null);
-      const coverage = b2bNullableNum(o?.orderCoverage, o?.order_coverage, o?.coveragePct, o?.coverage_pct);
-      const atRisk = b2bNullableNum(o?.atRiskBranches, o?.at_risk_branches, o?.riskCount, o?.risk_count);
-      const unexplained = b2bNullableNum(o?.unexplainedStock, o?.unexplained_stock, o?.unexplainedStockUnits, o?.unexplained_stock_units);
-      const sellThrough = b2bNullableNum(o?.sellThrough, o?.sell_through, o?.sellThroughPct, o?.sell_through_pct);
-      const prevHqRevenue = b2bNullableNum(o?.previousHqSupplyRevenue, o?.previous_hq_supply_revenue, o?.prevHqRevenue, o?.prev_hq_revenue);
-      const prevPosRevenue = b2bNullableNum(o?.previousPosRevenue, o?.previous_pos_revenue, o?.prevPosRevenue, o?.prev_pos_revenue);
-      return {
-        hqRevenue: hqRevenue ?? fallback.hqRevenue,
-        posRevenue: posRevenue ?? fallback.posRevenue,
-        target: target ?? fallback.target,
-        targetGap: targetGap ?? fallback.gap,
-        targetAttainment: targetAttainment ?? fallback.attainment,
-        coverage: coverage ?? fallback.coverage,
-        atRisk: atRisk ?? (sourceMode==="fallback" ? fallback.atRisk : 0),
-        unexplained: unexplained ?? fallback.unexplained,
-        sellThrough: sellThrough ?? fallback.sellThrough,
-        prevHqRevenue: prevHqRevenue ?? fallback.prevHqRevenue,
-        prevPosRevenue: prevPosRevenue ?? fallback.prevPosRevenue,
-      };
-    }, [overviewApi, fallback, sourceMode]);
+    const normalizedOverview=useMemo(()=>{
+      const o=overviewApi||{};
+      return {hqRevenue:b2bNullableNum(o.hq_supply_revenue),posRevenue:b2bNullableNum(o.pos_revenue),
+        prevHqRevenue:b2bNullableNum(o.previous_hq_supply_revenue),prevPosRevenue:b2bNullableNum(o.previous_pos_revenue),
+        target:b2bNullableNum(o.monthly_target),targetGap:b2bNullableNum(o.target_gap),targetAttainment:b2bNullableNum(o.target_attainment_pct),
+        coverage:null,atRisk:null,unexplained:null,sellThrough:null};
+    },[overviewApi]);
 
     const branchRows = useMemo(() => {
       if (sourceMode === "fallback" || !branchesApi.length) {
@@ -5564,12 +5295,12 @@
           r?.brand_name || r?.brand || r?.brandName
         ),
         location:String(r?.location || r?.address || "—"),
-        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hq_revenue, r?.hqRevenue, r?.supply_revenue),
         posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue, r?.franchisee_pos_revenue),
         vsLastMonth:b2bNullableNum(r?.mom_growth, r?.vs_last_month, r?.hq_growth_pct),
         targetPct:b2bNullableNum(r?.target_pct, r?.targetAttainment, r?.target_attainment_pct),
         targetGap:b2bNullableNum(r?.target_gap, r?.targetGap, r?.revenue_gap),
-        prevHqRevenue:b2bNullableNum(r?.previous_hq_supply_revenue, r?.prevHqRevenue, r?.previous_revenue),
+        prevHqRevenue:b2bNullableNum(r?.previous_hq_supply_revenue, r?.previous_hq_revenue, r?.prevHqRevenue, r?.previous_revenue),
         orderCoverage:b2bNullableNum(r?.order_coverage, r?.coverage_pct, r?.orderCoverage),
         stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
         risk:String(r?.risk || r?.risk_status || r?.anomaly_status || "No data yet"),
@@ -5579,7 +5310,7 @@
       reported.forEach(r=>{
         const key=JSON.stringify([r.brand,r.branch]);
         const existing=merged.get(key);
-        merged.set(key,{...existing,...r,risk:r.hqRevenue===0&&r.posRevenue===0&&existing?.risk==="No transactions yet"?existing.risk:r.risk});
+        merged.set(key,{...existing,...r,risk:r.risk});
       });
       return [...merged.values()].filter(r=>(!brand||r.brand===brand)&&(!branch||r.branch===branch)&&(risk==="all"||String(r.risk).toLowerCase().includes(risk.toLowerCase())));
 
@@ -5590,10 +5321,10 @@
       const reported = brandsApi.map((r,i)=>({
         id:r?.brand_id ?? r?.id ?? r?.brand ?? i,
         brand:String(r?.brand_name || r?.brand || r?.name || "Unknown Brand"),
-        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hq_revenue, r?.hqRevenue, r?.supply_revenue),
         posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue),
-        suppliedQty:b2bNum(r?.supplied_qty, r?.qty_supplied, r?.quantity_supplied),
-        soldQty:b2bNum(r?.sold_qty, r?.qty_sold, r?.quantity_sold),
+        suppliedQty:b2bNullableNum(r?.supplied_qty, r?.qty_supplied, r?.quantity_supplied),
+        soldQty:b2bNullableNum(r?.sold_qty, r?.qty_sold, r?.quantity_sold),
         endingStock:b2bNullableNum(r?.ending_stock, r?.closing_stock, r?.on_hand),
         sellThrough:b2bNullableNum(r?.sell_through, r?.sell_through_pct),
         stockVariance:b2bNullableNum(r?.stock_variance, r?.stockVariance),
@@ -5628,75 +5359,20 @@
       const mapped = raw.map((r,i)=>({
         month:String(r?.month || r?.period || ""),
         label:String(r?.label || (r?.month ? b2bMonthLabel(r.month).replace(/\s\d{4}$/,"|") : `M${i+1}`)).replace("|", ""),
-        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hqRevenue, r?.supply_revenue),
+        hqRevenue:b2bNum(r?.hq_supply_revenue, r?.hq_revenue, r?.hqRevenue, r?.supply_revenue),
         posRevenue:b2bNum(r?.pos_revenue, r?.posRevenue),
         targetRevenue:b2bNullableNum(r?.target_revenue, r?.targetRevenue, r?.monthly_target, r?.target),
       }));
       return mapped.map((row,index)=>({
         ...row,
-        targetRevenue:row.targetRevenue ?? (index>0 ? mapped[index-1].hqRevenue*(1+growthTargetPct/100) : 0),
+        targetRevenue:row.targetRevenue ?? (index>0 && mapped[index-1].hqRevenue>0 ? b2bTargetAmount(mapped[index-1].hqRevenue,growthTargetPct) : null),
       }));
     }, [overviewApi, fallback.trend, growthTargetPct]);
 
     const skuRows = fallback.skuRows;
 
-    const transactionProductEvidenceRows = useMemo(() => {
-      const productMap = new Map();
-      const parseItems = raw => {
-        if (Array.isArray(raw)) return raw;
-        if (typeof raw === "string") {
-          try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; }
-          catch { return []; }
-        }
-        return [];
-      };
-
-      (transactions || []).forEach(tx => {
-        if (!b2bIsCompletedTx(tx) || b2bMonthKey(b2bDateOfTx(tx)) !== month) return;
-        const txBranch = b2bBranchName(tx) || String(tx?.branch || "Unassigned Branch");
-        const txBrand = resolveBranchBrand(txBranch, b2bBrandName(tx));
-        if (branch && txBranch !== branch) return;
-        if (brand && !txBrand.split(",").map(value=>value.trim()).includes(brand)) return;
-
-        const txItems = parseItems(tx?.items);
-        const itemGrossTotal = txItems.reduce((sum, item) => {
-          const qty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-          return sum + (Number(item?.price ?? 0) || 0) * qty;
-        }, 0);
-        const transactionNetTotal = Number(tx?.total ?? tx?.total_amount ?? tx?.grand_total ?? 0) || 0;
-        const netAllocationRatio = itemGrossTotal > 0 && transactionNetTotal > 0
-          ? transactionNetTotal / itemGrossTotal
-          : 1;
-
-        txItems.forEach((item, itemIndex) => {
-          const scope = b2bVerifiedItemScope(item, txBrand, txBranch, evidenceCatalog);
-          if (!scope) return;
-          const sku = String(item?.id ?? item?.inventory_id ?? item?.product_id ?? item?.sku ?? `ITEM-${itemIndex + 1}`);
-          const product = String(item?.name || item?.product_name || item?.item_name || "Unnamed Product");
-          const soldQty = Number(item?.qty ?? item?.quantity ?? 0) || 0;
-          const grossLineRevenue = Number(item?.total ?? item?.line_total ?? 0) || (Number(item?.price ?? 0) || 0) * soldQty;
-          const lineRevenue = grossLineRevenue * netAllocationRatio;
-          const key = `${txBrand}::${txBranch}::${sku}::${product}`;
-          const existing = productMap.get(key) || {
-            id:key, productId:item?.product_id ?? item?.inventory_id ?? item?.id ?? null, sku, product, brand:scope.brand, branch:scope.branch,
-            soldQty:0, revenue:0, transactionIds:new Set(), lastSale:null,
-          };
-          existing.soldQty += soldQty;
-          existing.revenue += lineRevenue;
-          existing.transactionIds.add(tx?.id ?? `${txBranch}-${tx?.created_at}`);
-          const saleDate = b2bDateOfTx(tx);
-          if (saleDate && (!existing.lastSale || new Date(saleDate) > new Date(existing.lastSale))) existing.lastSale = saleDate;
-          productMap.set(key, existing);
-        });
-      });
-
-      return Array.from(productMap.values())
-        .map(row => ({ ...row, transactionCount:row.transactionIds.size, transactionIds:undefined }))
-        .sort((a,b) => b.revenue-a.revenue || b.soldQty-a.soldQty);
-    }, [transactions, month, branch, brand, resolveBranchBrand, evidenceCatalog]);
-
     const productEvidenceRows = useMemo(() => {
-      const rows = sourceMode === "aggregated" && productsApi.length
+      const rows = sourceMode === "aggregated"
         ? productsApi.map((row, index) => ({
             id:row?.product_id ?? row?.id ?? index,
             productId:row?.product_id ?? row?.id ?? null,
@@ -5706,22 +5382,19 @@
             branch:String(row?.branch_name || row?.branch || "Unassigned Branch"),
             branchId:row?.branch_id ?? null,
             brandId:row?.brand_id ?? null,
-            soldQty:b2bNum(row?.sold_qty, row?.quantity_sold),
+            soldQty:b2bNullableNum(row?.sold_qty, row?.quantity_sold),
             revenue:b2bNum(row?.line_revenue, row?.revenue, row?.net_revenue),
             transactionCount:b2bNum(row?.transaction_count, row?.transactions),
             lastSale:row?.last_sale || row?.lastSale || null,
           }))
-        : transactionProductEvidenceRows;
+        : [];
       return rows.filter(row =>
         (!brand || b2bSameScope(row.brand, brand)) &&
-        (!branch || b2bSameScope(row.branch, branch)) &&
-        b2bVerifiedItemScope(row, row.brand, row.branch, evidenceCatalog)
+        (!branch || b2bSameScope(row.branch, branch))
       ).sort((a,b) =>
-        String(a.brand).localeCompare(String(b.brand)) ||
-        String(a.branch).localeCompare(String(b.branch)) ||
-        String(a.product).localeCompare(String(b.product))
+        b.revenue-a.revenue || String(a.brand).localeCompare(String(b.brand)) || String(a.branch).localeCompare(String(b.branch)) || String(a.product).localeCompare(String(b.product))
       );
-    }, [sourceMode, productsApi, transactionProductEvidenceRows, brand, branch, evidenceCatalog]);
+    }, [sourceMode, productsApi, brand, branch]);
 
     const sortedBranchRows = useMemo(() => [...branchRows].sort((a,b)=>
       Number(b.hqRevenue||0)-Number(a.hqRevenue||0) ||
@@ -5750,32 +5423,8 @@
         scopeBranch:drilldown?.data?.scopeBranch || (drilldown?.type === "branch" ? drilldown?.data?.branch : "") || branch },
     }); };
 
-    const openBranch = async (row) => {
-      rememberDetail();
-      setDrilldown({ type:"branch", title:row.branch, loading:true, data:row });
-      if (sourceMode === "aggregated") {
-        try {
-          const data = await fetchJson(`${API}/dashboard/b2b/branches/${encodeURIComponent(row.id)}?month=${encodeURIComponent(month)}`);
-          setDrilldown({ type:"branch", title:row.branch, loading:false, data:{ ...row, ...(data?.data || data) } });
-          return;
-        } catch {}
-      }
-      setDrilldown({ type:"branch", title:row.branch, loading:false, data:row });
-    };
-
-    const openBrand = async (row) => {
-      rememberDetail();
-      setDrilldown({ type:"brand", title:row.brand, loading:true, data:row });
-      const selectedBranchRow = branch ? branchCatalog.find(b=>b.name===branch) : null;
-      if (sourceMode === "aggregated" && selectedBranchRow) {
-        try {
-          const data = await fetchJson(`${API}/dashboard/b2b/branches/${encodeURIComponent(selectedBranchRow.id)}/brands/${encodeURIComponent(row.id)}?month=${encodeURIComponent(month)}`);
-          setDrilldown({ type:"brand", title:row.brand, loading:false, data:{ ...row, ...(data?.data || data) } });
-          return;
-        } catch {}
-      }
-      setDrilldown({ type:"brand", title:row.brand, loading:false, data:row });
-    };
+    const openBranch = row => { rememberDetail(); setDrilldown({type:"branch",title:row.branch,loading:false,data:row}); };
+    const openBrand = row => { rememberDetail(); setDrilldown({type:"brand",title:row.brand,loading:false,data:row}); };
 
     const openSku = async (row) => {
       rememberDetail();
@@ -5783,9 +5432,9 @@
       const selectedBranchRow = row?.branchId
         ? { id:row.branchId, name:row.branch }
         : branchCatalog.find(b=>b.name===row.branch && (!row.brand || b.brandNames.includes(row.brand)));
-      if (sourceMode === "aggregated" && selectedBranchRow && (row?.productId ?? row?.id) != null) {
+      if (sourceMode === "aggregated" && selectedBranchRow && row?.productId != null) {
         try {
-          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row?.productId ?? row.id), brand:row.brand, branch:row.branch, month });
+          const q = new URLSearchParams({ branchId:String(selectedBranchRow.id), productId:String(row.productId), brand:row.brand, branch:row.branch, month });
           const data = await fetchJson(`${API}/dashboard/b2b/reconcile?${q.toString()}`);
           const detail = data?.data || data;
           if ((b2bBrandName(detail) && !b2bSameScope(b2bBrandName(detail), row.brand)) ||
@@ -5797,7 +5446,7 @@
           return;
         } catch {}
       }
-      setDrilldown({ type:"sku", title:row.product, loading:false, data:row, warning:"Full opening/receipt/POS/disposal/transfer/manual-adjustment evidence needs the B2B stock evidence endpoint and inventory movement references." });
+      setDrilldown({ type:"sku", title:row.product, loading:false, data:row, warning:"Recipe evidence is unavailable for this item. A valid product link and historical stock movement records are needed. The displayed revenue remains part of the transaction total." });
     };
 
     const stockDataReady = normalizedOverview.coverage != null || normalizedOverview.unexplained != null || normalizedOverview.sellThrough != null || branchRows.some(r=>r.stockVariance!=null || r.orderCoverage!=null) || brandRows.some(r=>r.endingStock!=null || r.stockVariance!=null);
@@ -5858,11 +5507,11 @@
       });
 
       if (!items.length) items.push({
-        priority:"Healthy position",
-        tone:"green",
-        title:"No immediate revenue or stock-control exception",
-        evidence:"Current targets, risk rules, and available stock movement evidence show no material exception.",
-        action:"Maintain controls, review the AI forecast, and continue monitoring changes by branch and SKU.",
+        priority:"Evidence needed",
+        tone:"amber",
+        title:"Stock accuracy cannot yet be verified",
+        evidence:"Historical opening/closing counts and complete stock movements are not available.",
+        action:"Record dated counts, receipts, recipe versions, waste, transfers and adjustments before calculating stock variance or loss.",
       });
 
       return items.slice(0,3);
@@ -5890,7 +5539,7 @@
               <div style={{ fontSize:18, fontWeight:850, color:"#12241B", lineHeight:1.25 }}>{hqRevenueStatus.title}</div>
               <div style={{ marginTop:5, fontSize:11.5, color:"#5C6B60", lineHeight:1.5 }}>
                 {hasPreviousHqRevenue
-                  ? <>This month is <b style={{color:hqRevenueStatus.color}}>{Math.abs(hqMoM || 0).toFixed(1)}% {hqRevenueDifference >= 0 ? "higher" : "lower"}</b> than last month based on total fulfilled/delivered Head Office supply orders.</>
+                  ? <>This month is <b style={{color:hqRevenueStatus.color}}>{Math.abs(hqMoM || 0).toFixed(1)}% {hqRevenueDifference >= 0 ? "higher" : "lower"}</b> than last month based on total received Head Office orders, grouped by receipt date (Philippine time).</>
                   : <>There is no previous-month Head Office supply revenue available yet for comparison.</>}
               </div>
             </div>
@@ -5940,6 +5589,7 @@
           </div>
         </div>
 
+        {overviewApi?.note && <p role="status" style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.6}}>{overviewApi.note}{overviewApi.undated_received_orders>0?` ${overviewApi.undated_received_orders} received orders have no receipt date and are excluded.`:""}</p>}
         {loadError && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fef2f2", border:"1px solid #f2c9c4", color:"#991b1b", fontSize:11.5, display:"flex", gap:7, alignItems:"flex-start" }}><AlertTriangle size={14} style={{flexShrink:0,marginTop:1}}/>{loadError}</div>}
         {sourceMode === "fallback" && <div style={{ marginBottom:12, padding:"10px 12px", borderRadius:10, background:"#fffbeb", border:"1px solid #fde68a", color:"#92400e", fontSize:10.8, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={14} style={{flexShrink:0,marginTop:1}}/><span>This view is using your existing Mobile Orders, POS transactions, and branch inventory endpoints. Exact historical ghost-stock proof still requires dated opening/closing counts and inventory movements linked to their source order, sale, disposal, or transfer.</span></div>}
 
@@ -5980,16 +5630,16 @@
 
         {isOverviewView && (
         <div className="b2b-kpi-grid b2b-overview-kpi-grid" style={{marginBottom:12}}>
-          <B2BMetricCard label="FranchiSync Supply Revenue" value={fmtAmt(normalizedOverview.hqRevenue)} icon={Package} tone="green" loading={loading} onClick={()=>openKpi("hqRevenue", "FranchiSync Supply Revenue")} note={`${hqMoM==null?"No prior-month baseline":`${hqMoM>=0?"+":""}${hqMoM.toFixed(1)}% vs last month`} · fulfilled/delivered HQ orders`} />
+          <B2BMetricCard label="FranchiSync Supply Revenue" value={fmtAmt(normalizedOverview.hqRevenue)} icon={Package} tone="green" loading={loading} onClick={()=>openKpi("hqRevenue", "FranchiSync Supply Revenue")} note={`${hqMoM==null?"No prior-month baseline":`${hqMoM>=0?"+":""}${hqMoM.toFixed(1)}% vs last month`} · received HQ orders · receipt date`} />
           <B2BMetricCard label="Franchisee POS Revenue" value={fmtAmt(normalizedOverview.posRevenue)} icon={ShoppingCart} tone="blue" loading={loading} onClick={()=>openKpi("posRevenue", "Franchisee POS Revenue")} note={`${posMoM==null?"No prior-month baseline":`${posMoM>=0?"+":""}${posMoM.toFixed(1)}% vs last month`} · paid/completed POS`} />
-          <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="High POS with weak HQ ordering or stock mismatch" />
+          <B2BMetricCard label="At-Risk Branches" value={normalizedOverview.atRisk==null?"—":Number(normalizedOverview.atRisk).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="Assessment unavailable until historical stock evidence is complete" />
         </div>
         )}
 
         {isGhostView && (
         <div className="b2b-kpi-grid" style={{marginBottom:15}}>
           {normalizedOverview.coverage != null && <B2BMetricCard label="HQ Order Coverage" value={normalizedOverview.coverage==null?"—":`${normalizedOverview.coverage.toFixed(1)}%`} icon={ShieldCheck} tone={normalizedOverview.coverage!=null&&normalizedOverview.coverage<70?"red":"green"} loading={loading} onClick={()=>openKpi("coverage", "HQ Order Coverage")} note={normalizedOverview.coverage==null?"Requires authorized stock movement evidence":"Authorized HQ stock coverage of reported sell-through"} />}
-          <B2BMetricCard label="At-Risk Branches" value={Number(normalizedOverview.atRisk||0).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note={`${anomalies.filter(a=>String(a.severity).toLowerCase().includes("high")).length} high-risk · ranked anomaly list`} />
+          <B2BMetricCard label="At-Risk Branches" value={normalizedOverview.atRisk==null?"—":Number(normalizedOverview.atRisk).toLocaleString()} icon={AlertTriangle} tone={normalizedOverview.atRisk>0?"red":"green"} loading={loading} onClick={()=>openKpi("atRisk", "At-Risk Branches")} note="Historical stock evidence is incomplete" />
           {normalizedOverview.unexplained != null && <B2BMetricCard label="Unexplained Stock" value={normalizedOverview.unexplained==null?"—":Number(normalizedOverview.unexplained).toLocaleString()} icon={Layers} tone={normalizedOverview.unexplained>0?"red":"green"} loading={loading} onClick={()=>openKpi("unexplained", "Unexplained Stock")} note={normalizedOverview.unexplained==null?"Requires opening/receipts/transfers/POS/disposal linkage":"Positive/negative stock variance requiring investigation"} />}
         </div>
         )}
@@ -6012,9 +5662,9 @@
           <div style={sectionCard}>
             <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:11,flexWrap:"wrap"}}>
               <div><div style={{fontSize:15,fontWeight:800,color:"#12241B"}}>Brand Performance</div><div style={{fontSize:10.8,color:"#5C6B60",marginTop:3}}>Which brand earns the most for FranchiSync this month</div></div>
-              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Largest POS–HQ gap: <b style={{color:"#b42318"}}>{monthlyLeaders.leakageBranch?`${monthlyLeaders.leakageBranch.branch} · ${monthlyLeaders.leakageBranch.brand}`:"—"}</b></div>
+              <div style={{fontSize:9.8,color:"#5C6B60",textAlign:"right",lineHeight:1.5}}>Top brand: <b style={{color:"#2c5c16"}}>{monthlyLeaders.hqBrand?.brand||"—"}</b><br/>Highest POS revenue: <b style={{color:"#b42318"}}>{monthlyLeaders.posBranch?`${monthlyLeaders.posBranch.branch} · ${monthlyLeaders.posBranch.brand}`:"—"}</b></div>
             </div>
-            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{Number(r.suppliedQty||0).toLocaleString()} / {Number(r.soldQty||0).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
+            <div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:540}}><thead><tr>{["Brand","HQ Supply","POS Revenue","Supplied / Sold"].map((h,i)=><th key={h} style={{...th,textAlign:i===0?"left":"right"}}>{h}</th>)}</tr></thead><tbody>{[...brandRows].sort((a,b)=>Number(b.hqRevenue||0)-Number(a.hqRevenue||0)).map((r,i)=><tr key={r.id} onClick={()=>openBrand(r)} style={{cursor:"pointer",background:i%2?"#FBFDF9":"#fff"}} onMouseEnter={e=>e.currentTarget.style.background="#F4F8F0"} onMouseLeave={e=>e.currentTarget.style.background=i%2?"#FBFDF9":"#fff"}><td style={{...td,fontWeight:800,color:"#12241B"}}>{r.brand}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{fmtAmt(r.hqRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{fmtAmt(r.posRevenue)}</td><td style={{...td,textAlign:"right",fontWeight:750}}>{r.suppliedQty==null?"—":Number(r.suppliedQty).toLocaleString()} / {r.soldQty==null?"—":Number(r.soldQty).toLocaleString()}</td></tr>)}{!brandRows.length&&<tr><td colSpan="4" style={{padding:26,textAlign:"center",fontSize:10.8,color:"#82907F"}}>No brand data for the selected month.</td></tr>}</tbody></table></div>
           </div>
         </div>
         )}
@@ -6041,9 +5691,9 @@
                 {drilldown.loading ? <div style={{padding:40,textAlign:"center",color:"#5C6B60"}}><RefreshCw size={22} style={{animation:"spin .8s linear infinite"}}/><div style={{marginTop:8,fontSize:11.5}}>Loading drilldown evidence…</div></div> : (
                   <>
                     {drilldown.warning && <div style={{marginBottom:12,padding:"10px 12px",borderRadius:10,background:"#fffbeb",border:"1px solid #fde68a",color:"#92400e",fontSize:10.8,lineHeight:1.5}}>{drilldown.warning}</div>}
-                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Branch context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Brand: <b>{drilldown.data?.brand || "Unassigned Brand"}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
-                    {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue)??0)} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue)??0)} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the ghost stock evidence table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
-                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}><thead><tr><th style={{...th,textAlign:"left"}}>Product / Brand</th>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"left"}}><b>{drilldown.data?.product || drilldown.data?.sku || "SKU"}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{drilldown.data?.brand || "Brand not set"}{drilldown.data?.branch?` · ${drilldown.data.branch}`:""}</div></td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#5C6B60",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
+                    {drilldown.type === "branch" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue))} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue))} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Why this branch is flagged</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>{drilldown.data?.reason || drilldown.data?.risk_reason || "No anomaly explanation was returned for this branch."}</div><div style={{marginTop:10}}><B2BRiskBadge risk={drilldown.data?.risk || drilldown.data?.risk_status}/></div></div><div style={sectionCard}><div style={{fontSize:12,fontWeight:800,color:"#12241B",marginBottom:8}}>Branch context</div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Branch: <b>{drilldown.data?.branch || drilldown.title}</b><br/>Brand: <b>{drilldown.data?.brand || "Unassigned Brand"}</b><br/>Location: <b>{drilldown.data?.location || "—"}</b><br/>Selected month: <b>{b2bMonthLabel(month)}</b></div></div></div></div>}
+                    {drilldown.type === "brand" && <div><div className="b2b-kpi-grid" style={{gridTemplateColumns:"repeat(2,minmax(0,1fr))",marginBottom:14}}><B2BMetricCard label="HQ Supply Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.hq_supply_revenue,drilldown.data?.hqRevenue))} icon={Package} note="Open complete HQ breakdown" onClick={()=>openKpi("hqRevenue","HQ Supply Revenue")}/><B2BMetricCard label="POS Revenue" value={fmtAmt(b2bNullableNum(drilldown.data?.pos_revenue,drilldown.data?.posRevenue))} icon={ShoppingCart} tone="blue" note="Open complete POS breakdown" onClick={()=>openKpi("posRevenue","POS Revenue")}/></div><div style={{fontSize:10.8,color:"#5C6B60",lineHeight:1.6}}>Click an SKU in the ghost stock evidence table for opening stock, HQ receipts, POS deductions, disposal, manual adjustment, closing stock and variance evidence.</div></div>}
+                    {drilldown.type === "sku" && <div><div style={tableWrap}><table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}><thead><tr><th style={{...th,textAlign:"left"}}>Product / Brand</th>{["Opening","HQ Receipts","POS Sold","Disposal / Waste","Transfer In","Transfer Out","Recorded Closing","Variance"].map(h=><th key={h} style={{...th,textAlign:"right"}}>{h}</th>)}</tr></thead><tbody><tr><td style={{...td,textAlign:"left"}}><b>{drilldown.data?.product || drilldown.data?.sku || "SKU"}</b><div style={{fontSize:9,color:"#5C6B60",marginTop:2}}>{drilldown.data?.brand || "Brand not set"}{drilldown.data?.branch?` · ${drilldown.data.branch}`:""}</div></td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock)==null?"—":b2bNullableNum(drilldown.data?.opening_stock,drilldown.data?.openingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNullableNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty)==null?"—":b2bNum(drilldown.data?.hq_received,drilldown.data?.received_qty,drilldown.data?.suppliedQty).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNullableNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty)==null?"—":b2bNum(drilldown.data?.pos_sold,drilldown.data?.sold_qty,drilldown.data?.soldQty).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.disposal,drilldown.data?.waste)==null?"—":b2bNum(drilldown.data?.disposal,drilldown.data?.waste).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_in)==null?"—":b2bNum(drilldown.data?.transfer_in).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.transfer_out)==null?"—":b2bNum(drilldown.data?.transfer_out).toLocaleString()}</td><td style={{...td,textAlign:"right"}}>{b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock)==null?"—":b2bNullableNum(drilldown.data?.closing_stock,drilldown.data?.endingStock).toLocaleString()}</td><td style={{...td,textAlign:"right",fontWeight:800,color:"#c0392b"}}>{b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance)==null?"—":b2bNullableNum(drilldown.data?.variance,drilldown.data?.stockVariance).toLocaleString()}</td></tr></tbody></table></div><div style={{marginTop:12,fontSize:10.5,color:"#5C6B60",lineHeight:1.55}}>Evidence endpoint should also return linked Mobile Order references, POS transactions, inventory movements, source/reference IDs, user/reason for manual adjustments, and before/after quantities.</div></div>}
                     {drilldown.type === "sku" && Array.isArray(drilldown.data?.ingredients) && (
                       <div style={{marginTop:14}}>
                         <div style={{fontSize:12.5,fontWeight:850,color:"#12241B",marginBottom:4}}>Specific ingredients for this product</div>
@@ -6052,15 +5702,15 @@
                         </div>
                         <div style={tableWrap}>
                           <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
-                            <thead><tr>{["Ingredient","Required usage","HQ received","Current stock","Unit","Variance"].map((label,index)=><th key={label} style={{...th,textAlign:index===0?"left":"right"}}>{label}</th>)}</tr></thead>
+                            <thead><tr>{["Ingredient","Usage (current recipe)","Branch receipts (shared)","Current stock (now)","Unit","Variance"].map((label,index)=><th key={label} style={{...th,textAlign:index===0?"left":"right"}}>{label}</th>)}</tr></thead>
                             <tbody>
                               {drilldown.data.ingredients.length ? [...drilldown.data.ingredients]
                                 .sort((a,b)=>String(a?.ingredient_name||"").localeCompare(String(b?.ingredient_name||"")))
                                 .map((ingredient,index)=><tr key={ingredient?.ingredient_id ?? `${ingredient?.ingredient_name}-${index}`} style={{background:index%2?"#FBFDF9":"#fff"}}>
                                   <td style={{...td,textAlign:"left",fontWeight:800,color:"#12241B"}}>{ingredient?.ingredient_name || "Unnamed ingredient"}</td>
-                                  <td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{b2bNum(ingredient?.expected_pos_usage).toLocaleString()}</td>
+                                  <td style={{...td,textAlign:"right",fontWeight:800,color:"#2563eb"}}>{ingredient?.expected_pos_usage==null?"—":Number(ingredient.expected_pos_usage).toLocaleString()}</td>
                                   <td style={{...td,textAlign:"right",fontWeight:800,color:"#3b791e"}}>{b2bNum(ingredient?.hq_received).toLocaleString()}</td>
-                                  <td style={{...td,textAlign:"right"}}>{b2bNullableNum(ingredient?.closing_stock)==null?"—":b2bNum(ingredient?.closing_stock).toLocaleString()}</td>
+                                  <td style={{...td,textAlign:"right"}}>{b2bNullableNum(ingredient?.current_stock)==null?"—":b2bNum(ingredient?.current_stock).toLocaleString()}</td>
                                   <td style={{...td,textAlign:"right"}}>{ingredient?.unit || "—"}</td>
                                   <td style={{...td,textAlign:"right",fontWeight:800,color:b2bNullableNum(ingredient?.variance)==null?"#94a3b8":"#c0392b"}}>{b2bNullableNum(ingredient?.variance)==null?"—":b2bNum(ingredient?.variance).toLocaleString()}</td>
                                 </tr>) : <tr><td colSpan="6" style={{padding:24,textAlign:"center",color:"#94a3b8",fontSize:10.8}}>No recipe ingredients are linked to this product for this brand and branch.</td></tr>}
@@ -6743,25 +6393,9 @@
         )}
 
         {!viewArchive && dashboardTab === "ghost" && (
-          <SalesVsStockSection
-            preset={preset}
-            appliedRange={appliedRange}
-            rangeMode={rangeMode}
-            filterBranch={filterBranch}
-            filterBrand={filterBrand}
-            selectedBrand={selectedBrand}
-            total={total}
-            transactions={filteredTransactions}
-          />
-        )}
-
-        {!viewArchive && dashboardTab === "ghost" && (
-          <div style={{ marginTop:18 }}>
-            <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"17px 18px", margin:"0 0 14px", borderRadius:14, background:"linear-gradient(135deg,#eff6ff,#f8fbff)", border:"1px solid #bfdbfe" }}>
-              <span style={{ width:34, height:34, borderRadius:10, display:"inline-flex", alignItems:"center", justifyContent:"center", background:"#2563eb", color:"#fff", flexShrink:0 }}><Brain size={17}/></span>
-              <div><div style={{ fontSize:14, fontWeight:850, color:"#1e3a5f" }}>AI Prescriptive Guidance</div><div style={{ fontSize:10.8, color:"#52627a", lineHeight:1.55, marginTop:4 }}>Use the detected ghost-stock and revenue-leakage evidence to generate prioritized corrective actions for the selected branches.</div></div>
-            </div>
-            <PrescriptiveSection transactions={filteredTransactions} filterLabel={filterLabel} preset={preset} total={total} values={values} labels={chartLabels} kpiData={kpiData} showStockAnomalies={false} />
+          <div style={{marginTop:18,padding:18,border:"1px solid #E1E6D8",borderRadius:14,background:"#fff",color:"#5C6B60",fontFamily:FONT}}>
+            <b>Stock loss assessment needs historical records</b>
+            <p>Opening stock, dated receipts and movements, recipe versions, and a closing count for the same period are required. Current stock and sales alone cannot confirm missing stock or revenue loss.</p>
           </div>
         )}
 
@@ -18188,4 +17822,5 @@
   }
   // ─── Exports ──────────────────────────────────────────────────────────────────
   export { ActionDropdown,  POSContent };
+
 

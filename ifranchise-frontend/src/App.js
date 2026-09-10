@@ -9,7 +9,7 @@ import Receipts from './components/Receipts';
 import ReschedulePage from "./components/ReschedulePage";
 
 function App() {
-  return (
+  return (  
     <Router>
       <div className="App">
         <Routes>

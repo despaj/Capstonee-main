@@ -1,3 +1,5 @@
+
+//copy here design
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -742,12 +744,22 @@ function Toast({ toast, onClose }) {
 // ─── BrandOverviewCard — Stock Inventory's ink-icon / 2-stat card ─────────────
 function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick }) {
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      className="stock-brand-overview-card"
       onClick={onClick}
+      onKeyDown={e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       style={{
-        textAlign:"left", width:"100%", padding:0, appearance:"none",
-        background:C.white, border:`1px solid ${C.border}`, borderRadius:18,
+        textAlign:"left", width:"100%", minWidth:0, minHeight:148, height:"auto",
+        padding:0, appearance:"none", display:"flex", flexDirection:"column",
+        alignItems:"stretch", justifyContent:"flex-start", gap:0, boxSizing:"border-box",
+        whiteSpace:"normal", background:C.white, border:`1px solid ${C.border}`, borderRadius:18,
         overflow:"hidden", boxShadow:"0 2px 10px rgba(50,109,32,.05)", cursor:"pointer",
         transition:"transform .2s ease, box-shadow .2s ease, border-color .2s ease",
         fontFamily:"inherit",
@@ -755,7 +767,7 @@ function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick })
       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 14px 32px rgba(50,109,32,.12)";e.currentTarget.style.borderColor=C.greenMid;}}
       onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 10px rgba(50,109,32,.05)";e.currentTarget.style.borderColor=C.border;}}
     >
-      <div style={{ padding:"18px 18px 15px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8", display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ width:"100%", minHeight:75, boxSizing:"border-box", flexShrink:0, padding:"18px 18px 15px", borderBottom:`1px solid ${C.border}`, background:"#fbfcf8", display:"flex", alignItems:"center", gap:12 }}>
         <div style={{ width:42, height:42, borderRadius:12, background:C.ink, color:C.lime, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           <StoreIcon size={19} color={C.lime}/>
         </div>
@@ -763,15 +775,15 @@ function BrandOverviewCard({ brand, branchCount, itemCount, lowCount, onClick })
           <div style={{ fontSize:15, fontWeight:800, color:C.ink, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{brand.name}</div>
           <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{branchCount} branch{branchCount===1?"":"es"}</div>
         </div>
-        <div style={{ width:30, height:30, borderRadius:9, background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.greenDk }}>
+        <div style={{ width:30, height:30, flexShrink:0, borderRadius:9, background:C.bg, border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:C.greenDk }}>
           <ArrowRightIcon size={13}/>
         </div>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:0, padding:"16px 18px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", width:"100%", minHeight:71, boxSizing:"border-box", gap:8, padding:"16px 18px" }}>
         <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Items</div><div style={{ fontSize:18, fontWeight:800, color:C.ink, marginTop:3 }}>{itemCount}</div></div>
         <div><div style={{ fontSize:10, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".05em" }}>Low</div><div style={{ fontSize:18, fontWeight:800, color:lowCount?C.red:C.green, marginTop:3 }}>{lowCount}</div></div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -2369,6 +2381,22 @@ const openBrand = brandId => {
     .inv-row:hover td { background: #F6F7F1 !important; }
     .edit-btn:hover  { background: ${C.greenLt} !important; color: ${C.greenDk} !important; }
     .del-btn:hover   { background: #fef2f2 !important; color: ${C.red} !important; }
+    div.stock-brand-overview-card {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      min-height: 148px !important;
+      height: auto !important;
+      padding: 0 !important;
+      gap: 0 !important;
+      border-radius: 18px !important;
+      white-space: normal !important;
+      box-sizing: border-box !important;
+    }
     button:not(:disabled) { transition: filter .15s ease, transform .1s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease; cursor: pointer; }
     button:not(:disabled):hover { filter: brightness(0.96); }
     button:not(:disabled):active { transform: translateY(1px); }
@@ -2392,7 +2420,7 @@ const openBrand = brandId => {
         ) : brandList.length === 0 ? (
           <div style={{ padding:"52px 0", textAlign:"center", color:C.muted, fontSize:13, fontStyle:"italic" }}>No brands found.</div>
         ) : (
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,300px),1fr))", gap:14 }}>
             {brandList.map(b => {
               const branchNames = (b.branches||[]).map(br=>typeof br==="string"?br:br.name);
               const brandItems  = inventoryForCatalogue.filter(i => (i.brand || branchToBrand[i.branch]) === b.name && branchNames.includes(i.branch));
